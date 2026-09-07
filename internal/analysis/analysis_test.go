@@ -2,6 +2,9 @@ package analysis
 
 import (
 	"context"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	reviewcontext "pr-review/internal/context"
@@ -35,6 +38,23 @@ func TestConsentBindsExactPayloadAndFallback(t *testing.T) {
 	r = Analyze(context.Background(), f, Config{Provider: "fake", Model: "changed", MaxOutputTokens: 1}, raw, c, inv, reviewcontext.ContextBundle{})
 	if f.calls != 1 || r.Status != "denied" {
 		t.Fatalf("consent bypass: calls=%d result=%+v", f.calls, r)
+	}
+}
+
+func TestAnthropicTransportIsBoundedAndUsesHeaders(t *testing.T) {
+	var got []byte
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("x-api-key") != "secret" || r.Header.Get("anthropic-version") == "" {
+			t.Error("missing provider headers")
+		}
+		got, _ = io.ReadAll(r.Body)
+		w.Header().Set("content-type", "application/json")
+		_, _ = w.Write([]byte(`{"content":[{"text":"{}"}]}`))
+	}))
+	defer srv.Close()
+	out, err := (Anthropic{Endpoint: srv.URL}).Complete(context.Background(), Config{Model: "model", APIKey: "secret", MaxOutputTokens: 10}, []byte("payload"))
+	if err != nil || string(out) != "{}" || len(got) == 0 {
+		t.Fatalf("out=%q err=%v request=%d", out, err, len(got))
 	}
 }
 
