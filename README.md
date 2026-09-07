@@ -1,6 +1,6 @@
 # pr-review
 
-Read-only, pinned GitHub PR review in a local terminal. Deterministic file slices, actual Git unified diffs, durable local reading progress, and explicit revision checks. No generated analysis, model configuration, server, or telemetry. Phases 1 and 2 implemented.
+Read-only, pinned GitHub PR review in a local terminal. Deterministic file slices, bounded pinned repository evidence, durable local reading progress, and explicit revision checks. No generated analysis, model configuration, server, or telemetry. Phases 1-3 implemented.
 
 ## Run
 
@@ -9,6 +9,7 @@ Building requires Go 1.26.8+. Opening a new comparison requires Git and authenti
 ```sh
 go run ./cmd/pr-review open https://github.com/owner/repo/pull/42 --repo /path/to/checkout
 go run ./cmd/pr-review open 42 --repo /path/to/checkout --github-repo owner/repo --plain
+go run ./cmd/pr-review open 42 --repo /path/to/checkout --github-repo owner/repo --exclude 'secrets/*'
 go run ./cmd/pr-review sessions
 go run ./cmd/pr-review resume SESSION_ID
 go run ./cmd/pr-review resume SESSION_ID --offline --plain
@@ -19,7 +20,7 @@ go build -o pr-review ./cmd/pr-review
 
 `open`, normal `resume`, and explicit refresh contact GitHub. `sessions`, `delete`, and `resume --offline` do not. Implementation tests use synthetic objects and mocked GitHub only. No source is uploaded to a model or other service. Git fetch sends requested revision IDs and Git protocol negotiation to GitHub; metadata/authentication use the user's trusted `gh` installation.
 
-`--plain` emits escaped text without a pager, color, terminal control sequences, or interaction. It is automatic for redirected stdin/stdout or `TERM=dumb`. Exit codes: 0 successful raw inventory, 1 invalid input/open/runtime failure, 2 unavailable review content, 130 canceled loading. Exit 0 is not approval or evidence that you read the review.
+`--plain` emits escaped text without a pager, color, terminal control sequences, or interaction. It includes the bounded evidence scope report. It is automatic for redirected stdin/stdout or `TERM=dumb`. Exit codes: 0 successful raw inventory, 1 invalid input/open/runtime failure, 2 unavailable review content, 130 canceled loading. Exit 0 is not approval or evidence that you read the review.
 
 ## Keyboard
 
@@ -33,6 +34,7 @@ go build -o pr-review ./cmd/pr-review
 | `h` / `l`, left / right | Horizontal scrolling; no hidden line truncation in plain output |
 | Home | Reset selected unit's scroll |
 | `i` | Toggle full unit inventory |
+| `e` | Show bounded evidence and included/excluded scope |
 | `g` | Show canonical GitHub URL for copying; does not launch a browser |
 | `m` | Mark/unmark the selected file slice; saves immediately, including when viewing one of its units |
 | `r` | Explicit metadata refresh; no diff recomputation or polling |
@@ -52,6 +54,8 @@ Every `open` saves a new frozen session, even with `--plain`. `sessions` lists f
 - `check_failed`: metadata/authentication/connectivity failed; freshness unknown, frozen review still available.
 
 Resume checks metadata by default; `--offline` disables all network actions for that invocation. New comparisons use the saved absolute checkout path unless `resume --repo` overrides it. Failed replacement preserves the old snapshot/progress. Every new session or plan version starts unreviewed, even with identical patch bytes; Phase 2 exposes only the deterministic `file-v1` plan. Local completion never means GitHub approval or complete source availability.
+
+Phase 3 evidence is read only from pinned Git tree/blob objects. It prioritizes manifests, documentation, nearby tests, and changed directories within 100 files, 32 KiB per excerpt, 256 KiB retained bytes, and five seconds. Press `e` to inspect retained evidence and omissions. Relationships are observational unless explicitly marked otherwise; AST indexing and history expansion are deferred. Exclusions are local policy, and credential filters are defense in depth rather than secret detection.
 
 ## Local Storage And Deletion
 
