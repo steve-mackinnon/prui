@@ -62,6 +62,7 @@ func run(args []string) int {
 	r := source.NewRunner()
 	limits := source.Defaults()
 	app := application{store: store, runner: r, limits: limits}
+	app.policy.Excluded = append([]string(nil), o.Excludes...)
 	// gh runs outside both the workspace and the reviewed checkout.
 	if !o.Offline {
 		dir, err := os.MkdirTemp("", "pr-review-gh-")

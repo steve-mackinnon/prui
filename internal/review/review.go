@@ -2,7 +2,9 @@ package review
 
 import (
 	"context"
+	reviewcontext "pr-review/internal/context"
 	"pr-review/internal/inventory"
+	"pr-review/internal/privacy"
 	"pr-review/internal/session"
 	"pr-review/internal/source"
 )
@@ -11,6 +13,10 @@ type Slice = session.Slice
 type Session = session.Record
 
 func Open(ctx context.Context, checkout string, id source.Identity, gh source.GitHub, r source.Runner, l source.Limits, notify func(string)) (*Session, error) {
+	return OpenWithPolicy(ctx, checkout, id, gh, r, l, notify, privacy.Policy{})
+}
+
+func OpenWithPolicy(ctx context.Context, checkout string, id source.Identity, gh source.GitHub, r source.Runner, l source.Limits, notify func(string), policy privacy.Policy) (*Session, error) {
 	v, p, e := source.Pin(ctx, checkout, id, gh, r, l, notify)
 	if e != nil {
 		return nil, e
@@ -20,7 +26,9 @@ func Open(ctx context.Context, checkout string, id source.Identity, gh source.Gi
 	if e != nil {
 		return nil, e
 	}
+	contextBundle := reviewcontext.Retrieve(ctx, v, p, inv, policy, reviewcontext.Defaults)
 	s := &Session{Snapshot: session.Snapshot{Inventory: inv, PlanVersion: "file-v1", Checkout: []byte(checkout), Slices: make([]Slice, len(inv.Files)), UnitFiles: make([]int, len(inv.Units))}}
+	s.Context = contextBundle
 	index := map[string]int{}
 	for i, f := range inv.Files {
 		index[f.ID] = i

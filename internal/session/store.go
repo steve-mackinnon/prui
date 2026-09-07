@@ -16,6 +16,7 @@ import (
 	"syscall"
 	"time"
 
+	reviewcontext "pr-review/internal/context"
 	"pr-review/internal/inventory"
 )
 
@@ -42,6 +43,7 @@ type Snapshot struct {
 	PlanVersion string
 	Slices      []Slice
 	UnitFiles   []int
+	Context     reviewcontext.ContextBundle
 }
 
 type State struct {

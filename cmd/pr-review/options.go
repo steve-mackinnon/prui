@@ -9,7 +9,7 @@ import (
 	"pr-review/internal/source"
 )
 
-const usage = `pr-review open <PR-URL-or-number> --repo <checkout> [--github-repo owner/repo] [--plain]
+const usage = `pr-review open <PR-URL-or-number> --repo <checkout> [--github-repo owner/repo] [--exclude pattern] [--plain]
 pr-review sessions
 pr-review resume <id> [--offline] [--plain] [--new] [--repo <checkout>]
 pr-review delete <id>
@@ -21,6 +21,7 @@ type options struct {
 	Identity                    source.Identity
 	Checkout                    string
 	Plain, Offline, New         bool
+	Excludes                    []string
 }
 
 func parseOptions(args []string) (options, error) {
@@ -39,6 +40,7 @@ func parseOptions(args []string) (options, error) {
 		f.StringVar(&o.Checkout, "repo", "", "existing local checkout")
 		f.StringVar(&repository, "github-repo", "", "explicit owner/repo for numbers")
 		f.BoolVar(&o.Plain, "plain", false, "non-interactive escaped text, no pager")
+		f.Func("exclude", "withhold matching path (repeatable)", func(v string) error { o.Excludes = append(o.Excludes, v); return nil })
 	case "resume":
 		f.StringVar(&o.Checkout, "repo", "", "checkout override for a new comparison")
 		f.BoolVar(&o.Plain, "plain", false, "non-interactive escaped text, no pager")

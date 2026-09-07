@@ -7,6 +7,7 @@ import (
 	"io"
 	"path/filepath"
 
+	"pr-review/internal/privacy"
 	"pr-review/internal/review"
 	"pr-review/internal/session"
 	"pr-review/internal/source"
@@ -19,6 +20,7 @@ type application struct {
 	setupError error
 	runner     source.Runner
 	limits     source.Limits
+	policy     privacy.Policy
 }
 
 func (a *application) Metadata(ctx context.Context, id source.Identity) (source.Metadata, error) {
@@ -45,7 +47,7 @@ func (a *application) open(ctx context.Context, checkout string, id source.Ident
 	if err != nil {
 		return nil, err
 	}
-	raw, err := review.Open(ctx, checkout, id, a.gh, a.runner, a.limits, notify)
+	raw, err := review.OpenWithPolicy(ctx, checkout, id, a.gh, a.runner, a.limits, notify, a.policy)
 	if err != nil {
 		return nil, err
 	}

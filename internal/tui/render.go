@@ -63,6 +63,10 @@ func Plain(s *review.Session) string {
 		b.WriteString("Session: " + s.ID + " | plan: " + Escape(s.PlanVersion) + "\n" + progress(s) + "\n")
 		b.WriteString("Optional full source context not retained; frozen patches and metadata available.\n")
 	}
+	b.WriteString(fmt.Sprintf("Evidence: %d retained, %d omitted; examined paths: %d; budgets files=%d excerpts=%d bytes=%d\n", len(s.Context.Evidence), len(s.Context.OmittedPaths), len(s.Context.ExaminedPaths), s.Context.FileBudget, s.Context.ExcerptBudget, s.Context.ByteBudget))
+	for _, budget := range s.Context.ExhaustedBudgets {
+		b.WriteString("SCOPE WARNING: " + Escape(budget) + " budget exhausted\n")
+	}
 	if len(s.Inventory.Files) == 0 {
 		b.WriteString("Empty comparison: no net tree changes.\n")
 	}
@@ -73,6 +77,22 @@ func Plain(s *review.Session) string {
 		b.WriteString("\n" + unitText(s, i))
 	}
 	return b.String()
+}
+
+func (m *Model) evidenceView() string {
+	c := m.Session.Context
+	lines := []string{status(m.Session), fmt.Sprintf("Evidence scope | retained %d | omitted %d | examined paths %d", len(c.Evidence), len(c.OmittedPaths), len(c.ExaminedPaths)), fmt.Sprintf("budgets: files %d | excerpt %d bytes | retained %d bytes", c.FileBudget, c.ExcerptBudget, c.ByteBudget)}
+	for _, b := range c.ExhaustedBudgets {
+		lines = append(lines, "WARNING budget exhausted: "+Escape(b))
+	}
+	for _, e := range c.Evidence {
+		lines = append(lines, fmt.Sprintf("[observed] %s @ %.12s %s:%d-%d (%s)", e.Kind, e.CommitSHA, Escape(string(e.Path)), e.LineStart, e.LineEnd, Escape(e.RetrievalReason)))
+	}
+	for _, o := range c.OmittedPaths {
+		lines = append(lines, fmt.Sprintf("[omitted] %s: %s", Escape(string(o.Path)), Escape(o.Reason)))
+	}
+	lines = append(lines, "e: return | raw inventory remains available | omissions are not missing diff entries")
+	return strings.Join(lines, "\n")
 }
 func visibleWidth(s string) int { return lipgloss.Width(s) }
 func clip(s string, w int) string {

@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	reviewcontext "pr-review/internal/context"
 	"pr-review/internal/inventory"
 )
 
@@ -16,7 +17,7 @@ func fixture() Snapshot {
 	ref := fmt.Sprintf("%x", sha256.Sum256(patch))
 	i := inventory.Inventory{Complete: true, Files: []inventory.FileChange{{ID: "file", NewPath: []byte{'a', 0xff}}}, Units: []inventory.ReviewUnit{{ID: "unit", InventoryID: "inventory", FileChangeID: "file", Kind: inventory.TextHunk, PatchReference: ref}}, Patches: map[string][]byte{ref: patch}}
 	i.Comparison.InventoryID = "inventory"
-	return Snapshot{Inventory: i, PlanVersion: "file-v1", Slices: []Slice{{FileID: "file", Units: []int{0}}}, UnitFiles: []int{0}}
+	return Snapshot{Inventory: i, PlanVersion: "file-v1", Slices: []Slice{{FileID: "file", Units: []int{0}}}, UnitFiles: []int{0}, Context: reviewcontext.ContextBundle{ComparisonID: "inventory", Evidence: []reviewcontext.Evidence{{EvidenceID: "evidence", CommitSHA: "commit", Path: []byte("README.md"), Excerpt: []byte("docs")}}, OmittedPaths: []reviewcontext.Omitted{{Path: []byte(".env"), Reason: "credential-like filename"}}}}
 }
 
 func TestStoreRestartFrozenBytesAndProgress(t *testing.T) {
@@ -52,6 +53,9 @@ func TestStoreRestartFrozenBytesAndProgress(t *testing.T) {
 		if !bytes.Equal(got.Inventory.Patches[ref], patch) {
 			t.Fatal("lost patch bytes")
 		}
+	}
+	if len(got.Context.Evidence) != 1 || len(got.Context.OmittedPaths) != 1 {
+		t.Fatal("lost persisted evidence scope")
 	}
 	for _, path := range []string{dir, filepath.Join(dir, r.ID), filepath.Join(dir, r.ID, "snapshot.json"), filepath.Join(dir, r.ID, "state.json")} {
 		info, err := os.Stat(path)
