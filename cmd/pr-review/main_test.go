@@ -13,7 +13,12 @@ func TestOptions(t *testing.T) {
 		{[]string{"open", "1", "--repo", "/tmp/checkout", "--github-repo", "o/r"}, true},
 		{[]string{"open", "1", "--repo", "/tmp/checkout"}, false},
 		{[]string{"open", "https://github.com/o/r/pull/1"}, false},
-		{[]string{"sessions"}, false}, {[]string{"open", "1", "--repo", "x", "--github-repo", "o/r", "extra"}, false},
+		{[]string{"sessions"}, true}, {[]string{"open", "1", "--repo", "x", "--github-repo", "o/r", "extra"}, false},
+		{[]string{"resume", "0123456789abcdef0123456789abcdef", "--offline", "--plain"}, true},
+		{[]string{"delete", "../outside"}, false},
+		{[]string{"resume", "0123456789abcdef0123456789abcdef", "--offline", "--new"}, false},
+		{[]string{"sessions", "extra"}, false},
+		{[]string{"resume"}, false},
 	} {
 		_, e := parseOptions(tc.args)
 		if (e == nil) != tc.valid {

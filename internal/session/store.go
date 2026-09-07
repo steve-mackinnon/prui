@@ -99,6 +99,21 @@ func Open(path string) (*Store, error) {
 	if err = privatePath(path, true); err != nil {
 		return nil, err
 	}
+	entries, err := os.ReadDir(path)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := os.Lstat(filepath.Join(path, ".format")); os.IsNotExist(err) {
+		for _, entry := range entries {
+			if entry.Name() != ".lock" {
+				return nil, errors.New("refusing nonempty directory without pr-review storage marker")
+			}
+		}
+	}
+	lockPath := filepath.Join(path, ".lock")
+	if err := privatePath(lockPath, false); err != nil && !os.IsNotExist(err) {
+		return nil, err
+	}
 	lock, err := os.OpenFile(filepath.Join(path, ".lock"), os.O_CREATE|os.O_RDWR|syscall.O_NOFOLLOW, 0600)
 	if err != nil {
 		return nil, err
@@ -107,7 +122,32 @@ func Open(path string) (*Store, error) {
 		lock.Close()
 		return nil, errors.New("session storage busy: another pr-review process holds the writer lock")
 	}
+	if err := storageFormat(path); err != nil {
+		lock.Close()
+		return nil, err
+	}
 	return &Store{path: path, lock: lock}, nil
+}
+
+func storageFormat(path string) error {
+	type format struct {
+		Application string
+		Version     int
+	}
+	expected := format{"pr-review", SchemaVersion}
+	marker := filepath.Join(path, ".format")
+	if _, err := os.Lstat(marker); os.IsNotExist(err) {
+		b, _ := json.Marshal(expected)
+		return atomicWrite(path, ".format", b)
+	}
+	var got format
+	if _, err := readJSON(marker, &got); err != nil {
+		return err
+	}
+	if got != expected {
+		return errors.New("unsupported storage format; original retained")
+	}
+	return nil
 }
 
 func (s *Store) Path() string { return s.path }

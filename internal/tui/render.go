@@ -59,6 +59,10 @@ func Plain(s *review.Session) string {
 	var b strings.Builder
 	b.WriteString(status(s) + "\n" + s.Inventory.Comparison.Metadata.Identity.URL() + "\n")
 	b.WriteString(fmt.Sprintf("%d files; %d units. Reading is not GitHub approval.\n", len(s.Inventory.Files), len(s.Inventory.Units)))
+	if s.ID != "" {
+		b.WriteString("Session: " + s.ID + " | plan: " + Escape(s.PlanVersion) + "\n" + progress(s) + "\n")
+		b.WriteString("Optional full source context not retained; frozen patches and metadata available.\n")
+	}
 	if len(s.Inventory.Files) == 0 {
 		b.WriteString("Empty comparison: no net tree changes.\n")
 	}

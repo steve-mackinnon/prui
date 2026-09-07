@@ -3,9 +3,7 @@ package main
 import (
 	"context"
 	"errors"
-	"flag"
 	"fmt"
-	"io"
 	"os"
 	"os/signal"
 	"syscall"
@@ -13,39 +11,11 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/term"
 	"pr-review/internal/review"
+	"pr-review/internal/session"
 	"pr-review/internal/source"
 	"pr-review/internal/tui"
 )
 
-const usage = "pr-review open <PR-URL-or-number> --repo <checkout> [--github-repo owner/repo] [--plain]"
-
-type options struct {
-	Identity source.Identity
-	Checkout string
-	Plain    bool
-}
-
-func parseOptions(args []string) (options, error) {
-	var o options
-	if len(args) < 2 || args[0] != "open" {
-		return o, errors.New(usage)
-	}
-	f := flag.NewFlagSet("open", flag.ContinueOnError)
-	f.SetOutput(io.Discard)
-	f.StringVar(&o.Checkout, "repo", "", "existing local checkout")
-	var repository string
-	f.StringVar(&repository, "github-repo", "", "explicit owner/repo for numbers")
-	f.BoolVar(&o.Plain, "plain", false, "non-interactive escaped text, no pager")
-	if e := f.Parse(args[2:]); e != nil {
-		return o, e
-	}
-	if f.NArg() != 0 || o.Checkout == "" {
-		return o, errors.New(usage)
-	}
-	var e error
-	o.Identity, e = source.ParseIdentity(args[1], repository)
-	return o, e
-}
 func run(args []string) int {
 	if len(args) == 1 && (args[0] == "--help" || args[0] == "-h") {
 		fmt.Println(usage)
@@ -58,25 +28,58 @@ func run(args []string) int {
 	}
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
+	if o.Storage == "" {
+		o.Storage, e = session.DefaultPath()
+		if e != nil {
+			fmt.Fprintln(os.Stderr, tui.Escape(e.Error()))
+			return 1
+		}
+	}
+	if o.Checkout != "" {
+		if e := outsideCheckout(o.Storage, o.Checkout); e != nil {
+			fmt.Fprintln(os.Stderr, tui.Escape(e.Error()))
+			return 1
+		}
+	}
+	store, e := session.Open(o.Storage)
+	if e != nil {
+		fmt.Fprintln(os.Stderr, tui.Escape(e.Error()))
+		return 1
+	}
+	defer store.Close()
+	fmt.Fprintln(os.Stderr, "Local session storage:", tui.Escape(store.Path()))
+	if o.Command == "sessions" {
+		return listSessions(store, os.Stdout)
+	}
+	if o.Command == "delete" {
+		if e := store.Delete(o.SessionID); e != nil {
+			fmt.Fprintln(os.Stderr, tui.Escape(e.Error()))
+			return 1
+		}
+		fmt.Println("Deleted local session", o.SessionID, "(not provider records or forensic disk traces).")
+		return 0
+	}
 	r := source.NewRunner()
 	limits := source.Defaults()
+	app := application{store: store, runner: r, limits: limits}
 	// gh runs outside both the workspace and the reviewed checkout.
-	dir, e := os.MkdirTemp("", "pr-review-gh-")
-	if e != nil {
-		fmt.Fprintln(os.Stderr, "cannot create private metadata workspace")
-		return 1
-	}
-	defer os.RemoveAll(dir)
-	gh, e := source.NewGH(r, limits, dir)
-	if e != nil {
-		fmt.Fprintln(os.Stderr, "gh executable required; install GitHub CLI and authenticate")
-		return 1
+	if !o.Offline {
+		dir, err := os.MkdirTemp("", "pr-review-gh-")
+		app.setupError = err
+		if err == nil {
+			defer os.RemoveAll(dir)
+			app.gh, app.setupError = source.NewGH(r, limits, dir)
+		}
 	}
 	load := func(c context.Context, notify func(string)) (*review.Session, error) {
-		return review.Open(c, o.Checkout, o.Identity, gh, r, limits, notify)
+		return app.load(c, o, notify)
 	}
 	if o.Plain || os.Getenv("TERM") == "dumb" || !term.IsTerminal(os.Stdout.Fd()) || !term.IsTerminal(os.Stdin.Fd()) {
-		fmt.Fprintln(os.Stderr, "Reading GitHub PR metadata; source stays local. Missing objects may be fetched.")
+		if o.Offline {
+			fmt.Fprintln(os.Stderr, "Offline snapshot; no freshness check or network access.")
+		} else {
+			fmt.Fprintln(os.Stderr, "Reading GitHub PR metadata; source stays local. New comparisons may fetch missing objects.")
+		}
 		s, e := load(ctx, func(s string) { fmt.Fprintln(os.Stderr, tui.Escape(s)) })
 		if e != nil {
 			fmt.Fprintln(os.Stderr, tui.Escape(e.Error()))
@@ -93,21 +96,26 @@ func run(args []string) int {
 		}
 		return 0
 	}
-	started, done := make(chan struct{}), make(chan struct{})
-	m := tui.New(ctx, func(c context.Context, n func(string)) (*review.Session, error) {
-		close(started)
-		defer close(done)
-		return load(c, n)
+	m := tui.New(ctx, load)
+	var reader review.MetadataReader = &app
+	if o.Offline {
+		reader = nil
+	}
+	m.SetLifecycle(store, reader, func(c context.Context, old *review.Session, n func(string)) (*review.Session, error) {
+		if o.Offline {
+			return nil, errors.New("offline mode: resume without --offline to start a new comparison")
+		}
+		override := ""
+		if old.ID == o.SessionID {
+			override = o.Checkout
+		}
+		return app.fresh(c, old, override, n)
 	})
 	p := tea.NewProgram(m, tea.WithContext(ctx))
 	m.SetNotifier(func(s string) { p.Send(tui.Notice(s)) })
 	_, e = p.Run()
 	cancel()
-	select {
-	case <-started:
-		<-done
-	default:
-	}
+	m.Close()
 	if e != nil {
 		fmt.Fprintln(os.Stderr, "terminal review stopped; use --plain for non-interactive output")
 		return 1

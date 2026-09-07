@@ -7,6 +7,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"pr-review/internal/review"
+	"pr-review/internal/session"
 )
 
 type Loader func(context.Context, func(string)) (*review.Session, error)
@@ -23,6 +24,14 @@ type Model struct {
 	Width, Height, Horizontal     int
 	Inventory, Details, Help, URL bool
 	Loading                       bool
+	Busy, Picker                  bool
+	PickerIndex                   int
+	Entries                       []session.Entry
+	ActionError                   error
+	store                         *session.Store
+	reader                        review.MetadataReader
+	fresh                         FreshLoader
+	worker                        <-chan struct{}
 	notice                        string
 	ctx                           context.Context
 	cancel                        context.CancelFunc
@@ -36,14 +45,14 @@ func New(parent context.Context, load Loader) *Model {
 }
 func (m *Model) SetNotifier(f func(string)) { m.notify = f }
 func (m *Model) Init() tea.Cmd {
-	return func() tea.Msg {
+	return m.start(func() tea.Msg {
 		n := m.notify
 		if n == nil {
 			n = func(string) {}
 		}
 		s, e := m.load(m.ctx, n)
 		return Loaded{s, e}
-	}
+	})
 }
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch v := msg.(type) {
@@ -51,12 +60,36 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.Session = v.Session
 		m.Err = v.Err
 		m.Loading = false
+		m.Busy = false
+	case ActionResult:
+		m.Busy = false
+		m.ActionError = v.Err
+		if v.Err == nil && v.Session != nil {
+			m.Session = v.Session
+			if v.Reset {
+				m.Selected, m.Horizontal = 0, 0
+				m.Scroll = map[int]int{}
+				m.Picker = false
+				m.Help, m.URL = false, false
+			}
+		}
 	case Notice:
 		m.notice = string(v)
 	case tea.WindowSizeMsg:
 		m.Width = max(1, v.Width)
 		m.Height = max(1, v.Height)
 	case tea.KeyPressMsg:
+		if v.String() != "q" && v.String() != "ctrl+c" {
+			if m.Busy {
+				return m, nil
+			}
+			if m.Picker {
+				return m, m.pickerKey(v.String())
+			}
+			if cmd, handled := m.lifecycleKey(v.String()); handled {
+				return m, cmd
+			}
+		}
 		switch v.String() {
 		case "q", "ctrl+c":
 			m.cancel()
@@ -140,8 +173,13 @@ func (m *Model) View() tea.View {
 		text = "Unable to open review\n" + Escape(m.Err.Error()) + "\nNo complete comparison available. q: quit"
 	case m.Session == nil:
 		text = "No review loaded. q: quit"
+	case m.Picker:
+		text = m.pickerView()
 	case m.Help:
-		text = "Keyboard\nn/p: next/previous unit | [/]: next/previous file\nup/down: move focused pane | tab/enter: switch focus/pane\nj/k: scroll diff | pgup/pgdown/space: page\nh/l or left/right: horizontal scroll | home: reset scroll\ni: full inventory | g: GitHub URL | ?: help | q: quit\nControls and invalid bytes escaped. No mouse capture.\nReading is not GitHub approval; no progress saved in Phase 1."
+		text = "Keyboard\nn/p: next/previous unit | [/]: next/previous file\nup/down: move focused pane | tab/enter: switch focus/pane\nj/k: scroll diff | pgup/pgdown/space: page\nh/l or left/right: horizontal scroll | home: reset scroll\ni: full inventory | g: GitHub URL | ?: help | q: quit\nm: mark/unmark file slice | r: refresh GitHub metadata\ns: saved sessions | N: new comparison, empty progress\nControls and invalid bytes escaped. No mouse capture.\nReading progress is local, not GitHub approval.\nOptional full source context is not retained."
+		if m.store != nil {
+			text += "\nStorage: " + Escape(m.store.Path()) + "\nSession: " + m.Session.ID
+		}
 	case m.URL:
 		text = m.Session.Inventory.Comparison.Metadata.Identity.URL() + "\nOpen this URL in your browser for GitHub review actions.\ng: return | q: quit"
 	default:
@@ -161,8 +199,11 @@ func (m *Model) View() tea.View {
 func (m *Model) reviewView() string {
 	s := m.Session
 	title := status(s)
+	if s.ID != "" {
+		title += "\n" + progress(s)
+	}
 	if len(s.Inventory.Units) == 0 {
-		return title + "\nEmpty comparison: no net tree changes.\nq: quit | g: GitHub URL"
+		return title + "\nEmpty comparison: no net tree changes.\n" + m.footer()
 	}
 	kind := s.Inventory.Units[m.Selected].Kind
 	focus := "files"
@@ -175,6 +216,9 @@ func (m *Model) reviewView() string {
 	}
 	header := fmt.Sprintf("%s | focus: %s | unit %d/%d [%s]", label, focus, m.Selected+1, len(s.Inventory.Units), kind)
 	bodyHeight := max(1, m.Height-4)
+	if s.ID != "" {
+		bodyHeight = max(1, m.Height-5)
+	}
 	list := []string{}
 	selectedRow := 0
 	if m.Inventory {
@@ -193,7 +237,7 @@ func (m *Model) reviewView() string {
 			if i == selectedRow {
 				marker = "> "
 			}
-			list = append(list, marker+pathLabel(f))
+			list = append(list, marker+readMarker(s, f.ID)+pathLabel(f))
 		}
 	}
 	start := max(0, selectedRow-bodyHeight+1)
@@ -226,5 +270,5 @@ func (m *Model) reviewView() string {
 			body = append(body, left+strings.Repeat(" ", max(0, leftWidth-visibleWidth(left)))+" | "+clip(right, m.Width-leftWidth-3))
 		}
 	}
-	return title + "\n" + header + "\n" + strings.Join(body, "\n") + "\nn/p unit  [/] file  tab pane  j/k scroll  i inventory  g URL  ? help  q quit"
+	return title + "\n" + header + "\n" + strings.Join(body, "\n") + "\n" + m.footer()
 }
