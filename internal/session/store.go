@@ -1,0 +1,401 @@
+package session
+
+import (
+	"bytes"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"os"
+	"path/filepath"
+	"regexp"
+	"runtime"
+	"sync"
+	"syscall"
+	"time"
+
+	"pr-review/internal/inventory"
+)
+
+const SchemaVersion = 1
+const maxJSONBytes = 128 << 20
+
+type RevisionStatus string
+
+const (
+	Unchecked   RevisionStatus = "unchecked"
+	Current     RevisionStatus = "current"
+	Stale       RevisionStatus = "stale"
+	CheckFailed RevisionStatus = "check_failed"
+)
+
+type Slice struct {
+	FileID string
+	Units  []int
+}
+
+type Snapshot struct {
+	Checkout    []byte
+	Inventory   inventory.Inventory
+	PlanVersion string
+	Slices      []Slice
+	UnitFiles   []int
+}
+
+type State struct {
+	SchemaVersion     int            `json:"schema_version"`
+	ID                string         `json:"session_id"`
+	SnapshotReference string         `json:"snapshot_reference"`
+	ReviewedSliceIDs  []string       `json:"reviewed_slice_ids"`
+	RevisionStatus    RevisionStatus `json:"revision_status"`
+	UpdatedAt         time.Time      `json:"updated_at"`
+	Generation        uint64         `json:"generation"`
+}
+
+type Record struct {
+	Snapshot
+	State
+}
+
+type Entry struct {
+	ID     string
+	Record *Record
+	Err    error
+}
+
+type Store struct {
+	mu   sync.Mutex
+	path string
+	lock *os.File
+}
+
+var idPattern = regexp.MustCompile(`^[0-9a-f]{32}$`)
+
+func DefaultPath() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	if runtime.GOOS == "darwin" {
+		return filepath.Join(home, "Library", "Application Support", "pr-review", "sessions"), nil
+	}
+	base := os.Getenv("XDG_DATA_HOME")
+	if !filepath.IsAbs(base) {
+		base = filepath.Join(home, ".local", "share")
+	}
+	return filepath.Join(base, "pr-review", "sessions"), nil
+}
+
+func Open(path string) (*Store, error) {
+	path, err := filepath.Abs(path)
+	if err != nil {
+		return nil, err
+	}
+	if err = os.MkdirAll(path, 0700); err != nil {
+		return nil, err
+	}
+	if err = privatePath(path, true); err != nil {
+		return nil, err
+	}
+	lock, err := os.OpenFile(filepath.Join(path, ".lock"), os.O_CREATE|os.O_RDWR|syscall.O_NOFOLLOW, 0600)
+	if err != nil {
+		return nil, err
+	}
+	if err = syscall.Flock(int(lock.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
+		lock.Close()
+		return nil, errors.New("session storage busy: another pr-review process holds the writer lock")
+	}
+	return &Store{path: path, lock: lock}, nil
+}
+
+func (s *Store) Path() string { return s.path }
+func (s *Store) Close() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.lock == nil {
+		return nil
+	}
+	err := s.lock.Close()
+	s.lock = nil
+	return err
+}
+
+func privatePath(path string, directory bool) error {
+	info, err := os.Lstat(path)
+	if err != nil {
+		return err
+	}
+	if info.Mode()&os.ModeSymlink != 0 || info.IsDir() != directory || (!directory && !info.Mode().IsRegular()) || info.Mode().Perm()&0077 != 0 {
+		return errors.New("session storage must contain private regular files and directories, not symlinks")
+	}
+	return nil
+}
+
+func (s *Store) directory(id string) (string, error) {
+	if s.lock == nil {
+		return "", errors.New("session store closed")
+	}
+	if !idPattern.MatchString(id) {
+		return "", errors.New("invalid session ID")
+	}
+	return filepath.Join(s.path, id), nil
+}
+
+func digest(b []byte) string { return fmt.Sprintf("%x", sha256.Sum256(b)) }
+
+func readJSON(path string, value any) ([]byte, error) {
+	if err := privatePath(path, false); err != nil {
+		return nil, err
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	b, err := io.ReadAll(io.LimitReader(f, maxJSONBytes+1))
+	if err != nil {
+		return nil, err
+	}
+	if len(b) > maxJSONBytes {
+		return nil, errors.New("session JSON exceeds storage limit")
+	}
+	d := json.NewDecoder(bytes.NewReader(b))
+	d.DisallowUnknownFields()
+	if err := d.Decode(value); err != nil {
+		return nil, err
+	}
+	if err := d.Decode(new(any)); err != io.EOF {
+		return nil, errors.New("trailing session JSON")
+	}
+	return b, nil
+}
+
+func atomicWrite(dir, name string, b []byte) error {
+	if len(b) > maxJSONBytes {
+		return errors.New("session JSON exceeds storage limit")
+	}
+	f, err := os.CreateTemp(dir, ".write-")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(f.Name())
+	defer f.Close()
+	if _, err = f.Write(b); err != nil {
+		return err
+	}
+	if err = f.Sync(); err != nil {
+		return err
+	}
+	if err = f.Close(); err != nil {
+		return err
+	}
+	if err = os.Rename(f.Name(), filepath.Join(dir, name)); err != nil {
+		return err
+	}
+	return syncDir(dir)
+}
+
+func syncDir(dir string) error {
+	f, err := os.Open(dir)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	return f.Sync()
+}
+
+func (s *Store) Create(snapshot Snapshot) (*Record, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	b, err := json.Marshal(snapshot)
+	if err != nil {
+		return nil, err
+	}
+	r := &Record{Snapshot: snapshot, State: State{SchemaVersion: SchemaVersion, ID: fmt.Sprintf("%x", randBytes()), SnapshotReference: digest(b), ReviewedSliceIDs: []string{}, RevisionStatus: Unchecked, UpdatedAt: time.Now().UTC(), Generation: 1}}
+	if err := validate(r); err != nil {
+		return nil, err
+	}
+	dir, err := s.directory(r.ID)
+	if err != nil {
+		return nil, err
+	}
+	if err = os.Mkdir(dir, 0700); err != nil {
+		return nil, err
+	}
+	if err = atomicWrite(dir, "snapshot.json", b); err != nil {
+		return nil, err
+	}
+	state, _ := json.Marshal(r.State)
+	if err = atomicWrite(dir, "state.json", state); err != nil {
+		return nil, err
+	}
+	if err = syncDir(s.path); err != nil {
+		return nil, err
+	}
+	return s.load(r.ID)
+}
+
+func randBytes() []byte { b := make([]byte, 16); _, _ = rand.Read(b); return b }
+
+func (s *Store) Load(id string) (*Record, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.load(id)
+}
+
+func (s *Store) load(id string) (*Record, error) {
+	dir, err := s.directory(id)
+	if err != nil {
+		return nil, err
+	}
+	if err = privatePath(dir, true); err != nil {
+		return nil, err
+	}
+	r := &Record{}
+	if _, err = readJSON(filepath.Join(dir, "state.json"), &r.State); err != nil {
+		return nil, err
+	}
+	if r.SchemaVersion != SchemaVersion {
+		return nil, errors.New("unsupported session schema; original retained")
+	}
+	if r.ID != id {
+		return nil, errors.New("session ID mismatch")
+	}
+	b, err := readJSON(filepath.Join(dir, "snapshot.json"), &r.Snapshot)
+	if err != nil {
+		return nil, err
+	}
+	if digest(b) != r.SnapshotReference {
+		return nil, errors.New("snapshot checksum mismatch; original retained")
+	}
+	if err := validate(r); err != nil {
+		return nil, err
+	}
+	return r, nil
+}
+
+func (s *Store) Save(r *Record) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	old, err := s.load(r.ID)
+	if err != nil {
+		return err
+	}
+	b, err := json.Marshal(r.Snapshot)
+	if err != nil {
+		return err
+	}
+	if digest(b) != old.SnapshotReference || r.SnapshotReference != old.SnapshotReference || r.Generation != old.Generation {
+		return errors.New("immutable snapshot changed or outdated writer; reload or create a new session")
+	}
+	if err := validate(r); err != nil {
+		return err
+	}
+	next := r.State
+	next.Generation++
+	next.UpdatedAt = time.Now().UTC()
+	b, _ = json.Marshal(next)
+	if err = atomicWrite(filepath.Join(s.path, r.ID), "state.json", b); err != nil {
+		return err
+	}
+	r.State = next
+	return nil
+}
+
+func (s *Store) List() ([]Entry, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.lock == nil {
+		return nil, errors.New("session store closed")
+	}
+	entries, err := os.ReadDir(s.path)
+	if err != nil {
+		return nil, err
+	}
+	result := []Entry{}
+	for _, entry := range entries {
+		if !idPattern.MatchString(entry.Name()) {
+			continue
+		}
+		r, err := s.load(entry.Name())
+		result = append(result, Entry{ID: entry.Name(), Record: r, Err: err})
+	}
+	return result, nil
+}
+
+func (s *Store) Delete(id string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	dir, err := s.directory(id)
+	if err != nil {
+		return err
+	}
+	if err = privatePath(dir, true); err != nil {
+		return err
+	}
+	if err = os.RemoveAll(dir); err != nil {
+		return err
+	}
+	return syncDir(s.path)
+}
+
+func validate(r *Record) error {
+	bad := errors.New("invalid session references or progress; original retained")
+	if r.SchemaVersion != SchemaVersion || r.PlanVersion == "" || r.Inventory.Comparison.InventoryID == "" || r.Generation == 0 {
+		return bad
+	}
+	switch r.RevisionStatus {
+	case Unchecked, Current, Stale, CheckFailed:
+	default:
+		return bad
+	}
+	if len(r.UnitFiles) != len(r.Inventory.Units) || len(r.Slices) != len(r.Inventory.Files) {
+		return bad
+	}
+	files, units, owned := map[string]bool{}, map[string]bool{}, map[int]bool{}
+	for i, slice := range r.Slices {
+		if slice.FileID == "" || files[slice.FileID] || slice.FileID != r.Inventory.Files[i].ID || len(slice.Units) == 0 {
+			return bad
+		}
+		files[slice.FileID] = true
+		for _, u := range slice.Units {
+			if u < 0 || u >= len(r.Inventory.Units) || owned[u] || r.UnitFiles[u] != i || r.Inventory.Units[u].FileChangeID != slice.FileID {
+				return bad
+			}
+			owned[u] = true
+		}
+	}
+	if len(owned) != len(r.Inventory.Units) {
+		return bad
+	}
+	for _, u := range r.Inventory.Units {
+		if u.ID == "" || units[u.ID] || u.InventoryID != r.Inventory.Comparison.InventoryID {
+			return bad
+		}
+		units[u.ID] = true
+		switch u.Kind {
+		case inventory.TextHunk:
+			if u.PatchReference == "" {
+				return bad
+			}
+		case inventory.FileMetadata, inventory.Binary, inventory.Gitlink, inventory.Unavailable:
+		default:
+			return bad
+		}
+		if u.PatchReference != "" {
+			if b, ok := r.Inventory.Patches[u.PatchReference]; !ok || digest(b) != u.PatchReference {
+				return bad
+			}
+		}
+	}
+	seen := map[string]bool{}
+	for _, id := range r.ReviewedSliceIDs {
+		if !files[id] || seen[id] {
+			return bad
+		}
+		seen[id] = true
+	}
+	return nil
+}

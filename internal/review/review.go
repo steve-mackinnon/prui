@@ -3,18 +3,12 @@ package review
 import (
 	"context"
 	"pr-review/internal/inventory"
+	"pr-review/internal/session"
 	"pr-review/internal/source"
 )
 
-type Slice struct {
-	FileID string
-	Units  []int
-}
-type Session struct {
-	Inventory inventory.Inventory
-	Slices    []Slice
-	UnitFiles []int
-}
+type Slice = session.Slice
+type Session = session.Record
 
 func Open(ctx context.Context, checkout string, id source.Identity, gh source.GitHub, r source.Runner, l source.Limits, notify func(string)) (*Session, error) {
 	v, p, e := source.Pin(ctx, checkout, id, gh, r, l, notify)
@@ -26,7 +20,7 @@ func Open(ctx context.Context, checkout string, id source.Identity, gh source.Gi
 	if e != nil {
 		return nil, e
 	}
-	s := &Session{Inventory: inv, Slices: make([]Slice, len(inv.Files)), UnitFiles: make([]int, len(inv.Units))}
+	s := &Session{Snapshot: session.Snapshot{Inventory: inv, PlanVersion: "file-v1", Checkout: []byte(checkout), Slices: make([]Slice, len(inv.Files)), UnitFiles: make([]int, len(inv.Units))}}
 	index := map[string]int{}
 	for i, f := range inv.Files {
 		index[f.ID] = i
