@@ -138,7 +138,7 @@ func (m *Model) footer() string {
 	if m.ActionError != nil {
 		return "Action failed; snapshot retained: " + Escape(m.ActionError.Error())
 	}
-	return "m read  r refresh  N new/reset  s sessions  n/p unit  tab pane  i inventory  e evidence  ? help  q quit"
+	return "m read  r refresh  N new/reset  s sessions  n/p unit  tab pane  i inventory  e evidence  a plan  ? help  q quit"
 }
 
 func progress(s *review.Session) string {

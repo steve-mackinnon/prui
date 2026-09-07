@@ -29,7 +29,11 @@ func status(s *review.Session) string {
 		completeness = "INCOMPLETE - unavailable content"
 	}
 	m := s.Inventory.Comparison.Metadata
-	return fmt.Sprintf("PR #%d | head %.12s | inventory %s | analysis: file fallback", m.Identity.Number, m.HeadSHA, completeness)
+	analysis := "file fallback"
+	if s.AnalysisPlan != nil {
+		analysis = s.AnalysisPlan.AnalysisStatus
+	}
+	return fmt.Sprintf("PR #%d | head %.12s | inventory %s | analysis: %s", m.Identity.Number, m.HeadSHA, completeness, analysis)
 }
 func unitText(s *review.Session, i int) string {
 	u := s.Inventory.Units[i]
@@ -92,6 +96,36 @@ func (m *Model) evidenceView() string {
 		lines = append(lines, fmt.Sprintf("[omitted] %s: %s", Escape(string(o.Path)), Escape(o.Reason)))
 	}
 	lines = append(lines, "e: return | raw inventory remains available | omissions are not missing diff entries")
+	return strings.Join(lines, "\n")
+}
+
+func (m *Model) analysisView() string {
+	s := m.Session
+	if s.AnalysisPlan == nil {
+		return status(s) + "\nNo accepted provider plan. Raw file slices remain the fallback.\na: return | analysis requires separate disclosure and consent"
+	}
+	p := s.AnalysisPlan
+	lines := []string{status(s), fmt.Sprintf("Plan %s | %d slices | %d unassigned", Escape(p.Version), len(p.Slices), len(p.UnassignedUnitIDs))}
+	for _, w := range p.Warnings {
+		lines = append(lines, "WARNING: "+Escape(w))
+	}
+	for _, sl := range p.Slices {
+		lines = append(lines, "[ ] "+Escape(sl.Title)+" ("+fmt.Sprintf("%d units", len(sl.UnitIDs))+")")
+		if sl.OrderingRationale != "" {
+			lines = append(lines, "  order: "+Escape(sl.OrderingRationale))
+		}
+		for _, c := range sl.Claims {
+			label := "cited"
+			if c.Hypothesis {
+				label = "HYPOTHESIS"
+			}
+			lines = append(lines, "  "+label+": "+Escape(c.Text)+" ["+strings.Join(c.EvidenceID, ", ")+"]")
+		}
+	}
+	if len(p.UnassignedUnitIDs) > 0 {
+		lines = append(lines, "Unassigned units: "+strings.Join(p.UnassignedUnitIDs, ", "))
+	}
+	lines = append(lines, "a: return | i: full inventory | e: evidence scope | claims are advisory")
 	return strings.Join(lines, "\n")
 }
 func visibleWidth(s string) int { return lipgloss.Width(s) }

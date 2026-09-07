@@ -17,26 +17,26 @@ type Loaded struct {
 }
 type Notice string
 type Model struct {
-	Session                                 *review.Session
-	Err                                     error
-	Selected                                int
-	Scroll                                  map[int]int
-	Width, Height, Horizontal               int
-	Inventory, Details, Evidence, Help, URL bool
-	Loading                                 bool
-	Busy, Picker                            bool
-	PickerIndex                             int
-	Entries                                 []session.Entry
-	ActionError                             error
-	store                                   *session.Store
-	reader                                  review.MetadataReader
-	fresh                                   FreshLoader
-	worker                                  <-chan struct{}
-	notice                                  string
-	ctx                                     context.Context
-	cancel                                  context.CancelFunc
-	load                                    Loader
-	notify                                  func(string)
+	Session                                           *review.Session
+	Err                                               error
+	Selected                                          int
+	Scroll                                            map[int]int
+	Width, Height, Horizontal                         int
+	Inventory, Details, Evidence, Analysis, Help, URL bool
+	Loading                                           bool
+	Busy, Picker                                      bool
+	PickerIndex                                       int
+	Entries                                           []session.Entry
+	ActionError                                       error
+	store                                             *session.Store
+	reader                                            review.MetadataReader
+	fresh                                             FreshLoader
+	worker                                            <-chan struct{}
+	notice                                            string
+	ctx                                               context.Context
+	cancel                                            context.CancelFunc
+	load                                              Loader
+	notify                                            func(string)
 }
 
 func New(parent context.Context, load Loader) *Model {
@@ -103,7 +103,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.Details = false
 		case "e":
 			m.Evidence = !m.Evidence
-			m.Inventory, m.Details = false, false
+			m.Inventory, m.Details, m.Analysis = false, false, false
+		case "a":
+			m.Analysis = !m.Analysis
+			m.Inventory, m.Details, m.Evidence = false, false, false
 		case "tab", "enter":
 			m.Details = !m.Details
 		case "n":
@@ -179,14 +182,16 @@ func (m *Model) View() tea.View {
 	case m.Picker:
 		text = m.pickerView()
 	case m.Help:
-		text = "Keyboard\nn/p: next/previous unit | [/]: next/previous file\nup/down: move focused pane | tab/enter: switch focus/pane\nj/k: scroll diff | pgup/pgdown/space: page\nh/l or left/right: horizontal scroll | home: reset scroll\ni: full inventory | e: evidence scope | g: GitHub URL | ?: help | q: quit\nm: mark/unmark file slice | r: refresh GitHub metadata\ns: saved sessions | N: new comparison, empty progress\nControls and invalid bytes escaped. No mouse capture.\nReading progress is local, not GitHub approval.\nEvidence is pinned, bounded, and omissions are reported."
+		text = "Keyboard\nn/p: next/previous unit | [/]: next/previous file\nup/down: move focused pane | tab/enter: switch focus/pane\nj/k: scroll diff | pgup/pgdown/space: page\nh/l or left/right: horizontal scroll | home: reset scroll\ni: full inventory | e: evidence scope | a: accepted plan | g: GitHub URL | ?: help | q: quit\nm: mark/unmark file slice | r: refresh GitHub metadata\ns: saved sessions | N: new comparison, empty progress\nControls and invalid bytes escaped. No mouse capture.\nReading progress is local, not GitHub approval.\nEvidence is pinned, bounded, and omissions are reported. Analysis is optional and consent-bound."
 		if m.store != nil {
 			text += "\nStorage: " + Escape(m.store.Path()) + "\nSession: " + m.Session.ID
 		}
 	case m.URL:
 		text = m.Session.Inventory.Comparison.Metadata.Identity.URL() + "\nOpen this URL in your browser for GitHub review actions.\ng: return | q: quit"
 	default:
-		if m.Evidence {
+		if m.Analysis {
+			text = m.analysisView()
+		} else if m.Evidence {
 			text = m.evidenceView()
 		} else {
 			text = m.reviewView()

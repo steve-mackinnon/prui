@@ -18,6 +18,7 @@ import (
 
 	reviewcontext "pr-review/internal/context"
 	"pr-review/internal/inventory"
+	"pr-review/internal/plan"
 )
 
 const SchemaVersion = 1
@@ -38,12 +39,13 @@ type Slice struct {
 }
 
 type Snapshot struct {
-	Checkout    []byte
-	Inventory   inventory.Inventory
-	PlanVersion string
-	Slices      []Slice
-	UnitFiles   []int
-	Context     reviewcontext.ContextBundle
+	Checkout     []byte
+	Inventory    inventory.Inventory
+	PlanVersion  string
+	Slices       []Slice
+	UnitFiles    []int
+	Context      reviewcontext.ContextBundle
+	AnalysisPlan *plan.ValidatedPlan
 }
 
 type State struct {
@@ -438,6 +440,19 @@ func validate(r *Record) error {
 			return bad
 		}
 		seen[id] = true
+	}
+	if r.AnalysisPlan != nil {
+		unitIDs, evidenceIDs := map[string]bool{}, map[string]bool{}
+		for _, u := range r.Inventory.Units {
+			unitIDs[u.ID] = true
+		}
+		for _, e := range r.Context.Evidence {
+			evidenceIDs[e.EvidenceID] = true
+		}
+		proposal := plan.Proposal{InventoryID: r.AnalysisPlan.InventoryID, Slices: r.AnalysisPlan.Slices}
+		if _, err := plan.Validate(proposal, r.Inventory.Comparison.InventoryID, unitIDs, evidenceIDs); err != nil {
+			return bad
+		}
 	}
 	return nil
 }
