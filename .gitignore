@@ -1,0 +1,8 @@
+
+# Riptide artifacts (cloud-synced)
+.humanlayer/tasks/
+/pr-review
+.env
+.env.local
+*.pem
+*.key
