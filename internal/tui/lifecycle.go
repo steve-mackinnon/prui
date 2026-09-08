@@ -137,6 +137,9 @@ func (m *Model) lifecycleKey(k string) (tea.Cmd, bool) {
 		if len(s.Slices) == 0 {
 			return nil, true
 		}
+		// Guide rows only ever point at a frozen unit, so marking resolves
+		// through UnitFiles exactly as the file plan does: the whole slice is
+		// marked, including the units this file contributes to other guides.
 		id := s.Slices[s.UnitFiles[m.Selected]].FileID
 		m.notice = "Saving local reading progress..."
 		return m.start(func() tea.Msg {

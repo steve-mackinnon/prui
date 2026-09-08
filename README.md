@@ -32,14 +32,18 @@ Analysis is off by default. `open --send-source-to-openai` is both the switch an
 
 What leaves the machine is only the assembled request package: pinned patches and pinned-tree evidence that pass the privacy policy a second time at the upload boundary, within 400 units, 32 KiB per unit, 512 KiB total, and 60 seconds. Excluded paths, credential-like content, and budget-exhausted units are withheld and reported as analysis scope; withheld path names are not sent either. The request is one non-streaming HTTPS `POST /v1/responses` with `store: false` and a strict `pr_review_guides` JSON schema. Redirects are not followed, so the bearer credential cannot reach another host. Provider transcripts and credentials are never stored; the snapshot keeps the guides, provider, model, prompt version, schema name, input digest, evidence IDs, limits, and withheld ledger.
 
-Failure is cheap and explicit. A transport error, non-2xx status, refusal, deadline, oversize payload, or unusable structured output produces an `analysis_unavailable` bundle with a stated reason, a durable session, and the unchanged deterministic file plan. Retrying cannot modify a stored snapshot; a later successful attempt is a new session. Generated text is model interpretation of the bounded input, not source truth, approval, security findings, or complete architectural documentation, and it can be wrong about anything it was not shown. Guides currently render in `--plain` output and the status line; making them the interactive left-pane hierarchy is the next phase.
+Failure is cheap and explicit. A transport error, non-2xx status, refusal, deadline, oversize payload, or unusable structured output produces an `analysis_unavailable` bundle with a stated reason, a durable session, and the unchanged deterministic file plan. Retrying cannot modify a stored snapshot; a later successful attempt is a new session. Generated text is model interpretation of the bounded input, not source truth, approval, security findings, or complete architectural documentation, and it can be wrong about anything it was not shown.
+
+When a session has generated guides, they are the default left pane: guide, then section, then the file portions each section covers, with the selected portion's raw unit in the right pane. A file appears under every section that owns part of it. `n`/`p` walk the rows and select the row's first unit, `]`/`[` jump between guides, `tab`/`enter` expands or collapses the selected guide or section, and `G` switches to the deterministic file plan. `i` still lists every raw unit and navigates them one at a time, so the complete source view is never behind an interpretation. Marking is unchanged: `m` marks the whole file slice of the selected unit, including the units that file contributes to other guides, and both the header and footer say so. A fallback, absent, or empty bundle simply has no rows, so those sessions navigate the file plan exactly as before.
 
 ## Keyboard
 
 | Key | Action |
 | --- | --- |
-| `n` / `p` | Next / previous review unit |
-| `]` / `[` | Next / previous file slice |
+| `n` / `p` | Next / previous guide row; next / previous unit in the file plan and inventory |
+| `]` / `[` | Next / previous guide, or file slice without guides |
+| `G` | Switch between the guide hierarchy and the deterministic file plan |
+| `tab` | Expand / collapse the selected guide or section |
 | `ctrl+h` / `ctrl+l` | Focus list / diff |
 | `enter` / `esc` | Open selected item / go back |
 | Up / down, `j` / `k` | Navigate list or scroll focused diff |
@@ -47,18 +51,18 @@ Failure is cheap and explicit. A transport error, non-2xx status, refusal, deadl
 | Page Down / Page Up | Page through actual diff |
 | `h` / `l`, left / right | Horizontal scrolling; no hidden line truncation in plain output |
 | Home | Reset selected unit's scroll |
-| `i` | Toggle full unit inventory |
+| `i` | Toggle the full unit inventory; every raw unit, unfiltered by guides |
 | `e` | Show bounded evidence and included/excluded scope |
 | `a` | Show the accepted provider plan; advisory claims only |
 | `v` / `o` | Move the selected unit to another slice / reorder slices; `enter` confirms, `esc` cancels |
 | `g` | Show canonical GitHub URL for copying; does not launch a browser |
-| `m` | Mark/unmark the selected file slice; saves immediately, including when viewing one of its units |
+| `m` | Mark/unmark the whole file slice of the selected unit, including its units under other guide sections; saves immediately |
 | `r` | Explicit metadata refresh; no diff recomputation or polling |
 | `N` | Start a new comparison with empty progress; retain the old session |
 | `s` | Session picker; up/down to select, Enter to resume, Esc to return |
 | `?`, `q`, Ctrl+C | Help, quit, cancel loading |
 
-Selection and per-unit vertical offsets survive resizing; navigation positions are not persisted across processes. No mouse capture, so terminal-native text selection remains available. Textual markers and labels are primary: the selected row is marked `> ` when its pane is focused and `· ` when it is not, and reverse video only reinforces the focused row. The interactive view additionally colors diff structure — file headers, hunk locations, additions, removals — and unit states such as metadata, binary, gitlink, unavailable, and warning chrome. Color is presentation only: no wording, label, or ordering depends on it, and terminals without color show the same text. Extremely small terminals clip controls; enlarge or use plain output. The user approved Phase 1 terminal behavior; broad theme/platform/accessibility coverage is not established.
+Selection, expansion, and per-unit vertical offsets survive resizing; navigation positions and expansion state are not persisted across processes, and they are rebuilt from the immutable bundle so navigation cannot drift from the stored guides. No mouse capture, so terminal-native text selection remains available. Textual markers and labels are primary: the selected row is marked `> ` when its pane is focused and `· ` when it is not, and reverse video only reinforces the focused row. The interactive view additionally colors diff structure — file headers, hunk locations, additions, removals — and unit states such as metadata, binary, gitlink, unavailable, and warning chrome. Color is presentation only: no wording, label, or ordering depends on it, and terminals without color show the same text. Extremely small terminals clip controls; enlarge or use plain output. The user approved Phase 1 terminal behavior; broad theme/platform/accessibility coverage is not established.
 
 ## Color
 
@@ -117,10 +121,10 @@ Process stdout/stderr are bounded; overrun, timeout, or cancellation kills the p
 ```sh
 go vet ./... && go test -race -count=1 ./... && go build ./...
 go test ./internal/source ./internal/inventory -run 'Test(Pinned|Safety|Inventory)'
-go test ./internal/tui -run TestRawReview
+go test ./internal/tui -run 'Test(RawReview|Guide|Plain)'
 go test -race ./internal/session ./internal/review ./internal/tui
 go test ./cmd/pr-review -run 'Test(Lifecycle|Storage|Options)'
 go test ./internal/guide -run 'Test(OpenAI|Analyze|Input|Validate)'
 ```
 
-Tests construct disposable trusted Git fixtures, including byte-only paths that macOS cannot materialize. Lifecycle tests cover process restart/interruption, deleted checkouts, concurrent writers, stale revisions, offline/auth failures, corruption, permissions, deletion, and keyboard actions. Analysis tests drive a local `httptest` provider endpoint with a fake key and cover valid, malformed, schema-violating, refused, unauthorized, rate-limited, failing, hung, and oversize responses. They never execute reviewed scripts, contact a real provider, or use live credentials. See `CONSTRAINTS.md` for the correctness contract. Interactive guide navigation and editable contextual slices are intentionally absent.
+Tests construct disposable trusted Git fixtures, including byte-only paths that macOS cannot materialize. Lifecycle tests cover process restart/interruption, deleted checkouts, concurrent writers, stale revisions, offline/auth failures, corruption, permissions, deletion, and keyboard actions. Analysis tests drive a local `httptest` provider endpoint with a fake key and cover valid, malformed, schema-violating, refused, unauthorized, rate-limited, failing, hung, and oversize responses. They never execute reviewed scripts, contact a real provider, or use live credentials. See `CONSTRAINTS.md` for the correctness contract. Guide navigation tests drive a fake analyzer and walk every row, so the hierarchy is proven against real frozen units. Editable contextual slices and guide-level completion are intentionally absent.

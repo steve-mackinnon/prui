@@ -399,11 +399,71 @@ func TestPlainGuides(t *testing.T) {
 	if strings.Count(plain, ".env (credential-like filename)") != 1 {
 		t.Fatal("withheld disclosure repeats one path per unit")
 	}
-	if !strings.Contains(plain, "analysis: generated (openai/test-model, 2 guides)") {
+	if !strings.Contains(plain, "guides: generated (openai/test-model, 2 guides)") {
 		t.Fatal("status does not report the generated bundle")
 	}
 	s.Guides = nil
 	if strings.Contains(Plain(s), "Guides interpret") {
 		t.Fatal("a session without analysis renders a guide block")
+	}
+}
+
+// TestRawReviewGuideHierarchy keeps the escaping, clipping, and narrow-width
+// contracts true once model-authored titles reach the left pane.
+func TestRawReviewGuideHierarchy(t *testing.T) {
+	s, _, _ := guidedSession(t, groupingAnalyzer{path: "a.go"})
+	m := loaded(t, s, 120, 40)
+	// Styling wraps whole lines, so the escaping contract is checked on the
+	// stripped render: the title must already be escaped underneath the style.
+	content := ansi.Strip(m.View().Content)
+	// The left pane is narrow, so a long hostile title is clipped; what must
+	// hold is that it is escaped first and clipped second.
+	if strings.ContainsAny(content, "\x1b\a") || !strings.Contains(content, `1. Greeting flow\x1b]52`) {
+		t.Fatal("guide titles are not escaped like patch content", content)
+	}
+	if !strings.Contains(content, "Guides") || !strings.Contains(content, `1.1 Add greeting\x1b]52`) {
+		t.Fatal("guide hierarchy missing from the left pane", content)
+	}
+	for _, w := range []int{1, 20, 60, 99, 100, 120} {
+		for _, h := range []int{5, 10, 24} {
+			m.Update(tea.WindowSizeMsg{Width: w, Height: h})
+			lines := strings.Split(m.View().Content, "\n")
+			if len(lines) > h {
+				t.Fatalf("viewport height exceeded %d: %d lines", h, len(lines))
+			}
+			for _, line := range lines {
+				if visibleWidth(line) > w {
+					t.Fatalf("viewport exceeded %d: %q", w, line)
+				}
+				// Styles are the only escapes allowed; the text under them must
+				// still be free of control bytes from the model or the patch.
+				if strings.ContainsAny(ansi.Strip(line), "\x1b\a") {
+					t.Fatalf("unescaped control byte at width %d", w)
+				}
+			}
+		}
+	}
+	// Below 100 columns one pane is visible at a time; tab on a file portion
+	// hands it to the diff, while tab on a guide or section expands it. esc is
+	// the way back, exactly as it is for the file plan.
+	m.Update(tea.WindowSizeMsg{Width: 60, Height: 24})
+	for m.rows()[m.Row].kind != portionRow {
+		key(m, 'n')
+	}
+	m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	if m.Focus != paneDiff || !strings.Contains(ansi.Strip(m.View().Content), "focus: diff") {
+		t.Fatal("narrow tab did not switch to the diff pane")
+	}
+	namedKey(m, tea.KeyEscape)
+	if m.Focus != paneList {
+		t.Fatal("esc did not switch back to the hierarchy")
+	}
+	for m.Row > 0 {
+		key(m, 'p')
+	}
+	before := len(m.rows())
+	m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	if m.Focus != paneList || len(m.rows()) >= before {
+		t.Fatal("tab on a guide row did not collapse it")
 	}
 }

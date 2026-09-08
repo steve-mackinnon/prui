@@ -19,7 +19,7 @@
 
 # Phase 4 Analysis Contract
 
-- Source upload happens only when the invocation passes `--send-source-to-openai` on `open`. The flag is the acknowledgement; there is no separate enable switch, no config file, and no default-on behavior. `resume`, `sessions`, and `delete` never construct an analyzer or contact a provider.
+- Guide analysis uploads source only when the invocation passes `--send-source-to-openai` on `open`. The flag is the acknowledgement; there is no separate enable switch, no config file, and no default-on behavior. `resume`, `sessions`, and `delete` never construct an analyzer or contact a provider. This rule covers `internal/guide` only; the `internal/analysis` provider path has its own consent contract and no CLI entry point.
 - Only the assembled `guide.Input` may leave the machine: pinned patches and pinned-tree evidence that pass the privacy policy a second time at the upload boundary. Excluded paths, credential-like content, and budget-exhausted units are withheld, and withheld path names are not sent either.
 - Requests are one non-streaming HTTPS Responses call with `store: false`, a strict `pr_review_guides` JSON schema, a bounded request body, and a bounded response body. Redirects are not followed, so the bearer credential cannot reach another host. Plaintext HTTP endpoints are rejected except loopback for tests.
 - The credential comes from `OPENAI_API_KEY` and is never persisted, logged, or placed in an error, reason, or rendered string. Provider text is sanitized and truncated before it becomes durable session content.
