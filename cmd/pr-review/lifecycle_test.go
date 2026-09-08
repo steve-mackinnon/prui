@@ -3,8 +3,10 @@ package main
 import (
 	"context"
 	"errors"
+	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"pr-review/internal/review"
@@ -22,6 +24,30 @@ func (g *fixtureGH) Metadata(context.Context, source.Identity) (source.Metadata,
 	return g.value, g.err
 }
 func (g *fixtureGH) Token(context.Context) (string, error) { panic("credentials must not be used") }
+
+// captureStdout records what a CLI run writes to stdout; plain output must stay
+// free of terminal control bytes even while the interactive view is colored.
+func captureStdout(t *testing.T, f func() int) (string, int) {
+	t.Helper()
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	saved := os.Stdout
+	os.Stdout = w
+	done := make(chan string, 1)
+	go func() { b, _ := io.ReadAll(r); done <- string(b) }()
+	code := f()
+	os.Stdout = saved
+	if err := w.Close(); err != nil {
+		t.Fatal(err)
+	}
+	out := <-done
+	if err := r.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return out, code
+}
 
 func TestLifecycleOpenResumeNewAndOfflineCLI(t *testing.T) {
 	r := testutil.NewRepo(t)
@@ -76,8 +102,12 @@ func TestLifecycleOpenResumeNewAndOfflineCLI(t *testing.T) {
 		{"resume", saved.ID, "--store", path, "--offline", "--plain"},
 		{"delete", saved.ID, "--store", path},
 	} {
-		if code := run(args); code != 0 {
+		out, code := captureStdout(t, func() int { return run(args) })
+		if code != 0 {
 			t.Fatalf("%v: exit %d", args, code)
+		}
+		if strings.ContainsAny(out, "\x1b\a") {
+			t.Fatalf("%v: terminal control bytes in plain output", args)
 		}
 	}
 	if _, err := os.Stat(filepath.Join(path, saved.ID)); !os.IsNotExist(err) {

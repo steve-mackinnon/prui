@@ -3,6 +3,7 @@ package tui
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 
 	"pr-review/internal/inventory"
@@ -31,10 +32,34 @@ func largeSession(files, units int) *review.Session {
 	return s
 }
 
+// largeTextSession is the styling-heavy shape: every unit is a text hunk, so
+// each rendered line is classified by Git-diff grammar rather than by kind.
+func largeTextSession(files, units int) *review.Session {
+	s := largeSession(files, units)
+	var patch strings.Builder
+	patch.WriteString("diff --git a/f b/f\nindex 1111111..2222222 100644\n--- a/f\n+++ b/f\n@@ -1,20 +1,20 @@\n")
+	for i := 0; i < 20; i++ {
+		patch.WriteString(fmt.Sprintf(" context %d\n-old %d\n+new %d\n", i, i, i))
+	}
+	s.Inventory.Patches = map[string][]byte{"p": []byte(patch.String())}
+	for i := range s.Inventory.Units {
+		s.Inventory.Units[i].Kind = inventory.TextHunk
+		s.Inventory.Units[i].PatchReference = "p"
+	}
+	return s
+}
+
+// largeModel loads a fixture straight into the review screen. Without clearing
+// the loading flag the viewport would measure the loading notice instead.
+func largeModel(s *review.Session, w, h int) *Model {
+	m := New(context.Background(), nil)
+	m.Session, m.Width, m.Height, m.Loading = s, w, h, false
+	return m
+}
+
 func BenchmarkLargeReview(b *testing.B) {
 	s := largeSession(1000, 50000)
-	m := New(context.Background(), nil)
-	m.Session, m.Width, m.Height = s, 120, 30
+	m := largeModel(s, 120, 30)
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
 		m.Selected = (i * 97) % len(s.Inventory.Units)
@@ -44,8 +69,7 @@ func BenchmarkLargeReview(b *testing.B) {
 
 func BenchmarkViewportRender(b *testing.B) {
 	s := largeSession(1000, 50000)
-	m := New(context.Background(), nil)
-	m.Session, m.Width, m.Height = s, 80, 20
+	m := largeModel(s, 80, 20)
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
 		m.Selected = i % len(s.Inventory.Units)
@@ -53,14 +77,33 @@ func BenchmarkViewportRender(b *testing.B) {
 	}
 }
 
+// BenchmarkLargeTextHunkReview exercises per-line classification and styling on
+// the same 1,000-file / 50,000-unit fixture.
+func BenchmarkLargeTextHunkReview(b *testing.B) {
+	s := largeTextSession(1000, 50000)
+	m := largeModel(s, 120, 30)
+	m.Details = true
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		m.Selected = (i * 97) % len(s.Inventory.Units)
+		_ = m.View().Content
+	}
+}
+
 func TestWorkflowLargeViewport(t *testing.T) {
-	s := largeSession(1000, 50000)
-	m := New(context.Background(), nil)
-	m.Session, m.Width, m.Height = s, 80, 20
-	for i := 0; i < 100; i++ {
-		m.move(1)
-		if len(m.View().Content) == 0 {
-			t.Fatal("large review rendered empty")
+	for _, s := range []*review.Session{largeSession(1000, 50000), largeTextSession(1000, 50000)} {
+		m := largeModel(s, 80, 20)
+		for i := 0; i < 100; i++ {
+			m.move(1)
+			content := m.View().Content
+			if len(content) == 0 {
+				t.Fatal("large review rendered empty")
+			}
+			for _, line := range strings.Split(content, "\n") {
+				if visibleWidth(line) > m.Width {
+					t.Fatalf("styled large review exceeded %d: %q", m.Width, line)
+				}
+			}
 		}
 	}
 }

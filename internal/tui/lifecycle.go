@@ -244,6 +244,15 @@ func progress(s *review.Session) string {
 	return text
 }
 
+// progressClass warns on freshness states that are not confirmed current. The
+// label text itself is unchanged, so the state survives without color.
+func progressClass(s *review.Session) lineClass {
+	if s.RevisionStatus == session.Stale || s.RevisionStatus == session.CheckFailed {
+		return classWarning
+	}
+	return classTitle
+}
+
 func readMarker(s *review.Session, id string) string {
 	if s.ID == "" {
 		return ""
