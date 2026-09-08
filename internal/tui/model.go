@@ -280,32 +280,34 @@ func (m *Model) reviewView() string {
 	}
 	start := max(0, selectedRow-bodyHeight+1)
 	list = list[start:min(len(list), start+bodyHeight)]
-	detail := strings.Split(unitText(s, m.Selected), "\n")
+	detail := unitLines(s, m.Selected)
 	offset := min(m.Scroll[m.Selected], max(0, len(detail)-1))
 	detail = detail[offset:min(len(detail), offset+bodyHeight)]
+	// Horizontal scrolling stays on unstyled text; styles are applied after clipping.
 	for i, line := range detail {
-		runes := []rune(line)
-		detail[i] = string(runes[min(m.Horizontal, len(runes)):])
+		runes := []rune(line.Text)
+		detail[i].Text = string(runes[min(m.Horizontal, len(runes)):])
 	}
 	body := []string{}
 	for row := 0; row < bodyHeight; row++ {
 		left, right := "", ""
+		class := classPlain
 		if row < len(list) {
 			left = list[row]
 		}
 		if row < len(detail) {
-			right = detail[row]
+			right, class = detail[row].Text, detail[row].Class
 		}
 		if m.Width < 100 {
 			if m.Details {
-				body = append(body, clip(right, m.Width))
+				body = append(body, styleLine(class, clip(right, m.Width)))
 			} else {
 				body = append(body, clip(left, m.Width))
 			}
 		} else {
 			leftWidth := min(36, m.Width/3)
 			left = clip(left, leftWidth)
-			body = append(body, left+strings.Repeat(" ", max(0, leftWidth-visibleWidth(left)))+" | "+clip(right, m.Width-leftWidth-3))
+			body = append(body, left+strings.Repeat(" ", max(0, leftWidth-visibleWidth(left)))+" | "+styleLine(class, clip(right, m.Width-leftWidth-3)))
 		}
 	}
 	return title + "\n" + header + "\n" + strings.Join(body, "\n") + "\n" + m.footer()

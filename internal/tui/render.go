@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 	"pr-review/internal/inventory"
 	"pr-review/internal/review"
 )
@@ -36,29 +37,47 @@ func status(s *review.Session) string {
 	}
 	return fmt.Sprintf("PR #%d | head %.12s | inventory %s | analysis: %s", m.Identity.Number, m.HeadSHA, completeness, analysis)
 }
-func unitText(s *review.Session, i int) string {
+
+// body splits an already-assembled card body into classified display lines.
+func body(c lineClass, text string) []styledLine {
+	lines := []styledLine{}
+	for _, l := range strings.Split(strings.TrimSuffix(text, "\n"), "\n") {
+		lines = append(lines, styledLine{c, l})
+	}
+	return lines
+}
+
+// unitLines is the classified form of unitText: the same escaped lines, each
+// tagged with its semantic class. Classification never edits the text.
+func unitLines(s *review.Session, i int) []styledLine {
 	u := s.Inventory.Units[i]
 	f := s.Inventory.Files[s.UnitFiles[i]]
-	title := fmt.Sprintf("%s [%s]\n", pathLabel(f), u.Kind)
+	lines := []styledLine{{classTitle, fmt.Sprintf("%s [%s]", pathLabel(f), u.Kind)}}
 	switch u.Kind {
 	case inventory.TextHunk:
-		var b strings.Builder
-		b.WriteString(title)
+		// The patch keeps its trailing newline, so the final empty element is a real display line.
 		for _, line := range strings.Split(string(s.Inventory.Patches[u.PatchReference]), "\n") {
-			b.WriteString(Escape(line))
-			b.WriteByte('\n')
+			e := Escape(line)
+			lines = append(lines, styledLine{classifyPatch(e), e})
 		}
-		return b.String()
 	case inventory.FileMetadata:
-		return title + fmt.Sprintf("status %s | mode %s -> %s\nold path: %s\nnew path: %s\nold object: %s\nnew object: %s\n", f.Status, f.OldMode, f.NewMode, Escape(string(f.OldPath)), Escape(string(f.NewPath)), f.OldOID, f.NewOID)
+		lines = append(lines, body(classPlain, fmt.Sprintf("status %s | mode %s -> %s\nold path: %s\nnew path: %s\nold object: %s\nnew object: %s\n", f.Status, f.OldMode, f.NewMode, Escape(string(f.OldPath)), Escape(string(f.NewPath)), f.OldOID, f.NewOID))...)
 	case inventory.Binary:
-		return title + "Binary content changed; no text patch. Object IDs in file metadata.\n"
+		lines = append(lines, body(classPlain, "Binary content changed; no text patch. Object IDs in file metadata.\n")...)
 	case inventory.Gitlink:
-		return title + fmt.Sprintf("Submodule pointer: %s -> %s\nSubmodule content not fetched or executed.\n", f.OldOID, f.NewOID)
+		lines = append(lines, body(classPlain, fmt.Sprintf("Submodule pointer: %s -> %s\nSubmodule content not fetched or executed.\n", f.OldOID, f.NewOID))...)
 	case inventory.Unavailable:
-		return title + "UNAVAILABLE: " + Escape(u.UnavailableReason) + "\nNot fully reviewable; file remains in inventory.\n"
+		lines = append(lines, body(classPlain, "UNAVAILABLE: "+Escape(u.UnavailableReason)+"\nNot fully reviewable; file remains in inventory.\n")...)
 	}
-	return title
+	return lines
+}
+func unitText(s *review.Session, i int) string {
+	var b strings.Builder
+	for _, l := range unitLines(s, i) {
+		b.WriteString(l.Text)
+		b.WriteByte('\n')
+	}
+	return b.String()
 }
 func Plain(s *review.Session) string {
 	var b strings.Builder
@@ -177,15 +196,6 @@ func clip(s string, w int) string {
 	if visibleWidth(s) <= w {
 		return s
 	}
-	var b strings.Builder
-	used := 0
-	for _, r := range s {
-		rw := visibleWidth(string(r))
-		if used+rw > w {
-			break
-		}
-		b.WriteRune(r)
-		used += rw
-	}
-	return b.String()
+	// ANSI-aware: escape sequences cost no width and are never cut in half.
+	return ansi.Truncate(s, w, "")
 }

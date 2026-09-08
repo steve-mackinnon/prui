@@ -7,6 +7,8 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
+	"pr-review/internal/inventory"
 	"pr-review/internal/review"
 	"pr-review/internal/source"
 	"pr-review/internal/testutil"
@@ -71,6 +73,25 @@ func TestRawReviewMockedEndToEnd(t *testing.T) {
 	if !strings.Contains(plain, "inventory complete") || !strings.Contains(plain, "analysis: file fallback") {
 		t.Fatal("status missing")
 	}
+	m.Update(tea.WindowSizeMsg{Width: 120, Height: 24})
+	hunk := -1
+	for i, u := range m.Session.Inventory.Units {
+		if u.Kind == inventory.TextHunk {
+			hunk = i
+			break
+		}
+	}
+	if hunk < 0 {
+		t.Fatal("no text hunk generated")
+	}
+	m.Selected, m.Details = hunk, true
+	if !strings.Contains(m.View().Content, "\x1b[") {
+		t.Fatal("interactive diff unstyled")
+	}
+	if stripped := ansi.Strip(m.View().Content); strings.Contains(stripped, "\x1b") {
+		t.Fatal("styled view leaked raw escapes")
+	}
+	m.Details = false
 	for _, w := range []int{1, 20, 60, 99, 100, 120} {
 		m.Update(tea.WindowSizeMsg{Width: w, Height: 10})
 		for _, line := range strings.Split(m.View().Content, "\n") {
