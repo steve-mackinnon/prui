@@ -22,6 +22,9 @@ type fakeGitHub struct{ m source.Metadata }
 func (g fakeGitHub) Metadata(context.Context, source.Identity) (source.Metadata, error) {
 	return g.m, nil
 }
+func (g fakeGitHub) ListPullRequests(context.Context, string) ([]source.PullRequest, error) {
+	return nil, nil
+}
 func (g fakeGitHub) Token(context.Context) (string, error) { panic("no live network allowed") }
 func key(m *Model, k rune)                                 { m.Update(tea.KeyPressMsg{Code: k, Text: string(k)}) }
 func namedKey(m *Model, k rune)                            { m.Update(tea.KeyPressMsg{Code: k}) }
@@ -200,7 +203,7 @@ func TestModalPagesOwnInputAndBack(t *testing.T) {
 	if m.top() != pageReview {
 		t.Fatal("esc did not leave help")
 	}
-	key(m, 'g')
+	key(m, 'u')
 	if m.top() != pageURL || !strings.Contains(m.View().Content, "esc: back") {
 		t.Fatal("URL page or back hint missing")
 	}

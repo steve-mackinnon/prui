@@ -37,6 +37,16 @@ func TestStoreRejectsUnownedRootsAndSymlinks(t *testing.T) {
 		store.Close()
 		t.Fatal("symlink root accepted")
 	}
+	registry := filepath.Join(path, "repositories.json")
+	if err := os.Symlink(sentinel, registry); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.LookupRepository("owner/repo"); err == nil {
+		t.Fatal("external registry followed")
+	}
+	if err := os.Remove(registry); err != nil {
+		t.Fatal(err)
+	}
 	id := "0123456789abcdef0123456789abcdef"
 	if err := os.Symlink(unrelated, filepath.Join(path, id)); err != nil {
 		t.Fatal(err)

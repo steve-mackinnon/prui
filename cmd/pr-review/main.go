@@ -63,19 +63,6 @@ func run(args []string) int {
 	r := source.NewRunner()
 	limits := source.Defaults()
 	app := application{store: store, runner: r, limits: limits}
-	app.policy.Excluded = append([]string(nil), o.Excludes...)
-	if o.SendSource {
-		a, err := guide.NewOpenAI(guide.OpenAIOptions{APIKey: os.Getenv("OPENAI_API_KEY"), Model: o.Model, Endpoint: os.Getenv("OPENAI_BASE_URL")})
-		if err != nil {
-			fmt.Fprintln(os.Stderr, tui.Escape(err.Error()))
-			return 1
-		}
-		// The notice precedes any request, so the upload is announced even if
-		// the run is interrupted before a session exists.
-		fmt.Fprintln(os.Stderr, "Sending source to OpenAI: bounded pinned patches and repository evidence go to model", tui.Escape(a.Model()), "for guide analysis.")
-		fmt.Fprintln(os.Stderr, "Excluded paths and credential-like content are withheld and reported. The request asks for no provider-side retention. Your API key is not stored.")
-		app.analyzer = a
-	}
 	// gh runs outside both the workspace and the reviewed checkout.
 	if !o.Offline {
 		dir, err := os.MkdirTemp("", "pr-review-gh-")
@@ -84,6 +71,36 @@ func run(args []string) int {
 			defer os.RemoveAll(dir)
 			app.gh, app.setupError = source.NewGH(r, limits, dir)
 		}
+	}
+	if o.Command == "prs" {
+		if o.Repository != "" {
+			prs, err := app.listPullRequests(ctx, o.Repository)
+			if err != nil {
+				fmt.Fprintln(os.Stderr, tui.Escape(err.Error()))
+				return 1
+			}
+			listPullRequests(os.Stdout, o.Repository, prs)
+			return 0
+		}
+		if o.Plain || os.Getenv("TERM") == "dumb" || !term.IsTerminal(os.Stdout.Fd()) || !term.IsTerminal(os.Stdin.Fd()) {
+			fmt.Fprintln(os.Stderr, "prs without owner/repo requires an interactive terminal; pass owner/repo to list directly")
+			return 1
+		}
+		m := tui.NewPullRequestBrowser(ctx, store, app.listPullRequests, func(c context.Context, checkout string, id source.Identity, n func(string)) (*review.Session, error) {
+			return app.open(c, checkout, id, n)
+		})
+		p := tea.NewProgram(m, tea.WithContext(ctx))
+		m.SetNotifier(func(s string) { p.Send(tui.Notice(s)) })
+		_, err := p.Run()
+		cancel()
+		m.Close()
+		if err != nil || m.ActionError != nil && m.Session == nil {
+			return 1
+		}
+		if m.Session != nil && !m.Session.Inventory.Complete {
+			return 2
+		}
+		return 0
 	}
 	load := func(c context.Context, notify func(string)) (*review.Session, error) {
 		return app.load(c, o, notify)
@@ -124,6 +141,19 @@ func run(args []string) int {
 			override = o.Checkout
 		}
 		return app.fresh(c, old, override, n)
+	})
+	m.SetPullRequestLifecycle(app.listPullRequests, func(c context.Context, checkout string, id source.Identity, n func(string)) (*review.Session, error) {
+		return app.open(c, checkout, id, n)
+	})
+	m.SetGuideLifecycle(func(c context.Context, original *review.Session, n func(string)) (*review.Session, error) {
+		if n != nil {
+			n("Creating OpenAI analyzer for this confirmed guide request...")
+		}
+		analyzer, err := guide.NewOpenAI(guide.OpenAIOptions{APIKey: os.Getenv("OPENAI_API_KEY"), Endpoint: os.Getenv("OPENAI_BASE_URL")})
+		if err != nil {
+			return nil, err
+		}
+		return app.generateGuide(c, original, analyzer)
 	})
 	p := tea.NewProgram(m, tea.WithContext(ctx))
 	m.SetNotifier(func(s string) { p.Send(tui.Notice(s)) })

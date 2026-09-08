@@ -51,8 +51,15 @@ type Metadata struct {
 	Identity                                         Identity
 	BaseRepository, HeadRepository, BaseSHA, HeadSHA string
 }
+
+type PullRequest struct {
+	Identity Identity
+	Title    string
+}
+
 type GitHub interface {
 	Metadata(context.Context, Identity) (Metadata, error)
+	ListPullRequests(context.Context, string) ([]PullRequest, error)
 	Token(context.Context) (string, error)
 }
 type GH struct {
@@ -96,6 +103,34 @@ func (g *GH) Metadata(ctx context.Context, id Identity) (Metadata, error) {
 	}
 	return m, nil
 }
+
+func (g *GH) ListPullRequests(ctx context.Context, repository string) ([]PullRequest, error) {
+	if _, err := ParseIdentity("1", repository); err != nil {
+		return nil, err
+	}
+	data, err := g.call(ctx, "api", "--hostname", "github.com", "--method", "GET", fmt.Sprintf("repos/%s/pulls?state=open&per_page=100", repository))
+	if err != nil {
+		return nil, fmt.Errorf("GitHub pull request list unavailable (check authentication and connectivity): %w", err)
+	}
+	var raw []struct {
+		Number int    `json:"number"`
+		Title  string `json:"title"`
+	}
+	if err := json.Unmarshal(data, &raw); err != nil || len(raw) > 100 {
+		return nil, errors.New("invalid pull request list")
+	}
+	prs := make([]PullRequest, 0, len(raw))
+	seen := map[int]bool{}
+	for _, pr := range raw {
+		if pr.Number <= 0 || seen[pr.Number] || strings.ContainsAny(pr.Title, "\x00\r\n") {
+			return nil, errors.New("invalid pull request list")
+		}
+		seen[pr.Number] = true
+		prs = append(prs, PullRequest{Identity: Identity{Repository: repository, Number: pr.Number}, Title: pr.Title})
+	}
+	return prs, nil
+}
+
 func (g *GH) Token(ctx context.Context) (string, error) {
 	b, e := g.call(ctx, "auth", "token", "--hostname", "github.com")
 	if e != nil {

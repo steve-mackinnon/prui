@@ -5,10 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"path/filepath"
 
 	"pr-review/internal/guide"
-	"pr-review/internal/privacy"
 	"pr-review/internal/review"
 	"pr-review/internal/session"
 	"pr-review/internal/source"
@@ -21,11 +19,6 @@ type application struct {
 	setupError error
 	runner     source.Runner
 	limits     source.Limits
-	policy     privacy.Policy
-	// analyzer is nil unless this invocation's open acknowledged the upload.
-	// Resume never sets it, which is what keeps a frozen session's guides
-	// stable and its rendering offline.
-	analyzer guide.Analyzer
 }
 
 func (a *application) Metadata(ctx context.Context, id source.Identity) (source.Metadata, error) {
@@ -38,7 +31,24 @@ func (a *application) Metadata(ctx context.Context, id source.Identity) (source.
 	return a.gh.Metadata(ctx, id)
 }
 
+func (a *application) listPullRequests(ctx context.Context, repository string) ([]source.PullRequest, error) {
+	if _, err := source.ParseIdentity("1", repository); err != nil {
+		return nil, err
+	}
+	if a.setupError != nil {
+		return nil, a.setupError
+	}
+	if a.gh == nil {
+		return nil, errors.New("gh executable required; install GitHub CLI and authenticate")
+	}
+	return a.gh.ListPullRequests(ctx, repository)
+}
+
 func (a *application) open(ctx context.Context, checkout string, id source.Identity, notify func(string)) (*review.Session, error) {
+	checkout, err := canonicalPath(checkout)
+	if err != nil {
+		return nil, err
+	}
 	if err := outsideCheckout(a.store.Path(), checkout); err != nil {
 		return nil, err
 	}
@@ -48,18 +58,9 @@ func (a *application) open(ctx context.Context, checkout string, id source.Ident
 	if a.gh == nil {
 		return nil, errors.New("gh executable required; install GitHub CLI and authenticate")
 	}
-	checkout, err := filepath.Abs(checkout)
+	raw, err := review.Open(ctx, checkout, id, a.gh, a.runner, a.limits, notify)
 	if err != nil {
 		return nil, err
-	}
-	raw, err := review.OpenWithConfig(ctx, checkout, id, a.gh, a.runner, a.limits, notify, review.Config{Policy: a.policy, Analyzer: a.analyzer})
-	if err != nil {
-		return nil, err
-	}
-	// Analysis failure is reported, not fatal: the raw review is the product
-	// and its completeness is a separate claim from the guide bundle's.
-	if a.analyzer != nil && notify != nil && raw.Guides != nil && raw.Guides.Status != guide.Generated {
-		notify("Guide analysis unavailable: " + raw.Guides.Reason + "; the file plan is unaffected.")
 	}
 	saved, err := a.store.Create(raw.Snapshot)
 	if err != nil {
@@ -71,7 +72,24 @@ func (a *application) open(ctx context.Context, checkout string, id source.Ident
 	if err := review.Refresh(ctx, a.store, saved, a); err != nil {
 		return nil, err
 	}
+	if err := a.store.RememberRepository(saved.Inventory.Comparison.Metadata.BaseRepository, checkout); err != nil {
+		return nil, err
+	}
 	return saved, nil
+}
+
+func (a *application) checkout(id source.Identity, explicit string) (string, bool, error) {
+	if explicit != "" {
+		return explicit, false, nil
+	}
+	checkout, err := a.store.LookupRepository(id.Repository)
+	if err != nil {
+		if errors.Is(err, session.ErrRepositoryNotFound) {
+			return "", true, fmt.Errorf("no remembered checkout for %s; pass --repo <checkout>", id.Repository)
+		}
+		return "", true, err
+	}
+	return checkout, true, nil
 }
 
 func (a *application) fresh(ctx context.Context, old *review.Session, checkout string, notify func(string)) (*review.Session, error) {
@@ -84,9 +102,24 @@ func (a *application) fresh(ctx context.Context, old *review.Session, checkout s
 	return a.open(ctx, checkout, old.Inventory.Comparison.Metadata.Identity, notify)
 }
 
+func (a *application) generateGuide(ctx context.Context, original *review.Session, analyzer guide.Analyzer) (*review.Session, error) {
+	if original == nil || original.ID == "" {
+		return nil, errors.New("guide generation requires a saved review session")
+	}
+	return a.store.Create(review.DeriveGuide(ctx, original, analyzer, review.Config{}))
+}
+
 func (a *application) load(ctx context.Context, o options, notify func(string)) (*review.Session, error) {
 	if o.Command == "open" {
-		return a.open(ctx, o.Checkout, o.Identity, notify)
+		checkout, cached, err := a.checkout(o.Identity, o.Checkout)
+		if err != nil {
+			return nil, err
+		}
+		saved, err := a.open(ctx, checkout, o.Identity, notify)
+		if err != nil && cached {
+			return nil, fmt.Errorf("remembered checkout for %s is unavailable or does not match; pass --repo <checkout>: %w", o.Identity.Repository, err)
+		}
+		return saved, err
 	}
 	var reader review.MetadataReader = a
 	if o.Offline {
@@ -123,4 +156,13 @@ func listSessions(store *session.Store, out io.Writer) int {
 		fmt.Fprintln(out, "No saved sessions.")
 	}
 	return code
+}
+
+func listPullRequests(out io.Writer, repository string, prs []source.PullRequest) {
+	for _, pr := range prs {
+		fmt.Fprintf(out, "%s #%d %s\n", tui.Escape(repository), pr.Identity.Number, tui.Escape(pr.Title))
+	}
+	if len(prs) == 0 {
+		fmt.Fprintln(out, "No open pull requests.")
+	}
 }

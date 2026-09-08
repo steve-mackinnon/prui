@@ -54,3 +54,13 @@ func OpenWithConfig(ctx context.Context, checkout string, id source.Identity, gh
 	}
 	return s, nil
 }
+
+// DeriveGuide adds a guide bundle to a copy of an already-pinned snapshot.
+// It never reads the checkout or remote metadata.
+func DeriveGuide(ctx context.Context, original *Session, analyzer guide.Analyzer, cfg Config) session.Snapshot {
+	derived := original.Snapshot
+	bundle := guide.Analyze(ctx, analyzer, original.Inventory, guide.InputFrom(original.Inventory, original.Context, cfg.Policy, guide.Defaults))
+	derived.Guides = &bundle
+	derived.DerivedFrom = original.ID
+	return derived
+}

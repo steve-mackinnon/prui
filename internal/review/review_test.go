@@ -18,6 +18,9 @@ type FixtureGitHub struct{ Value source.Metadata }
 func (g FixtureGitHub) Metadata(context.Context, source.Identity) (source.Metadata, error) {
 	return g.Value, nil
 }
+func (g FixtureGitHub) ListPullRequests(context.Context, string) ([]source.PullRequest, error) {
+	return nil, nil
+}
 func (g FixtureGitHub) Token(context.Context) (string, error) {
 	panic("unexpected network credentials")
 }
@@ -129,5 +132,35 @@ func TestGuidesDoNotChangeTheFilePlan(t *testing.T) {
 	}
 	if len(failed.Slices) != len(plain.Slices) {
 		t.Fatal("failed analysis cost the file plan")
+	}
+}
+
+func TestDeriveGuideUsesFrozenMaterialWithoutChangingSource(t *testing.T) {
+	r := testutil.NewRepo(t)
+	r.Write("a", "before\n")
+	base := r.Commit()
+	r.Write("a", "after\n")
+	head := r.Commit()
+	m := source.Metadata{Identity: source.Identity{Repository: "o/r", Number: 1}, BaseRepository: "o/r", HeadRepository: "o/r", BaseSHA: base, HeadSHA: head}
+	original, err := Open(context.Background(), r.Dir, m.Identity, FixtureGitHub{m}, source.NewRunner(), source.Defaults(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	original.ID = "0123456789abcdef0123456789abcdef"
+	before, err := json.Marshal(original.Snapshot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	analyzer := &fakeAnalyzer{}
+	derived := DeriveGuide(context.Background(), original, analyzer, Config{})
+	if derived.DerivedFrom != original.ID || derived.Guides == nil || derived.Guides.Status != guide.Generated || analyzer.calls != 1 {
+		t.Fatal("derived guide did not use frozen session", derived)
+	}
+	after, err := json.Marshal(original.Snapshot)
+	if err != nil || !bytes.Equal(before, after) {
+		t.Fatal("guide derivation modified the original snapshot", err)
+	}
+	if !bytes.Equal(derived.Inventory.Patches[derived.Inventory.Units[0].PatchReference], original.Inventory.Patches[original.Inventory.Units[0].PatchReference]) {
+		t.Fatal("derived guide did not retain frozen patches")
 	}
 }

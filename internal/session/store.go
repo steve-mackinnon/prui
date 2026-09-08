@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -50,6 +51,8 @@ type Snapshot struct {
 	// Guides is a pointer so a session created before guide analysis existed
 	// re-marshals to identical bytes and keeps its snapshot reference valid.
 	Guides *guide.Bundle `json:"guides,omitempty"`
+	// DerivedFrom links a guided copy to its immutable source session.
+	DerivedFrom string `json:"derived_from,omitempty"`
 }
 
 type State struct {
@@ -141,6 +144,18 @@ type Store struct {
 }
 
 var idPattern = regexp.MustCompile(`^[0-9a-f]{32}$`)
+var repositoryPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]*/[A-Za-z0-9][A-Za-z0-9_.-]*$`)
+
+var ErrRepositoryNotFound = errors.New("remembered repository not found")
+
+type repositoryRecord struct {
+	Repositories []Repository `json:"repositories"`
+}
+
+type Repository struct {
+	Repository string `json:"repository"`
+	Checkout   string `json:"checkout"`
+}
 
 func DefaultPath() (string, error) {
 	home, err := os.UserHomeDir()
@@ -231,6 +246,104 @@ func (s *Store) Close() error {
 	return err
 }
 
+// LookupRepository returns the canonical checkout remembered for a repository.
+func (s *Store) LookupRepository(repository string) (string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.lock == nil {
+		return "", errors.New("session store closed")
+	}
+	repository, err := normalizeRepository(repository)
+	if err != nil {
+		return "", err
+	}
+	r, err := s.repositories()
+	if err != nil {
+		return "", err
+	}
+	for _, entry := range r.Repositories {
+		if entry.Repository == repository {
+			return entry.Checkout, nil
+		}
+	}
+	return "", ErrRepositoryNotFound
+}
+
+// ListRepositories returns remembered repositories in their durable order.
+func (s *Store) ListRepositories() ([]Repository, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.lock == nil {
+		return nil, errors.New("session store closed")
+	}
+	r, err := s.repositories()
+	if err != nil {
+		return nil, err
+	}
+	return append([]Repository(nil), r.Repositories...), nil
+}
+
+// RememberRepository replaces the one canonical checkout hint for a repository.
+func (s *Store) RememberRepository(repository, checkout string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.lock == nil {
+		return errors.New("session store closed")
+	}
+	repository, err := normalizeRepository(repository)
+	if err != nil {
+		return err
+	}
+	if !filepath.IsAbs(checkout) || filepath.Clean(checkout) != checkout {
+		return errors.New("repository checkout must be a canonical absolute path")
+	}
+	r, err := s.repositories()
+	if err != nil {
+		return err
+	}
+	updated := false
+	for i := range r.Repositories {
+		if r.Repositories[i].Repository == repository {
+			r.Repositories[i].Checkout = checkout
+			updated = true
+		}
+	}
+	if !updated {
+		r.Repositories = append(r.Repositories, Repository{Repository: repository, Checkout: checkout})
+	}
+	b, err := json.Marshal(r)
+	if err != nil {
+		return err
+	}
+	return atomicWrite(s.path, "repositories.json", b)
+}
+
+func (s *Store) repositories() (repositoryRecord, error) {
+	path := filepath.Join(s.path, "repositories.json")
+	if _, err := os.Lstat(path); os.IsNotExist(err) {
+		return repositoryRecord{}, nil
+	}
+	var r repositoryRecord
+	if _, err := readJSON(path, &r); err != nil {
+		return repositoryRecord{}, err
+	}
+	seen := map[string]bool{}
+	for _, entry := range r.Repositories {
+		if entry.Repository != strings.ToLower(entry.Repository) || !repositoryPattern.MatchString(entry.Repository) || seen[entry.Repository] || !filepath.IsAbs(entry.Checkout) || filepath.Clean(entry.Checkout) != entry.Checkout {
+			return repositoryRecord{}, errors.New("invalid remembered repository record; original retained")
+		}
+		seen[entry.Repository] = true
+	}
+	return r, nil
+}
+
+func normalizeRepository(repository string) (string, error) {
+	if !repositoryPattern.MatchString(repository) {
+		return "", errors.New("invalid GitHub repository")
+	}
+	return strings.ToLower(repository), nil
+}
+
 func privatePath(path string, directory bool) error {
 	info, err := os.Lstat(path)
 	if err != nil {
@@ -318,6 +431,9 @@ func syncDir(dir string) error {
 func (s *Store) Create(snapshot Snapshot) (*Record, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if err := s.validateDerived(snapshot); err != nil {
+		return nil, err
+	}
 	b, err := json.Marshal(snapshot)
 	if err != nil {
 		return nil, err
@@ -344,6 +460,34 @@ func (s *Store) Create(snapshot Snapshot) (*Record, error) {
 		return nil, err
 	}
 	return s.load(r.ID)
+}
+
+func (s *Store) validateDerived(snapshot Snapshot) error {
+	if snapshot.DerivedFrom == "" {
+		return nil
+	}
+	if !idPattern.MatchString(snapshot.DerivedFrom) {
+		return errors.New("invalid derived session source")
+	}
+	parent, err := s.load(snapshot.DerivedFrom)
+	if err != nil {
+		return fmt.Errorf("derived session source unavailable: %w", err)
+	}
+	derivedRaw, parentRaw := snapshot, parent.Snapshot
+	derivedRaw.Guides, derivedRaw.DerivedFrom = nil, ""
+	parentRaw.Guides, parentRaw.DerivedFrom = nil, ""
+	derivedBytes, err := json.Marshal(derivedRaw)
+	if err != nil {
+		return err
+	}
+	parentBytes, err := json.Marshal(parentRaw)
+	if err != nil {
+		return err
+	}
+	if !bytes.Equal(derivedBytes, parentBytes) {
+		return errors.New("derived session source evidence changed")
+	}
+	return nil
 }
 
 func randBytes() []byte { b := make([]byte, 16); _, _ = rand.Read(b); return b }

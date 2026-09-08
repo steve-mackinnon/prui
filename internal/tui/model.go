@@ -8,6 +8,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"pr-review/internal/review"
 	"pr-review/internal/session"
+	"pr-review/internal/source"
 )
 
 type Loader func(context.Context, func(string)) (*review.Session, error)
@@ -35,8 +36,11 @@ const (
 	pageHelp
 	pageURL
 	pagePicker
+	pageRepositoryPicker
+	pagePullRequestPicker
 	pageEdit
 	pageReorder
+	pageGuideConsent
 )
 
 type Model struct {
@@ -57,6 +61,8 @@ type Model struct {
 	EditIndex                 int
 	PickerIndex               int
 	Entries                   []session.Entry
+	Repositories              []session.Repository
+	PullRequests              []source.PullRequest
 	ActionError               error
 	store                     *session.Store
 	reader                    review.MetadataReader
@@ -67,11 +73,26 @@ type Model struct {
 	cancel                    context.CancelFunc
 	load                      Loader
 	notify                    func(string)
+	listPullRequests          PullRequestLoader
+	openPullRequest           PullRequestOpener
+	generateGuide             GuideLoader
+	cancelAction              context.CancelFunc
 }
+
+type PullRequestLoader func(context.Context, string) ([]source.PullRequest, error)
+type PullRequestOpener func(context.Context, string, source.Identity, func(string)) (*review.Session, error)
 
 func New(parent context.Context, load Loader) *Model {
 	ctx, cancel := context.WithCancel(parent)
 	return &Model{ctx: ctx, cancel: cancel, load: load, Scroll: map[int]int{}, GuideScroll: map[int]int{}, collapsed: newExpansion(), Stack: []page{pageReview}, Width: 100, Height: 24, Loading: true, notice: "Loading GitHub metadata and pinned committed objects..."}
+}
+
+// NewPullRequestBrowser starts with local repository selection and makes no
+// network request until the user explicitly selects a repository.
+func NewPullRequestBrowser(parent context.Context, store *session.Store, list PullRequestLoader, open PullRequestOpener) *Model {
+	ctx, cancel := context.WithCancel(parent)
+	repositories, err := store.ListRepositories()
+	return &Model{ctx: ctx, cancel: cancel, Scroll: map[int]int{}, collapsed: newExpansion(), Stack: []page{pageRepositoryPicker}, Width: 100, Height: 24, store: store, Repositories: repositories, ActionError: err, listPullRequests: list, openPullRequest: open}
 }
 func (m *Model) SetNotifier(f func(string)) { m.notify = f }
 func (m *Model) Init() tea.Cmd {
@@ -94,6 +115,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.begin()
 	case ActionResult:
 		m.Busy = false
+		m.cancelAction = nil
 		m.ActionError = v.Err
 		if v.Err == nil && v.Session != nil {
 			m.Session = v.Session
@@ -107,12 +129,25 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.begin()
 			}
 		}
+	case PullRequestListResult:
+		m.Busy = false
+		m.cancelAction = nil
+		m.ActionError = v.Err
+		if v.Err == nil {
+			m.PullRequests = v.PullRequests
+			m.PickerIndex = 0
+			m.push(pagePullRequestPicker)
+		}
 	case Notice:
 		m.notice = string(v)
 	case tea.WindowSizeMsg:
 		m.Width = max(1, v.Width)
 		m.Height = max(1, v.Height)
 	case tea.KeyPressMsg:
+		if m.Busy && v.String() == "esc" && m.cancelAction != nil {
+			m.cancelAction()
+			return m, nil
+		}
 		if v.String() != "q" && v.String() != "ctrl+c" {
 			if m.Busy {
 				return m, nil
@@ -130,7 +165,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		case "?":
 			m.push(pageHelp)
-		case "g":
+		case "u":
 			m.push(pageURL)
 		case "i":
 			m.Inventory = !m.Inventory
@@ -242,8 +277,14 @@ func (m *Model) pageKey(p page, k string) tea.Cmd {
 	switch p {
 	case pagePicker:
 		return m.pickerKey(k)
+	case pageRepositoryPicker:
+		return m.repositoryPickerKey(k)
+	case pagePullRequestPicker:
+		return m.pullRequestPickerKey(k)
 	case pageEdit, pageReorder:
 		return m.editKey(k)
+	case pageGuideConsent:
+		return m.guideConsentKey(k)
 	case pageHelp, pageURL, pageEvidence, pageAnalysis:
 		if k == "esc" {
 			m.pop()
@@ -366,12 +407,14 @@ func (m *Model) View() tea.View {
 		text = "Loading\n" + Escape(m.notice) + "\nq / ctrl+c: cancel"
 	case m.Err != nil:
 		text = "Unable to open review\n" + Escape(m.Err.Error()) + "\nNo complete comparison available. q: quit"
-	case m.Session == nil:
-		text = "No review loaded. q: quit"
 	default:
 		switch m.top() {
 		case pagePicker:
 			text = m.pickerView()
+		case pageRepositoryPicker:
+			text = m.repositoryPickerView()
+		case pagePullRequestPicker:
+			text = m.pullRequestPickerView()
 		case pageEdit, pageReorder:
 			text = m.editView()
 		case pageHelp:
@@ -383,10 +426,16 @@ func (m *Model) View() tea.View {
 			text = m.Session.Inventory.Comparison.Metadata.Identity.URL() + "\nOpen this URL in your browser for GitHub review actions.\nesc: back | q: quit"
 		case pageAnalysis:
 			text = m.analysisView()
+		case pageGuideConsent:
+			text = m.guideConsentView()
 		case pageEvidence:
 			text = m.evidenceView()
 		default:
-			text = m.reviewView()
+			if m.Session == nil {
+				text = "No review loaded. q: quit"
+			} else {
+				text = m.reviewView()
+			}
 		}
 	}
 	lines := strings.Split(text, "\n")
@@ -399,6 +448,10 @@ func (m *Model) View() tea.View {
 	v := tea.NewView(strings.Join(lines, "\n"))
 	v.AltScreen = true
 	return v
+}
+
+func (m *Model) guideConsentView() string {
+	return "Generate OpenAI guide?\n\nThis sends bounded pinned patches and repository evidence to OpenAI. Exclusions and credential-like content are withheld. The request uses store:false; your API key is not persisted.\n\nenter: send source and generate a new guided session | esc: cancel | q: quit"
 }
 func (m *Model) reviewView() string {
 	s := m.Session

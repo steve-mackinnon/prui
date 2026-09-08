@@ -2,17 +2,11 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
-	"net/http"
-	"net/http/httptest"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
-	"sync/atomic"
 	"testing"
 
 	"pr-review/internal/guide"
@@ -25,10 +19,42 @@ import (
 type fixtureGH struct {
 	value source.Metadata
 	err   error
+	prs   []source.PullRequest
+}
+
+type unavailableGuideAnalyzer struct{}
+
+func (unavailableGuideAnalyzer) Analyze(context.Context, guide.Input) (guide.Bundle, error) {
+	return guide.Bundle{}, errors.New("provider unavailable")
 }
 
 func (g *fixtureGH) Metadata(context.Context, source.Identity) (source.Metadata, error) {
 	return g.value, g.err
+}
+func (g *fixtureGH) ListPullRequests(context.Context, string) ([]source.PullRequest, error) {
+	return g.prs, g.err
+}
+
+func TestLifecycleListPullRequests(t *testing.T) {
+	store, err := session.Open(filepath.Join(t.TempDir(), "sessions"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	g := &fixtureGH{prs: []source.PullRequest{{Identity: source.Identity{Repository: "owner/repo", Number: 42}, Title: "Add\x1btitle"}}}
+	app := application{store: store, gh: g}
+	prs, err := app.listPullRequests(context.Background(), "owner/repo")
+	if err != nil || len(prs) != 1 {
+		t.Fatal(prs, err)
+	}
+	var out strings.Builder
+	listPullRequests(&out, "owner/repo", prs)
+	if got := out.String(); !strings.Contains(got, "owner/repo #42 Add\\x1btitle") || strings.ContainsAny(got, "\x1b\a") {
+		t.Fatal("list output was unsafe", got)
+	}
+	if _, err := app.listPullRequests(context.Background(), "../repo"); err == nil {
+		t.Fatal("invalid repository listed")
+	}
 }
 func (g *fixtureGH) Token(context.Context) (string, error) { panic("credentials must not be used") }
 
@@ -122,125 +148,72 @@ func TestLifecycleOpenResumeNewAndOfflineCLI(t *testing.T) {
 	}
 }
 
-// provider is a recording OpenAI endpoint. It answers from the unit ids it was
-// actually sent, so a passing case also proves the prompt carried them.
-type provider struct {
-	calls  atomic.Int64
-	status atomic.Int64
-}
-
-var promptUnit = regexp.MustCompile(`unit (\S+) \| path `)
-
-func (p *provider) start(t *testing.T) *httptest.Server {
-	t.Helper()
-	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		p.calls.Add(1)
-		body, err := io.ReadAll(r.Body)
-		if err != nil {
-			t.Error(err)
-			return
-		}
-		if code := int(p.status.Load()); code != 0 {
-			w.WriteHeader(code)
-			w.Write([]byte(`{"error":{"message":"provider unavailable"}}`))
-			return
-		}
-		var sent struct {
-			Input []struct{ Content string } `json:"input"`
-		}
-		if err := json.Unmarshal(body, &sent); err != nil || len(sent.Input) != 1 {
-			t.Error("request is not one bounded user message", err)
-			return
-		}
-		var ids []string
-		for _, m := range promptUnit.FindAllStringSubmatch(sent.Input[0].Content, -1) {
-			ids = append(ids, `"`+m[1]+`"`)
-		}
-		fmt.Fprintf(w, `{"status":"completed","output_text":"{\"guides\":[{\"title\":\"Rewrite a\",\"description\":\"Replaces the file contents.\",\"sections\":[{\"title\":\"Replace contents\",\"description\":\"One hunk.\",\"unit_ids\":[%s]}]}]}"}`,
-			strings.ReplaceAll(strings.Join(ids, ","), `"`, `\"`))
-	}))
-	t.Cleanup(s.Close)
-	return s
-}
-
-func TestLifecycleAnalysisOptInFailureAndResume(t *testing.T) {
+func TestLifecycleRememberedCheckout(t *testing.T) {
 	r := testutil.NewRepo(t)
 	r.Write("a", "old\n")
 	base := r.Commit()
 	r.Write("a", "new\n")
 	head := r.Commit()
-	g := &fixtureGH{value: source.Metadata{Identity: source.Identity{Repository: "o/r", Number: 1}, BaseRepository: "o/r", HeadRepository: "o/r", BaseSHA: base, HeadSHA: head}}
+	g := &fixtureGH{value: source.Metadata{Identity: source.Identity{Repository: "Owner/Repo", Number: 1}, BaseRepository: "Owner/Repo", HeadRepository: "Owner/Repo", BaseSHA: base, HeadSHA: head}}
 	store, err := session.Open(filepath.Join(t.TempDir(), "sessions"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	p := &provider{}
-	endpoint := p.start(t)
-	analyzer, err := guide.NewOpenAI(guide.OpenAIOptions{APIKey: "sk-test", Endpoint: endpoint.URL})
-	if err != nil {
-		t.Fatal(err)
-	}
 	app := application{store: store, gh: g, runner: source.NewRunner(), limits: source.Defaults()}
-	open := options{Command: "open", Checkout: r.Dir, Identity: g.value.Identity}
-	quiet := func(string) {}
-
-	optedOut, err := app.load(context.Background(), open, quiet)
+	if _, err := app.load(context.Background(), options{Command: "open", Checkout: r.Dir, Identity: g.value.Identity}, nil); err != nil {
+		t.Fatal("explicit open", err)
+	}
+	canonical, err := canonicalPath(r.Dir)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if p.calls.Load() != 0 {
-		t.Fatal("opting out still contacted the provider", p.calls.Load())
+	if got, err := store.LookupRepository("owner/repo"); err != nil || got != canonical {
+		t.Fatal("verified checkout was not remembered", got, err)
 	}
-	if optedOut.Guides == nil || optedOut.Guides.Status != guide.Unavailable || optedOut.Guides.Reason != "analysis not requested" {
-		t.Fatal("opt-out is not stated as a decision", optedOut.Guides)
+	if _, err := app.load(context.Background(), options{Command: "open", Identity: g.value.Identity}, nil); err != nil {
+		t.Fatal("cached open", err)
 	}
+	if err := store.RememberRepository("owner/repo", filepath.Join(t.TempDir(), "missing")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := app.load(context.Background(), options{Command: "open", Identity: g.value.Identity}, nil); err == nil || !strings.Contains(err.Error(), "pass --repo <checkout>") {
+		t.Fatal("stale cached checkout lacked remediation", err)
+	}
+	if _, err := app.load(context.Background(), options{Command: "open", Checkout: r.Dir, Identity: g.value.Identity}, nil); err != nil {
+		t.Fatal("explicit checkout did not override stale cache", err)
+	}
+}
 
-	app.analyzer = analyzer
-	p.status.Store(500)
-	var notices []string
-	broken, err := app.load(context.Background(), open, func(s string) { notices = append(notices, s) })
-	if err != nil {
-		t.Fatal("analysis failure broke open", err)
-	}
-	if broken.ID == "" || !broken.Inventory.Complete {
-		t.Fatal("a failed analysis cost the raw review its session")
-	}
-	if broken.Guides.Status != guide.Unavailable || !strings.Contains(broken.Guides.Reason, "openai analysis failed") {
-		t.Fatal("provider failure is not stated", broken.Guides)
-	}
-	if !strings.Contains(strings.Join(notices, "\n"), "Guide analysis unavailable") {
-		t.Fatal("analysis failure was silent", notices)
-	}
-
-	p.status.Store(0)
-	analyzed, err := app.load(context.Background(), open, quiet)
+func TestLifecycleCreatesDerivedGuideSession(t *testing.T) {
+	r := testutil.NewRepo(t)
+	r.Write("a", "old\n")
+	base := r.Commit()
+	r.Write("a", "new\n")
+	head := r.Commit()
+	meta := source.Metadata{Identity: source.Identity{Repository: "o/r", Number: 1}, BaseRepository: "o/r", HeadRepository: "o/r", BaseSHA: base, HeadSHA: head}
+	store, err := session.Open(filepath.Join(t.TempDir(), "sessions"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if analyzed.Guides.Status != guide.Generated || analyzed.Guides.Provider != "openai" || analyzed.Guides.Model != guide.DefaultModel {
-		t.Fatal("guides did not reach the snapshot with their provenance", analyzed.Guides)
-	}
-	if len(analyzed.Guides.Items) != 1 || analyzed.Guides.Items[0].Title != "Rewrite a" {
-		t.Fatal("stored guides are not the provider's grouping", analyzed.Guides.Items)
-	}
-	if err := guide.Validate(*analyzed.Guides, analyzed.Inventory); err != nil {
-		t.Fatal("stored bundle does not validate", err)
-	}
-	// Analysis must not disturb the deterministic plan it interprets.
-	if len(analyzed.Slices) != len(optedOut.Slices) || len(analyzed.UnitFiles) != len(optedOut.UnitFiles) {
-		t.Fatal("analysis changed file ownership")
-	}
-
-	before := p.calls.Load()
-	resumed, err := app.load(context.Background(), options{Command: "resume", SessionID: analyzed.ID}, quiet)
+	defer store.Close()
+	app := application{store: store, gh: &fixtureGH{value: meta}, runner: source.NewRunner(), limits: source.Defaults()}
+	original, err := app.open(context.Background(), r.Dir, meta.Identity, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if p.calls.Load() != before {
-		t.Fatal("resume contacted the provider", p.calls.Load()-before)
+	if err := review.Mark(store, original, original.Slices[0].FileID, true); err != nil {
+		t.Fatal(err)
 	}
-	if resumed.Guides == nil || resumed.Guides.Status != guide.Generated || len(resumed.Guides.Items) != 1 {
-		t.Fatal("resume did not render the frozen guides", resumed.Guides)
+	derived, err := app.generateGuide(context.Background(), original, unavailableGuideAnalyzer{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if derived.ID == original.ID || derived.DerivedFrom != original.ID || len(derived.ReviewedSliceIDs) != 0 || derived.Guides == nil || derived.Guides.Status != guide.Unavailable {
+		t.Fatal("guide action did not create an unread derived session", derived)
+	}
+	loaded, err := store.Load(original.ID)
+	if err != nil || len(loaded.ReviewedSliceIDs) != 1 || loaded.DerivedFrom != "" {
+		t.Fatal("guide action changed source session", loaded, err)
 	}
 }
