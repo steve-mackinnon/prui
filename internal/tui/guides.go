@@ -203,16 +203,24 @@ func (m *Model) toggle(rows []row) {
 	default:
 		// A portion row has nothing to expand, so tab hands it to the diff
 		// pane the same way enter does.
-		m.Focus = paneDiff
+		m.focusDetail(rows)
 	}
 }
 
-// guideList renders the left pane rows with the file-slice read markers, so a
-// file marked under one section visibly reads as marked everywhere it appears.
-// Selection markers follow the same focused/unfocused convention as the file
-// plan, so the guide pane is not a second selection language.
-func guideList(s *review.Session, rows []row, selected int, focused bool) []string {
-	out := make([]string, 0, len(rows))
+type listLine struct {
+	row  int
+	text string
+}
+
+// guideList renders selectable hierarchy rows and non-selectable context for
+// the guide under the cursor. Context lines retain their row identity so
+// windowing and selection styling remain correct after descriptions wrap.
+func guideList(s *review.Session, rows []row, selected, width int, focused bool) []listLine {
+	out := make([]listLine, 0, len(rows))
+	selectedGuide := -1
+	if selected >= 0 && selected < len(rows) {
+		selectedGuide = rows[selected].guide
+	}
 	for i, r := range rows {
 		marker := "  "
 		if i == selected {
@@ -225,7 +233,58 @@ func guideList(s *review.Session, rows []row, selected int, focused bool) []stri
 		if r.kind == portionRow {
 			line += readMarker(s, s.Inventory.Files[r.file].ID)
 		}
-		out = append(out, line+r.label)
+		out = append(out, listLine{row: i, text: line + r.label})
+		if r.guide != selectedGuide {
+			continue
+		}
+		item := s.Guides.Items[r.guide]
+		switch r.kind {
+		case guideRow:
+			if !item.Ungrouped {
+				out = appendDescription(out, r.depth, Escape(item.Description), width)
+			}
+		case sectionRow:
+			out = appendDescription(out, r.depth, Escape(item.Sections[r.section].Description), width)
+		}
 	}
 	return out
+}
+
+func appendDescription(lines []listLine, depth int, text string, width int) []listLine {
+	if strings.TrimSpace(text) == "" {
+		return lines
+	}
+	indent := strings.Repeat("  ", depth+2)
+	for _, line := range wrap(text, width-visibleWidth(indent)) {
+		lines = append(lines, listLine{row: -1, text: indent + line})
+	}
+	return lines
+}
+
+func wrap(text string, width int) []string {
+	if width <= 0 {
+		return []string{text}
+	}
+	var lines []string
+	for _, word := range strings.Fields(text) {
+		for visibleWidth(word) > width {
+			lines = append(lines, string([]rune(word)[:width]))
+			word = string([]rune(word)[width:])
+		}
+		if len(lines) == 0 || visibleWidth(lines[len(lines)-1])+1+visibleWidth(word) > width {
+			lines = append(lines, word)
+			continue
+		}
+		lines[len(lines)-1] += " " + word
+	}
+	return lines
+}
+
+func firstDisplayLine(lines []listLine, row int) int {
+	for i, line := range lines {
+		if line.row == row {
+			return i
+		}
+	}
+	return 0
 }

@@ -244,8 +244,8 @@ func TestGuideMarking(t *testing.T) {
 	}
 	rows := m.rows()
 	marked := 0
-	for _, line := range guideList(m.Session, rows, m.Row, true) {
-		if strings.Contains(line, "[x] a.go") {
+	for _, line := range guideList(m.Session, rows, m.Row, 36, true) {
+		if strings.Contains(line.text, "[x] a.go") {
 			marked++
 		}
 	}
@@ -260,6 +260,243 @@ func TestGuideMarking(t *testing.T) {
 	}
 	if !strings.Contains(view, "1/3 read") {
 		t.Fatal("progress is not file-slice based", view)
+	}
+}
+
+func TestGuideDetailAndScroll(t *testing.T) {
+	s, _, _ := guidedSession(t, splitAnalyzer{})
+	m := loaded(t, s, 60, 5)
+	rows := m.rows()
+
+	for i, r := range rows {
+		m.Row = i
+		got := m.detail()
+		want := detailFor(s, r.guide).lines
+		if len(got) != len(want) {
+			t.Fatalf("row %d detail length = %d, want %d", i, len(got), len(want))
+		}
+		for j := range want {
+			if got[j] != want[j] {
+				t.Fatalf("row %d detail line %d = %#v, want %#v", i, j, got[j], want[j])
+			}
+		}
+	}
+
+	first := detailFor(s, 0)
+	if len(first.files) != 2 || first.files[0].offset >= first.files[1].offset {
+		t.Fatalf("guide detail anchors = %#v, want ordered a.go and b.go occurrences", first.files)
+	}
+	for _, anchor := range first.files {
+		if first.lines[anchor.offset].Class != classFileHeader {
+			t.Fatalf("anchor at %d does not point to a file header", anchor.offset)
+		}
+	}
+
+	// Combining the fixture's two a.go sections proves repeated occurrences
+	// retain separate anchors in guide-defined positions.
+	s.Guides.Items[0].Sections = append(s.Guides.Items[0].Sections, s.Guides.Items[1].Sections[0])
+	repeated := detailFor(s, 0)
+	if len(repeated.files) != 3 || repeated.files[0].file != repeated.files[2].file || repeated.files[0].offset == repeated.files[2].offset {
+		t.Fatalf("repeated file anchors = %#v, want distinct a.go occurrences", repeated.files)
+	}
+
+	m = loaded(t, s, 120, 5)
+	key(m, 'J')
+	guide := m.rows()[m.Row].guide
+	if m.GuideScroll[guide] == 0 {
+		t.Fatal("J did not scroll the active guide")
+	}
+	firstOffset := m.GuideScroll[guide]
+	m.Update(tea.KeyPressMsg{Code: ']', Text: "]"})
+	second := m.rows()[m.Row].guide
+	if m.GuideScroll[second] != 0 {
+		t.Fatal("next guide did not start at offset zero")
+	}
+	m.Update(tea.KeyPressMsg{Code: '[', Text: "["})
+	if m.GuideScroll[guide] != firstOffset {
+		t.Fatalf("guide offset = %d, want restored %d", m.GuideScroll[guide], firstOffset)
+	}
+	for range 100 {
+		key(m, 'J')
+	}
+	last := max(0, len(m.detail())-m.bodyHeight())
+	if m.offset() != last {
+		t.Fatalf("guide offset = %d, want clamp %d", m.offset(), last)
+	}
+}
+
+func TestGuideDetailFileJumps(t *testing.T) {
+	s, _, _ := guidedSession(t, splitAnalyzer{})
+	m := loaded(t, s, 60, 5)
+	rows := m.rows()
+
+	bRow := -1
+	for i, r := range rows {
+		if r.kind == portionRow && r.guide == 0 && string(s.Inventory.Files[r.file].NewPath) == "b.go" {
+			bRow = i
+			break
+		}
+	}
+	if bRow < 0 {
+		t.Fatal("no b.go row in first guide")
+	}
+	b := rows[bRow]
+	want, ok := anchorFor(detailFor(s, b.guide), b)
+	if !ok {
+		t.Fatal("no b.go detail anchor")
+	}
+	m.Row, m.Selected = bRow, b.units[0]
+	namedKey(m, tea.KeyEnter)
+	if m.Focus != paneDiff || m.GuideScroll[b.guide] != want {
+		t.Fatalf("Enter focus/offset = %v/%d, want diff/%d", m.Focus, m.GuideScroll[b.guide], want)
+	}
+	view := strings.Split(ansi.Strip(m.View().Content), "\n")
+	if len(view) < 3 || view[2] != "b.go" {
+		t.Fatalf("jumped diff body = %q, want b.go header", view)
+	}
+
+	m.Focus = paneList
+	m.GuideScroll[0] = 1
+	m.Row, m.Selected = 0, rows[0].units[0]
+	namedKey(m, tea.KeyEnter)
+	if m.Focus != paneDiff || m.GuideScroll[0] != 1 {
+		t.Fatal("Enter on a guide row did not preserve its saved offset")
+	}
+
+	m.Focus = paneList
+	m.Row, m.Selected = bRow, b.units[0]
+	m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	if m.Focus != paneDiff || m.GuideScroll[b.guide] != want {
+		t.Fatal("tab on a file row did not jump and focus the diff")
+	}
+}
+
+func TestGuideDetailJumpsRepeatedFileOccurrence(t *testing.T) {
+	s, _, _ := guidedSession(t, splitAnalyzer{})
+	s.Guides.Items[0].Sections = append(s.Guides.Items[0].Sections, s.Guides.Items[1].Sections[0])
+	m := loaded(t, s, 120, 5)
+	rows := m.rows()
+	occurrences := make([]row, 0, 2)
+	secondRow := -1
+	for i, r := range rows {
+		if r.kind == portionRow && r.guide == 0 && string(s.Inventory.Files[r.file].NewPath) == "a.go" {
+			occurrences = append(occurrences, r)
+			if len(occurrences) == 2 {
+				secondRow = i
+			}
+		}
+	}
+	if len(occurrences) != 2 {
+		t.Fatalf("a.go occurrences = %d, want 2", len(occurrences))
+	}
+	first, ok := anchorFor(detailFor(s, 0), occurrences[0])
+	if !ok {
+		t.Fatal("no first a.go anchor")
+	}
+	second, ok := anchorFor(detailFor(s, 0), occurrences[1])
+	if !ok || second == first {
+		t.Fatalf("second a.go anchor = %d, want distinct from %d", second, first)
+	}
+	if secondRow < 0 {
+		t.Fatal("no second a.go row")
+	}
+	m.Row, m.Selected = secondRow, rows[secondRow].units[0]
+	namedKey(m, tea.KeyEnter)
+	if m.GuideScroll[0] != second {
+		t.Fatalf("second a.go jump = %d, want %d", m.GuideScroll[0], second)
+	}
+}
+
+func TestGuideFallbackEnterOnlyFocusesDiff(t *testing.T) {
+	s, _, _ := guidedSession(t, nil)
+	m := loaded(t, s, 120, 5)
+	m.Update(tea.KeyPressMsg{Code: 'G', Text: "G"})
+	if !m.Files || m.rows() != nil {
+		t.Fatal("G did not retain the deterministic file plan")
+	}
+	m.Scroll[m.Selected] = 1
+	namedKey(m, tea.KeyEnter)
+	if m.Focus != paneDiff || m.Scroll[m.Selected] != 1 {
+		t.Fatal("file plan Enter changed its unit scroll")
+	}
+	key(m, 'i')
+	m.Focus = paneList
+	m.Scroll[m.Selected] = 1
+	namedKey(m, tea.KeyEnter)
+	if m.Focus != paneDiff || m.Scroll[m.Selected] != 1 {
+		t.Fatal("inventory Enter changed its unit scroll")
+	}
+}
+
+func TestGuideContextShowsSelectedGuideDescriptions(t *testing.T) {
+	s, _, _ := guidedSession(t, splitAnalyzer{})
+	m := loaded(t, s, 100, 24)
+	view := ansi.Strip(m.View().Content)
+	for _, want := range []string{"Adds a greeting.", "Changes the greeting text.", "Stores the greeting."} {
+		if !strings.Contains(view, want) {
+			t.Fatalf("selected guide context missing %q: %s", want, view)
+		}
+	}
+	if strings.Contains(view, "Mode and identity changes.") {
+		t.Fatal("non-selected guide description rendered")
+	}
+}
+
+func TestGuideContextWrapsAndKeepsRowsNavigable(t *testing.T) {
+	s, _, _ := guidedSession(t, splitAnalyzer{})
+	s.Guides.Items[0].Description = "One two three four five six seven eight nine ten."
+	m := loaded(t, s, 100, 24)
+	rows := m.rows()
+	lines := guideList(s, rows, m.Row, 33, true)
+	for _, line := range lines {
+		if line.row == -1 && visibleWidth(line.text) > 33 {
+			t.Fatalf("context line exceeds pane width: %q", line.text)
+		}
+	}
+	context := ""
+	for _, line := range lines {
+		if line.row == -1 {
+			context += line.text + " "
+		}
+	}
+	for _, word := range strings.Fields(s.Guides.Items[0].Description) {
+		if !strings.Contains(context, word) {
+			t.Fatalf("wrapped context lost %q: %q", word, context)
+		}
+	}
+	key(m, 'j')
+	if m.Row != 1 || m.rows()[m.Row].kind != sectionRow {
+		t.Fatalf("j landed on row %d, want next selectable section row", m.Row)
+	}
+}
+
+func TestGuideContextWindowingAndUngroupedDescription(t *testing.T) {
+	s, _, _ := guidedSession(t, splitAnalyzer{})
+	s.Guides.Items[0].Description = strings.Repeat("a long guide description ", 12)
+	m := loaded(t, s, 60, 5)
+	for m.rows()[m.Row].kind != portionRow {
+		key(m, 'j')
+	}
+	view := ansi.Strip(m.View().Content)
+	if !strings.Contains(view, "a.go [text_hunk]") {
+		t.Fatal("selected file row is not visible after long context")
+	}
+	ungrouped := -1
+	for i, r := range m.rows() {
+		if s.Guides.Items[r.guide].Ungrouped {
+			ungrouped = i
+			break
+		}
+	}
+	if ungrouped < 0 {
+		t.Fatal("fixture has no ungrouped guide")
+	}
+	s.Guides.Items[m.rows()[ungrouped].guide].Description = "synthetic guide description"
+	m.Row = ungrouped
+	for _, line := range guideList(s, m.rows(), m.Row, 36, true) {
+		if strings.Contains(line.text, "synthetic guide description") {
+			t.Fatal("ungrouped guide rendered a synthesized description")
+		}
 	}
 }
 

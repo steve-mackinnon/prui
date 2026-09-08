@@ -47,6 +47,7 @@ type Model struct {
 	Files                     bool // G: navigate the deterministic file plan instead of guides
 	collapsed                 expansion
 	Scroll                    map[int]int
+	GuideScroll               map[int]int
 	Width, Height, Horizontal int
 	Inventory                 bool
 	Focus                     pane
@@ -70,7 +71,7 @@ type Model struct {
 
 func New(parent context.Context, load Loader) *Model {
 	ctx, cancel := context.WithCancel(parent)
-	return &Model{ctx: ctx, cancel: cancel, load: load, Scroll: map[int]int{}, collapsed: newExpansion(), Stack: []page{pageReview}, Width: 100, Height: 24, Loading: true, notice: "Loading GitHub metadata and pinned committed objects..."}
+	return &Model{ctx: ctx, cancel: cancel, load: load, Scroll: map[int]int{}, GuideScroll: map[int]int{}, collapsed: newExpansion(), Stack: []page{pageReview}, Width: 100, Height: 24, Loading: true, notice: "Loading GitHub metadata and pinned committed objects..."}
 }
 func (m *Model) SetNotifier(f func(string)) { m.notify = f }
 func (m *Model) Init() tea.Cmd {
@@ -100,6 +101,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.Selected, m.Horizontal, m.Row = 0, 0, 0
 				m.collapsed = newExpansion()
 				m.Scroll = map[int]int{}
+				m.GuideScroll = map[int]int{}
 				m.Stack = []page{pageReview}
 				m.Focus = paneList
 				m.begin()
@@ -154,7 +156,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "ctrl+h":
 			m.Focus = paneList
 		case "ctrl+l", "enter":
-			m.Focus = paneDiff
+			m.focusDetail(m.navigable())
 		case "tab":
 			// enter keeps main's meaning (focus the diff), so expansion gets
 			// its own key rather than overloading one the reviewer already uses.
@@ -206,7 +208,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "left", "h":
 			m.Horizontal = max(0, m.Horizontal-8)
 		case "home":
-			m.Scroll[m.Selected] = 0
+			m.setOffset(0)
 			m.Horizontal = 0
 		}
 	}
@@ -292,8 +294,60 @@ func (m *Model) scroll(delta int) {
 	}
 	// The clamp counts the same display lines the diff pane renders, so a diff
 	// that already fits cannot be scrolled past its end.
-	last := max(0, len(unitLines(m.Session, m.Selected))-m.bodyHeight())
-	m.Scroll[m.Selected] = max(0, min(last, m.Scroll[m.Selected]+delta))
+	m.setOffset(m.clampOffset(m.offset() + delta))
+}
+
+func (m *Model) clampOffset(offset int) int {
+	last := max(0, len(m.detail())-m.bodyHeight())
+	return max(0, min(last, offset))
+}
+
+// focusDetail preserves a guide row's saved reading position, while section
+// and file rows jump to their corresponding guide-detail file occurrence.
+func (m *Model) focusDetail(rows []row) {
+	if len(rows) > 0 {
+		r := rows[max(0, min(len(rows)-1, m.Row))]
+		if offset, ok := anchorFor(detailFor(m.Session, r.guide), r); ok {
+			m.setOffset(m.clampOffset(offset))
+		}
+	}
+	m.Focus = paneDiff
+}
+
+func (m *Model) activeGuide() (int, bool) {
+	if m.Inventory {
+		return 0, false
+	}
+	rows := m.rows()
+	if len(rows) == 0 {
+		return 0, false
+	}
+	return rows[max(0, min(len(rows)-1, m.Row))].guide, true
+}
+
+func (m *Model) detail() []styledLine {
+	if guide, ok := m.activeGuide(); ok {
+		return detailFor(m.Session, guide).lines
+	}
+	if m.Session == nil || m.Selected < 0 || m.Selected >= len(m.Session.Inventory.Units) {
+		return nil
+	}
+	return unitLines(m.Session, m.Selected)
+}
+
+func (m *Model) offset() int {
+	if guide, ok := m.activeGuide(); ok {
+		return m.GuideScroll[guide]
+	}
+	return m.Scroll[m.Selected]
+}
+
+func (m *Model) setOffset(offset int) {
+	if guide, ok := m.activeGuide(); ok {
+		m.GuideScroll[guide] = offset
+		return
+	}
+	m.Scroll[m.Selected] = offset
 }
 
 func (m *Model) bodyHeight() int {
@@ -387,10 +441,16 @@ func (m *Model) reviewView() string {
 		// The hierarchy interprets the change; progress does not follow it, and
 		// saying so here keeps a section from looking independently completable.
 		text += " | m marks the whole file slice"
+		guide, _ := m.activeGuide()
+		text += fmt.Sprintf(" | guide %d/%d", guide+1, len(s.Guides.Items))
 	}
 	header := styleLine(headerClass, text)
 	bodyHeight := m.bodyHeight()
-	list := []string{}
+	leftWidth := m.Width
+	if m.Width >= 100 {
+		leftWidth = min(36, m.Width/3)
+	}
+	list := []listLine{}
 	selectedRow := 0
 	if m.Inventory {
 		selectedRow = m.Selected
@@ -402,11 +462,11 @@ func (m *Model) reviewView() string {
 					marker = "> "
 				}
 			}
-			list = append(list, marker+pathLabel(s.Inventory.Files[s.UnitFiles[i]])+" ["+string(u.Kind)+"]")
+			list = append(list, listLine{row: i, text: marker + pathLabel(s.Inventory.Files[s.UnitFiles[i]]) + " [" + string(u.Kind) + "]"})
 		}
 	} else if rows != nil {
 		selectedRow = max(0, min(len(rows)-1, m.Row))
-		list = guideList(s, rows, selectedRow, m.Focus == paneList)
+		list = guideList(s, rows, selectedRow, leftWidth, m.Focus == paneList)
 	} else {
 		selectedRow = s.UnitFiles[m.Selected]
 		for i, f := range s.Inventory.Files {
@@ -417,14 +477,13 @@ func (m *Model) reviewView() string {
 					marker = "> "
 				}
 			}
-			list = append(list, marker+readMarker(s, f.ID)+pathLabel(f))
+			list = append(list, listLine{row: i, text: marker + readMarker(s, f.ID) + pathLabel(f)})
 		}
 	}
-	start := max(0, selectedRow-bodyHeight+1)
+	start := max(0, firstDisplayLine(list, selectedRow)-bodyHeight+1)
 	list = list[start:min(len(list), start+bodyHeight)]
-	selectedRow -= start
-	detail := unitLines(s, m.Selected)
-	offset := min(m.Scroll[m.Selected], max(0, len(detail)-1))
+	detail := m.detail()
+	offset := min(m.offset(), max(0, len(detail)-1))
 	detail = detail[offset:min(len(detail), offset+bodyHeight)]
 	// Horizontal scrolling stays on unstyled text; styles are applied after clipping.
 	for i, line := range detail {
@@ -436,8 +495,8 @@ func (m *Model) reviewView() string {
 		left, right := "", ""
 		class, leftClass := classPlain, classPlain
 		if row < len(list) {
-			left = list[row]
-			if row == selectedRow {
+			left = list[row].text
+			if list[row].row == selectedRow {
 				// The focused pane's selection gets the stronger cue; the text
 				// markers "> " and "· " already distinguish the two states.
 				leftClass = classSelection
