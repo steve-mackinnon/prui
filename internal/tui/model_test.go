@@ -219,6 +219,11 @@ func TestModalPagesOwnInputAndBack(t *testing.T) {
 func TestBindingsRenderHelpAndFooter(t *testing.T) {
 	help := renderBindings(groupHelp)
 	footer := renderBindings(groupFooter)
+	for _, wording := range []string{"focus the diff; on a file, jump to its place in the guide diff", "reset selected guide scroll, or selected unit's without guides"} {
+		if !strings.Contains(help, wording) {
+			t.Fatalf("updated help wording missing %q", wording)
+		}
+	}
 	for _, key := range []string{"j/k", "J/K", "ctrl+h/ctrl+l", "esc", "q/ctrl+c"} {
 		if !strings.Contains(help, key) {
 			t.Fatalf("binding %q missing from help", key)

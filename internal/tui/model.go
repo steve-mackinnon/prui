@@ -156,7 +156,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "ctrl+h":
 			m.Focus = paneList
 		case "ctrl+l", "enter":
-			m.Focus = paneDiff
+			m.focusDetail(m.navigable())
 		case "tab":
 			// enter keeps main's meaning (focus the diff), so expansion gets
 			// its own key rather than overloading one the reviewer already uses.
@@ -294,8 +294,24 @@ func (m *Model) scroll(delta int) {
 	}
 	// The clamp counts the same display lines the diff pane renders, so a diff
 	// that already fits cannot be scrolled past its end.
+	m.setOffset(m.clampOffset(m.offset() + delta))
+}
+
+func (m *Model) clampOffset(offset int) int {
 	last := max(0, len(m.detail())-m.bodyHeight())
-	m.setOffset(max(0, min(last, m.offset()+delta)))
+	return max(0, min(last, offset))
+}
+
+// focusDetail preserves a guide row's saved reading position, while section
+// and file rows jump to their corresponding guide-detail file occurrence.
+func (m *Model) focusDetail(rows []row) {
+	if len(rows) > 0 {
+		r := rows[max(0, min(len(rows)-1, m.Row))]
+		if offset, ok := anchorFor(detailFor(m.Session, r.guide), r); ok {
+			m.setOffset(m.clampOffset(offset))
+		}
+	}
+	m.Focus = paneDiff
 }
 
 func (m *Model) activeGuide() (int, bool) {

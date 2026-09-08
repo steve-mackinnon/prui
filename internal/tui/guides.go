@@ -203,7 +203,7 @@ func (m *Model) toggle(rows []row) {
 	default:
 		// A portion row has nothing to expand, so tab hands it to the diff
 		// pane the same way enter does.
-		m.Focus = paneDiff
+		m.focusDetail(rows)
 	}
 }
 

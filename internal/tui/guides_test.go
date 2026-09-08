@@ -265,7 +265,7 @@ func TestGuideMarking(t *testing.T) {
 
 func TestGuideDetailAndScroll(t *testing.T) {
 	s, _, _ := guidedSession(t, splitAnalyzer{})
-	m := loaded(t, s, 120, 5)
+	m := loaded(t, s, 60, 5)
 	rows := m.rows()
 
 	for i, r := range rows {
@@ -322,6 +322,109 @@ func TestGuideDetailAndScroll(t *testing.T) {
 	last := max(0, len(m.detail())-m.bodyHeight())
 	if m.offset() != last {
 		t.Fatalf("guide offset = %d, want clamp %d", m.offset(), last)
+	}
+}
+
+func TestGuideDetailFileJumps(t *testing.T) {
+	s, _, _ := guidedSession(t, splitAnalyzer{})
+	m := loaded(t, s, 60, 5)
+	rows := m.rows()
+
+	bRow := -1
+	for i, r := range rows {
+		if r.kind == portionRow && r.guide == 0 && string(s.Inventory.Files[r.file].NewPath) == "b.go" {
+			bRow = i
+			break
+		}
+	}
+	if bRow < 0 {
+		t.Fatal("no b.go row in first guide")
+	}
+	b := rows[bRow]
+	want, ok := anchorFor(detailFor(s, b.guide), b)
+	if !ok {
+		t.Fatal("no b.go detail anchor")
+	}
+	m.Row, m.Selected = bRow, b.units[0]
+	namedKey(m, tea.KeyEnter)
+	if m.Focus != paneDiff || m.GuideScroll[b.guide] != want {
+		t.Fatalf("Enter focus/offset = %v/%d, want diff/%d", m.Focus, m.GuideScroll[b.guide], want)
+	}
+	view := strings.Split(ansi.Strip(m.View().Content), "\n")
+	if len(view) < 3 || view[2] != "b.go" {
+		t.Fatalf("jumped diff body = %q, want b.go header", view)
+	}
+
+	m.Focus = paneList
+	m.GuideScroll[0] = 1
+	m.Row, m.Selected = 0, rows[0].units[0]
+	namedKey(m, tea.KeyEnter)
+	if m.Focus != paneDiff || m.GuideScroll[0] != 1 {
+		t.Fatal("Enter on a guide row did not preserve its saved offset")
+	}
+
+	m.Focus = paneList
+	m.Row, m.Selected = bRow, b.units[0]
+	m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	if m.Focus != paneDiff || m.GuideScroll[b.guide] != want {
+		t.Fatal("tab on a file row did not jump and focus the diff")
+	}
+}
+
+func TestGuideDetailJumpsRepeatedFileOccurrence(t *testing.T) {
+	s, _, _ := guidedSession(t, splitAnalyzer{})
+	s.Guides.Items[0].Sections = append(s.Guides.Items[0].Sections, s.Guides.Items[1].Sections[0])
+	m := loaded(t, s, 120, 5)
+	rows := m.rows()
+	occurrences := make([]row, 0, 2)
+	secondRow := -1
+	for i, r := range rows {
+		if r.kind == portionRow && r.guide == 0 && string(s.Inventory.Files[r.file].NewPath) == "a.go" {
+			occurrences = append(occurrences, r)
+			if len(occurrences) == 2 {
+				secondRow = i
+			}
+		}
+	}
+	if len(occurrences) != 2 {
+		t.Fatalf("a.go occurrences = %d, want 2", len(occurrences))
+	}
+	first, ok := anchorFor(detailFor(s, 0), occurrences[0])
+	if !ok {
+		t.Fatal("no first a.go anchor")
+	}
+	second, ok := anchorFor(detailFor(s, 0), occurrences[1])
+	if !ok || second == first {
+		t.Fatalf("second a.go anchor = %d, want distinct from %d", second, first)
+	}
+	if secondRow < 0 {
+		t.Fatal("no second a.go row")
+	}
+	m.Row, m.Selected = secondRow, rows[secondRow].units[0]
+	namedKey(m, tea.KeyEnter)
+	if m.GuideScroll[0] != second {
+		t.Fatalf("second a.go jump = %d, want %d", m.GuideScroll[0], second)
+	}
+}
+
+func TestGuideFallbackEnterOnlyFocusesDiff(t *testing.T) {
+	s, _, _ := guidedSession(t, nil)
+	m := loaded(t, s, 120, 5)
+	m.Update(tea.KeyPressMsg{Code: 'G', Text: "G"})
+	if !m.Files || m.rows() != nil {
+		t.Fatal("G did not retain the deterministic file plan")
+	}
+	m.Scroll[m.Selected] = 1
+	namedKey(m, tea.KeyEnter)
+	if m.Focus != paneDiff || m.Scroll[m.Selected] != 1 {
+		t.Fatal("file plan Enter changed its unit scroll")
+	}
+	key(m, 'i')
+	m.Focus = paneList
+	m.Scroll[m.Selected] = 1
+	namedKey(m, tea.KeyEnter)
+	if m.Focus != paneDiff || m.Scroll[m.Selected] != 1 {
+		t.Fatal("inventory Enter changed its unit scroll")
 	}
 }
 

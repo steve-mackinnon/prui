@@ -15,6 +15,20 @@ type fileAnchor struct {
 	offset  int
 }
 
+// anchorFor resolves a selectable hierarchy row to its guide-detail offset.
+// Guide rows deliberately have no anchor so entering one preserves its scroll.
+func anchorFor(detail guideDetail, r row) (int, bool) {
+	for _, anchor := range detail.files {
+		if anchor.section != r.section {
+			continue
+		}
+		if r.kind == sectionRow || anchor.file == r.file {
+			return anchor.offset, true
+		}
+	}
+	return 0, false
+}
+
 // detailFor preserves guide and section order, including repeated file
 // occurrences, while inserting a visible boundary at each file transition.
 func detailFor(s *review.Session, guide int) guideDetail {
