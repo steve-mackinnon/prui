@@ -5,10 +5,15 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
 )
+
+type listRunner func(context.Context, Request) ([]byte, error)
+
+func (r listRunner) Run(ctx context.Context, request Request) ([]byte, error) { return r(ctx, request) }
 
 func TestPinnedIdentity(t *testing.T) {
 	for _, tc := range []struct {
@@ -68,5 +73,27 @@ func TestSafetyRejectObjectSymlinks(t *testing.T) {
 	_, err := NewView(context.Background(), dir, NewRunner(), Defaults())
 	if err == nil {
 		t.Fatal("object symlink accepted")
+	}
+}
+
+func TestGitHubListPullRequestsReadOnlyContract(t *testing.T) {
+	calls := 0
+	g := GH{Executable: "trusted-gh", Dir: t.TempDir(), Limits: Defaults(), Runner: listRunner(func(_ context.Context, request Request) ([]byte, error) {
+		calls++
+		want := []string{"api", "--hostname", "github.com", "--method", "GET", "repos/owner/repo/pulls?state=open&per_page=100"}
+		if !reflect.DeepEqual(request.Args, want) {
+			t.Fatal("unexpected GitHub operation", request.Args)
+		}
+		return []byte(`[{"number":42,"title":"Add list"}]`), nil
+	})}
+	prs, err := g.ListPullRequests(context.Background(), "owner/repo")
+	if err != nil || len(prs) != 1 || prs[0].Identity != (Identity{Repository: "owner/repo", Number: 42}) || prs[0].Title != "Add list" || calls != 1 {
+		t.Fatal(prs, err)
+	}
+	for _, body := range []string{`{}`, `[{"number":0,"title":"bad"}]`, `[{"number":1,"title":"bad\n"}]`} {
+		g.Runner = listRunner(func(context.Context, Request) ([]byte, error) { return []byte(body), nil })
+		if _, err := g.ListPullRequests(context.Background(), "owner/repo"); err == nil {
+			t.Fatal("accepted invalid list", body)
+		}
 	}
 }

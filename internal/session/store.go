@@ -267,6 +267,20 @@ func (s *Store) LookupRepository(repository string) (string, error) {
 	return "", ErrRepositoryNotFound
 }
 
+// ListRepositories returns remembered repositories in their durable order.
+func (s *Store) ListRepositories() ([]Repository, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.lock == nil {
+		return nil, errors.New("session store closed")
+	}
+	r, err := s.repositories()
+	if err != nil {
+		return nil, err
+	}
+	return append([]Repository(nil), r.Repositories...), nil
+}
+
 // RememberRepository replaces the one canonical checkout hint for a repository.
 func (s *Store) RememberRepository(repository, checkout string) error {
 	s.mu.Lock()

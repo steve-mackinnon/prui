@@ -18,6 +18,9 @@ type FixtureGitHub struct{ Value source.Metadata }
 func (g FixtureGitHub) Metadata(context.Context, source.Identity) (source.Metadata, error) {
 	return g.Value, nil
 }
+func (g FixtureGitHub) ListPullRequests(context.Context, string) ([]source.PullRequest, error) {
+	return nil, nil
+}
 func (g FixtureGitHub) Token(context.Context) (string, error) {
 	panic("unexpected network credentials")
 }

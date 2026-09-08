@@ -18,10 +18,36 @@ import (
 type fixtureGH struct {
 	value source.Metadata
 	err   error
+	prs   []source.PullRequest
 }
 
 func (g *fixtureGH) Metadata(context.Context, source.Identity) (source.Metadata, error) {
 	return g.value, g.err
+}
+func (g *fixtureGH) ListPullRequests(context.Context, string) ([]source.PullRequest, error) {
+	return g.prs, g.err
+}
+
+func TestLifecycleListPullRequests(t *testing.T) {
+	store, err := session.Open(filepath.Join(t.TempDir(), "sessions"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	g := &fixtureGH{prs: []source.PullRequest{{Identity: source.Identity{Repository: "owner/repo", Number: 42}, Title: "Add\x1btitle"}}}
+	app := application{store: store, gh: g}
+	prs, err := app.listPullRequests(context.Background(), "owner/repo")
+	if err != nil || len(prs) != 1 {
+		t.Fatal(prs, err)
+	}
+	var out strings.Builder
+	listPullRequests(&out, "owner/repo", prs)
+	if got := out.String(); !strings.Contains(got, "owner/repo #42 Add\\x1btitle") || strings.ContainsAny(got, "\x1b\a") {
+		t.Fatal("list output was unsafe", got)
+	}
+	if _, err := app.listPullRequests(context.Background(), "../repo"); err == nil {
+		t.Fatal("invalid repository listed")
+	}
 }
 func (g *fixtureGH) Token(context.Context) (string, error) { panic("credentials must not be used") }
 

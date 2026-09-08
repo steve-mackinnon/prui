@@ -30,6 +30,19 @@ func (a *application) Metadata(ctx context.Context, id source.Identity) (source.
 	return a.gh.Metadata(ctx, id)
 }
 
+func (a *application) listPullRequests(ctx context.Context, repository string) ([]source.PullRequest, error) {
+	if _, err := source.ParseIdentity("1", repository); err != nil {
+		return nil, err
+	}
+	if a.setupError != nil {
+		return nil, a.setupError
+	}
+	if a.gh == nil {
+		return nil, errors.New("gh executable required; install GitHub CLI and authenticate")
+	}
+	return a.gh.ListPullRequests(ctx, repository)
+}
+
 func (a *application) open(ctx context.Context, checkout string, id source.Identity, notify func(string)) (*review.Session, error) {
 	checkout, err := canonicalPath(checkout)
 	if err != nil {
@@ -135,4 +148,13 @@ func listSessions(store *session.Store, out io.Writer) int {
 		fmt.Fprintln(out, "No saved sessions.")
 	}
 	return code
+}
+
+func listPullRequests(out io.Writer, repository string, prs []source.PullRequest) {
+	for _, pr := range prs {
+		fmt.Fprintf(out, "%s #%d %s\n", tui.Escape(repository), pr.Identity.Number, tui.Escape(pr.Title))
+	}
+	if len(prs) == 0 {
+		fmt.Fprintln(out, "No open pull requests.")
+	}
 }

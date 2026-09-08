@@ -9,6 +9,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"pr-review/internal/review"
 	"pr-review/internal/session"
+	"pr-review/internal/source"
 )
 
 func (m *Model) beginMove() {
@@ -107,8 +108,17 @@ type ActionResult struct {
 	Reset   bool
 }
 
+type PullRequestListResult struct {
+	PullRequests []source.PullRequest
+	Err          error
+}
+
 func (m *Model) SetLifecycle(store *session.Store, reader review.MetadataReader, fresh FreshLoader) {
 	m.store, m.reader, m.fresh = store, reader, fresh
+}
+
+func (m *Model) SetPullRequestLifecycle(list PullRequestLoader, open PullRequestOpener) {
+	m.listPullRequests, m.openPullRequest = list, open
 }
 
 func (m *Model) start(work func() tea.Msg) tea.Cmd {
@@ -170,6 +180,11 @@ func (m *Model) lifecycleKey(k string) (tea.Cmd, bool) {
 		m.PickerIndex = 0
 		m.push(pagePicker)
 		return nil, true
+	case "b":
+		m.Repositories, m.ActionError = m.store.ListRepositories()
+		m.PickerIndex = 0
+		m.push(pageRepositoryPicker)
+		return nil, true
 	}
 	return nil, false
 }
@@ -190,6 +205,65 @@ func (m *Model) pickerKey(k string) tea.Cmd {
 		m.notice = "Resuming frozen session; checking metadata freshness..."
 		return m.start(func() tea.Msg {
 			s, err := review.Resume(m.ctx, m.store, id, m.reader)
+			return ActionResult{Session: s, Err: err, Reset: true}
+		})
+	}
+	return nil
+}
+
+func (m *Model) repositoryPickerKey(k string) tea.Cmd {
+	switch k {
+	case "esc":
+		m.pop()
+	case "n", "down", "j":
+		m.PickerIndex = min(max(0, len(m.Repositories)-1), m.PickerIndex+1)
+	case "p", "up", "k":
+		m.PickerIndex = max(0, m.PickerIndex-1)
+	case "enter":
+		if len(m.Repositories) == 0 || m.listPullRequests == nil {
+			return nil
+		}
+		repository := m.Repositories[m.PickerIndex].Repository
+		m.notice = "Listing open pull requests from GitHub..."
+		ctx, cancel := context.WithCancel(m.ctx)
+		m.cancelAction = cancel
+		return m.start(func() tea.Msg {
+			prs, err := m.listPullRequests(ctx, repository)
+			return PullRequestListResult{PullRequests: prs, Err: err}
+		})
+	}
+	return nil
+}
+
+func (m *Model) pullRequestPickerKey(k string) tea.Cmd {
+	switch k {
+	case "esc":
+		m.pop()
+	case "n", "down", "j":
+		m.PickerIndex = min(max(0, len(m.PullRequests)-1), m.PickerIndex+1)
+	case "p", "up", "k":
+		m.PickerIndex = max(0, m.PickerIndex-1)
+	case "enter":
+		if len(m.PullRequests) == 0 || len(m.Repositories) == 0 || m.openPullRequest == nil {
+			return nil
+		}
+		pr := m.PullRequests[m.PickerIndex]
+		checkout := m.Repositories[0].Checkout
+		for _, repository := range m.Repositories {
+			if repository.Repository == pr.Identity.Repository {
+				checkout = repository.Checkout
+				break
+			}
+		}
+		m.notice = "Opening selected pull request; source stays local..."
+		ctx, cancel := context.WithCancel(m.ctx)
+		m.cancelAction = cancel
+		return m.start(func() tea.Msg {
+			n := m.notify
+			if n == nil {
+				n = func(string) {}
+			}
+			s, err := m.openPullRequest(ctx, checkout, pr.Identity, n)
 			return ActionResult{Session: s, Err: err, Reset: true}
 		})
 	}
@@ -218,6 +292,44 @@ func (m *Model) pickerView() string {
 		lines = append(lines, "No saved sessions.")
 	}
 	lines = append(lines, "up/down: select | enter: resume | esc: back | q: quit")
+	if m.ActionError != nil {
+		lines = append(lines, Escape(m.ActionError.Error()))
+	}
+	return strings.Join(lines, "\n")
+}
+
+func (m *Model) repositoryPickerView() string {
+	lines := []string{"Remembered repositories", "Select a repository to list its open pull requests."}
+	for i, repository := range m.Repositories {
+		marker := "  "
+		if i == m.PickerIndex {
+			marker = "> "
+		}
+		lines = append(lines, marker+Escape(repository.Repository))
+	}
+	if len(m.Repositories) == 0 {
+		lines = append(lines, "No remembered repositories. Open a PR with --repo first.")
+	}
+	lines = append(lines, "up/down: select | enter: list PRs | esc: back | q: quit")
+	if m.ActionError != nil {
+		lines = append(lines, Escape(m.ActionError.Error()))
+	}
+	return strings.Join(lines, "\n")
+}
+
+func (m *Model) pullRequestPickerView() string {
+	lines := []string{"Open pull requests"}
+	for i, pr := range m.PullRequests {
+		marker := "  "
+		if i == m.PickerIndex {
+			marker = "> "
+		}
+		lines = append(lines, fmt.Sprintf("%s#%d %s", marker, pr.Identity.Number, Escape(pr.Title)))
+	}
+	if len(m.PullRequests) == 0 {
+		lines = append(lines, "No open pull requests.")
+	}
+	lines = append(lines, "up/down: select | enter: open PR | esc: back | q: quit")
 	if m.ActionError != nil {
 		lines = append(lines, Escape(m.ActionError.Error()))
 	}

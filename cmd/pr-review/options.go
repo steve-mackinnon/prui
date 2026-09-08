@@ -10,6 +10,7 @@ import (
 )
 
 const usage = `pr-review open <PR-URL-or-number> [--repo <checkout>] [--github-repo owner/repo] [--plain]
+pr-review prs [owner/repo] [--plain]
 pr-review sessions
 pr-review resume <id> [--offline] [--plain] [--new] [--repo <checkout>]
 pr-review delete <id>
@@ -20,6 +21,7 @@ Open uses a remembered checkout for the selected repository when --repo is omitt
 type options struct {
 	Command, SessionID, Storage string
 	Identity                    source.Identity
+	Repository                  string
 	Checkout                    string
 	Plain, Offline, New         bool
 }
@@ -45,6 +47,14 @@ func parseOptions(args []string) (options, error) {
 		f.BoolVar(&o.Plain, "plain", false, "non-interactive escaped text, no pager")
 		f.BoolVar(&o.Offline, "offline", false, "skip metadata check; freshness unknown")
 		f.BoolVar(&o.New, "new", false, "new comparison with empty progress; retain old session")
+	case "prs":
+		f.BoolVar(&o.Plain, "plain", false, "non-interactive escaped text, no pager")
+		if len(args) > 1 && (args[1] == "" || args[1][0] != '-') {
+			o.Repository = args[1]
+			start = 2
+		} else {
+			start = 1
+		}
 	case "sessions":
 		start = 1
 	case "delete":
@@ -64,6 +74,13 @@ func parseOptions(args []string) (options, error) {
 		var err error
 		o.Identity, err = source.ParseIdentity(args[1], repository)
 		return o, err
+	}
+	if o.Command == "prs" && o.Repository != "" {
+		id, err := source.ParseIdentity("1", o.Repository)
+		if err != nil {
+			return o, err
+		}
+		o.Repository = id.Repository
 	}
 	if o.Command == "resume" || o.Command == "delete" {
 		o.SessionID = args[1]

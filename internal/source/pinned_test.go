@@ -25,6 +25,7 @@ func (g *fakeGH) Metadata(context.Context, Identity) (Metadata, error) {
 	g.calls++
 	return m, nil
 }
+func (g *fakeGH) ListPullRequests(context.Context, string) ([]PullRequest, error) { return nil, nil }
 func (g *fakeGH) Token(context.Context) (string, error) {
 	g.tokens++
 	return "synthetic-token", g.tokenErr
