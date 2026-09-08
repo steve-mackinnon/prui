@@ -244,8 +244,8 @@ func TestGuideMarking(t *testing.T) {
 	}
 	rows := m.rows()
 	marked := 0
-	for _, line := range guideList(m.Session, rows, m.Row, true) {
-		if strings.Contains(line, "[x] a.go") {
+	for _, line := range guideList(m.Session, rows, m.Row, 36, true) {
+		if strings.Contains(line.text, "[x] a.go") {
 			marked++
 		}
 	}
@@ -322,6 +322,78 @@ func TestGuideDetailAndScroll(t *testing.T) {
 	last := max(0, len(m.detail())-m.bodyHeight())
 	if m.offset() != last {
 		t.Fatalf("guide offset = %d, want clamp %d", m.offset(), last)
+	}
+}
+
+func TestGuideContextShowsSelectedGuideDescriptions(t *testing.T) {
+	s, _, _ := guidedSession(t, splitAnalyzer{})
+	m := loaded(t, s, 100, 24)
+	view := ansi.Strip(m.View().Content)
+	for _, want := range []string{"Adds a greeting.", "Changes the greeting text.", "Stores the greeting."} {
+		if !strings.Contains(view, want) {
+			t.Fatalf("selected guide context missing %q: %s", want, view)
+		}
+	}
+	if strings.Contains(view, "Mode and identity changes.") {
+		t.Fatal("non-selected guide description rendered")
+	}
+}
+
+func TestGuideContextWrapsAndKeepsRowsNavigable(t *testing.T) {
+	s, _, _ := guidedSession(t, splitAnalyzer{})
+	s.Guides.Items[0].Description = "One two three four five six seven eight nine ten."
+	m := loaded(t, s, 100, 24)
+	rows := m.rows()
+	lines := guideList(s, rows, m.Row, 33, true)
+	for _, line := range lines {
+		if line.row == -1 && visibleWidth(line.text) > 33 {
+			t.Fatalf("context line exceeds pane width: %q", line.text)
+		}
+	}
+	context := ""
+	for _, line := range lines {
+		if line.row == -1 {
+			context += line.text + " "
+		}
+	}
+	for _, word := range strings.Fields(s.Guides.Items[0].Description) {
+		if !strings.Contains(context, word) {
+			t.Fatalf("wrapped context lost %q: %q", word, context)
+		}
+	}
+	key(m, 'j')
+	if m.Row != 1 || m.rows()[m.Row].kind != sectionRow {
+		t.Fatalf("j landed on row %d, want next selectable section row", m.Row)
+	}
+}
+
+func TestGuideContextWindowingAndUngroupedDescription(t *testing.T) {
+	s, _, _ := guidedSession(t, splitAnalyzer{})
+	s.Guides.Items[0].Description = strings.Repeat("a long guide description ", 12)
+	m := loaded(t, s, 60, 5)
+	for m.rows()[m.Row].kind != portionRow {
+		key(m, 'j')
+	}
+	view := ansi.Strip(m.View().Content)
+	if !strings.Contains(view, "a.go [text_hunk]") {
+		t.Fatal("selected file row is not visible after long context")
+	}
+	ungrouped := -1
+	for i, r := range m.rows() {
+		if s.Guides.Items[r.guide].Ungrouped {
+			ungrouped = i
+			break
+		}
+	}
+	if ungrouped < 0 {
+		t.Fatal("fixture has no ungrouped guide")
+	}
+	s.Guides.Items[m.rows()[ungrouped].guide].Description = "synthetic guide description"
+	m.Row = ungrouped
+	for _, line := range guideList(s, m.rows(), m.Row, 36, true) {
+		if strings.Contains(line.text, "synthetic guide description") {
+			t.Fatal("ungrouped guide rendered a synthesized description")
+		}
 	}
 }
 

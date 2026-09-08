@@ -430,7 +430,11 @@ func (m *Model) reviewView() string {
 	}
 	header := styleLine(headerClass, text)
 	bodyHeight := m.bodyHeight()
-	list := []string{}
+	leftWidth := m.Width
+	if m.Width >= 100 {
+		leftWidth = min(36, m.Width/3)
+	}
+	list := []listLine{}
 	selectedRow := 0
 	if m.Inventory {
 		selectedRow = m.Selected
@@ -442,11 +446,11 @@ func (m *Model) reviewView() string {
 					marker = "> "
 				}
 			}
-			list = append(list, marker+pathLabel(s.Inventory.Files[s.UnitFiles[i]])+" ["+string(u.Kind)+"]")
+			list = append(list, listLine{row: i, text: marker + pathLabel(s.Inventory.Files[s.UnitFiles[i]]) + " [" + string(u.Kind) + "]"})
 		}
 	} else if rows != nil {
 		selectedRow = max(0, min(len(rows)-1, m.Row))
-		list = guideList(s, rows, selectedRow, m.Focus == paneList)
+		list = guideList(s, rows, selectedRow, leftWidth, m.Focus == paneList)
 	} else {
 		selectedRow = s.UnitFiles[m.Selected]
 		for i, f := range s.Inventory.Files {
@@ -457,12 +461,11 @@ func (m *Model) reviewView() string {
 					marker = "> "
 				}
 			}
-			list = append(list, marker+readMarker(s, f.ID)+pathLabel(f))
+			list = append(list, listLine{row: i, text: marker + readMarker(s, f.ID) + pathLabel(f)})
 		}
 	}
-	start := max(0, selectedRow-bodyHeight+1)
+	start := max(0, firstDisplayLine(list, selectedRow)-bodyHeight+1)
 	list = list[start:min(len(list), start+bodyHeight)]
-	selectedRow -= start
 	detail := m.detail()
 	offset := min(m.offset(), max(0, len(detail)-1))
 	detail = detail[offset:min(len(detail), offset+bodyHeight)]
@@ -476,8 +479,8 @@ func (m *Model) reviewView() string {
 		left, right := "", ""
 		class, leftClass := classPlain, classPlain
 		if row < len(list) {
-			left = list[row]
-			if row == selectedRow {
+			left = list[row].text
+			if list[row].row == selectedRow {
 				// The focused pane's selection gets the stronger cue; the text
 				// markers "> " and "· " already distinguish the two states.
 				leftClass = classSelection
