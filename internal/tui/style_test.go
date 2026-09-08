@@ -5,6 +5,10 @@ import (
 	"testing"
 
 	"github.com/charmbracelet/x/ansi"
+	"pr-review/internal/inventory"
+	"pr-review/internal/review"
+	"pr-review/internal/session"
+	"pr-review/internal/source"
 )
 
 func TestClassifyPatchGrammar(t *testing.T) {
@@ -93,5 +97,117 @@ func TestClipIsANSIAware(t *testing.T) {
 	}
 	if clip(styled, 20) != styled {
 		t.Fatal("clip altered a line that already fits")
+	}
+}
+
+// kindsSession builds every unit kind without Git, so card classification and
+// wording can be asserted deterministically.
+func kindsSession() *review.Session {
+	patch := "diff --git a/text b/text\nindex 1111111..2222222 100644\n--- a/text\n+++ b/text\n@@ -1,2 +1,2 @@\n context\n-old\n+new\n"
+	files := []inventory.FileChange{
+		{ID: "f-text", OldPath: []byte("text"), NewPath: []byte("text"), OldOID: "1111111", NewOID: "2222222", OldMode: "100644", NewMode: "100644", Status: "M"},
+		{ID: "f-binary", OldPath: []byte("image.png"), NewPath: []byte("image.png"), OldOID: "3333333", NewOID: "4444444", OldMode: "100644", NewMode: "100644", Status: "M"},
+		{ID: "f-gitlink", OldPath: []byte("sub"), NewPath: []byte("sub"), OldOID: "5555555", NewOID: "6666666", OldMode: "160000", NewMode: "160000", Status: "M"},
+		{ID: "f-unavailable", OldPath: []byte("huge"), NewPath: []byte("huge"), OldOID: "7777777", NewOID: "8888888", OldMode: "100644", NewMode: "100644", Status: "M"},
+	}
+	units := []inventory.ReviewUnit{
+		{ID: "u-meta", FileChangeID: "f-text", Kind: inventory.FileMetadata},
+		{ID: "u-text", FileChangeID: "f-text", Kind: inventory.TextHunk, PatchReference: "p"},
+		{ID: "u-binary", FileChangeID: "f-binary", Kind: inventory.Binary},
+		{ID: "u-gitlink", FileChangeID: "f-gitlink", Kind: inventory.Gitlink},
+		{ID: "u-unavailable", FileChangeID: "f-unavailable", Kind: inventory.Unavailable, UnavailableReason: "blob exceeds per-blob limit"},
+	}
+	s := &review.Session{}
+	s.Inventory = inventory.Inventory{
+		Comparison: source.PinnedComparison{Metadata: source.Metadata{Identity: source.Identity{Repository: "owner/repo", Number: 7}, BaseRepository: "owner/repo", HeadRepository: "owner/repo", BaseSHA: "aaaaaaaaaaaa", HeadSHA: "bbbbbbbbbbbb"}},
+		Files:      files,
+		Units:      units,
+		Patches:    map[string][]byte{"p": []byte(patch)},
+		Problems:   []string{"one blob unavailable"},
+	}
+	s.Slices = make([]review.Slice, len(files))
+	s.UnitFiles = make([]int, len(units))
+	index := map[string]int{}
+	for i, f := range files {
+		index[f.ID] = i
+		s.Slices[i] = review.Slice{FileID: f.ID, Units: []int{}}
+	}
+	for i, u := range units {
+		f := index[u.FileChangeID]
+		s.Slices[f].Units = append(s.Slices[f].Units, i)
+		s.UnitFiles[i] = f
+	}
+	return s
+}
+
+func TestUnitCardClassesPerKind(t *testing.T) {
+	s := kindsSession()
+	want := map[inventory.Kind]lineClass{
+		inventory.FileMetadata: classMetadata,
+		inventory.Binary:       classMetadata,
+		inventory.Gitlink:      classMetadata,
+		inventory.Unavailable:  classUnavailable,
+	}
+	for i, u := range s.Inventory.Units {
+		lines := unitLines(s, i)
+		if len(lines) < 2 || lines[0].Class != classTitle {
+			t.Fatalf("unit %s missing styled title: %+v", u.Kind, lines)
+		}
+		if u.Kind == inventory.TextHunk {
+			classes := map[lineClass]bool{}
+			for _, l := range lines[1:] {
+				classes[l.Class] = true
+			}
+			for _, c := range []lineClass{classFileHeader, classHunk, classAdded, classRemoved, classContext} {
+				if !classes[c] {
+					t.Fatalf("text hunk missing class %d", c)
+				}
+			}
+			continue
+		}
+		for _, l := range lines[1:] {
+			if l.Class != want[u.Kind] {
+				t.Fatalf("%s body line %q classified %d, want %d", u.Kind, l.Text, l.Class, want[u.Kind])
+			}
+		}
+	}
+}
+
+func TestUnitLinesWordingMatchesUnitText(t *testing.T) {
+	s := kindsSession()
+	for i, u := range s.Inventory.Units {
+		var b strings.Builder
+		for _, l := range unitLines(s, i) {
+			if strings.Contains(l.Text, "\x1b") {
+				t.Fatalf("%s classified line carries ANSI: %q", u.Kind, l.Text)
+			}
+			b.WriteString(styleLine(l.Class, l.Text) + "\n")
+		}
+		if got := ansi.Strip(b.String()); got != unitText(s, i) {
+			t.Fatalf("%s styled wording changed:\n%q\n%q", u.Kind, got, unitText(s, i))
+		}
+	}
+}
+
+func TestChromeStatesStyledWithoutRewording(t *testing.T) {
+	s := kindsSession()
+	if statusClass(s) != classWarning {
+		t.Fatal("incomplete inventory is not a warning state")
+	}
+	s.Inventory.Complete = true
+	if statusClass(s) != classTitle {
+		t.Fatal("complete inventory is not chrome")
+	}
+	if progressClass(s) != classTitle {
+		t.Fatal("unchecked freshness is not chrome")
+	}
+	for _, state := range []session.RevisionStatus{session.Stale, session.CheckFailed} {
+		s.RevisionStatus = state
+		if progressClass(s) != classWarning {
+			t.Fatalf("freshness %s is not a warning state", state)
+		}
+	}
+	if cardClass(inventory.Unavailable) != classUnavailable || cardClass(inventory.Binary) != classMetadata {
+		t.Fatal("card state classes lost")
 	}
 }

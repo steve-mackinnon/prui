@@ -38,6 +38,15 @@ func status(s *review.Session) string {
 	return fmt.Sprintf("PR #%d | head %.12s | inventory %s | analysis: %s", m.Identity.Number, m.HeadSHA, completeness, analysis)
 }
 
+// statusClass reads the status line as a warning state when the inventory is
+// incomplete. The wording is identical either way.
+func statusClass(s *review.Session) lineClass {
+	if !s.Inventory.Complete {
+		return classWarning
+	}
+	return classTitle
+}
+
 // body splits an already-assembled card body into classified display lines.
 func body(c lineClass, text string) []styledLine {
 	lines := []styledLine{}
@@ -61,13 +70,13 @@ func unitLines(s *review.Session, i int) []styledLine {
 			lines = append(lines, styledLine{classifyPatch(e), e})
 		}
 	case inventory.FileMetadata:
-		lines = append(lines, body(classPlain, fmt.Sprintf("status %s | mode %s -> %s\nold path: %s\nnew path: %s\nold object: %s\nnew object: %s\n", f.Status, f.OldMode, f.NewMode, Escape(string(f.OldPath)), Escape(string(f.NewPath)), f.OldOID, f.NewOID))...)
+		lines = append(lines, body(cardClass(u.Kind), fmt.Sprintf("status %s | mode %s -> %s\nold path: %s\nnew path: %s\nold object: %s\nnew object: %s\n", f.Status, f.OldMode, f.NewMode, Escape(string(f.OldPath)), Escape(string(f.NewPath)), f.OldOID, f.NewOID))...)
 	case inventory.Binary:
-		lines = append(lines, body(classPlain, "Binary content changed; no text patch. Object IDs in file metadata.\n")...)
+		lines = append(lines, body(cardClass(u.Kind), "Binary content changed; no text patch. Object IDs in file metadata.\n")...)
 	case inventory.Gitlink:
-		lines = append(lines, body(classPlain, fmt.Sprintf("Submodule pointer: %s -> %s\nSubmodule content not fetched or executed.\n", f.OldOID, f.NewOID))...)
+		lines = append(lines, body(cardClass(u.Kind), fmt.Sprintf("Submodule pointer: %s -> %s\nSubmodule content not fetched or executed.\n", f.OldOID, f.NewOID))...)
 	case inventory.Unavailable:
-		lines = append(lines, body(classPlain, "UNAVAILABLE: "+Escape(u.UnavailableReason)+"\nNot fully reviewable; file remains in inventory.\n")...)
+		lines = append(lines, body(cardClass(u.Kind), "UNAVAILABLE: "+Escape(u.UnavailableReason)+"\nNot fully reviewable; file remains in inventory.\n")...)
 	}
 	return lines
 }
@@ -105,9 +114,9 @@ func Plain(s *review.Session) string {
 
 func (m *Model) evidenceView() string {
 	c := m.Session.Context
-	lines := []string{status(m.Session), fmt.Sprintf("Evidence scope | retained %d | omitted %d | examined paths %d", len(c.Evidence), len(c.OmittedPaths), len(c.ExaminedPaths)), fmt.Sprintf("budgets: files %d | excerpt %d bytes | retained %d bytes", c.FileBudget, c.ExcerptBudget, c.ByteBudget)}
+	lines := []string{styleLine(statusClass(m.Session), status(m.Session)), styleLine(classTitle, fmt.Sprintf("Evidence scope | retained %d | omitted %d | examined paths %d", len(c.Evidence), len(c.OmittedPaths), len(c.ExaminedPaths))), fmt.Sprintf("budgets: files %d | excerpt %d bytes | retained %d bytes", c.FileBudget, c.ExcerptBudget, c.ByteBudget)}
 	for _, b := range c.ExhaustedBudgets {
-		lines = append(lines, "WARNING budget exhausted: "+Escape(b))
+		lines = append(lines, styleLine(classWarning, "WARNING budget exhausted: "+Escape(b)))
 	}
 	for _, e := range c.Evidence {
 		lines = append(lines, fmt.Sprintf("[observed] %s @ %.12s %s:%d-%d (%s)", e.Kind, e.CommitSHA, Escape(string(e.Path)), e.LineStart, e.LineEnd, Escape(e.RetrievalReason)))
@@ -122,15 +131,15 @@ func (m *Model) evidenceView() string {
 func (m *Model) analysisView() string {
 	s := m.Session
 	if s.CurrentPlan() == nil {
-		return status(s) + "\nNo accepted provider plan. Raw file slices remain the fallback.\na: return | analysis requires separate disclosure and consent"
+		return styleLine(statusClass(s), status(s)) + "\nNo accepted provider plan. Raw file slices remain the fallback.\na: return | analysis requires separate disclosure and consent"
 	}
 	p := s.CurrentPlan()
 	if p == nil {
-		return status(s) + "\nNo accepted provider plan. Raw file slices remain the fallback.\na: return | analysis requires separate disclosure and consent"
+		return styleLine(statusClass(s), status(s)) + "\nNo accepted provider plan. Raw file slices remain the fallback.\na: return | analysis requires separate disclosure and consent"
 	}
-	lines := []string{status(s), fmt.Sprintf("Plan %s | %d slices | %d unassigned", Escape(p.Version), len(p.Slices), len(p.UnassignedUnitIDs))}
+	lines := []string{styleLine(statusClass(s), status(s)), styleLine(classTitle, fmt.Sprintf("Plan %s | %d slices | %d unassigned", Escape(p.Version), len(p.Slices), len(p.UnassignedUnitIDs)))}
 	for _, w := range p.Warnings {
-		lines = append(lines, "WARNING: "+Escape(w))
+		lines = append(lines, styleLine(classWarning, "WARNING: "+Escape(w)))
 	}
 	for i, sl := range p.Slices {
 		marker := "[ ] "

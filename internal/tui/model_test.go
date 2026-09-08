@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 	"pr-review/internal/inventory"
 	"pr-review/internal/review"
@@ -141,5 +142,56 @@ func TestRawReviewIncomplete(t *testing.T) {
 	}
 	if !strings.Contains(Plain(s), "INCOMPLETE") || !strings.Contains(Plain(s), "per-blob limit") || strings.Contains(Plain(s), "inventory complete") {
 		t.Fatal("incomplete review hidden")
+	}
+}
+
+func TestReviewStyledUnitKindsKeepWording(t *testing.T) {
+	s := kindsSession()
+	m := New(context.Background(), func(context.Context, func(string)) (*review.Session, error) { return s, nil })
+	m.Update(m.Init()())
+	m.Update(tea.WindowSizeMsg{Width: 200, Height: 24})
+	for i, u := range s.Inventory.Units {
+		m.Selected, m.Details = i, true
+		content := m.View().Content
+		if !strings.Contains(content, "\x1b[") {
+			t.Fatalf("%s rendered without a style", u.Kind)
+		}
+		stripped := ansi.Strip(content)
+		if strings.Contains(stripped, "\x1b") {
+			t.Fatalf("%s leaked raw escapes", u.Kind)
+		}
+		for _, line := range strings.Split(strings.TrimSuffix(unitText(s, i), "\n"), "\n") {
+			if line != "" && !strings.Contains(stripped, line) {
+				t.Fatalf("%s reworded line %q", u.Kind, line)
+			}
+		}
+	}
+}
+
+func TestStrippedViewMatchesUnstyledRender(t *testing.T) {
+	s := kindsSession()
+	m := New(context.Background(), func(context.Context, func(string)) (*review.Session, error) { return s, nil })
+	m.Update(m.Init()())
+	styled := palette
+	defer func() { palette = styled }()
+	for _, w := range []int{1, 20, 60, 99, 100, 120} {
+		for i := range s.Inventory.Units {
+			for _, details := range []bool{false, true} {
+				m.Selected, m.Details = i, details
+				m.Update(tea.WindowSizeMsg{Width: w, Height: 12})
+				colored := m.View().Content
+				palette = map[lineClass]lipgloss.Style{}
+				plain := m.View().Content
+				palette = styled
+				if ansi.Strip(colored) != plain {
+					t.Fatalf("width %d unit %d details %v changed content:\n%q\n%q", w, i, details, ansi.Strip(colored), plain)
+				}
+				for _, line := range strings.Split(colored, "\n") {
+					if visibleWidth(line) > w {
+						t.Fatalf("styled viewport exceeded %d: %q", w, line)
+					}
+				}
+			}
+		}
 	}
 }

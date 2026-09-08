@@ -42,7 +42,7 @@ go build -o pr-review ./cmd/pr-review
 | `s` | Session picker; up/down to select, Enter to resume, `s`/Esc to return |
 | `?`, `q`, Ctrl+C | Help, quit, cancel loading |
 
-Selection and per-unit vertical offsets survive resizing; navigation positions are not persisted across processes. No mouse capture, so terminal-native text selection remains available. The UI uses textual focus, kind, and warning labels rather than relying on color. Extremely small terminals clip controls; enlarge or use plain output. The user approved Phase 1 terminal behavior; broad theme/platform/accessibility coverage is not established.
+Selection and per-unit vertical offsets survive resizing; navigation positions are not persisted across processes. No mouse capture, so terminal-native text selection remains available. The UI uses textual focus, kind, and warning labels rather than relying on color. The interactive view additionally colors diff structure — file headers, hunk locations, additions, removals — and unit states such as metadata, binary, gitlink, unavailable, and warning chrome. Color is presentation only: no wording, label, or ordering depends on it, and terminals without color show the same text. `--plain` output is never colored and contains no terminal control sequences. Extremely small terminals clip controls; enlarge or use plain output. The user approved Phase 1 terminal behavior; broad theme/platform/accessibility coverage is not established.
 
 ## Sessions And Freshness
 

@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"charm.land/lipgloss/v2"
+	"pr-review/internal/inventory"
 )
 
 // lineClass names the semantic role of a complete display line. Classes are
@@ -19,6 +20,10 @@ const (
 	classAdded
 	classRemoved
 	classContext
+	classMetadata
+	classWarning
+	classUnavailable
+	classSelection
 )
 
 // styledLine is one already-escaped display line plus its semantic class.
@@ -35,11 +40,25 @@ func semantic(c color.Color, bold bool) lipgloss.Style {
 }
 
 var palette = map[lineClass]lipgloss.Style{
-	classTitle:      semantic(lipgloss.Cyan, true),
-	classFileHeader: semantic(lipgloss.Yellow, true),
-	classHunk:       semantic(lipgloss.Magenta, false),
-	classAdded:      semantic(lipgloss.Green, false),
-	classRemoved:    semantic(lipgloss.Red, false),
+	classTitle:       semantic(lipgloss.Cyan, true),
+	classFileHeader:  semantic(lipgloss.Yellow, true),
+	classHunk:        semantic(lipgloss.Magenta, false),
+	classAdded:       semantic(lipgloss.Green, false),
+	classRemoved:     semantic(lipgloss.Red, false),
+	classMetadata:    semantic(lipgloss.Blue, false),
+	classWarning:     semantic(lipgloss.BrightYellow, true),
+	classUnavailable: semantic(lipgloss.BrightRed, true),
+	// Selection carries no color so it survives downsampling and any background.
+	classSelection: lipgloss.NewStyle().Bold(true).TabWidth(lipgloss.NoTabConversion),
+}
+
+// cardClass is the state style for a non-text unit body. Text hunks classify
+// per line instead, because their grammar lives in the patch bytes.
+func cardClass(k inventory.Kind) lineClass {
+	if k == inventory.Unavailable {
+		return classUnavailable
+	}
+	return classMetadata
 }
 
 // fileHeaders are the Git extended-header prefixes that describe a file rather
