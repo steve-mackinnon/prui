@@ -3,6 +3,7 @@ package review
 import (
 	"context"
 	reviewcontext "pr-review/internal/context"
+	"pr-review/internal/guide"
 	"pr-review/internal/inventory"
 	"pr-review/internal/privacy"
 	"pr-review/internal/session"
@@ -29,6 +30,8 @@ func OpenWithPolicy(ctx context.Context, checkout string, id source.Identity, gh
 	contextBundle := reviewcontext.Retrieve(ctx, v, p, inv, policy, reviewcontext.Defaults)
 	s := &Session{Snapshot: session.Snapshot{Inventory: inv, PlanVersion: "file-v1", Checkout: []byte(checkout), Slices: make([]Slice, len(inv.Files)), UnitFiles: make([]int, len(inv.Units))}}
 	s.Context = contextBundle
+	b := guide.Fallback("analysis not requested")
+	s.Guides = &b
 	index := map[string]int{}
 	for i, f := range inv.Files {
 		index[f.ID] = i

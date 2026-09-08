@@ -2,6 +2,7 @@ package review
 
 import (
 	"context"
+	"pr-review/internal/guide"
 	"pr-review/internal/source"
 	"pr-review/internal/testutil"
 	"testing"
@@ -44,5 +45,17 @@ func TestFileFallback(t *testing.T) {
 	}
 	if len(seen) != len(s.Inventory.Units) {
 		t.Fatal("unassigned fallback units")
+	}
+	if s.Guides == nil {
+		t.Fatal("session carries no guide bundle")
+	}
+	if s.Guides.Status != guide.Unavailable || s.Guides.Reason == "" || len(s.Guides.Items) != 0 {
+		t.Fatal("unrequested analysis is not an explained fallback")
+	}
+	if s.Guides.Provider != "" || s.Guides.Model != "" || s.Guides.InputDigest != "" {
+		t.Fatal("fallback claims analysis provenance")
+	}
+	if err := guide.Validate(*s.Guides, s.Inventory); err != nil {
+		t.Fatal("attached bundle does not validate", err)
 	}
 }

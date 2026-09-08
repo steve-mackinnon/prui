@@ -8,6 +8,7 @@ import (
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+	"pr-review/internal/guide"
 	"pr-review/internal/inventory"
 	"pr-review/internal/review"
 )
@@ -35,7 +36,33 @@ func status(s *review.Session) string {
 	if s.CurrentPlan() != nil {
 		analysis = s.CurrentPlan().AnalysisStatus
 	}
-	return fmt.Sprintf("PR #%d | head %.12s | inventory %s | analysis: %s", m.Identity.Number, m.HeadSHA, completeness, analysis)
+	line := fmt.Sprintf("PR #%d | head %.12s | inventory %s | analysis: %s", m.Identity.Number, m.HeadSHA, completeness, analysis)
+	// The guide bundle is a separate claim from the plan's analysis status, so
+	// it is reported separately and only when this session actually stored one.
+	if s.Guides != nil {
+		line += " | guides: " + guideStatus(s.Guides)
+	}
+	return line
+}
+
+// guideStatus states what the stored bundle claims; a session stored before
+// guide analysis existed reports absence rather than a fallback decision it
+// never made.
+func guideStatus(b *guide.Bundle) string {
+	if b == nil {
+		return "none recorded for this session"
+	}
+	switch b.Status {
+	case guide.Generated:
+		origin := ""
+		if b.Provider != "" || b.Model != "" {
+			origin = Escape(b.Provider) + "/" + Escape(b.Model) + ", "
+		}
+		return fmt.Sprintf("generated (%s%d guides)", origin, len(b.Items))
+	case guide.Unavailable:
+		return "unavailable (" + Escape(b.Reason) + ")"
+	}
+	return "unrecognized status " + Escape(string(b.Status))
 }
 
 // statusClass reads the status line as a warning state when the inventory is

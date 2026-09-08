@@ -17,6 +17,7 @@ import (
 	"time"
 
 	reviewcontext "pr-review/internal/context"
+	"pr-review/internal/guide"
 	"pr-review/internal/inventory"
 	"pr-review/internal/plan"
 )
@@ -46,6 +47,9 @@ type Snapshot struct {
 	UnitFiles    []int
 	Context      reviewcontext.ContextBundle
 	AnalysisPlan *plan.ValidatedPlan
+	// Guides is a pointer so a session created before guide analysis existed
+	// re-marshals to identical bytes and keeps its snapshot reference valid.
+	Guides *guide.Bundle `json:"guides,omitempty"`
 }
 
 type State struct {
@@ -520,6 +524,9 @@ func validate(r *Record) error {
 		if _, err := plan.Validate(proposal, r.Inventory.Comparison.InventoryID, unitIDs, evidenceIDs); err != nil {
 			return bad
 		}
+	}
+	if r.Guides != nil && guide.Validate(*r.Guides, r.Inventory) != nil {
+		return bad
 	}
 	return nil
 }

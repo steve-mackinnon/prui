@@ -9,6 +9,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+	"pr-review/internal/guide"
 	"pr-review/internal/inventory"
 	"pr-review/internal/review"
 	"pr-review/internal/source"
@@ -74,10 +75,13 @@ func TestRawReviewMockedEndToEnd(t *testing.T) {
 	if strings.ContainsAny(plain, "\x1b\a") || !strings.Contains(plain, `\x1b]52;c;attack\a`) {
 		t.Fatal("unsafe terminal content")
 	}
-	if !strings.Contains(plain, "inventory complete") || !strings.Contains(plain, "analysis: file fallback") {
+	if !strings.Contains(plain, "inventory complete") || !strings.Contains(plain, "guides: unavailable (analysis not requested)") {
 		t.Fatal("status missing")
 	}
 	m.Update(tea.WindowSizeMsg{Width: 120, Height: 24})
+	if !strings.Contains(ansi.Strip(m.View().Content), "guides: unavailable (analysis not requested)") {
+		t.Fatal("terminal status hides the analysis decision")
+	}
 	hunk := -1
 	for i, u := range m.Session.Inventory.Units {
 		if u.Kind == inventory.TextHunk {
@@ -291,5 +295,36 @@ func TestStrippedViewMatchesUnstyledRender(t *testing.T) {
 				}
 			}
 		}
+	}
+}
+
+func TestRawReviewAnalysisStatus(t *testing.T) {
+	r := testutil.NewRepo(t)
+	r.Write("a", "old\n")
+	base := r.Commit()
+	r.Write("a", "new\n")
+	head := r.Commit()
+	meta := source.Metadata{Identity: source.Identity{Repository: "o/r", Number: 7}, BaseRepository: "o/r", HeadRepository: "o/r", BaseSHA: base, HeadSHA: head}
+	s, e := review.Open(context.Background(), r.Dir, meta.Identity, fakeGitHub{meta}, source.NewRunner(), source.Defaults(), nil)
+	if e != nil {
+		t.Fatal(e)
+	}
+	if s.Guides == nil || s.Guides.Status != guide.Unavailable {
+		t.Fatal("session carries no analysis decision")
+	}
+	s.Guides = nil
+	// A session stored before guides existed reports the plan's own status and
+	// claims nothing about guides at all.
+	if pre := Plain(s); !strings.Contains(pre, "analysis: file fallback") || strings.Contains(pre, "guides:") {
+		t.Fatal("pre-guide session claims a guide decision")
+	}
+	hostile := guide.Bundle{Status: guide.Generated, Provider: "openai", Model: "m\x1b]52;c;attack\a", Items: []guide.Item{{Title: "Authentication flow"}}}
+	s.Guides = &hostile
+	plain := Plain(s)
+	if !strings.Contains(plain, "guides: generated (openai/") || !strings.Contains(plain, "1 guides") {
+		t.Fatal("generated status missing")
+	}
+	if strings.ContainsAny(plain, "\x1b\a") {
+		t.Fatal("unescaped model-authored status")
 	}
 }

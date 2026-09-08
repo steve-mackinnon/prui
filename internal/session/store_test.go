@@ -3,12 +3,14 @@ package session
 import (
 	"bytes"
 	"crypto/sha256"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
 
 	reviewcontext "pr-review/internal/context"
+	"pr-review/internal/guide"
 	"pr-review/internal/inventory"
 	"pr-review/internal/plan"
 )
@@ -168,5 +170,100 @@ func TestEditApplyPlanResetsCompletionAndRetainsPrevious(t *testing.T) {
 	}
 	if len(got.ReviewedSliceIDs) != 0 || got.CurrentPlan() == nil || got.CurrentPlan().Version != "edited" || got.PreviousPlan == nil {
 		t.Fatalf("plan edit state=%+v", got.State)
+	}
+}
+
+// preGuideSnapshot is the snapshot shape stored before guide analysis existed.
+type preGuideSnapshot struct {
+	Checkout     []byte
+	Inventory    inventory.Inventory
+	PlanVersion  string
+	Slices       []Slice
+	UnitFiles    []int
+	Context      reviewcontext.ContextBundle
+	AnalysisPlan *plan.ValidatedPlan
+}
+
+func TestStoreGuideBundleRoundTrip(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "sessions")
+	s, err := Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	snapshot := fixture()
+	b := guide.Bundle{Status: guide.Generated, Provider: "openai", Model: "test-model", PromptVersion: "guides-v1", SchemaName: "pr_review_guides", InputDigest: "digest", EvidenceIDs: []string{"evidence"}, WithheldPaths: []guide.Omitted{{Path: []byte(".env"), Reason: "credential-like filename"}}, Limits: guide.Limits{Units: 400, UnitBytes: 32 << 10, Bytes: 512 << 10}, Items: []guide.Item{{Title: "Authentication flow", Description: "Adds a login endpoint.", Sections: []guide.Section{{Title: "Add login endpoint", Description: "one hunk", UnitIDs: []string{"unit"}}}}}}
+	snapshot.Guides = &b
+	r, err := s.Create(snapshot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := s.Load(r.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Guides == nil || got.Guides.Status != guide.Generated || got.Guides.Model != "test-model" || got.Guides.InputDigest != "digest" {
+		t.Fatal("lost guide provenance")
+	}
+	if len(got.Guides.Items) != 1 || len(got.Guides.Items[0].Sections) != 1 || got.Guides.Items[0].Sections[0].UnitIDs[0] != "unit" {
+		t.Fatal("lost guide structure")
+	}
+	if len(got.Guides.WithheldPaths) != 1 || !bytes.Equal(got.Guides.WithheldPaths[0].Path, []byte(".env")) || got.Guides.Limits.Units != 400 {
+		t.Fatal("lost analysis scope")
+	}
+	got.ReviewedSliceIDs = []string{"file"}
+	if err := s.Save(got); err != nil {
+		t.Fatal("guide snapshot blocks progress", err)
+	}
+	got.Guides.Items[0].Sections[0].UnitIDs = []string{"invented"}
+	if err := s.Save(got); err == nil {
+		t.Fatal("tampered guide accepted")
+	}
+	if _, err := s.Create(func() Snapshot {
+		bad := fixture()
+		invented := guide.Bundle{Status: guide.Generated, Items: []guide.Item{{Title: "x", Sections: []guide.Section{{Title: "y", UnitIDs: []string{"invented"}}}}}}
+		bad.Guides = &invented
+		return bad
+	}()); err == nil {
+		t.Fatal("guide referencing unknown units stored")
+	}
+}
+
+func TestStorePreGuideBytesUnchanged(t *testing.T) {
+	snapshot := fixture()
+	if snapshot.Guides != nil {
+		t.Fatal("fixture already carries guides")
+	}
+	current, err := json.Marshal(snapshot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	before, err := json.Marshal(preGuideSnapshot{Checkout: snapshot.Checkout, Inventory: snapshot.Inventory, PlanVersion: snapshot.PlanVersion, Slices: snapshot.Slices, UnitFiles: snapshot.UnitFiles, Context: snapshot.Context, AnalysisPlan: snapshot.AnalysisPlan})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(before, current) {
+		t.Fatalf("pre-guide snapshot bytes changed:\n%s\n%s", before, current)
+	}
+	dir := filepath.Join(t.TempDir(), "sessions")
+	s, err := Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	r, err := s.Create(snapshot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stored, err := os.ReadFile(filepath.Join(dir, r.ID, "snapshot.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(stored, before) || bytes.Contains(stored, []byte("guides")) {
+		t.Fatal("guideless session gained guide bytes")
+	}
+	r.ReviewedSliceIDs = []string{"file"}
+	if err := s.Save(r); err != nil {
+		t.Fatal("pre-guide session can no longer record progress", err)
 	}
 }
