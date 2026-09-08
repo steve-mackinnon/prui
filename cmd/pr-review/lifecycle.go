@@ -7,6 +7,7 @@ import (
 	"io"
 	"path/filepath"
 
+	"pr-review/internal/guide"
 	"pr-review/internal/privacy"
 	"pr-review/internal/review"
 	"pr-review/internal/session"
@@ -21,6 +22,10 @@ type application struct {
 	runner     source.Runner
 	limits     source.Limits
 	policy     privacy.Policy
+	// analyzer is nil unless this invocation's open acknowledged the upload.
+	// Resume never sets it, which is what keeps a frozen session's guides
+	// stable and its rendering offline.
+	analyzer guide.Analyzer
 }
 
 func (a *application) Metadata(ctx context.Context, id source.Identity) (source.Metadata, error) {
@@ -47,9 +52,14 @@ func (a *application) open(ctx context.Context, checkout string, id source.Ident
 	if err != nil {
 		return nil, err
 	}
-	raw, err := review.OpenWithConfig(ctx, checkout, id, a.gh, a.runner, a.limits, notify, review.Config{Policy: a.policy})
+	raw, err := review.OpenWithConfig(ctx, checkout, id, a.gh, a.runner, a.limits, notify, review.Config{Policy: a.policy, Analyzer: a.analyzer})
 	if err != nil {
 		return nil, err
+	}
+	// Analysis failure is reported, not fatal: the raw review is the product
+	// and its completeness is a separate claim from the guide bundle's.
+	if a.analyzer != nil && notify != nil && raw.Guides != nil && raw.Guides.Status != guide.Generated {
+		notify("Guide analysis unavailable: " + raw.Guides.Reason + "; the file plan is unaffected.")
 	}
 	saved, err := a.store.Create(raw.Snapshot)
 	if err != nil {

@@ -1,6 +1,6 @@
 # pr-review
 
-Read-only, pinned GitHub PR review in a local terminal. Deterministic file slices, bounded pinned repository evidence, durable local reading progress, and explicit revision checks. No generated analysis, model configuration, server, or telemetry. Phases 1-3 implemented.
+Read-only, pinned GitHub PR review in a local terminal. Deterministic file slices, bounded pinned repository evidence, durable local reading progress, and explicit revision checks. Optional, opt-in OpenAI analysis groups the change into functional review guides. No server, no telemetry, no stored credentials. Phases 1-4 implemented.
 
 ## Run
 
@@ -10,6 +10,8 @@ Building requires Go 1.26.8+. Opening a new comparison requires Git and authenti
 go run ./cmd/pr-review open https://github.com/owner/repo/pull/42 --repo /path/to/checkout
 go run ./cmd/pr-review open 42 --repo /path/to/checkout --github-repo owner/repo --plain
 go run ./cmd/pr-review open 42 --repo /path/to/checkout --github-repo owner/repo --exclude 'secrets/*'
+OPENAI_API_KEY=... go run ./cmd/pr-review open 42 --repo /path/to/checkout --github-repo owner/repo --send-source-to-openai
+OPENAI_API_KEY=... go run ./cmd/pr-review open 42 --repo /path/to/checkout --github-repo owner/repo --send-source-to-openai --model gpt-5.6-sol
 go run ./cmd/pr-review sessions
 go run ./cmd/pr-review resume SESSION_ID
 go run ./cmd/pr-review resume SESSION_ID --offline --plain
@@ -18,9 +20,19 @@ go run ./cmd/pr-review delete SESSION_ID
 go build -o pr-review ./cmd/pr-review
 ```
 
-`open`, normal `resume`, and explicit refresh contact GitHub. `sessions`, `delete`, and `resume --offline` do not. Implementation tests use synthetic objects and mocked GitHub only. No source is uploaded to a model or other service. Git fetch sends requested revision IDs and Git protocol negotiation to GitHub; metadata/authentication use the user's trusted `gh` installation.
+`open`, normal `resume`, and explicit refresh contact GitHub. `sessions`, `delete`, and `resume --offline` do not. Implementation tests use synthetic objects, mocked GitHub, and a local test provider endpoint only. Without `--send-source-to-openai`, no source is uploaded to a model or other service. Git fetch sends requested revision IDs and Git protocol negotiation to GitHub; metadata/authentication use the user's trusted `gh` installation.
 
-`--plain` emits escaped text without a pager, color, terminal control sequences, or interaction. It includes the bounded evidence scope report. It is automatic for redirected stdin/stdout or `TERM=dumb`, and stays uncolored even when the terminal supports color or `CLICOLOR_FORCE` is set. Exit codes: 0 successful raw inventory, 1 invalid input/open/runtime failure, 2 unavailable review content, 130 canceled loading. Exit 0 is not approval or evidence that you read the review.
+`--plain` emits escaped text without a pager, color, terminal control sequences, or interaction. It includes the guide block, its analysis scope, and the bounded evidence scope report. It is automatic for redirected stdin/stdout or `TERM=dumb`, and stays uncolored even when the terminal supports color or `CLICOLOR_FORCE` is set. Exit codes: 0 successful raw inventory, 1 invalid input/open/runtime failure, 2 unavailable review content, 130 canceled loading. Analysis being unavailable never changes the exit status. Exit 0 is not approval or evidence that you read the review.
+
+## Review Guides And The Source-Upload Opt-In
+
+Guides group the frozen review units into functional chunks, each with a title, description, and ordered sections that reference specific units. They are an interpretation layer: `Slices` and `UnitFiles` are unchanged, reading progress stays file-slice based, and the raw inventory remains the complete source view. Every unit appears in guide navigation exactly once; anything the model did not group lands in a synthesized `Ungrouped changes` guide. Guides are separate from the provider plan behind `a` / `v` / `o`, which owns unit assignment and ordering; a guide never reassigns a unit.
+
+Analysis is off by default. `open --send-source-to-openai` is both the switch and the acknowledgement: there is no config file, environment toggle, or default-on path that uploads source. `--model MODEL` requires it and overrides the default `gpt-5.6-terra`; unknown ids are rejected by the API and become a stated fallback rather than a local allowlist error. `OPENAI_API_KEY` is required, read from the environment, and never written to a snapshot, log, or error string. Analysis is an `open`-only decision: `resume`, `sessions`, and `delete` never build an analyzer or contact a provider, so a stored session renders its guides with the network unavailable.
+
+What leaves the machine is only the assembled request package: pinned patches and pinned-tree evidence that pass the privacy policy a second time at the upload boundary, within 400 units, 32 KiB per unit, 512 KiB total, and 60 seconds. Excluded paths, credential-like content, and budget-exhausted units are withheld and reported as analysis scope; withheld path names are not sent either. The request is one non-streaming HTTPS `POST /v1/responses` with `store: false` and a strict `pr_review_guides` JSON schema. Redirects are not followed, so the bearer credential cannot reach another host. Provider transcripts and credentials are never stored; the snapshot keeps the guides, provider, model, prompt version, schema name, input digest, evidence IDs, limits, and withheld ledger.
+
+Failure is cheap and explicit. A transport error, non-2xx status, refusal, deadline, oversize payload, or unusable structured output produces an `analysis_unavailable` bundle with a stated reason, a durable session, and the unchanged deterministic file plan. Retrying cannot modify a stored snapshot; a later successful attempt is a new session. Generated text is model interpretation of the bounded input, not source truth, approval, security findings, or complete architectural documentation, and it can be wrong about anything it was not shown. Guides currently render in `--plain` output and the status line; making them the interactive left-pane hierarchy is the next phase.
 
 ## Keyboard
 
@@ -63,7 +75,7 @@ Every `open` saves a new frozen session, even with `--plain`. `sessions` lists f
 - `stale`: base/head or repository identity changed. Keep navigating the old snapshot, or press `N` / use `resume ID --new` for a new unreviewed session.
 - `check_failed`: metadata/authentication/connectivity failed; freshness unknown, frozen review still available.
 
-Resume checks metadata by default; `--offline` disables all network actions for that invocation. New comparisons use the saved absolute checkout path unless `resume --repo` overrides it. Failed replacement preserves the old snapshot/progress. Every new session or plan version starts unreviewed, even with identical patch bytes; Phase 2 exposes only the deterministic `file-v1` plan. Local completion never means GitHub approval or complete source availability.
+Resume checks metadata by default; `--offline` disables all network actions for that invocation. New comparisons use the saved absolute checkout path unless `resume --repo` overrides it. Failed replacement preserves the old snapshot/progress. Every new session or plan version starts unreviewed, even with identical patch bytes. The persisted plan is still the deterministic `file-v1` one; guides sit above it and never carry completion. Local completion never means GitHub approval or complete source availability.
 
 Phase 3 evidence is read only from pinned Git tree/blob objects. It prioritizes manifests, documentation, nearby tests, and changed directories within 100 files, 32 KiB per excerpt, 256 KiB retained bytes, and five seconds. Press `e` to inspect retained evidence and omissions. Relationships are observational unless explicitly marked otherwise; AST indexing and history expansion are deferred. Exclusions are local policy, and credential filters are defense in depth rather than secret detection.
 
@@ -108,6 +120,7 @@ go test ./internal/source ./internal/inventory -run 'Test(Pinned|Safety|Inventor
 go test ./internal/tui -run TestRawReview
 go test -race ./internal/session ./internal/review ./internal/tui
 go test ./cmd/pr-review -run 'Test(Lifecycle|Storage|Options)'
+go test ./internal/guide -run 'Test(OpenAI|Analyze|Input|Validate)'
 ```
 
-Tests construct disposable trusted Git fixtures, including byte-only paths that macOS cannot materialize. Lifecycle tests cover process restart/interruption, deleted checkouts, concurrent writers, stale revisions, offline/auth failures, corruption, permissions, deletion, and keyboard actions. They never execute reviewed scripts or use live credentials. See `CONSTRAINTS.md` for the correctness contract. Phase 3+ (evidence retrieval, models, editable contextual slices) is intentionally absent.
+Tests construct disposable trusted Git fixtures, including byte-only paths that macOS cannot materialize. Lifecycle tests cover process restart/interruption, deleted checkouts, concurrent writers, stale revisions, offline/auth failures, corruption, permissions, deletion, and keyboard actions. Analysis tests drive a local `httptest` provider endpoint with a fake key and cover valid, malformed, schema-violating, refused, unauthorized, rate-limited, failing, hung, and oversize responses. They never execute reviewed scripts, contact a real provider, or use live credentials. See `CONSTRAINTS.md` for the correctness contract. Interactive guide navigation and editable contextual slices are intentionally absent.
