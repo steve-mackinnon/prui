@@ -20,7 +20,7 @@ go build -o pr-review ./cmd/pr-review
 
 `open`, normal `resume`, and explicit refresh contact GitHub. `sessions`, `delete`, and `resume --offline` do not. Implementation tests use synthetic objects and mocked GitHub only. No source is uploaded to a model or other service. Git fetch sends requested revision IDs and Git protocol negotiation to GitHub; metadata/authentication use the user's trusted `gh` installation.
 
-`--plain` emits escaped text without a pager, color, terminal control sequences, or interaction. It includes the bounded evidence scope report. It is automatic for redirected stdin/stdout or `TERM=dumb`. Exit codes: 0 successful raw inventory, 1 invalid input/open/runtime failure, 2 unavailable review content, 130 canceled loading. Exit 0 is not approval or evidence that you read the review.
+`--plain` emits escaped text without a pager, color, terminal control sequences, or interaction. It includes the bounded evidence scope report. It is automatic for redirected stdin/stdout or `TERM=dumb`, and stays uncolored even when the terminal supports color or `CLICOLOR_FORCE` is set. Exit codes: 0 successful raw inventory, 1 invalid input/open/runtime failure, 2 unavailable review content, 130 canceled loading. Exit 0 is not approval or evidence that you read the review.
 
 ## Keyboard
 
@@ -42,7 +42,13 @@ go build -o pr-review ./cmd/pr-review
 | `s` | Session picker; up/down to select, Enter to resume, `s`/Esc to return |
 | `?`, `q`, Ctrl+C | Help, quit, cancel loading |
 
-Selection and per-unit vertical offsets survive resizing; navigation positions are not persisted across processes. No mouse capture, so terminal-native text selection remains available. The UI uses textual focus, kind, and warning labels rather than relying on color. The interactive view additionally colors diff structure — file headers, hunk locations, additions, removals — and unit states such as metadata, binary, gitlink, unavailable, and warning chrome. Color is presentation only: no wording, label, or ordering depends on it, and terminals without color show the same text. `--plain` output is never colored and contains no terminal control sequences. Extremely small terminals clip controls; enlarge or use plain output. The user approved Phase 1 terminal behavior; broad theme/platform/accessibility coverage is not established.
+Selection and per-unit vertical offsets survive resizing; navigation positions are not persisted across processes. No mouse capture, so terminal-native text selection remains available. The UI uses textual focus, kind, and warning labels rather than relying on color. The interactive view additionally colors diff structure — file headers, hunk locations, additions, removals — and unit states such as metadata, binary, gitlink, unavailable, and warning chrome. Color is presentation only: no wording, label, or ordering depends on it, and terminals without color show the same text. Extremely small terminals clip controls; enlarge or use plain output. The user approved Phase 1 terminal behavior; broad theme/platform/accessibility coverage is not established.
+
+## Color
+
+Color is detected once at startup from the terminal and the process environment; there is no color option, theme, or configuration file. `NO_COLOR` and `TERM=dumb` disable it, `CLICOLOR_FORCE` enables it, and redirected output is never colored. Lower-capability terminals downsample to 256 or 16 colors rather than losing text.
+
+The guarantees, verified by tests, are: styling only wraps whole display lines that were already escaped, so escaping of hostile patch bytes is unchanged; removing every style yields exactly the uncolored render, so no character, label, warning, or line is added, dropped, or reworded by color; colored lines never exceed the terminal width and horizontal scrolling never splits an escape sequence; and `--plain` output is never colored and contains no terminal control sequences, whatever the terminal supports.
 
 ## Sessions And Freshness
 
