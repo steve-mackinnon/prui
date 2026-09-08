@@ -40,6 +40,7 @@ const (
 	pagePullRequestPicker
 	pageEdit
 	pageReorder
+	pageGuideConsent
 )
 
 type Model struct {
@@ -73,6 +74,7 @@ type Model struct {
 	notify                    func(string)
 	listPullRequests          PullRequestLoader
 	openPullRequest           PullRequestOpener
+	generateGuide             GuideLoader
 	cancelAction              context.CancelFunc
 }
 
@@ -161,7 +163,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		case "?":
 			m.push(pageHelp)
-		case "g":
+		case "u":
 			m.push(pageURL)
 		case "i":
 			m.Inventory = !m.Inventory
@@ -279,6 +281,8 @@ func (m *Model) pageKey(p page, k string) tea.Cmd {
 		return m.pullRequestPickerKey(k)
 	case pageEdit, pageReorder:
 		return m.editKey(k)
+	case pageGuideConsent:
+		return m.guideConsentKey(k)
 	case pageHelp, pageURL, pageEvidence, pageAnalysis:
 		if k == "esc" {
 			m.pop()
@@ -368,6 +372,8 @@ func (m *Model) View() tea.View {
 			text = m.Session.Inventory.Comparison.Metadata.Identity.URL() + "\nOpen this URL in your browser for GitHub review actions.\nesc: back | q: quit"
 		case pageAnalysis:
 			text = m.analysisView()
+		case pageGuideConsent:
+			text = m.guideConsentView()
 		case pageEvidence:
 			text = m.evidenceView()
 		default:
@@ -388,6 +394,10 @@ func (m *Model) View() tea.View {
 	v := tea.NewView(strings.Join(lines, "\n"))
 	v.AltScreen = true
 	return v
+}
+
+func (m *Model) guideConsentView() string {
+	return "Generate OpenAI guide?\n\nThis sends bounded pinned patches and repository evidence to OpenAI. Exclusions and credential-like content are withheld. The request uses store:false; your API key is not persisted.\n\nenter: send source and generate a new guided session | esc: cancel | q: quit"
 }
 func (m *Model) reviewView() string {
 	s := m.Session

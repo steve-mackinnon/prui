@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 
+	"pr-review/internal/guide"
 	"pr-review/internal/review"
 	"pr-review/internal/session"
 	"pr-review/internal/source"
@@ -99,6 +100,13 @@ func (a *application) fresh(ctx context.Context, old *review.Session, checkout s
 		return nil, errors.New("new comparison requires --repo checkout")
 	}
 	return a.open(ctx, checkout, old.Inventory.Comparison.Metadata.Identity, notify)
+}
+
+func (a *application) generateGuide(ctx context.Context, original *review.Session, analyzer guide.Analyzer) (*review.Session, error) {
+	if original == nil || original.ID == "" {
+		return nil, errors.New("guide generation requires a saved review session")
+	}
+	return a.store.Create(review.DeriveGuide(ctx, original, analyzer, review.Config{}))
 }
 
 func (a *application) load(ctx context.Context, o options, notify func(string)) (*review.Session, error) {

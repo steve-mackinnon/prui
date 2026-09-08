@@ -51,6 +51,8 @@ type Snapshot struct {
 	// Guides is a pointer so a session created before guide analysis existed
 	// re-marshals to identical bytes and keeps its snapshot reference valid.
 	Guides *guide.Bundle `json:"guides,omitempty"`
+	// DerivedFrom links a guided copy to its immutable source session.
+	DerivedFrom string `json:"derived_from,omitempty"`
 }
 
 type State struct {
@@ -429,6 +431,9 @@ func syncDir(dir string) error {
 func (s *Store) Create(snapshot Snapshot) (*Record, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if err := s.validateDerived(snapshot); err != nil {
+		return nil, err
+	}
 	b, err := json.Marshal(snapshot)
 	if err != nil {
 		return nil, err
@@ -455,6 +460,34 @@ func (s *Store) Create(snapshot Snapshot) (*Record, error) {
 		return nil, err
 	}
 	return s.load(r.ID)
+}
+
+func (s *Store) validateDerived(snapshot Snapshot) error {
+	if snapshot.DerivedFrom == "" {
+		return nil
+	}
+	if !idPattern.MatchString(snapshot.DerivedFrom) {
+		return errors.New("invalid derived session source")
+	}
+	parent, err := s.load(snapshot.DerivedFrom)
+	if err != nil {
+		return fmt.Errorf("derived session source unavailable: %w", err)
+	}
+	derivedRaw, parentRaw := snapshot, parent.Snapshot
+	derivedRaw.Guides, derivedRaw.DerivedFrom = nil, ""
+	parentRaw.Guides, parentRaw.DerivedFrom = nil, ""
+	derivedBytes, err := json.Marshal(derivedRaw)
+	if err != nil {
+		return err
+	}
+	parentBytes, err := json.Marshal(parentRaw)
+	if err != nil {
+		return err
+	}
+	if !bytes.Equal(derivedBytes, parentBytes) {
+		return errors.New("derived session source evidence changed")
+	}
+	return nil
 }
 
 func randBytes() []byte { b := make([]byte, 16); _, _ = rand.Read(b); return b }

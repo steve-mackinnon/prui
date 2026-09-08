@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"pr-review/internal/guide"
 	"pr-review/internal/review"
 	"pr-review/internal/session"
 	"pr-review/internal/source"
@@ -19,6 +20,12 @@ type fixtureGH struct {
 	value source.Metadata
 	err   error
 	prs   []source.PullRequest
+}
+
+type unavailableGuideAnalyzer struct{}
+
+func (unavailableGuideAnalyzer) Analyze(context.Context, guide.Input) (guide.Bundle, error) {
+	return guide.Bundle{}, errors.New("provider unavailable")
 }
 
 func (g *fixtureGH) Metadata(context.Context, source.Identity) (source.Metadata, error) {
@@ -175,5 +182,38 @@ func TestLifecycleRememberedCheckout(t *testing.T) {
 	}
 	if _, err := app.load(context.Background(), options{Command: "open", Checkout: r.Dir, Identity: g.value.Identity}, nil); err != nil {
 		t.Fatal("explicit checkout did not override stale cache", err)
+	}
+}
+
+func TestLifecycleCreatesDerivedGuideSession(t *testing.T) {
+	r := testutil.NewRepo(t)
+	r.Write("a", "old\n")
+	base := r.Commit()
+	r.Write("a", "new\n")
+	head := r.Commit()
+	meta := source.Metadata{Identity: source.Identity{Repository: "o/r", Number: 1}, BaseRepository: "o/r", HeadRepository: "o/r", BaseSHA: base, HeadSHA: head}
+	store, err := session.Open(filepath.Join(t.TempDir(), "sessions"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	app := application{store: store, gh: &fixtureGH{value: meta}, runner: source.NewRunner(), limits: source.Defaults()}
+	original, err := app.open(context.Background(), r.Dir, meta.Identity, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := review.Mark(store, original, original.Slices[0].FileID, true); err != nil {
+		t.Fatal(err)
+	}
+	derived, err := app.generateGuide(context.Background(), original, unavailableGuideAnalyzer{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if derived.ID == original.ID || derived.DerivedFrom != original.ID || len(derived.ReviewedSliceIDs) != 0 || derived.Guides == nil || derived.Guides.Status != guide.Unavailable {
+		t.Fatal("guide action did not create an unread derived session", derived)
+	}
+	loaded, err := store.Load(original.ID)
+	if err != nil || len(loaded.ReviewedSliceIDs) != 1 || loaded.DerivedFrom != "" {
+		t.Fatal("guide action changed source session", loaded, err)
 	}
 }

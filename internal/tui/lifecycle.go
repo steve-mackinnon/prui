@@ -102,6 +102,7 @@ func moveID(ids []string, id string, at int) []string {
 }
 
 type FreshLoader func(context.Context, *review.Session, func(string)) (*review.Session, error)
+type GuideLoader func(context.Context, *review.Session, func(string)) (*review.Session, error)
 type ActionResult struct {
 	Session *review.Session
 	Err     error
@@ -120,6 +121,8 @@ func (m *Model) SetLifecycle(store *session.Store, reader review.MetadataReader,
 func (m *Model) SetPullRequestLifecycle(list PullRequestLoader, open PullRequestOpener) {
 	m.listPullRequests, m.openPullRequest = list, open
 }
+
+func (m *Model) SetGuideLifecycle(generate GuideLoader) { m.generateGuide = generate }
 
 func (m *Model) start(work func() tea.Msg) tea.Cmd {
 	m.Busy = true
@@ -185,8 +188,39 @@ func (m *Model) lifecycleKey(k string) (tea.Cmd, bool) {
 		m.PickerIndex = 0
 		m.push(pageRepositoryPicker)
 		return nil, true
+	case "g":
+		if m.generateGuide == nil {
+			return nil, true
+		}
+		m.push(pageGuideConsent)
+		return nil, true
 	}
 	return nil, false
+}
+
+func (m *Model) guideConsentKey(k string) tea.Cmd {
+	switch k {
+	case "esc":
+		m.pop()
+	case "enter":
+		if m.generateGuide == nil || m.Session == nil {
+			return nil
+		}
+		m.pop()
+		m.notice = "Sending bounded pinned source and evidence to OpenAI..."
+		ctx, cancel := context.WithCancel(m.ctx)
+		m.cancelAction = cancel
+		s := *m.Session
+		return m.start(func() tea.Msg {
+			n := m.notify
+			if n == nil {
+				n = func(string) {}
+			}
+			derived, err := m.generateGuide(ctx, &s, n)
+			return ActionResult{Session: derived, Err: err, Reset: true}
+		})
+	}
+	return nil
 }
 
 func (m *Model) pickerKey(k string) tea.Cmd {

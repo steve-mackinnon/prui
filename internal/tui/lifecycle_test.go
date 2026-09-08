@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	"pr-review/internal/guide"
 	"pr-review/internal/review"
 	"pr-review/internal/session"
 	"pr-review/internal/source"
@@ -226,5 +227,57 @@ func TestPullRequestPickerListsAndOpens(t *testing.T) {
 	canceling.Update(cmd())
 	if canceling.top() != pagePullRequestPicker || !strings.Contains(canceling.View().Content, "Retry") {
 		t.Fatal("canceled list could not retry")
+	}
+}
+
+func TestGuideConsentCancelsOrSwitchesToDerivedSession(t *testing.T) {
+	r := testutil.NewRepo(t)
+	r.Write("a", "old\n")
+	base := r.Commit()
+	r.Write("a", "new\n")
+	head := r.Commit()
+	meta := source.Metadata{Identity: source.Identity{Repository: "o/r", Number: 1}, BaseRepository: "o/r", HeadRepository: "o/r", BaseSHA: base, HeadSHA: head}
+	raw, err := review.Open(context.Background(), r.Dir, meta.Identity, fakeGitHub{meta}, source.NewRunner(), source.Defaults(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	store, err := session.Open(filepath.Join(t.TempDir(), "sessions"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	original, err := store.Create(raw.Snapshot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := New(context.Background(), func(context.Context, func(string)) (*review.Session, error) { return original, nil })
+	defer m.Close()
+	m.SetLifecycle(store, fakeGitHub{meta}, nil)
+	calls := 0
+	m.SetGuideLifecycle(func(_ context.Context, s *review.Session, _ func(string)) (*review.Session, error) {
+		calls++
+		derived := s.Snapshot
+		derived.DerivedFrom = s.ID
+		derived.Guides = &guide.Bundle{Status: guide.Unavailable, Reason: "provider unavailable"}
+		return store.Create(derived)
+	})
+	m.Update(m.Init()())
+	m.Width = 200
+	action(t, m, 'g')
+	if m.top() != pageGuideConsent || calls != 0 || !strings.Contains(m.View().Content, "store:false") {
+		t.Fatal("guide action did not wait for informed consent")
+	}
+	namedKey(m, tea.KeyEscape)
+	if m.top() != pageReview || calls != 0 || m.Session.ID != original.ID {
+		t.Fatal("cancelled consent changed the review")
+	}
+	action(t, m, 'g')
+	_, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	if cmd == nil || !m.Busy {
+		t.Fatal("confirmed guide generation did not start")
+	}
+	m.Update(cmd())
+	if calls != 1 || m.Session.ID == original.ID || m.Session.DerivedFrom != original.ID || len(m.Session.ReviewedSliceIDs) != 0 {
+		t.Fatal("confirmed guide generation did not switch to a new unread session")
 	}
 }

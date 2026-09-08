@@ -203,7 +203,7 @@ func TestModalPagesOwnInputAndBack(t *testing.T) {
 	if m.top() != pageReview {
 		t.Fatal("esc did not leave help")
 	}
-	key(m, 'g')
+	key(m, 'u')
 	if m.top() != pageURL || !strings.Contains(m.View().Content, "esc: back") {
 		t.Fatal("URL page or back hint missing")
 	}

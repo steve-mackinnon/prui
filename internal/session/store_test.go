@@ -230,6 +230,45 @@ func TestStoreGuideBundleRoundTrip(t *testing.T) {
 	}
 }
 
+func TestStoreDerivedSnapshotRetainsOriginalAndStartsUnread(t *testing.T) {
+	s, err := Open(filepath.Join(t.TempDir(), "sessions"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	original, err := s.Create(fixture())
+	if err != nil {
+		t.Fatal(err)
+	}
+	original.ReviewedSliceIDs = []string{"file"}
+	if err := s.Save(original); err != nil {
+		t.Fatal(err)
+	}
+	derived := original.Snapshot
+	derived.DerivedFrom = original.ID
+	derived.Guides = &guide.Bundle{Status: guide.Unavailable, Reason: "provider unavailable"}
+	child, err := s.Create(derived)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if child.DerivedFrom != original.ID || len(child.ReviewedSliceIDs) != 0 {
+		t.Fatal("derived session lost source link or inherited progress", child)
+	}
+	stored, err := s.Load(original.ID)
+	if err != nil || len(stored.ReviewedSliceIDs) != 1 || stored.DerivedFrom != "" || stored.Guides != nil {
+		t.Fatal("derived session changed original", stored, err)
+	}
+	derived.DerivedFrom = "not-a-session-id"
+	if _, err := s.Create(derived); err == nil {
+		t.Fatal("invalid derived source accepted")
+	}
+	derived.DerivedFrom = original.ID
+	derived.PlanVersion = "altered"
+	if _, err := s.Create(derived); err == nil {
+		t.Fatal("derived session changed source evidence")
+	}
+}
+
 func TestStorePreGuideBytesUnchanged(t *testing.T) {
 	snapshot := fixture()
 	if snapshot.Guides != nil {

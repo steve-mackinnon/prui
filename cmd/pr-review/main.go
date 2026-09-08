@@ -10,6 +10,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/term"
+	"pr-review/internal/guide"
 	"pr-review/internal/review"
 	"pr-review/internal/session"
 	"pr-review/internal/source"
@@ -143,6 +144,16 @@ func run(args []string) int {
 	})
 	m.SetPullRequestLifecycle(app.listPullRequests, func(c context.Context, checkout string, id source.Identity, n func(string)) (*review.Session, error) {
 		return app.open(c, checkout, id, n)
+	})
+	m.SetGuideLifecycle(func(c context.Context, original *review.Session, n func(string)) (*review.Session, error) {
+		if n != nil {
+			n("Creating OpenAI analyzer for this confirmed guide request...")
+		}
+		analyzer, err := guide.NewOpenAI(guide.OpenAIOptions{APIKey: os.Getenv("OPENAI_API_KEY"), Endpoint: os.Getenv("OPENAI_BASE_URL")})
+		if err != nil {
+			return nil, err
+		}
+		return app.generateGuide(c, original, analyzer)
 	})
 	p := tea.NewProgram(m, tea.WithContext(ctx))
 	m.SetNotifier(func(s string) { p.Send(tui.Notice(s)) })
