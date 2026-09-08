@@ -124,18 +124,18 @@ func (m *Model) evidenceView() string {
 	for _, o := range c.OmittedPaths {
 		lines = append(lines, fmt.Sprintf("[omitted] %s: %s", Escape(string(o.Path)), Escape(o.Reason)))
 	}
-	lines = append(lines, "e: return | raw inventory remains available | omissions are not missing diff entries")
+	lines = append(lines, "esc: back | raw inventory remains available | omissions are not missing diff entries")
 	return strings.Join(lines, "\n")
 }
 
 func (m *Model) analysisView() string {
 	s := m.Session
 	if s.CurrentPlan() == nil {
-		return styleLine(statusClass(s), status(s)) + "\nNo accepted provider plan. Raw file slices remain the fallback.\na: return | analysis requires separate disclosure and consent"
+		return styleLine(statusClass(s), status(s)) + "\nNo accepted provider plan. Raw file slices remain the fallback.\nesc: back | analysis requires separate disclosure and consent"
 	}
 	p := s.CurrentPlan()
 	if p == nil {
-		return styleLine(statusClass(s), status(s)) + "\nNo accepted provider plan. Raw file slices remain the fallback.\na: return | analysis requires separate disclosure and consent"
+		return styleLine(statusClass(s), status(s)) + "\nNo accepted provider plan. Raw file slices remain the fallback.\nesc: back | analysis requires separate disclosure and consent"
 	}
 	lines := []string{styleLine(statusClass(s), status(s)), styleLine(classTitle, fmt.Sprintf("Plan %s | %d slices | %d unassigned", Escape(p.Version), len(p.Slices), len(p.UnassignedUnitIDs)))}
 	for _, w := range p.Warnings {
@@ -161,7 +161,7 @@ func (m *Model) analysisView() string {
 	if len(p.UnassignedUnitIDs) > 0 {
 		lines = append(lines, "Unassigned units: "+strings.Join(p.UnassignedUnitIDs, ", "))
 	}
-	lines = append(lines, "a: return | i: full inventory | e: evidence scope | claims are advisory")
+	lines = append(lines, "esc: back | claims are advisory")
 	return strings.Join(lines, "\n")
 }
 
@@ -171,7 +171,7 @@ func (m *Model) editView() string {
 	if p == nil {
 		return "No editable plan available"
 	}
-	if m.Reorder {
+	if m.top() == pageReorder {
 		lines := []string{"Reorder slices (preview; enter confirms, esc cancels)"}
 		for i, sl := range p.Slices {
 			marker := "  "

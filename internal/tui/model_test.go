@@ -22,6 +22,8 @@ func (g fakeGitHub) Metadata(context.Context, source.Identity) (source.Metadata,
 }
 func (g fakeGitHub) Token(context.Context) (string, error) { panic("no live network allowed") }
 func key(m *Model, k rune)                                 { m.Update(tea.KeyPressMsg{Code: k, Text: string(k)}) }
+func namedKey(m *Model, k rune)                            { m.Update(tea.KeyPressMsg{Code: k}) }
+func ctrlKey(m *Model, k rune)                             { m.Update(tea.KeyPressMsg{Code: k, Mod: tea.ModCtrl}) }
 func TestRawReviewMockedEndToEnd(t *testing.T) {
 	r := testutil.NewRepo(t)
 	r.Write("a", "old\n")
@@ -66,7 +68,8 @@ func TestRawReviewMockedEndToEnd(t *testing.T) {
 	if !strings.Contains(m.View().Content, "Keyboard") {
 		t.Fatal("help unavailable")
 	}
-	key(m, '?')
+	// Pages leave only through esc; '?' no longer toggles help closed.
+	namedKey(m, tea.KeyEscape)
 	plain := Plain(m.Session)
 	if strings.ContainsAny(plain, "\x1b\a") || !strings.Contains(plain, `\x1b]52;c;attack\a`) {
 		t.Fatal("unsafe terminal content")
@@ -85,14 +88,14 @@ func TestRawReviewMockedEndToEnd(t *testing.T) {
 	if hunk < 0 {
 		t.Fatal("no text hunk generated")
 	}
-	m.Selected, m.Details = hunk, true
+	m.Selected, m.Focus = hunk, paneDiff
 	if !strings.Contains(m.View().Content, "\x1b[") {
 		t.Fatal("interactive diff unstyled")
 	}
 	if stripped := ansi.Strip(m.View().Content); strings.Contains(stripped, "\x1b") {
 		t.Fatal("styled view leaked raw escapes")
 	}
-	m.Details = false
+	m.Focus = paneList
 	for _, w := range []int{1, 20, 60, 99, 100, 120} {
 		m.Update(tea.WindowSizeMsg{Width: w, Height: 10})
 		for _, line := range strings.Split(m.View().Content, "\n") {
@@ -100,6 +103,46 @@ func TestRawReviewMockedEndToEnd(t *testing.T) {
 				t.Fatalf("viewport exceeded %d: %q", w, line)
 			}
 		}
+	}
+}
+
+func TestFullDiffDoesNotScrollPastViewport(t *testing.T) {
+	r := testutil.NewRepo(t)
+	r.Write("a", "old\n")
+	base := r.Commit()
+	r.Write("a", "new\n"+strings.Repeat("long line\n", 50))
+	head := r.Commit()
+	meta := source.Metadata{Identity: source.Identity{Repository: "owner/repo", Number: 42}, BaseRepository: "owner/repo", HeadRepository: "owner/repo", BaseSHA: base, HeadSHA: head}
+	m := New(context.Background(), func(c context.Context, n func(string)) (*review.Session, error) {
+		return review.Open(c, r.Dir, meta.Identity, fakeGitHub{meta}, source.NewRunner(), source.Defaults(), n)
+	})
+	m.Update(m.Init()())
+	m.Update(tea.WindowSizeMsg{Width: 120, Height: 100})
+	for i := range m.Session.Inventory.Units {
+		if strings.Contains(unitText(m.Session, i), "long line") {
+			m.Selected = i
+			break
+		}
+	}
+	ctrlKey(m, 'l')
+	if m.Focus != paneDiff {
+		t.Fatal("diff did not receive focus")
+	}
+
+	lastLine := "long line"
+	if m.Scroll[m.Selected] != 0 || !strings.Contains(m.View().Content, lastLine) {
+		t.Fatal("full diff is not initially visible")
+	}
+	for _, k := range []rune{'j', 'J'} {
+		key(m, k)
+		if m.Scroll[m.Selected] != 0 || !strings.Contains(m.View().Content, lastLine) {
+			t.Fatalf("%q scrolled past a fully visible diff", k)
+		}
+	}
+	namedKey(m, tea.KeyDown)
+	namedKey(m, tea.KeyPgDown)
+	if m.Scroll[m.Selected] != 0 || !strings.Contains(m.View().Content, lastLine) {
+		t.Fatal("downward paging scrolled past a fully visible diff")
 	}
 }
 
@@ -128,6 +171,61 @@ func TestRawReviewCancelAndFailure(t *testing.T) {
 	}
 }
 
+func TestModalPagesOwnInputAndBack(t *testing.T) {
+	m := New(context.Background(), nil)
+	m.Session = &review.Session{}
+	m.Loading = false
+	m.Selected = 3
+
+	key(m, '?')
+	if m.top() != pageHelp {
+		t.Fatal("help did not open")
+	}
+	key(m, 'n')
+	if m.Selected != 3 {
+		t.Fatal("help leaked review input")
+	}
+	key(m, 'g')
+	if m.top() != pageHelp {
+		t.Fatal("help accepted another page opener")
+	}
+	key(m, 'q')
+
+	namedKey(m, tea.KeyEscape)
+	if m.top() != pageReview {
+		t.Fatal("esc did not leave help")
+	}
+	key(m, 'g')
+	if m.top() != pageURL || !strings.Contains(m.View().Content, "esc: back") {
+		t.Fatal("URL page or back hint missing")
+	}
+	namedKey(m, tea.KeyEscape)
+	if m.top() != pageReview {
+		t.Fatal("esc did not leave URL page")
+	}
+
+	m.Focus = paneDiff
+	namedKey(m, tea.KeyEscape)
+	if m.Focus != paneList || m.top() != pageReview {
+		t.Fatal("esc did not return to list focus")
+	}
+}
+
+func TestBindingsRenderHelpAndFooter(t *testing.T) {
+	help := renderBindings(groupHelp)
+	footer := renderBindings(groupFooter)
+	for _, key := range []string{"j/k", "J/K", "ctrl+h/ctrl+l", "esc", "q/ctrl+c"} {
+		if !strings.Contains(help, key) {
+			t.Fatalf("binding %q missing from help", key)
+		}
+	}
+	for _, key := range []string{"ctrl+h/ctrl+l", "esc", "q/ctrl+c", "m", "N"} {
+		if !strings.Contains(footer, key) {
+			t.Fatalf("binding %q missing from footer", key)
+		}
+	}
+}
+
 func TestRawReviewIncomplete(t *testing.T) {
 	r := testutil.NewRepo(t)
 	base := r.Commit()
@@ -151,7 +249,7 @@ func TestReviewStyledUnitKindsKeepWording(t *testing.T) {
 	m.Update(m.Init()())
 	m.Update(tea.WindowSizeMsg{Width: 200, Height: 24})
 	for i, u := range s.Inventory.Units {
-		m.Selected, m.Details = i, true
+		m.Selected, m.Focus = i, paneDiff
 		content := m.View().Content
 		if !strings.Contains(content, "\x1b[") {
 			t.Fatalf("%s rendered without a style", u.Kind)
@@ -176,15 +274,15 @@ func TestStrippedViewMatchesUnstyledRender(t *testing.T) {
 	defer func() { palette = styled }()
 	for _, w := range []int{1, 20, 60, 99, 100, 120} {
 		for i := range s.Inventory.Units {
-			for _, details := range []bool{false, true} {
-				m.Selected, m.Details = i, details
+			for _, focus := range []pane{paneList, paneDiff} {
+				m.Selected, m.Focus = i, focus
 				m.Update(tea.WindowSizeMsg{Width: w, Height: 12})
 				colored := m.View().Content
 				palette = map[lineClass]lipgloss.Style{}
 				plain := m.View().Content
 				palette = styled
 				if ansi.Strip(colored) != plain {
-					t.Fatalf("width %d unit %d details %v changed content:\n%q\n%q", w, i, details, ansi.Strip(colored), plain)
+					t.Fatalf("width %d unit %d focus %v changed content:\n%q\n%q", w, i, focus, ansi.Strip(colored), plain)
 				}
 				for _, line := range strings.Split(colored, "\n") {
 					if visibleWidth(line) > w {

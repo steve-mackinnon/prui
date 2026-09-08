@@ -16,34 +16,58 @@ type Loaded struct {
 	Err     error
 }
 type Notice string
+
+type pane int
+
+const (
+	paneList pane = iota
+	paneDiff
+)
+
+const diffStep = 5
+
+type page int
+
+const (
+	pageReview page = iota
+	pageEvidence
+	pageAnalysis
+	pageHelp
+	pageURL
+	pagePicker
+	pageEdit
+	pageReorder
+)
+
 type Model struct {
-	Session                                           *review.Session
-	Err                                               error
-	Selected                                          int
-	Scroll                                            map[int]int
-	Width, Height, Horizontal                         int
-	Inventory, Details, Evidence, Analysis, Help, URL bool
-	Loading                                           bool
-	Busy, Picker                                      bool
-	Edit, Reorder                                     bool
-	EditIndex                                         int
-	PickerIndex                                       int
-	Entries                                           []session.Entry
-	ActionError                                       error
-	store                                             *session.Store
-	reader                                            review.MetadataReader
-	fresh                                             FreshLoader
-	worker                                            <-chan struct{}
-	notice                                            string
-	ctx                                               context.Context
-	cancel                                            context.CancelFunc
-	load                                              Loader
-	notify                                            func(string)
+	Session                   *review.Session
+	Err                       error
+	Selected                  int
+	Scroll                    map[int]int
+	Width, Height, Horizontal int
+	Inventory                 bool
+	Focus                     pane
+	Stack                     []page
+	Loading                   bool
+	Busy                      bool
+	EditIndex                 int
+	PickerIndex               int
+	Entries                   []session.Entry
+	ActionError               error
+	store                     *session.Store
+	reader                    review.MetadataReader
+	fresh                     FreshLoader
+	worker                    <-chan struct{}
+	notice                    string
+	ctx                       context.Context
+	cancel                    context.CancelFunc
+	load                      Loader
+	notify                    func(string)
 }
 
 func New(parent context.Context, load Loader) *Model {
 	ctx, cancel := context.WithCancel(parent)
-	return &Model{ctx: ctx, cancel: cancel, load: load, Scroll: map[int]int{}, Width: 100, Height: 24, Loading: true, notice: "Loading GitHub metadata and pinned committed objects..."}
+	return &Model{ctx: ctx, cancel: cancel, load: load, Scroll: map[int]int{}, Stack: []page{pageReview}, Width: 100, Height: 24, Loading: true, notice: "Loading GitHub metadata and pinned committed objects..."}
 }
 func (m *Model) SetNotifier(f func(string)) { m.notify = f }
 func (m *Model) Init() tea.Cmd {
@@ -71,8 +95,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if v.Reset {
 				m.Selected, m.Horizontal = 0, 0
 				m.Scroll = map[int]int{}
-				m.Picker = false
-				m.Help, m.URL = false, false
+				m.Stack = []page{pageReview}
+				m.Focus = paneList
 			}
 		}
 	case Notice:
@@ -85,14 +109,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.Busy {
 				return m, nil
 			}
-			if m.Edit || m.Reorder {
-				if cmd := m.editKey(v.String()); cmd != nil {
-					return m, cmd
-				}
-				return m, nil
-			}
-			if m.Picker {
-				return m, m.pickerKey(v.String())
+			if p := m.top(); p != pageReview {
+				return m, m.pageKey(p, v.String())
 			}
 			if cmd, handled := m.lifecycleKey(v.String()); handled {
 				return m, cmd
@@ -103,24 +121,28 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.cancel()
 			return m, tea.Quit
 		case "?":
-			m.Help = !m.Help
+			m.push(pageHelp)
 		case "g":
-			m.URL = !m.URL
+			m.push(pageURL)
 		case "i":
 			m.Inventory = !m.Inventory
-			m.Details = false
+			m.Focus = paneList
 		case "e":
-			m.Evidence = !m.Evidence
-			m.Inventory, m.Details, m.Analysis = false, false, false
+			m.push(pageEvidence)
+			m.Inventory, m.Focus = false, paneList
 		case "a":
-			m.Analysis = !m.Analysis
-			m.Inventory, m.Details, m.Evidence = false, false, false
+			m.push(pageAnalysis)
+			m.Inventory, m.Focus = false, paneList
 		case "v":
 			m.beginMove()
 		case "o":
 			m.beginReorder()
-		case "tab", "enter":
-			m.Details = !m.Details
+		case "esc":
+			m.back()
+		case "ctrl+h":
+			m.Focus = paneList
+		case "ctrl+l", "enter":
+			m.Focus = paneDiff
 		case "n":
 			m.move(1)
 		case "p":
@@ -130,25 +152,37 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "[":
 			m.file(-1)
 		case "down":
-			if m.Details {
+			if m.Focus == paneDiff {
 				m.scroll(1)
 			} else {
 				m.move(1)
 			}
 		case "up":
-			if m.Details {
+			if m.Focus == paneDiff {
 				m.scroll(-1)
 			} else {
 				m.move(-1)
 			}
 		case "j":
-			m.scroll(1)
+			if m.Focus == paneDiff {
+				m.scroll(1)
+			} else {
+				m.move(1)
+			}
 		case "k":
-			m.scroll(-1)
-		case "pgdown", "space":
-			m.scroll(max(1, m.Height-6))
+			if m.Focus == paneDiff {
+				m.scroll(-1)
+			} else {
+				m.move(-1)
+			}
+		case "J":
+			m.scroll(diffStep)
+		case "K":
+			m.scroll(-diffStep)
+		case "pgdown":
+			m.scroll(m.pageStep())
 		case "pgup":
-			m.scroll(-max(1, m.Height-6))
+			m.scroll(-m.pageStep())
 		case "right", "l":
 			m.Horizontal += 8
 		case "left", "h":
@@ -156,11 +190,46 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "home":
 			m.Scroll[m.Selected] = 0
 			m.Horizontal = 0
-		case "esc":
-			m.Edit, m.Reorder = false, false
 		}
 	}
 	return m, nil
+}
+
+func (m *Model) top() page {
+	if len(m.Stack) == 0 {
+		return pageReview
+	}
+	return m.Stack[len(m.Stack)-1]
+}
+func (m *Model) push(p page) {
+	if m.top() != p {
+		m.Stack = append(m.Stack, p)
+	}
+}
+func (m *Model) pop() {
+	if len(m.Stack) > 1 {
+		m.Stack = m.Stack[:len(m.Stack)-1]
+	}
+}
+func (m *Model) back() {
+	if len(m.Stack) > 1 {
+		m.pop()
+	} else if m.Focus == paneDiff {
+		m.Focus = paneList
+	}
+}
+func (m *Model) pageKey(p page, k string) tea.Cmd {
+	switch p {
+	case pagePicker:
+		return m.pickerKey(k)
+	case pageEdit, pageReorder:
+		return m.editKey(k)
+	case pageHelp, pageURL, pageEvidence, pageAnalysis:
+		if k == "esc" {
+			m.pop()
+		}
+	}
+	return nil
 }
 func (m *Model) move(delta int) {
 	if m.Session != nil && len(m.Session.Inventory.Units) > 0 {
@@ -181,9 +250,21 @@ func (m *Model) scroll(delta int) {
 	if m.Session == nil || len(m.Session.Inventory.Units) == 0 {
 		return
 	}
-	last := max(0, strings.Count(unitText(m.Session, m.Selected), "\n")-1)
+	// The clamp counts the same display lines the diff pane renders, so a diff
+	// that already fits cannot be scrolled past its end.
+	last := max(0, len(unitLines(m.Session, m.Selected))-m.bodyHeight())
 	m.Scroll[m.Selected] = max(0, min(last, m.Scroll[m.Selected]+delta))
 }
+
+func (m *Model) bodyHeight() int {
+	n := m.Height - 4
+	if m.Session != nil && m.Session.ID != "" {
+		n = m.Height - 5
+	}
+	return max(1, n)
+}
+
+func (m *Model) pageStep() int { return max(1, m.bodyHeight()-1) }
 func (m *Model) View() tea.View {
 	text := ""
 	switch {
@@ -193,23 +274,24 @@ func (m *Model) View() tea.View {
 		text = "Unable to open review\n" + Escape(m.Err.Error()) + "\nNo complete comparison available. q: quit"
 	case m.Session == nil:
 		text = "No review loaded. q: quit"
-	case m.Picker:
-		text = m.pickerView()
-	case m.Edit || m.Reorder:
-		text = m.editView()
-	case m.Help:
-		text = "Keyboard\nn/p: next/previous unit | [/]: next/previous file\nup/down: move focused pane | tab/enter: switch focus/pane\nj/k: scroll diff | pgup/pgdown/space: page\nh/l or left/right: horizontal scroll | home: reset scroll\ni: full inventory | e: evidence scope | a: accepted plan | g: GitHub URL | ?: help | q: quit\nm: mark/unmark slice | v: move selected unit | o: reorder slices | r: refresh GitHub metadata\ns: saved sessions | N: new comparison, empty progress\nControls and invalid bytes escaped. No mouse capture.\nReading progress is local, not GitHub approval.\nEvidence is pinned, bounded, and omissions are reported. Analysis is optional and consent-bound."
-		if m.store != nil {
-			text += "\nStorage: " + Escape(m.store.Path()) + "\nSession: " + m.Session.ID
-		}
-	case m.URL:
-		text = m.Session.Inventory.Comparison.Metadata.Identity.URL() + "\nOpen this URL in your browser for GitHub review actions.\ng: return | q: quit"
 	default:
-		if m.Analysis {
+		switch m.top() {
+		case pagePicker:
+			text = m.pickerView()
+		case pageEdit, pageReorder:
+			text = m.editView()
+		case pageHelp:
+			text = "Keyboard\n" + renderBindings(groupHelp) + "\nControls and invalid bytes escaped. No mouse capture.\nReading progress is local, not GitHub approval.\nEvidence is pinned, bounded, and omissions are reported. Analysis is optional and consent-bound."
+			if m.store != nil {
+				text += "\nStorage: " + Escape(m.store.Path()) + "\nSession: " + m.Session.ID
+			}
+		case pageURL:
+			text = m.Session.Inventory.Comparison.Metadata.Identity.URL() + "\nOpen this URL in your browser for GitHub review actions.\nesc: back | q: quit"
+		case pageAnalysis:
 			text = m.analysisView()
-		} else if m.Evidence {
+		case pageEvidence:
 			text = m.evidenceView()
-		} else {
+		default:
 			text = m.reviewView()
 		}
 	}
@@ -235,7 +317,7 @@ func (m *Model) reviewView() string {
 	}
 	kind := s.Inventory.Units[m.Selected].Kind
 	focus := "files"
-	if m.Details {
+	if m.Focus == paneDiff {
 		focus = "diff"
 	}
 	label := "File slices"
@@ -257,10 +339,7 @@ func (m *Model) reviewView() string {
 		headerClass = classWarning
 	}
 	header := styleLine(headerClass, fmt.Sprintf("%s | focus: %s | unit %d/%d [%s] | unassigned %d | unavailable %d", label, focus, m.Selected+1, len(s.Inventory.Units), kind, unassigned, unavailable))
-	bodyHeight := max(1, m.Height-4)
-	if s.ID != "" {
-		bodyHeight = max(1, m.Height-5)
-	}
+	bodyHeight := m.bodyHeight()
 	list := []string{}
 	selectedRow := 0
 	if m.Inventory {
@@ -268,7 +347,10 @@ func (m *Model) reviewView() string {
 		for i, u := range s.Inventory.Units {
 			marker := "  "
 			if i == m.Selected {
-				marker = "> "
+				marker = "· "
+				if m.Focus == paneList {
+					marker = "> "
+				}
 			}
 			list = append(list, marker+pathLabel(s.Inventory.Files[s.UnitFiles[i]])+" ["+string(u.Kind)+"]")
 		}
@@ -277,7 +359,10 @@ func (m *Model) reviewView() string {
 		for i, f := range s.Inventory.Files {
 			marker := "  "
 			if i == selectedRow {
-				marker = "> "
+				marker = "· "
+				if m.Focus == paneList {
+					marker = "> "
+				}
 			}
 			list = append(list, marker+readMarker(s, f.ID)+pathLabel(f))
 		}
@@ -300,14 +385,19 @@ func (m *Model) reviewView() string {
 		if row < len(list) {
 			left = list[row]
 			if row == selectedRow {
+				// The focused pane's selection gets the stronger cue; the text
+				// markers "> " and "· " already distinguish the two states.
 				leftClass = classSelection
+				if m.Focus == paneList {
+					leftClass = classSelectionFocused
+				}
 			}
 		}
 		if row < len(detail) {
 			right, class = detail[row].Text, detail[row].Class
 		}
 		if m.Width < 100 {
-			if m.Details {
+			if m.Focus == paneDiff {
 				body = append(body, styleLine(class, clip(right, m.Width)))
 			} else {
 				body = append(body, styleLine(leftClass, clip(left, m.Width)))

@@ -82,7 +82,7 @@ func BenchmarkViewportRender(b *testing.B) {
 func BenchmarkLargeTextHunkReview(b *testing.B) {
 	s := largeTextSession(1000, 50000)
 	m := largeModel(s, 120, 30)
-	m.Details = true
+	m.Focus = paneDiff
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
 		m.Selected = (i * 97) % len(s.Inventory.Units)

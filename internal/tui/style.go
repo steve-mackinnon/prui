@@ -24,6 +24,7 @@ const (
 	classWarning
 	classUnavailable
 	classSelection
+	classSelectionFocused
 )
 
 // styledLine is one already-escaped display line plus its semantic class.
@@ -50,6 +51,9 @@ var palette = map[lineClass]lipgloss.Style{
 	classUnavailable: semantic(lipgloss.BrightRed, true),
 	// Selection carries no color so it survives downsampling and any background.
 	classSelection: lipgloss.NewStyle().Bold(true).TabWidth(lipgloss.NoTabConversion),
+	// The selection in the focused pane adds reverse video, also colorless, so
+	// the two selection states differ without either depending on color.
+	classSelectionFocused: lipgloss.NewStyle().Bold(true).Reverse(true).TabWidth(lipgloss.NoTabConversion),
 }
 
 // cardClass is the state style for a non-text unit body. Text hunks classify

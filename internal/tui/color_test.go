@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -47,12 +48,15 @@ func downsample(text string, p colorprofile.Profile) string {
 var sgrPattern = regexp.MustCompile(`\x1b\[[0-9;:]*m`)
 
 // colorlessSequences reports any escape sequence that is not a bare reset or a
-// bare bold attribute. Colorless profiles must not emit foreground, background,
-// or underline colors.
+// non-color attribute. Bold and reverse carry the selection cues, so they are
+// expected to survive; colorless profiles must not emit foreground,
+// background, or underline colors.
+var colorlessAttributes = []string{"\x1b[m", "\x1b[1m", "\x1b[7m", "\x1b[1;7m"}
+
 func colorlessSequences(s string) []string {
 	leaked := []string{}
 	for _, seq := range sgrPattern.FindAllString(s, -1) {
-		if seq != "\x1b[m" && seq != "\x1b[1m" {
+		if !slices.Contains(colorlessAttributes, seq) {
 			leaked = append(leaked, seq)
 		}
 	}
@@ -68,28 +72,28 @@ func TestColorProfileFallbackPreservesContent(t *testing.T) {
 	profiles := []colorprofile.Profile{colorprofile.TrueColor, colorprofile.ANSI256, colorprofile.ANSI, colorprofile.Ascii, colorprofile.NoTTY}
 	for _, width := range []int{60, 100, 120} {
 		for i := range s.Inventory.Units {
-			for _, details := range []bool{false, true} {
-				m.Selected, m.Details = i, details
+			for _, focus := range []pane{paneList, paneDiff} {
+				m.Selected, m.Focus = i, focus
 				m.Update(tea.WindowSizeMsg{Width: width, Height: 14})
 				colored := m.View().Content
 				unstyled := withoutPalette(func() string { return m.View().Content })
 				for _, p := range profiles {
 					got := downsample(colored, p)
 					if ansi.Strip(got) != unstyled {
-						t.Fatalf("profile %s width %d unit %d details %v changed content:\n%q\n%q", p, width, i, details, ansi.Strip(got), unstyled)
+						t.Fatalf("profile %s width %d unit %d focus %v changed content:\n%q\n%q", p, width, i, focus, ansi.Strip(got), unstyled)
 					}
 					switch p {
 					case colorprofile.NoTTY:
 						// No terminal: styles are removed outright, so the view
 						// is byte-identical to the pre-styling render.
 						if got != unstyled {
-							t.Fatalf("NoTTY width %d unit %d details %v not byte-identical:\n%q\n%q", width, i, details, got, unstyled)
+							t.Fatalf("NoTTY width %d unit %d focus %v not byte-identical:\n%q\n%q", width, i, focus, got, unstyled)
 						}
 					case colorprofile.Ascii:
 						// NO_COLOR and colorless terminals: the writer rewrites
 						// each style, keeping only non-color attributes.
 						if leaked := colorlessSequences(got); len(leaked) > 0 {
-							t.Fatalf("Ascii width %d unit %d details %v kept color: %q in %q", width, i, details, leaked, got)
+							t.Fatalf("Ascii width %d unit %d focus %v kept color: %q in %q", width, i, focus, leaked, got)
 						}
 					default:
 						for _, line := range strings.Split(got, "\n") {
@@ -107,7 +111,7 @@ func TestColorProfileFallbackPreservesContent(t *testing.T) {
 func TestColorProfileKeepsStylesWhereSupported(t *testing.T) {
 	s := kindsSession()
 	m := styledModel(t, s)
-	m.Details = true
+	m.Focus = paneDiff
 	for i, u := range s.Inventory.Units {
 		m.Selected = i
 		m.Update(tea.WindowSizeMsg{Width: 120, Height: 14})

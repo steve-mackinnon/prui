@@ -15,8 +15,8 @@ func (m *Model) beginMove() {
 	if m.Session == nil || m.store == nil || len(m.Session.Inventory.Units) == 0 {
 		return
 	}
-	m.Edit, m.Reorder = true, false
 	m.EditIndex = 0
+	m.push(pageEdit)
 }
 
 func (m *Model) beginReorder() {
@@ -24,16 +24,16 @@ func (m *Model) beginReorder() {
 		return
 	}
 	if p := m.Session.CurrentPlan(); p != nil && len(p.Slices) > 0 {
-		m.Reorder, m.Edit = true, false
 		m.EditIndex = m.Session.UnitFiles[m.Selected]
+		m.push(pageReorder)
 	}
 }
 
 func (m *Model) editKey(k string) tea.Cmd {
-	if m.Reorder {
+	if m.top() == pageReorder {
 		p := m.Session.CurrentPlan()
 		if p == nil {
-			m.Edit, m.Reorder = false, false
+			m.pop()
 			return nil
 		}
 		switch k {
@@ -52,11 +52,11 @@ func (m *Model) editKey(k string) tea.Cmd {
 			order = moveID(order, selected, m.EditIndex)
 			return m.applyEdit(func(s *review.Session) error { return review.ReorderSlices(m.store, s, order) })
 		case "esc":
-			m.Edit, m.Reorder = false, false
+			m.pop()
 		}
 		return nil
 	}
-	if m.Edit {
+	if m.top() == pageEdit {
 		count := len(m.Session.Slices) + 1 // final entry is unassigned
 		switch k {
 		case "up", "k":
@@ -71,7 +71,7 @@ func (m *Model) editKey(k string) tea.Cmd {
 			id := m.Session.Inventory.Units[m.Selected].ID
 			return m.applyEdit(func(s *review.Session) error { return review.MoveUnit(m.store, s, id, destination) })
 		case "esc":
-			m.Edit = false
+			m.pop()
 		}
 	}
 	return nil
@@ -79,7 +79,8 @@ func (m *Model) editKey(k string) tea.Cmd {
 
 func (m *Model) applyEdit(work func(*review.Session) error) tea.Cmd {
 	m.notice = "Preview confirmed; saving new plan and clearing completion..."
-	m.Edit, m.Reorder, m.Busy = false, false, true
+	m.pop()
+	m.Busy = true
 	s := *m.Session
 	return m.start(func() tea.Msg { err := work(&s); return ActionResult{Session: &s, Err: err, Reset: err == nil} })
 }
@@ -163,7 +164,8 @@ func (m *Model) lifecycleKey(k string) (tea.Cmd, bool) {
 		}), true
 	case "s":
 		m.Entries, m.ActionError = m.store.List()
-		m.Picker, m.PickerIndex = true, 0
+		m.PickerIndex = 0
+		m.push(pagePicker)
 		return nil, true
 	}
 	return nil, false
@@ -171,8 +173,8 @@ func (m *Model) lifecycleKey(k string) (tea.Cmd, bool) {
 
 func (m *Model) pickerKey(k string) tea.Cmd {
 	switch k {
-	case "s", "esc":
-		m.Picker = false
+	case "esc":
+		m.pop()
 	case "n", "down", "j":
 		m.PickerIndex = min(max(0, len(m.Entries)-1), m.PickerIndex+1)
 	case "p", "up", "k":
@@ -212,7 +214,7 @@ func (m *Model) pickerView() string {
 	if len(m.Entries) == 0 {
 		lines = append(lines, "No saved sessions.")
 	}
-	lines = append(lines, "up/down: select | enter: resume | s/esc: back | q: quit")
+	lines = append(lines, "up/down: select | enter: resume | esc: back | q: quit")
 	if m.ActionError != nil {
 		lines = append(lines, Escape(m.ActionError.Error()))
 	}
@@ -226,7 +228,7 @@ func (m *Model) footer() string {
 	if m.ActionError != nil {
 		return "Action failed; snapshot retained: " + Escape(m.ActionError.Error())
 	}
-	return "m read  v move unit  o reorder slices  r refresh  N new/reset  s sessions  n/p unit  tab pane  i inventory  e evidence  a plan  ? help  q quit"
+	return strings.ReplaceAll(renderBindings(groupFooter), "\n", "  ")
 }
 
 func progress(s *review.Session) string {
