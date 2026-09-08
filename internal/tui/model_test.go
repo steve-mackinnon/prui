@@ -19,6 +19,8 @@ func (g fakeGitHub) Metadata(context.Context, source.Identity) (source.Metadata,
 }
 func (g fakeGitHub) Token(context.Context) (string, error) { panic("no live network allowed") }
 func key(m *Model, k rune)                                 { m.Update(tea.KeyPressMsg{Code: k, Text: string(k)}) }
+func namedKey(m *Model, k rune)                            { m.Update(tea.KeyPressMsg{Code: k}) }
+func ctrlKey(m *Model, k rune)                             { m.Update(tea.KeyPressMsg{Code: k, Mod: tea.ModCtrl}) }
 func TestRawReviewMockedEndToEnd(t *testing.T) {
 	r := testutil.NewRepo(t)
 	r.Write("a", "old\n")
@@ -78,6 +80,46 @@ func TestRawReviewMockedEndToEnd(t *testing.T) {
 				t.Fatalf("viewport exceeded %d: %q", w, line)
 			}
 		}
+	}
+}
+
+func TestFullDiffDoesNotScrollPastViewport(t *testing.T) {
+	r := testutil.NewRepo(t)
+	r.Write("a", "old\n")
+	base := r.Commit()
+	r.Write("a", "new\n"+strings.Repeat("long line\n", 50))
+	head := r.Commit()
+	meta := source.Metadata{Identity: source.Identity{Repository: "owner/repo", Number: 42}, BaseRepository: "owner/repo", HeadRepository: "owner/repo", BaseSHA: base, HeadSHA: head}
+	m := New(context.Background(), func(c context.Context, n func(string)) (*review.Session, error) {
+		return review.Open(c, r.Dir, meta.Identity, fakeGitHub{meta}, source.NewRunner(), source.Defaults(), n)
+	})
+	m.Update(m.Init()())
+	m.Update(tea.WindowSizeMsg{Width: 120, Height: 100})
+	for i := range m.Session.Inventory.Units {
+		if strings.Contains(unitText(m.Session, i), "long line") {
+			m.Selected = i
+			break
+		}
+	}
+	ctrlKey(m, 'l')
+	if m.Focus != paneDiff {
+		t.Fatal("diff did not receive focus")
+	}
+
+	lastLine := "long line"
+	if m.Scroll[m.Selected] != 0 || !strings.Contains(m.View().Content, lastLine) {
+		t.Fatal("full diff is not initially visible")
+	}
+	for _, k := range []rune{'j', 'J'} {
+		key(m, k)
+		if m.Scroll[m.Selected] != 0 || !strings.Contains(m.View().Content, lastLine) {
+			t.Fatalf("%q scrolled past a fully visible diff", k)
+		}
+	}
+	namedKey(m, tea.KeyDown)
+	namedKey(m, tea.KeyPgDown)
+	if m.Scroll[m.Selected] != 0 || !strings.Contains(m.View().Content, lastLine) {
+		t.Fatal("downward paging scrolled past a fully visible diff")
 	}
 }
 

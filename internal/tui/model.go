@@ -16,27 +16,38 @@ type Loaded struct {
 	Err     error
 }
 type Notice string
+
+type pane int
+
+const (
+	paneList pane = iota
+	paneDiff
+)
+
+const diffStep = 5
+
 type Model struct {
-	Session                                 *review.Session
-	Err                                     error
-	Selected                                int
-	Scroll                                  map[int]int
-	Width, Height, Horizontal               int
-	Inventory, Details, Evidence, Help, URL bool
-	Loading                                 bool
-	Busy, Picker                            bool
-	PickerIndex                             int
-	Entries                                 []session.Entry
-	ActionError                             error
-	store                                   *session.Store
-	reader                                  review.MetadataReader
-	fresh                                   FreshLoader
-	worker                                  <-chan struct{}
-	notice                                  string
-	ctx                                     context.Context
-	cancel                                  context.CancelFunc
-	load                                    Loader
-	notify                                  func(string)
+	Session                        *review.Session
+	Err                            error
+	Selected                       int
+	Scroll                         map[int]int
+	Width, Height, Horizontal      int
+	Inventory, Evidence, Help, URL bool
+	Focus                          pane
+	Loading                        bool
+	Busy, Picker                   bool
+	PickerIndex                    int
+	Entries                        []session.Entry
+	ActionError                    error
+	store                          *session.Store
+	reader                         review.MetadataReader
+	fresh                          FreshLoader
+	worker                         <-chan struct{}
+	notice                         string
+	ctx                            context.Context
+	cancel                         context.CancelFunc
+	load                           Loader
+	notify                         func(string)
 }
 
 func New(parent context.Context, load Loader) *Model {
@@ -71,6 +82,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.Scroll = map[int]int{}
 				m.Picker = false
 				m.Help, m.URL = false, false
+				m.Focus = paneList
 			}
 		}
 	case Notice:
@@ -100,12 +112,14 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.URL = !m.URL
 		case "i":
 			m.Inventory = !m.Inventory
-			m.Details = false
+			m.Focus = paneList
 		case "e":
 			m.Evidence = !m.Evidence
-			m.Inventory, m.Details = false, false
-		case "tab", "enter":
-			m.Details = !m.Details
+			m.Inventory, m.Focus = false, paneList
+		case "ctrl+h":
+			m.Focus = paneList
+		case "ctrl+l", "enter":
+			m.Focus = paneDiff
 		case "n":
 			m.move(1)
 		case "p":
@@ -115,25 +129,37 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "[":
 			m.file(-1)
 		case "down":
-			if m.Details {
+			if m.Focus == paneDiff {
 				m.scroll(1)
 			} else {
 				m.move(1)
 			}
 		case "up":
-			if m.Details {
+			if m.Focus == paneDiff {
 				m.scroll(-1)
 			} else {
 				m.move(-1)
 			}
 		case "j":
-			m.scroll(1)
+			if m.Focus == paneDiff {
+				m.scroll(1)
+			} else {
+				m.move(1)
+			}
 		case "k":
-			m.scroll(-1)
-		case "pgdown", "space":
-			m.scroll(max(1, m.Height-6))
+			if m.Focus == paneDiff {
+				m.scroll(-1)
+			} else {
+				m.move(-1)
+			}
+		case "J":
+			m.scroll(diffStep)
+		case "K":
+			m.scroll(-diffStep)
+		case "pgdown":
+			m.scroll(m.pageStep())
 		case "pgup":
-			m.scroll(-max(1, m.Height-6))
+			m.scroll(-m.pageStep())
 		case "right", "l":
 			m.Horizontal += 8
 		case "left", "h":
@@ -164,9 +190,19 @@ func (m *Model) scroll(delta int) {
 	if m.Session == nil || len(m.Session.Inventory.Units) == 0 {
 		return
 	}
-	last := max(0, strings.Count(unitText(m.Session, m.Selected), "\n")-1)
+	last := max(0, strings.Count(unitText(m.Session, m.Selected), "\n")-m.bodyHeight())
 	m.Scroll[m.Selected] = max(0, min(last, m.Scroll[m.Selected]+delta))
 }
+
+func (m *Model) bodyHeight() int {
+	n := m.Height - 4
+	if m.Session != nil && m.Session.ID != "" {
+		n = m.Height - 5
+	}
+	return max(1, n)
+}
+
+func (m *Model) pageStep() int { return max(1, m.bodyHeight()-1) }
 func (m *Model) View() tea.View {
 	text := ""
 	switch {
@@ -214,7 +250,7 @@ func (m *Model) reviewView() string {
 	}
 	kind := s.Inventory.Units[m.Selected].Kind
 	focus := "files"
-	if m.Details {
+	if m.Focus == paneDiff {
 		focus = "diff"
 	}
 	label := "File slices"
@@ -222,10 +258,7 @@ func (m *Model) reviewView() string {
 		label = "Full inventory"
 	}
 	header := fmt.Sprintf("%s | focus: %s | unit %d/%d [%s]", label, focus, m.Selected+1, len(s.Inventory.Units), kind)
-	bodyHeight := max(1, m.Height-4)
-	if s.ID != "" {
-		bodyHeight = max(1, m.Height-5)
-	}
+	bodyHeight := m.bodyHeight()
 	list := []string{}
 	selectedRow := 0
 	if m.Inventory {
@@ -233,7 +266,10 @@ func (m *Model) reviewView() string {
 		for i, u := range s.Inventory.Units {
 			marker := "  "
 			if i == m.Selected {
-				marker = "> "
+				marker = "· "
+				if m.Focus == paneList {
+					marker = "> "
+				}
 			}
 			list = append(list, marker+pathLabel(s.Inventory.Files[s.UnitFiles[i]])+" ["+string(u.Kind)+"]")
 		}
@@ -242,7 +278,10 @@ func (m *Model) reviewView() string {
 		for i, f := range s.Inventory.Files {
 			marker := "  "
 			if i == selectedRow {
-				marker = "> "
+				marker = "· "
+				if m.Focus == paneList {
+					marker = "> "
+				}
 			}
 			list = append(list, marker+readMarker(s, f.ID)+pathLabel(f))
 		}
@@ -266,14 +305,21 @@ func (m *Model) reviewView() string {
 			right = detail[row]
 		}
 		if m.Width < 100 {
-			if m.Details {
+			if m.Focus == paneDiff {
 				body = append(body, clip(right, m.Width))
 			} else {
-				body = append(body, clip(left, m.Width))
+				left = clip(left, m.Width)
+				if row+start == selectedRow && m.Focus == paneList {
+					left = selectedStyle.Render(left)
+				}
+				body = append(body, left)
 			}
 		} else {
 			leftWidth := min(36, m.Width/3)
 			left = clip(left, leftWidth)
+			if row+start == selectedRow && m.Focus == paneList {
+				left = selectedStyle.Render(left)
+			}
 			body = append(body, left+strings.Repeat(" ", max(0, leftWidth-visibleWidth(left)))+" | "+clip(right, m.Width-leftWidth-3))
 		}
 	}

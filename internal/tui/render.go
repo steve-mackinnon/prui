@@ -10,6 +10,8 @@ import (
 	"pr-review/internal/review"
 )
 
+var selectedStyle = lipgloss.NewStyle().Reverse(true)
+
 func Escape(s string) string { q := strconv.Quote(s); return q[1 : len(q)-1] }
 func pathLabel(f inventory.FileChange) string {
 	if len(f.OldPath) == 0 {
