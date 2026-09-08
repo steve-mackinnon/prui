@@ -263,6 +263,68 @@ func TestGuideMarking(t *testing.T) {
 	}
 }
 
+func TestGuideDetailAndScroll(t *testing.T) {
+	s, _, _ := guidedSession(t, splitAnalyzer{})
+	m := loaded(t, s, 120, 5)
+	rows := m.rows()
+
+	for i, r := range rows {
+		m.Row = i
+		got := m.detail()
+		want := detailFor(s, r.guide).lines
+		if len(got) != len(want) {
+			t.Fatalf("row %d detail length = %d, want %d", i, len(got), len(want))
+		}
+		for j := range want {
+			if got[j] != want[j] {
+				t.Fatalf("row %d detail line %d = %#v, want %#v", i, j, got[j], want[j])
+			}
+		}
+	}
+
+	first := detailFor(s, 0)
+	if len(first.files) != 2 || first.files[0].offset >= first.files[1].offset {
+		t.Fatalf("guide detail anchors = %#v, want ordered a.go and b.go occurrences", first.files)
+	}
+	for _, anchor := range first.files {
+		if first.lines[anchor.offset].Class != classFileHeader {
+			t.Fatalf("anchor at %d does not point to a file header", anchor.offset)
+		}
+	}
+
+	// Combining the fixture's two a.go sections proves repeated occurrences
+	// retain separate anchors in guide-defined positions.
+	s.Guides.Items[0].Sections = append(s.Guides.Items[0].Sections, s.Guides.Items[1].Sections[0])
+	repeated := detailFor(s, 0)
+	if len(repeated.files) != 3 || repeated.files[0].file != repeated.files[2].file || repeated.files[0].offset == repeated.files[2].offset {
+		t.Fatalf("repeated file anchors = %#v, want distinct a.go occurrences", repeated.files)
+	}
+
+	m = loaded(t, s, 120, 5)
+	key(m, 'J')
+	guide := m.rows()[m.Row].guide
+	if m.GuideScroll[guide] == 0 {
+		t.Fatal("J did not scroll the active guide")
+	}
+	firstOffset := m.GuideScroll[guide]
+	m.Update(tea.KeyPressMsg{Code: ']', Text: "]"})
+	second := m.rows()[m.Row].guide
+	if m.GuideScroll[second] != 0 {
+		t.Fatal("next guide did not start at offset zero")
+	}
+	m.Update(tea.KeyPressMsg{Code: '[', Text: "["})
+	if m.GuideScroll[guide] != firstOffset {
+		t.Fatalf("guide offset = %d, want restored %d", m.GuideScroll[guide], firstOffset)
+	}
+	for range 100 {
+		key(m, 'J')
+	}
+	last := max(0, len(m.detail())-m.bodyHeight())
+	if m.offset() != last {
+		t.Fatalf("guide offset = %d, want clamp %d", m.offset(), last)
+	}
+}
+
 func TestGuideFallback(t *testing.T) {
 	s, _, _ := guidedSession(t, nil)
 	if s.Guides == nil || s.Guides.Status != guide.Unavailable {
