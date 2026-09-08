@@ -47,7 +47,7 @@ func (a *application) open(ctx context.Context, checkout string, id source.Ident
 	if err != nil {
 		return nil, err
 	}
-	raw, err := review.OpenWithPolicy(ctx, checkout, id, a.gh, a.runner, a.limits, notify, a.policy)
+	raw, err := review.OpenWithConfig(ctx, checkout, id, a.gh, a.runner, a.limits, notify, review.Config{Policy: a.policy})
 	if err != nil {
 		return nil, err
 	}

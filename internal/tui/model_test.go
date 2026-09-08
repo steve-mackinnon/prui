@@ -3,6 +3,7 @@ package tui
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -326,5 +327,83 @@ func TestRawReviewAnalysisStatus(t *testing.T) {
 	}
 	if strings.ContainsAny(plain, "\x1b\a") {
 		t.Fatal("unescaped model-authored status")
+	}
+}
+
+// groupingAnalyzer groups one path's units and leaves the rest, so plain output
+// is tested against both the model-authored and the synthesized guides.
+type groupingAnalyzer struct{ path string }
+
+func (a groupingAnalyzer) Analyze(_ context.Context, in guide.Input) (guide.Bundle, error) {
+	section := guide.Section{Title: "Add greeting\x1b]52;c;section\a", Description: "Section description."}
+	for _, u := range in.Units {
+		if string(u.Path) == a.path {
+			section.UnitIDs = append(section.UnitIDs, u.ID)
+		}
+	}
+	return guide.Bundle{Status: guide.Generated, Provider: "openai", Model: "test-model", Items: []guide.Item{
+		{Title: "Greeting flow\x1b]52;c;title\a", Description: "Adds a greeting.\x1b]52;c;desc\a", Sections: []guide.Section{section}},
+	}}, nil
+}
+
+func TestPlainGuides(t *testing.T) {
+	r := testutil.NewRepo(t)
+	r.Write("a.go", "old\n")
+	base := r.Commit()
+	r.Write("a.go", "new\n")
+	r.Write("README.md", "docs\n")
+	r.Write(".env", "TOKEN=abcdef\n")
+	head := r.Commit()
+	meta := source.Metadata{Identity: source.Identity{Repository: "o/r", Number: 42}, BaseRepository: "o/r", HeadRepository: "o/r", BaseSHA: base, HeadSHA: head}
+	s, e := review.OpenWithConfig(context.Background(), r.Dir, meta.Identity, fakeGitHub{meta}, source.NewRunner(), source.Defaults(), nil, review.Config{Analyzer: groupingAnalyzer{path: "a.go"}})
+	if e != nil {
+		t.Fatal(e)
+	}
+	plain := Plain(s)
+	if strings.ContainsAny(plain, "\x1b\a") || !strings.Contains(plain, `\x1b]52;c;title\a`) || !strings.Contains(plain, `\x1b]52;c;section\a`) {
+		t.Fatal("model-authored guide text is not escaped like patch content")
+	}
+	order := []string{
+		"Guides interpret the diff; file slices remain the unit of reading progress.",
+		`1. Greeting flow\x1b]52;c;title\a`,
+		"   1.1 Add greeting",
+		"       a.go [",
+		"2. Ungrouped changes (not grouped by analysis)",
+		"Analysis scope: ",
+		"Evidence: ",
+	}
+	at := -1
+	for _, want := range order {
+		i := strings.Index(plain, want)
+		if i <= at {
+			t.Fatalf("plain guide ordering lost %q (%d after %d)", want, i, at)
+		}
+		at = i
+	}
+	if strings.Index(plain, "Guides interpret") > strings.Index(plain, "[file_metadata]") {
+		t.Fatal("guides render after the raw units they interpret")
+	}
+	ungrouped := plain[strings.Index(plain, "2. Ungrouped changes"):]
+	for _, want := range []string{"README.md [", ".env ["} {
+		if !strings.Contains(ungrouped[:strings.Index(ungrouped, "Analysis scope")], want) {
+			t.Fatalf("ungrouped guide hides %q", want)
+		}
+	}
+	total := len(s.Inventory.Units)
+	if !strings.Contains(plain, fmt.Sprintf("Analysis scope: %d/%d units sent", total-len(s.Guides.WithheldPaths), total)) {
+		t.Fatal("analysis scope not stated", plain)
+	}
+	if !strings.Contains(plain, ".env (credential-like filename)") {
+		t.Fatal("withheld input not disclosed")
+	}
+	if strings.Count(plain, ".env (credential-like filename)") != 1 {
+		t.Fatal("withheld disclosure repeats one path per unit")
+	}
+	if !strings.Contains(plain, "analysis: generated (openai/test-model, 2 guides)") {
+		t.Fatal("status does not report the generated bundle")
+	}
+	s.Guides = nil
+	if strings.Contains(Plain(s), "Guides interpret") {
+		t.Fatal("a session without analysis renders a guide block")
 	}
 }

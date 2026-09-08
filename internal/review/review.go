@@ -13,11 +13,19 @@ import (
 type Slice = session.Slice
 type Session = session.Record
 
-func Open(ctx context.Context, checkout string, id source.Identity, gh source.GitHub, r source.Runner, l source.Limits, notify func(string)) (*Session, error) {
-	return OpenWithPolicy(ctx, checkout, id, gh, r, l, notify, privacy.Policy{})
+// Config carries the optional decisions of one invocation. A zero value is the
+// deterministic, upload-free review: no exclusions beyond the defaults and no
+// analysis.
+type Config struct {
+	Policy   privacy.Policy
+	Analyzer guide.Analyzer // nil means no analysis for this invocation
 }
 
-func OpenWithPolicy(ctx context.Context, checkout string, id source.Identity, gh source.GitHub, r source.Runner, l source.Limits, notify func(string), policy privacy.Policy) (*Session, error) {
+func Open(ctx context.Context, checkout string, id source.Identity, gh source.GitHub, r source.Runner, l source.Limits, notify func(string)) (*Session, error) {
+	return OpenWithConfig(ctx, checkout, id, gh, r, l, notify, Config{})
+}
+
+func OpenWithConfig(ctx context.Context, checkout string, id source.Identity, gh source.GitHub, r source.Runner, l source.Limits, notify func(string), cfg Config) (*Session, error) {
 	v, p, e := source.Pin(ctx, checkout, id, gh, r, l, notify)
 	if e != nil {
 		return nil, e
@@ -27,10 +35,12 @@ func OpenWithPolicy(ctx context.Context, checkout string, id source.Identity, gh
 	if e != nil {
 		return nil, e
 	}
-	contextBundle := reviewcontext.Retrieve(ctx, v, p, inv, policy, reviewcontext.Defaults)
+	contextBundle := reviewcontext.Retrieve(ctx, v, p, inv, cfg.Policy, reviewcontext.Defaults)
+	// Analysis consumes only frozen material and runs before slicing, so it can
+	// interpret the change but never influence file ownership or progress.
+	b := guide.Analyze(ctx, cfg.Analyzer, inv, guide.InputFrom(inv, contextBundle, cfg.Policy, guide.Defaults))
 	s := &Session{Snapshot: session.Snapshot{Inventory: inv, PlanVersion: "file-v1", Checkout: []byte(checkout), Slices: make([]Slice, len(inv.Files)), UnitFiles: make([]int, len(inv.Units))}}
 	s.Context = contextBundle
-	b := guide.Fallback("analysis not requested")
 	s.Guides = &b
 	index := map[string]int{}
 	for i, f := range inv.Files {

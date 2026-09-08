@@ -115,6 +115,88 @@ func unitText(s *review.Session, i int) string {
 	}
 	return b.String()
 }
+
+// guidesText renders the interpretation layer above the unchanged raw units.
+// Every model-authored string is escaped like a patch line, and the scope line
+// states what never reached the analyzer so guides cannot imply full coverage.
+func guidesText(s *review.Session) string {
+	g := s.Guides
+	if g == nil || g.Status != guide.Generated || len(g.Items) == 0 {
+		return ""
+	}
+	index := make(map[string]int, len(s.Inventory.Units))
+	for i, u := range s.Inventory.Units {
+		index[u.ID] = i
+	}
+	var b strings.Builder
+	b.WriteString("\nGuides interpret the diff; file slices remain the unit of reading progress.\n")
+	for i, item := range g.Items {
+		title := fmt.Sprintf("%d. %s", i+1, Escape(item.Title))
+		if item.Ungrouped {
+			title += " (not grouped by analysis)"
+		}
+		b.WriteString(title + "\n")
+		if strings.TrimSpace(item.Description) != "" && !item.Ungrouped {
+			b.WriteString("   " + Escape(item.Description) + "\n")
+		}
+		for j, section := range item.Sections {
+			if !item.Ungrouped {
+				b.WriteString(fmt.Sprintf("   %d.%d %s\n", i+1, j+1, Escape(section.Title)))
+				if strings.TrimSpace(section.Description) != "" {
+					b.WriteString("       " + Escape(section.Description) + "\n")
+				}
+			}
+			for _, portion := range portions(s, index, section.UnitIDs) {
+				b.WriteString("       " + portion + "\n")
+			}
+		}
+	}
+	b.WriteString(scope(s, g) + "\n")
+	return b.String()
+}
+
+// portions collapses a section's units into one line per file, in section
+// order; the same file may appear under several sections.
+func portions(s *review.Session, index map[string]int, ids []string) []string {
+	var order []int
+	kinds := map[int][]string{}
+	for _, id := range ids {
+		i, ok := index[id]
+		if !ok {
+			continue
+		}
+		f := s.UnitFiles[i]
+		if len(kinds[f]) == 0 {
+			order = append(order, f)
+		}
+		kinds[f] = append(kinds[f], string(s.Inventory.Units[i].Kind))
+	}
+	out := make([]string, 0, len(order))
+	for _, f := range order {
+		out = append(out, pathLabel(s.Inventory.Files[f])+" ["+strings.Join(kinds[f], ", ")+"]")
+	}
+	return out
+}
+
+func scope(s *review.Session, g *guide.Bundle) string {
+	total := len(s.Inventory.Units)
+	line := fmt.Sprintf("Analysis scope: %d/%d units sent", total-len(g.WithheldPaths), total)
+	seen := map[string]bool{}
+	var withheld []string
+	for _, w := range g.WithheldPaths {
+		entry := Escape(string(w.Path)) + " (" + Escape(w.Reason) + ")"
+		if seen[entry] {
+			continue
+		}
+		seen[entry] = true
+		withheld = append(withheld, entry)
+	}
+	if len(withheld) > 0 {
+		line += "; withheld: " + strings.Join(withheld, ", ")
+	}
+	return line
+}
+
 func Plain(s *review.Session) string {
 	var b strings.Builder
 	b.WriteString(status(s) + "\n" + s.Inventory.Comparison.Metadata.Identity.URL() + "\n")
@@ -123,6 +205,7 @@ func Plain(s *review.Session) string {
 		b.WriteString("Session: " + s.ID + " | plan: " + Escape(s.PlanVersion) + "\n" + progress(s) + "\n")
 		b.WriteString("Optional full source context not retained; frozen patches and metadata available.\n")
 	}
+	b.WriteString(guidesText(s))
 	b.WriteString(fmt.Sprintf("Evidence: %d retained, %d omitted; examined paths: %d; budgets files=%d excerpts=%d bytes=%d\n", len(s.Context.Evidence), len(s.Context.OmittedPaths), len(s.Context.ExaminedPaths), s.Context.FileBudget, s.Context.ExcerptBudget, s.Context.ByteBudget))
 	for _, budget := range s.Context.ExhaustedBudgets {
 		b.WriteString("SCOPE WARNING: " + Escape(budget) + " budget exhausted\n")
