@@ -250,7 +250,9 @@ func (m *Model) scroll(delta int) {
 	if m.Session == nil || len(m.Session.Inventory.Units) == 0 {
 		return
 	}
-	last := max(0, strings.Count(unitText(m.Session, m.Selected), "\n")-m.bodyHeight())
+	// The clamp counts the same display lines the diff pane renders, so a diff
+	// that already fits cannot be scrolled past its end.
+	last := max(0, len(unitLines(m.Session, m.Selected))-m.bodyHeight())
 	m.Scroll[m.Selected] = max(0, min(last, m.Scroll[m.Selected]+delta))
 }
 
