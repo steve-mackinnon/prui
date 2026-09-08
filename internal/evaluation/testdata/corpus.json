@@ -1,0 +1,7 @@
+[
+  {"name":"cross-file-behavior-tests","unit_ids":["config","handler","test"],"evidence_ids":["architecture"],"saved_proposal":{"inventory_id":"cross-file-behavior-tests","slices":[{"slice_id":"behavior","title":"Behavior and tests","unit_ids":["config","handler","test"],"claims":[{"text":"bounded behavior","evidence_ids":["architecture"]}]}]}},
+  {"name":"unrelated-one-file","unit_ids":["feature","docs"],"evidence_ids":[],"saved_proposal":{"inventory_id":"unrelated-one-file","slices":[{"slice_id":"feature","title":"Feature","unit_ids":["feature"]},{"slice_id":"docs","title":"Docs","unit_ids":["docs"]}]}},
+  {"name":"refactor-rename","unit_ids":["old","new"],"evidence_ids":[],"saved_proposal":{"inventory_id":"refactor-rename","slices":[{"slice_id":"rename","title":"Rename","unit_ids":["old","new"]}]}},
+  {"name":"generated-binary","unit_ids":["source","generated","binary"],"evidence_ids":[],"saved_proposal":{"inventory_id":"generated-binary","slices":[{"slice_id":"source","title":"Source","unit_ids":["source"]},{"slice_id":"supporting","title":"Supporting","unit_ids":["generated","binary"]}]}},
+  {"name":"weak-architecture-docs","unit_ids":["change"],"evidence_ids":[],"saved_proposal":{"inventory_id":"weak-architecture-docs","slices":[{"slice_id":"change","title":"Change","unit_ids":["change"]}]}}
+]

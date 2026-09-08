@@ -10,6 +10,8 @@
 - Fetch storage is monitored, not an exact network-byte cap. Terminate the process group on exhaustion; polling permits overshoot. No automatic resource-limit retries.
 - Verification: `go vet ./...`, `go test -race -count=1 ./...`, `go build ./...`. Synthetic fixtures only; never weaken tests or suppress checks to pass.
 - Terminal usability requires human verification. Passing render tests does not prove accessibility.
+- Terminal styling is presentation-only: it wraps already-escaped whole display lines after scrolling and clipping, never edits text, wording, labels, ordering, or width, and carries no meaning that the labels do not already carry. Removing every style must reproduce the uncolored render exactly.
+- Color capability is detected, never probed or configured: honor the terminal profile and `NO_COLOR`/`CLICOLOR`/`CLICOLOR_FORCE`/`TERM=dumb`. Colorless profiles render today's text. `--plain` output is never colored and contains no terminal control sequences.
 - Persist frozen actual patches and metadata independently of Git object lifetime; never rewrite a comparison/plan in place or automatically carry completion to a new version.
 - Reopening checks freshness explicitly or labels it unknown. Failed checks never imply current revisions; stale sessions remain readable. No hidden polling.
 - Store only app-owned local data outside the reviewed checkout, with private permissions, atomic replacement, integrity/reference validation, and a single-writer lock. Preserve corrupt/unsupported records; reject stale writers.

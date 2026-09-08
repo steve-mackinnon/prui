@@ -10,6 +10,7 @@ import (
 
 	reviewcontext "pr-review/internal/context"
 	"pr-review/internal/inventory"
+	"pr-review/internal/plan"
 )
 
 func fixture() Snapshot {
@@ -140,5 +141,32 @@ func TestStoreCorruptionRetained(t *testing.T) {
 				t.Fatal(err)
 			}
 		})
+	}
+}
+
+func TestEditApplyPlanResetsCompletionAndRetainsPrevious(t *testing.T) {
+	s, err := Open(filepath.Join(t.TempDir(), "sessions"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	r, err := s.Create(fixture())
+	if err != nil {
+		t.Fatal(err)
+	}
+	r.ReviewedSliceIDs = []string{"file"}
+	if err := s.Save(r); err != nil {
+		t.Fatal(err)
+	}
+	p := plan.ValidatedPlan{Version: "edited", InventoryID: "inventory", AnalysisStatus: "valid", Slices: []plan.Slice{{SliceID: "edited", Title: "Edited", UnitIDs: []string{"unit"}}}}
+	if err := s.ApplyPlan(r, p); err != nil {
+		t.Fatal(err)
+	}
+	got, err := s.Load(r.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got.ReviewedSliceIDs) != 0 || got.CurrentPlan() == nil || got.CurrentPlan().Version != "edited" || got.PreviousPlan == nil {
+		t.Fatalf("plan edit state=%+v", got.State)
 	}
 }
