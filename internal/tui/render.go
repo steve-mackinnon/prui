@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -30,8 +31,8 @@ func status(s *review.Session) string {
 	}
 	m := s.Inventory.Comparison.Metadata
 	analysis := "file fallback"
-	if s.AnalysisPlan != nil {
-		analysis = s.AnalysisPlan.AnalysisStatus
+	if s.CurrentPlan() != nil {
+		analysis = s.CurrentPlan().AnalysisStatus
 	}
 	return fmt.Sprintf("PR #%d | head %.12s | inventory %s | analysis: %s", m.Identity.Number, m.HeadSHA, completeness, analysis)
 }
@@ -101,16 +102,23 @@ func (m *Model) evidenceView() string {
 
 func (m *Model) analysisView() string {
 	s := m.Session
-	if s.AnalysisPlan == nil {
+	if s.CurrentPlan() == nil {
 		return status(s) + "\nNo accepted provider plan. Raw file slices remain the fallback.\na: return | analysis requires separate disclosure and consent"
 	}
-	p := s.AnalysisPlan
+	p := s.CurrentPlan()
+	if p == nil {
+		return status(s) + "\nNo accepted provider plan. Raw file slices remain the fallback.\na: return | analysis requires separate disclosure and consent"
+	}
 	lines := []string{status(s), fmt.Sprintf("Plan %s | %d slices | %d unassigned", Escape(p.Version), len(p.Slices), len(p.UnassignedUnitIDs))}
 	for _, w := range p.Warnings {
 		lines = append(lines, "WARNING: "+Escape(w))
 	}
-	for _, sl := range p.Slices {
-		lines = append(lines, "[ ] "+Escape(sl.Title)+" ("+fmt.Sprintf("%d units", len(sl.UnitIDs))+")")
+	for i, sl := range p.Slices {
+		marker := "[ ] "
+		if slices.Contains(s.ReviewedSliceIDs, sl.SliceID) {
+			marker = "[x] "
+		}
+		lines = append(lines, marker+fmt.Sprintf("%d. ", i+1)+Escape(sl.Title)+" ("+fmt.Sprintf("%d units", len(sl.UnitIDs))+")")
 		if sl.OrderingRationale != "" {
 			lines = append(lines, "  order: "+Escape(sl.OrderingRationale))
 		}
@@ -126,6 +134,39 @@ func (m *Model) analysisView() string {
 		lines = append(lines, "Unassigned units: "+strings.Join(p.UnassignedUnitIDs, ", "))
 	}
 	lines = append(lines, "a: return | i: full inventory | e: evidence scope | claims are advisory")
+	return strings.Join(lines, "\n")
+}
+
+func (m *Model) editView() string {
+	s := m.Session
+	p := s.CurrentPlan()
+	if p == nil {
+		return "No editable plan available"
+	}
+	if m.Reorder {
+		lines := []string{"Reorder slices (preview; enter confirms, esc cancels)"}
+		for i, sl := range p.Slices {
+			marker := "  "
+			if i == m.EditIndex {
+				marker = "> "
+			}
+			lines = append(lines, marker+fmt.Sprintf("%d. %s", i+1, Escape(sl.Title)))
+		}
+		return strings.Join(lines, "\n")
+	}
+	lines := []string{"Move selected unit (preview; enter confirms, esc cancels)", "unit: " + Escape(s.Inventory.Units[m.Selected].ID)}
+	for i, sl := range p.Slices {
+		marker := "  "
+		if i == m.EditIndex {
+			marker = "> "
+		}
+		lines = append(lines, marker+"slice: "+Escape(sl.Title))
+	}
+	marker := "  "
+	if m.EditIndex == len(p.Slices) {
+		marker = "> "
+	}
+	lines = append(lines, marker+"unassigned")
 	return strings.Join(lines, "\n")
 }
 func visibleWidth(s string) int { return lipgloss.Width(s) }

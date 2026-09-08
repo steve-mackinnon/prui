@@ -25,6 +25,8 @@ type Model struct {
 	Inventory, Details, Evidence, Analysis, Help, URL bool
 	Loading                                           bool
 	Busy, Picker                                      bool
+	Edit, Reorder                                     bool
+	EditIndex                                         int
 	PickerIndex                                       int
 	Entries                                           []session.Entry
 	ActionError                                       error
@@ -83,6 +85,12 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.Busy {
 				return m, nil
 			}
+			if m.Edit || m.Reorder {
+				if cmd := m.editKey(v.String()); cmd != nil {
+					return m, cmd
+				}
+				return m, nil
+			}
 			if m.Picker {
 				return m, m.pickerKey(v.String())
 			}
@@ -107,6 +115,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "a":
 			m.Analysis = !m.Analysis
 			m.Inventory, m.Details, m.Evidence = false, false, false
+		case "v":
+			m.beginMove()
+		case "o":
+			m.beginReorder()
 		case "tab", "enter":
 			m.Details = !m.Details
 		case "n":
@@ -144,6 +156,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "home":
 			m.Scroll[m.Selected] = 0
 			m.Horizontal = 0
+		case "esc":
+			m.Edit, m.Reorder = false, false
 		}
 	}
 	return m, nil
@@ -181,8 +195,10 @@ func (m *Model) View() tea.View {
 		text = "No review loaded. q: quit"
 	case m.Picker:
 		text = m.pickerView()
+	case m.Edit || m.Reorder:
+		text = m.editView()
 	case m.Help:
-		text = "Keyboard\nn/p: next/previous unit | [/]: next/previous file\nup/down: move focused pane | tab/enter: switch focus/pane\nj/k: scroll diff | pgup/pgdown/space: page\nh/l or left/right: horizontal scroll | home: reset scroll\ni: full inventory | e: evidence scope | a: accepted plan | g: GitHub URL | ?: help | q: quit\nm: mark/unmark file slice | r: refresh GitHub metadata\ns: saved sessions | N: new comparison, empty progress\nControls and invalid bytes escaped. No mouse capture.\nReading progress is local, not GitHub approval.\nEvidence is pinned, bounded, and omissions are reported. Analysis is optional and consent-bound."
+		text = "Keyboard\nn/p: next/previous unit | [/]: next/previous file\nup/down: move focused pane | tab/enter: switch focus/pane\nj/k: scroll diff | pgup/pgdown/space: page\nh/l or left/right: horizontal scroll | home: reset scroll\ni: full inventory | e: evidence scope | a: accepted plan | g: GitHub URL | ?: help | q: quit\nm: mark/unmark slice | v: move selected unit | o: reorder slices | r: refresh GitHub metadata\ns: saved sessions | N: new comparison, empty progress\nControls and invalid bytes escaped. No mouse capture.\nReading progress is local, not GitHub approval.\nEvidence is pinned, bounded, and omissions are reported. Analysis is optional and consent-bound."
 		if m.store != nil {
 			text += "\nStorage: " + Escape(m.store.Path()) + "\nSession: " + m.Session.ID
 		}
@@ -226,7 +242,17 @@ func (m *Model) reviewView() string {
 	if m.Inventory {
 		label = "Full inventory"
 	}
-	header := fmt.Sprintf("%s | focus: %s | unit %d/%d [%s]", label, focus, m.Selected+1, len(s.Inventory.Units), kind)
+	plan := s.CurrentPlan()
+	unassigned, unavailable := 0, 0
+	if plan != nil {
+		unassigned = len(plan.UnassignedUnitIDs)
+	}
+	for _, u := range s.Inventory.Units {
+		if u.Kind == "unavailable" {
+			unavailable++
+		}
+	}
+	header := fmt.Sprintf("%s | focus: %s | unit %d/%d [%s] | unassigned %d | unavailable %d", label, focus, m.Selected+1, len(s.Inventory.Units), kind, unassigned, unavailable)
 	bodyHeight := max(1, m.Height-4)
 	if s.ID != "" {
 		bodyHeight = max(1, m.Height-5)

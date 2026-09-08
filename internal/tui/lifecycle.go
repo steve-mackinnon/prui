@@ -11,6 +11,94 @@ import (
 	"pr-review/internal/session"
 )
 
+func (m *Model) beginMove() {
+	if m.Session == nil || m.store == nil || len(m.Session.Inventory.Units) == 0 {
+		return
+	}
+	m.Edit, m.Reorder = true, false
+	m.EditIndex = 0
+}
+
+func (m *Model) beginReorder() {
+	if m.Session == nil || m.store == nil || len(m.Session.Inventory.Files) == 0 {
+		return
+	}
+	if p := m.Session.CurrentPlan(); p != nil && len(p.Slices) > 0 {
+		m.Reorder, m.Edit = true, false
+		m.EditIndex = m.Session.UnitFiles[m.Selected]
+	}
+}
+
+func (m *Model) editKey(k string) tea.Cmd {
+	if m.Reorder {
+		p := m.Session.CurrentPlan()
+		if p == nil {
+			m.Edit, m.Reorder = false, false
+			return nil
+		}
+		switch k {
+		case "up", "k":
+			m.EditIndex = max(0, m.EditIndex-1)
+		case "down", "j":
+			m.EditIndex = min(len(p.Slices)-1, m.EditIndex+1)
+		case "enter":
+			order := make([]string, len(p.Slices))
+			for i := range p.Slices {
+				order[i] = p.Slices[i].SliceID
+			}
+			selected := order[m.Session.UnitFiles[m.Selected]]
+			order = append([]string{selected}, removeID(order, selected)...)
+			// Move the selected slice to the previewed position.
+			order = moveID(order, selected, m.EditIndex)
+			return m.applyEdit(func(s *review.Session) error { return review.ReorderSlices(m.store, s, order) })
+		case "esc":
+			m.Edit, m.Reorder = false, false
+		}
+		return nil
+	}
+	if m.Edit {
+		count := len(m.Session.Slices) + 1 // final entry is unassigned
+		switch k {
+		case "up", "k":
+			m.EditIndex = max(0, m.EditIndex-1)
+		case "down", "j":
+			m.EditIndex = min(count-1, m.EditIndex+1)
+		case "enter":
+			destination := ""
+			if m.EditIndex < len(m.Session.Slices) {
+				destination = m.Session.Slices[m.EditIndex].FileID
+			}
+			id := m.Session.Inventory.Units[m.Selected].ID
+			return m.applyEdit(func(s *review.Session) error { return review.MoveUnit(m.store, s, id, destination) })
+		case "esc":
+			m.Edit = false
+		}
+	}
+	return nil
+}
+
+func (m *Model) applyEdit(work func(*review.Session) error) tea.Cmd {
+	m.notice = "Preview confirmed; saving new plan and clearing completion..."
+	m.Edit, m.Reorder, m.Busy = false, false, true
+	s := *m.Session
+	return m.start(func() tea.Msg { err := work(&s); return ActionResult{Session: &s, Err: err, Reset: err == nil} })
+}
+
+func removeID(ids []string, id string) []string {
+	out := ids[:0]
+	for _, v := range ids {
+		if v != id {
+			out = append(out, v)
+		}
+	}
+	return out
+}
+func moveID(ids []string, id string, at int) []string {
+	ids = removeID(ids, id)
+	at = max(0, min(len(ids), at))
+	return append(ids[:at], append([]string{id}, ids[at:]...)...)
+}
+
 type FreshLoader func(context.Context, *review.Session, func(string)) (*review.Session, error)
 type ActionResult struct {
 	Session *review.Session
@@ -138,7 +226,7 @@ func (m *Model) footer() string {
 	if m.ActionError != nil {
 		return "Action failed; snapshot retained: " + Escape(m.ActionError.Error())
 	}
-	return "m read  r refresh  N new/reset  s sessions  n/p unit  tab pane  i inventory  e evidence  a plan  ? help  q quit"
+	return "m read  v move unit  o reorder slices  r refresh  N new/reset  s sessions  n/p unit  tab pane  i inventory  e evidence  a plan  ? help  q quit"
 }
 
 func progress(s *review.Session) string {
