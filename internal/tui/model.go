@@ -26,33 +26,44 @@ const (
 
 const diffStep = 5
 
+type page int
+
+const (
+	pageReview page = iota
+	pageEvidence
+	pageHelp
+	pageURL
+	pagePicker
+)
+
 type Model struct {
-	Session                        *review.Session
-	Err                            error
-	Selected                       int
-	Scroll                         map[int]int
-	Width, Height, Horizontal      int
-	Inventory, Evidence, Help, URL bool
-	Focus                          pane
-	Loading                        bool
-	Busy, Picker                   bool
-	PickerIndex                    int
-	Entries                        []session.Entry
-	ActionError                    error
-	store                          *session.Store
-	reader                         review.MetadataReader
-	fresh                          FreshLoader
-	worker                         <-chan struct{}
-	notice                         string
-	ctx                            context.Context
-	cancel                         context.CancelFunc
-	load                           Loader
-	notify                         func(string)
+	Session                   *review.Session
+	Err                       error
+	Selected                  int
+	Scroll                    map[int]int
+	Width, Height, Horizontal int
+	Inventory                 bool
+	Focus                     pane
+	Stack                     []page
+	Loading                   bool
+	Busy                      bool
+	PickerIndex               int
+	Entries                   []session.Entry
+	ActionError               error
+	store                     *session.Store
+	reader                    review.MetadataReader
+	fresh                     FreshLoader
+	worker                    <-chan struct{}
+	notice                    string
+	ctx                       context.Context
+	cancel                    context.CancelFunc
+	load                      Loader
+	notify                    func(string)
 }
 
 func New(parent context.Context, load Loader) *Model {
 	ctx, cancel := context.WithCancel(parent)
-	return &Model{ctx: ctx, cancel: cancel, load: load, Scroll: map[int]int{}, Width: 100, Height: 24, Loading: true, notice: "Loading GitHub metadata and pinned committed objects..."}
+	return &Model{ctx: ctx, cancel: cancel, load: load, Scroll: map[int]int{}, Stack: []page{pageReview}, Width: 100, Height: 24, Loading: true, notice: "Loading GitHub metadata and pinned committed objects..."}
 }
 func (m *Model) SetNotifier(f func(string)) { m.notify = f }
 func (m *Model) Init() tea.Cmd {
@@ -80,8 +91,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if v.Reset {
 				m.Selected, m.Horizontal = 0, 0
 				m.Scroll = map[int]int{}
-				m.Picker = false
-				m.Help, m.URL = false, false
+				m.Stack = []page{pageReview}
 				m.Focus = paneList
 			}
 		}
@@ -95,8 +105,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.Busy {
 				return m, nil
 			}
-			if m.Picker {
-				return m, m.pickerKey(v.String())
+			if p := m.top(); p != pageReview {
+				return m, m.pageKey(p, v.String())
 			}
 			if cmd, handled := m.lifecycleKey(v.String()); handled {
 				return m, cmd
@@ -107,15 +117,17 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.cancel()
 			return m, tea.Quit
 		case "?":
-			m.Help = !m.Help
+			m.push(pageHelp)
 		case "g":
-			m.URL = !m.URL
+			m.push(pageURL)
 		case "i":
 			m.Inventory = !m.Inventory
 			m.Focus = paneList
 		case "e":
-			m.Evidence = !m.Evidence
+			m.push(pageEvidence)
 			m.Inventory, m.Focus = false, paneList
+		case "esc":
+			m.back()
 		case "ctrl+h":
 			m.Focus = paneList
 		case "ctrl+l", "enter":
@@ -171,6 +183,41 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 	return m, nil
 }
+
+func (m *Model) top() page {
+	if len(m.Stack) == 0 {
+		return pageReview
+	}
+	return m.Stack[len(m.Stack)-1]
+}
+func (m *Model) push(p page) {
+	if m.top() != p {
+		m.Stack = append(m.Stack, p)
+	}
+}
+func (m *Model) pop() {
+	if len(m.Stack) > 1 {
+		m.Stack = m.Stack[:len(m.Stack)-1]
+	}
+}
+func (m *Model) back() {
+	if len(m.Stack) > 1 {
+		m.pop()
+	} else if m.Focus == paneDiff {
+		m.Focus = paneList
+	}
+}
+func (m *Model) pageKey(p page, k string) tea.Cmd {
+	switch p {
+	case pagePicker:
+		return m.pickerKey(k)
+	case pageHelp, pageURL, pageEvidence:
+		if k == "esc" {
+			m.pop()
+		}
+	}
+	return nil
+}
 func (m *Model) move(delta int) {
 	if m.Session != nil && len(m.Session.Inventory.Units) > 0 {
 		m.Selected = max(0, min(len(m.Session.Inventory.Units)-1, m.Selected+delta))
@@ -212,19 +259,20 @@ func (m *Model) View() tea.View {
 		text = "Unable to open review\n" + Escape(m.Err.Error()) + "\nNo complete comparison available. q: quit"
 	case m.Session == nil:
 		text = "No review loaded. q: quit"
-	case m.Picker:
-		text = m.pickerView()
-	case m.Help:
-		text = "Keyboard\nn/p: next/previous unit | [/]: next/previous file\nup/down: move focused pane | tab/enter: switch focus/pane\nj/k: scroll diff | pgup/pgdown/space: page\nh/l or left/right: horizontal scroll | home: reset scroll\ni: full inventory | e: evidence scope | g: GitHub URL | ?: help | q: quit\nm: mark/unmark file slice | r: refresh GitHub metadata\ns: saved sessions | N: new comparison, empty progress\nControls and invalid bytes escaped. No mouse capture.\nReading progress is local, not GitHub approval.\nEvidence is pinned, bounded, and omissions are reported."
-		if m.store != nil {
-			text += "\nStorage: " + Escape(m.store.Path()) + "\nSession: " + m.Session.ID
-		}
-	case m.URL:
-		text = m.Session.Inventory.Comparison.Metadata.Identity.URL() + "\nOpen this URL in your browser for GitHub review actions.\ng: return | q: quit"
 	default:
-		if m.Evidence {
+		switch m.top() {
+		case pagePicker:
+			text = m.pickerView()
+		case pageHelp:
+			text = "Keyboard\n" + renderBindings(groupHelp) + "\nControls and invalid bytes escaped. No mouse capture.\nReading progress is local, not GitHub approval.\nEvidence is pinned, bounded, and omissions are reported."
+			if m.store != nil {
+				text += "\nStorage: " + Escape(m.store.Path()) + "\nSession: " + m.Session.ID
+			}
+		case pageURL:
+			text = m.Session.Inventory.Comparison.Metadata.Identity.URL() + "\nOpen this URL in your browser for GitHub review actions.\nesc: back | q: quit"
+		case pageEvidence:
 			text = m.evidenceView()
-		} else {
+		default:
 			text = m.reviewView()
 		}
 	}

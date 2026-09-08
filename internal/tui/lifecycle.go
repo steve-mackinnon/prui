@@ -75,7 +75,8 @@ func (m *Model) lifecycleKey(k string) (tea.Cmd, bool) {
 		}), true
 	case "s":
 		m.Entries, m.ActionError = m.store.List()
-		m.Picker, m.PickerIndex = true, 0
+		m.PickerIndex = 0
+		m.push(pagePicker)
 		return nil, true
 	}
 	return nil, false
@@ -83,8 +84,8 @@ func (m *Model) lifecycleKey(k string) (tea.Cmd, bool) {
 
 func (m *Model) pickerKey(k string) tea.Cmd {
 	switch k {
-	case "s", "esc":
-		m.Picker = false
+	case "esc":
+		m.pop()
 	case "n", "down", "j":
 		m.PickerIndex = min(max(0, len(m.Entries)-1), m.PickerIndex+1)
 	case "p", "up", "k":
@@ -124,7 +125,7 @@ func (m *Model) pickerView() string {
 	if len(m.Entries) == 0 {
 		lines = append(lines, "No saved sessions.")
 	}
-	lines = append(lines, "up/down: select | enter: resume | s/esc: back | q: quit")
+	lines = append(lines, "up/down: select | enter: resume | esc: back | q: quit")
 	if m.ActionError != nil {
 		lines = append(lines, Escape(m.ActionError.Error()))
 	}
@@ -138,7 +139,7 @@ func (m *Model) footer() string {
 	if m.ActionError != nil {
 		return "Action failed; snapshot retained: " + Escape(m.ActionError.Error())
 	}
-	return "m read  r refresh  N new/reset  s sessions  n/p unit  tab pane  i inventory  e evidence  ? help  q quit"
+	return strings.ReplaceAll(renderBindings(groupFooter), "\n", "  ")
 }
 
 func progress(s *review.Session) string {

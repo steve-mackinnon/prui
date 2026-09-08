@@ -148,6 +148,61 @@ func TestRawReviewCancelAndFailure(t *testing.T) {
 	}
 }
 
+func TestModalPagesOwnInputAndBack(t *testing.T) {
+	m := New(context.Background(), nil)
+	m.Session = &review.Session{}
+	m.Loading = false
+	m.Selected = 3
+
+	key(m, '?')
+	if m.top() != pageHelp {
+		t.Fatal("help did not open")
+	}
+	key(m, 'n')
+	if m.Selected != 3 {
+		t.Fatal("help leaked review input")
+	}
+	key(m, 'g')
+	if m.top() != pageHelp {
+		t.Fatal("help accepted another page opener")
+	}
+	key(m, 'q')
+
+	namedKey(m, tea.KeyEscape)
+	if m.top() != pageReview {
+		t.Fatal("esc did not leave help")
+	}
+	key(m, 'g')
+	if m.top() != pageURL || !strings.Contains(m.View().Content, "esc: back") {
+		t.Fatal("URL page or back hint missing")
+	}
+	namedKey(m, tea.KeyEscape)
+	if m.top() != pageReview {
+		t.Fatal("esc did not leave URL page")
+	}
+
+	m.Focus = paneDiff
+	namedKey(m, tea.KeyEscape)
+	if m.Focus != paneList || m.top() != pageReview {
+		t.Fatal("esc did not return to list focus")
+	}
+}
+
+func TestBindingsRenderHelpAndFooter(t *testing.T) {
+	help := renderBindings(groupHelp)
+	footer := renderBindings(groupFooter)
+	for _, key := range []string{"j/k", "J/K", "ctrl+h/ctrl+l", "esc", "q/ctrl+c"} {
+		if !strings.Contains(help, key) {
+			t.Fatalf("binding %q missing from help", key)
+		}
+	}
+	for _, key := range []string{"ctrl+h/ctrl+l", "esc", "q/ctrl+c", "m", "N"} {
+		if !strings.Contains(footer, key) {
+			t.Fatalf("binding %q missing from footer", key)
+		}
+	}
+}
+
 func TestRawReviewIncomplete(t *testing.T) {
 	r := testutil.NewRepo(t)
 	base := r.Commit()

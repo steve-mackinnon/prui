@@ -28,9 +28,11 @@ go build -o pr-review ./cmd/pr-review
 | --- | --- |
 | `n` / `p` | Next / previous review unit |
 | `]` / `[` | Next / previous file slice |
-| `tab` / `enter` | Switch focus; switch visible pane below 100 columns |
-| Up / down | Navigate list or scroll focused diff |
-| `j` / `k`, Page Down / Page Up, Space | Scroll / page actual diff |
+| `ctrl+h` / `ctrl+l` | Focus list / diff |
+| `enter` / `esc` | Open selected item / go back |
+| Up / down, `j` / `k` | Navigate list or scroll focused diff |
+| `J` / `K` | Scroll diff by 5 lines |
+| Page Down / Page Up | Page through actual diff |
 | `h` / `l`, left / right | Horizontal scrolling; no hidden line truncation in plain output |
 | Home | Reset selected unit's scroll |
 | `i` | Toggle full unit inventory |
@@ -39,10 +41,10 @@ go build -o pr-review ./cmd/pr-review
 | `m` | Mark/unmark the selected file slice; saves immediately, including when viewing one of its units |
 | `r` | Explicit metadata refresh; no diff recomputation or polling |
 | `N` | Start a new comparison with empty progress; retain the old session |
-| `s` | Session picker; up/down to select, Enter to resume, `s`/Esc to return |
+| `s` | Session picker; up/down to select, Enter to resume, Esc to return |
 | `?`, `q`, Ctrl+C | Help, quit, cancel loading |
 
-Selection and per-unit vertical offsets survive resizing; navigation positions are not persisted across processes. No mouse capture, so terminal-native text selection remains available. The UI uses textual focus, kind, and warning labels rather than relying on color. Extremely small terminals clip controls; enlarge or use plain output. The user approved Phase 1 terminal behavior; broad theme/platform/accessibility coverage is not established.
+Selection and per-unit vertical offsets survive resizing; navigation positions are not persisted across processes. No mouse capture, so terminal-native text selection remains available. Textual markers and labels are primary; reverse video adds a focused-row cue, and no information depends on color alone. Extremely small terminals clip controls; enlarge or use plain output. The user approved Phase 1 terminal behavior; broad theme/platform/accessibility coverage is not established.
 
 ## Sessions And Freshness
 

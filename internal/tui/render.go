@@ -93,7 +93,7 @@ func (m *Model) evidenceView() string {
 	for _, o := range c.OmittedPaths {
 		lines = append(lines, fmt.Sprintf("[omitted] %s: %s", Escape(string(o.Path)), Escape(o.Reason)))
 	}
-	lines = append(lines, "e: return | raw inventory remains available | omissions are not missing diff entries")
+	lines = append(lines, "esc: back | raw inventory remains available | omissions are not missing diff entries")
 	return strings.Join(lines, "\n")
 }
 func visibleWidth(s string) int { return lipgloss.Width(s) }

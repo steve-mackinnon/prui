@@ -70,7 +70,7 @@ func TestLifecycleProgressRefreshPickerAndFreshFailure(t *testing.T) {
 	if cmd != nil {
 		m.Update(cmd())
 	}
-	if m.Picker || m.Session.ID != saved.ID {
+	if m.top() != pageReview || m.Session.ID != saved.ID {
 		t.Fatal("picker did not resume")
 	}
 	action(t, m, 'm')
