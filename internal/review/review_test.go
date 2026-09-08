@@ -1,10 +1,16 @@
 package review
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"errors"
+	"strings"
+	"testing"
+
+	"pr-review/internal/guide"
 	"pr-review/internal/source"
 	"pr-review/internal/testutil"
-	"testing"
 )
 
 type FixtureGitHub struct{ Value source.Metadata }
@@ -44,5 +50,84 @@ func TestFileFallback(t *testing.T) {
 	}
 	if len(seen) != len(s.Inventory.Units) {
 		t.Fatal("unassigned fallback units")
+	}
+	if s.Guides == nil {
+		t.Fatal("session carries no guide bundle")
+	}
+	if s.Guides.Status != guide.Unavailable || s.Guides.Reason == "" || len(s.Guides.Items) != 0 {
+		t.Fatal("unrequested analysis is not an explained fallback")
+	}
+	if s.Guides.Provider != "" || s.Guides.Model != "" || s.Guides.InputDigest != "" {
+		t.Fatal("fallback claims analysis provenance")
+	}
+	if err := guide.Validate(*s.Guides, s.Inventory); err != nil {
+		t.Fatal("attached bundle does not validate", err)
+	}
+}
+
+// fakeAnalyzer groups every eligible unit into one guide, so the review
+// coordinator's contract is tested without a provider.
+type fakeAnalyzer struct {
+	err   error
+	seen  guide.Input
+	calls int
+}
+
+func (f *fakeAnalyzer) Analyze(_ context.Context, in guide.Input) (guide.Bundle, error) {
+	f.calls++
+	f.seen = in
+	if f.err != nil {
+		return guide.Bundle{}, f.err
+	}
+	section := guide.Section{Title: "Change every file", Description: "All eligible units."}
+	for _, u := range in.Units {
+		section.UnitIDs = append(section.UnitIDs, u.ID)
+	}
+	return guide.Bundle{Status: guide.Generated, Provider: "fake", Model: "fake-1", SchemaName: guide.SchemaName,
+		Items: []guide.Item{{Title: "Whole comparison", Description: "One functional chunk.", Sections: []guide.Section{section}}}}, nil
+}
+
+func TestGuidesDoNotChangeTheFilePlan(t *testing.T) {
+	r := testutil.NewRepo(t)
+	r.Write("a", "before\n")
+	base := r.Commit()
+	r.Write("a", "after\n")
+	r.Write("b", "added\n")
+	head := r.Commit()
+	m := source.Metadata{Identity: source.Identity{Repository: "o/r", Number: 1}, BaseRepository: "o/r", HeadRepository: "o/r", BaseSHA: base, HeadSHA: head}
+	open := func(cfg Config) *Session {
+		t.Helper()
+		s, e := OpenWithConfig(context.Background(), r.Dir, m.Identity, FixtureGitHub{m}, source.NewRunner(), source.Defaults(), nil, cfg)
+		if e != nil {
+			t.Fatal(e)
+		}
+		return s
+	}
+	plain := open(Config{})
+	if plain.Guides.Status != guide.Unavailable || plain.Guides.Reason != "analysis not requested" {
+		t.Fatal("a nil analyzer is not an explained fallback", plain.Guides)
+	}
+	a := &fakeAnalyzer{}
+	analyzed := open(Config{Analyzer: a})
+	if a.calls != 1 || len(a.seen.Units) != len(analyzed.Inventory.Units) || a.seen.Digest == "" {
+		t.Fatal("analysis did not receive the frozen inventory once", a.calls, len(a.seen.Units))
+	}
+	if analyzed.Guides.Status != guide.Generated || analyzed.Guides.Provider != "fake" || analyzed.Guides.InputDigest != a.seen.Digest {
+		t.Fatal("generated guides did not reach the snapshot with provenance", analyzed.Guides)
+	}
+	if err := guide.Validate(*analyzed.Guides, analyzed.Inventory); err != nil {
+		t.Fatal("stored guides do not validate against the inventory", err)
+	}
+	before, _ := json.Marshal([]any{plain.Slices, plain.UnitFiles, plain.Inventory})
+	after, _ := json.Marshal([]any{analyzed.Slices, analyzed.UnitFiles, analyzed.Inventory})
+	if !bytes.Equal(before, after) {
+		t.Fatal("analysis changed file ownership or the raw inventory")
+	}
+	failed := open(Config{Analyzer: &fakeAnalyzer{err: errors.New("provider unavailable")}})
+	if failed.Guides.Status != guide.Unavailable || !strings.Contains(failed.Guides.Reason, "provider unavailable") {
+		t.Fatal("a failing analyzer did not degrade to an explained raw session", failed.Guides)
+	}
+	if len(failed.Slices) != len(plain.Slices) {
+		t.Fatal("failed analysis cost the file plan")
 	}
 }

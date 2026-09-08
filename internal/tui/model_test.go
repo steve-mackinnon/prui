@@ -3,12 +3,14 @@ package tui
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+	"pr-review/internal/guide"
 	"pr-review/internal/inventory"
 	"pr-review/internal/review"
 	"pr-review/internal/source"
@@ -74,10 +76,13 @@ func TestRawReviewMockedEndToEnd(t *testing.T) {
 	if strings.ContainsAny(plain, "\x1b\a") || !strings.Contains(plain, `\x1b]52;c;attack\a`) {
 		t.Fatal("unsafe terminal content")
 	}
-	if !strings.Contains(plain, "inventory complete") || !strings.Contains(plain, "analysis: file fallback") {
+	if !strings.Contains(plain, "inventory complete") || !strings.Contains(plain, "guides: unavailable (analysis not requested)") {
 		t.Fatal("status missing")
 	}
 	m.Update(tea.WindowSizeMsg{Width: 120, Height: 24})
+	if !strings.Contains(ansi.Strip(m.View().Content), "guides: unavailable (analysis not requested)") {
+		t.Fatal("terminal status hides the analysis decision")
+	}
 	hunk := -1
 	for i, u := range m.Session.Inventory.Units {
 		if u.Kind == inventory.TextHunk {
@@ -291,5 +296,174 @@ func TestStrippedViewMatchesUnstyledRender(t *testing.T) {
 				}
 			}
 		}
+	}
+}
+
+func TestRawReviewAnalysisStatus(t *testing.T) {
+	r := testutil.NewRepo(t)
+	r.Write("a", "old\n")
+	base := r.Commit()
+	r.Write("a", "new\n")
+	head := r.Commit()
+	meta := source.Metadata{Identity: source.Identity{Repository: "o/r", Number: 7}, BaseRepository: "o/r", HeadRepository: "o/r", BaseSHA: base, HeadSHA: head}
+	s, e := review.Open(context.Background(), r.Dir, meta.Identity, fakeGitHub{meta}, source.NewRunner(), source.Defaults(), nil)
+	if e != nil {
+		t.Fatal(e)
+	}
+	if s.Guides == nil || s.Guides.Status != guide.Unavailable {
+		t.Fatal("session carries no analysis decision")
+	}
+	s.Guides = nil
+	// A session stored before guides existed reports the plan's own status and
+	// claims nothing about guides at all.
+	if pre := Plain(s); !strings.Contains(pre, "analysis: file fallback") || strings.Contains(pre, "guides:") {
+		t.Fatal("pre-guide session claims a guide decision")
+	}
+	hostile := guide.Bundle{Status: guide.Generated, Provider: "openai", Model: "m\x1b]52;c;attack\a", Items: []guide.Item{{Title: "Authentication flow"}}}
+	s.Guides = &hostile
+	plain := Plain(s)
+	if !strings.Contains(plain, "guides: generated (openai/") || !strings.Contains(plain, "1 guides") {
+		t.Fatal("generated status missing")
+	}
+	if strings.ContainsAny(plain, "\x1b\a") {
+		t.Fatal("unescaped model-authored status")
+	}
+}
+
+// groupingAnalyzer groups one path's units and leaves the rest, so plain output
+// is tested against both the model-authored and the synthesized guides.
+type groupingAnalyzer struct{ path string }
+
+func (a groupingAnalyzer) Analyze(_ context.Context, in guide.Input) (guide.Bundle, error) {
+	section := guide.Section{Title: "Add greeting\x1b]52;c;section\a", Description: "Section description."}
+	for _, u := range in.Units {
+		if string(u.Path) == a.path {
+			section.UnitIDs = append(section.UnitIDs, u.ID)
+		}
+	}
+	return guide.Bundle{Status: guide.Generated, Provider: "openai", Model: "test-model", Items: []guide.Item{
+		{Title: "Greeting flow\x1b]52;c;title\a", Description: "Adds a greeting.\x1b]52;c;desc\a", Sections: []guide.Section{section}},
+	}}, nil
+}
+
+func TestPlainGuides(t *testing.T) {
+	r := testutil.NewRepo(t)
+	r.Write("a.go", "old\n")
+	base := r.Commit()
+	r.Write("a.go", "new\n")
+	r.Write("README.md", "docs\n")
+	r.Write(".env", "TOKEN=abcdef\n")
+	head := r.Commit()
+	meta := source.Metadata{Identity: source.Identity{Repository: "o/r", Number: 42}, BaseRepository: "o/r", HeadRepository: "o/r", BaseSHA: base, HeadSHA: head}
+	s, e := review.OpenWithConfig(context.Background(), r.Dir, meta.Identity, fakeGitHub{meta}, source.NewRunner(), source.Defaults(), nil, review.Config{Analyzer: groupingAnalyzer{path: "a.go"}})
+	if e != nil {
+		t.Fatal(e)
+	}
+	plain := Plain(s)
+	if strings.ContainsAny(plain, "\x1b\a") || !strings.Contains(plain, `\x1b]52;c;title\a`) || !strings.Contains(plain, `\x1b]52;c;section\a`) {
+		t.Fatal("model-authored guide text is not escaped like patch content")
+	}
+	order := []string{
+		"Guides interpret the diff; file slices remain the unit of reading progress.",
+		`1. Greeting flow\x1b]52;c;title\a`,
+		"   1.1 Add greeting",
+		"       a.go [",
+		"2. Ungrouped changes (not grouped by analysis)",
+		"Analysis scope: ",
+		"Evidence: ",
+	}
+	at := -1
+	for _, want := range order {
+		i := strings.Index(plain, want)
+		if i <= at {
+			t.Fatalf("plain guide ordering lost %q (%d after %d)", want, i, at)
+		}
+		at = i
+	}
+	if strings.Index(plain, "Guides interpret") > strings.Index(plain, "[file_metadata]") {
+		t.Fatal("guides render after the raw units they interpret")
+	}
+	ungrouped := plain[strings.Index(plain, "2. Ungrouped changes"):]
+	for _, want := range []string{"README.md [", ".env ["} {
+		if !strings.Contains(ungrouped[:strings.Index(ungrouped, "Analysis scope")], want) {
+			t.Fatalf("ungrouped guide hides %q", want)
+		}
+	}
+	total := len(s.Inventory.Units)
+	if !strings.Contains(plain, fmt.Sprintf("Analysis scope: %d/%d units sent", total-len(s.Guides.WithheldPaths), total)) {
+		t.Fatal("analysis scope not stated", plain)
+	}
+	if !strings.Contains(plain, ".env (credential-like filename)") {
+		t.Fatal("withheld input not disclosed")
+	}
+	if strings.Count(plain, ".env (credential-like filename)") != 1 {
+		t.Fatal("withheld disclosure repeats one path per unit")
+	}
+	if !strings.Contains(plain, "guides: generated (openai/test-model, 2 guides)") {
+		t.Fatal("status does not report the generated bundle")
+	}
+	s.Guides = nil
+	if strings.Contains(Plain(s), "Guides interpret") {
+		t.Fatal("a session without analysis renders a guide block")
+	}
+}
+
+// TestRawReviewGuideHierarchy keeps the escaping, clipping, and narrow-width
+// contracts true once model-authored titles reach the left pane.
+func TestRawReviewGuideHierarchy(t *testing.T) {
+	s, _, _ := guidedSession(t, groupingAnalyzer{path: "a.go"})
+	m := loaded(t, s, 120, 40)
+	// Styling wraps whole lines, so the escaping contract is checked on the
+	// stripped render: the title must already be escaped underneath the style.
+	content := ansi.Strip(m.View().Content)
+	// The left pane is narrow, so a long hostile title is clipped; what must
+	// hold is that it is escaped first and clipped second.
+	if strings.ContainsAny(content, "\x1b\a") || !strings.Contains(content, `1. Greeting flow\x1b]52`) {
+		t.Fatal("guide titles are not escaped like patch content", content)
+	}
+	if !strings.Contains(content, "Guides") || !strings.Contains(content, `1.1 Add greeting\x1b]52`) {
+		t.Fatal("guide hierarchy missing from the left pane", content)
+	}
+	for _, w := range []int{1, 20, 60, 99, 100, 120} {
+		for _, h := range []int{5, 10, 24} {
+			m.Update(tea.WindowSizeMsg{Width: w, Height: h})
+			lines := strings.Split(m.View().Content, "\n")
+			if len(lines) > h {
+				t.Fatalf("viewport height exceeded %d: %d lines", h, len(lines))
+			}
+			for _, line := range lines {
+				if visibleWidth(line) > w {
+					t.Fatalf("viewport exceeded %d: %q", w, line)
+				}
+				// Styles are the only escapes allowed; the text under them must
+				// still be free of control bytes from the model or the patch.
+				if strings.ContainsAny(ansi.Strip(line), "\x1b\a") {
+					t.Fatalf("unescaped control byte at width %d", w)
+				}
+			}
+		}
+	}
+	// Below 100 columns one pane is visible at a time; tab on a file portion
+	// hands it to the diff, while tab on a guide or section expands it. esc is
+	// the way back, exactly as it is for the file plan.
+	m.Update(tea.WindowSizeMsg{Width: 60, Height: 24})
+	for m.rows()[m.Row].kind != portionRow {
+		key(m, 'n')
+	}
+	m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	if m.Focus != paneDiff || !strings.Contains(ansi.Strip(m.View().Content), "focus: diff") {
+		t.Fatal("narrow tab did not switch to the diff pane")
+	}
+	namedKey(m, tea.KeyEscape)
+	if m.Focus != paneList {
+		t.Fatal("esc did not switch back to the hierarchy")
+	}
+	for m.Row > 0 {
+		key(m, 'p')
+	}
+	before := len(m.rows())
+	m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	if m.Focus != paneList || len(m.rows()) >= before {
+		t.Fatal("tab on a guide row did not collapse it")
 	}
 }

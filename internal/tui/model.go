@@ -43,6 +43,9 @@ type Model struct {
 	Session                   *review.Session
 	Err                       error
 	Selected                  int
+	Row                       int  // selected guide hierarchy row
+	Files                     bool // G: navigate the deterministic file plan instead of guides
+	collapsed                 expansion
 	Scroll                    map[int]int
 	Width, Height, Horizontal int
 	Inventory                 bool
@@ -67,7 +70,7 @@ type Model struct {
 
 func New(parent context.Context, load Loader) *Model {
 	ctx, cancel := context.WithCancel(parent)
-	return &Model{ctx: ctx, cancel: cancel, load: load, Scroll: map[int]int{}, Stack: []page{pageReview}, Width: 100, Height: 24, Loading: true, notice: "Loading GitHub metadata and pinned committed objects..."}
+	return &Model{ctx: ctx, cancel: cancel, load: load, Scroll: map[int]int{}, collapsed: newExpansion(), Stack: []page{pageReview}, Width: 100, Height: 24, Loading: true, notice: "Loading GitHub metadata and pinned committed objects..."}
 }
 func (m *Model) SetNotifier(f func(string)) { m.notify = f }
 func (m *Model) Init() tea.Cmd {
@@ -87,16 +90,19 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.Err = v.Err
 		m.Loading = false
 		m.Busy = false
+		m.begin()
 	case ActionResult:
 		m.Busy = false
 		m.ActionError = v.Err
 		if v.Err == nil && v.Session != nil {
 			m.Session = v.Session
 			if v.Reset {
-				m.Selected, m.Horizontal = 0, 0
+				m.Selected, m.Horizontal, m.Row = 0, 0, 0
+				m.collapsed = newExpansion()
 				m.Scroll = map[int]int{}
 				m.Stack = []page{pageReview}
 				m.Focus = paneList
+				m.begin()
 			}
 		}
 	case Notice:
@@ -127,6 +133,12 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "i":
 			m.Inventory = !m.Inventory
 			m.Focus = paneList
+			if !m.Inventory {
+				m.syncRow(m.rows())
+			}
+		case "G":
+			m.Files = !m.Files
+			m.syncRow(m.rows())
 		case "e":
 			m.push(pageEvidence)
 			m.Inventory, m.Focus = false, paneList
@@ -143,6 +155,12 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.Focus = paneList
 		case "ctrl+l", "enter":
 			m.Focus = paneDiff
+		case "tab":
+			// enter keeps main's meaning (focus the diff), so expansion gets
+			// its own key rather than overloading one the reviewer already uses.
+			if rows := m.navigable(); rows != nil {
+				m.toggle(rows)
+			}
 		case "n":
 			m.move(1)
 		case "p":
@@ -231,13 +249,35 @@ func (m *Model) pageKey(p page, k string) tea.Cmd {
 	}
 	return nil
 }
+
+// navigable returns the guide rows when they are the active hierarchy. The
+// raw inventory view stays unit-by-unit, so `i` remains the complete source
+// view rather than a second guide list.
+func (m *Model) navigable() []row {
+	if m.Inventory {
+		return nil
+	}
+	rows := m.rows()
+	if len(rows) == 0 {
+		return nil
+	}
+	return rows
+}
 func (m *Model) move(delta int) {
+	if rows := m.navigable(); rows != nil {
+		m.moveRow(rows, delta)
+		return
+	}
 	if m.Session != nil && len(m.Session.Inventory.Units) > 0 {
 		m.Selected = max(0, min(len(m.Session.Inventory.Units)-1, m.Selected+delta))
 		m.Horizontal = 0
 	}
 }
 func (m *Model) file(delta int) {
+	if rows := m.navigable(); rows != nil {
+		m.moveGuide(rows, delta)
+		return
+	}
 	if m.Session == nil || len(m.Session.Inventory.Units) == 0 {
 		return
 	}
@@ -281,7 +321,7 @@ func (m *Model) View() tea.View {
 		case pageEdit, pageReorder:
 			text = m.editView()
 		case pageHelp:
-			text = "Keyboard\n" + renderBindings(groupHelp) + "\nControls and invalid bytes escaped. No mouse capture.\nReading progress is local, not GitHub approval.\nEvidence is pinned, bounded, and omissions are reported. Analysis is optional and consent-bound."
+			text = "Keyboard\n" + renderBindings(groupHelp) + "\nControls and invalid bytes escaped. No mouse capture.\nReading progress is local, not GitHub approval.\nGuides interpret the diff; the raw inventory remains the complete source view.\nMarking any portion of a file marks its whole slice, under every guide.\nEvidence is pinned, bounded, and omissions are reported. Analysis is optional and consent-bound."
 			if m.store != nil {
 				text += "\nStorage: " + Escape(m.store.Path()) + "\nSession: " + m.Session.ID
 			}
@@ -324,6 +364,10 @@ func (m *Model) reviewView() string {
 	if m.Inventory {
 		label = "Full inventory"
 	}
+	rows := m.navigable()
+	if rows != nil {
+		label = "Guides"
+	}
 	plan := s.CurrentPlan()
 	unassigned, unavailable := 0, 0
 	if plan != nil {
@@ -338,7 +382,13 @@ func (m *Model) reviewView() string {
 	if unavailable > 0 {
 		headerClass = classWarning
 	}
-	header := styleLine(headerClass, fmt.Sprintf("%s | focus: %s | unit %d/%d [%s] | unassigned %d | unavailable %d", label, focus, m.Selected+1, len(s.Inventory.Units), kind, unassigned, unavailable))
+	text := fmt.Sprintf("%s | focus: %s | unit %d/%d [%s] | unassigned %d | unavailable %d", label, focus, m.Selected+1, len(s.Inventory.Units), kind, unassigned, unavailable)
+	if rows != nil {
+		// The hierarchy interprets the change; progress does not follow it, and
+		// saying so here keeps a section from looking independently completable.
+		text += " | m marks the whole file slice"
+	}
+	header := styleLine(headerClass, text)
 	bodyHeight := m.bodyHeight()
 	list := []string{}
 	selectedRow := 0
@@ -354,6 +404,9 @@ func (m *Model) reviewView() string {
 			}
 			list = append(list, marker+pathLabel(s.Inventory.Files[s.UnitFiles[i]])+" ["+string(u.Kind)+"]")
 		}
+	} else if rows != nil {
+		selectedRow = max(0, min(len(rows)-1, m.Row))
+		list = guideList(s, rows, selectedRow, m.Focus == paneList)
 	} else {
 		selectedRow = s.UnitFiles[m.Selected]
 		for i, f := range s.Inventory.Files {
