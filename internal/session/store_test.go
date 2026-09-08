@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -265,5 +266,52 @@ func TestStorePreGuideBytesUnchanged(t *testing.T) {
 	r.ReviewedSliceIDs = []string{"file"}
 	if err := s.Save(r); err != nil {
 		t.Fatal("pre-guide session can no longer record progress", err)
+	}
+}
+
+func TestRepositoryRegistryRoundTripReplacementAndCorruption(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "sessions")
+	checkout := filepath.Join(t.TempDir(), "checkout")
+	s, err := Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.LookupRepository("o/r"); !errors.Is(err, ErrRepositoryNotFound) {
+		t.Fatal("missing repository lookup", err)
+	}
+	if err := s.RememberRepository("Owner/Repo", checkout); err != nil {
+		t.Fatal(err)
+	}
+	replacement := filepath.Join(t.TempDir(), "replacement")
+	if err := s.RememberRepository("owner/repo", replacement); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := s.LookupRepository("OWNER/REPO"); err != nil || got != replacement {
+		t.Fatal("registry replacement lost", got, err)
+	}
+	if err := s.Close(); err != nil {
+		t.Fatal(err)
+	}
+	s, err = Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	if got, err := s.LookupRepository("owner/repo"); err != nil || got != replacement {
+		t.Fatal("registry did not survive restart", got, err)
+	}
+	registry := filepath.Join(dir, "repositories.json")
+	bad := []byte(`{"repositories":[{"repository":"owner/repo","checkout":"relative"}]}`)
+	if err := os.WriteFile(registry, bad, 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.LookupRepository("owner/repo"); err == nil {
+		t.Fatal("malformed registry accepted")
+	}
+	if err := s.RememberRepository("other/repo", checkout); err == nil {
+		t.Fatal("malformed registry overwritten")
+	}
+	if got, err := os.ReadFile(registry); err != nil || !bytes.Equal(got, bad) {
+		t.Fatal("malformed registry changed", err)
 	}
 }

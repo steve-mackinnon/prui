@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -141,6 +142,18 @@ type Store struct {
 }
 
 var idPattern = regexp.MustCompile(`^[0-9a-f]{32}$`)
+var repositoryPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]*/[A-Za-z0-9][A-Za-z0-9_.-]*$`)
+
+var ErrRepositoryNotFound = errors.New("remembered repository not found")
+
+type repositoryRecord struct {
+	Repositories []Repository `json:"repositories"`
+}
+
+type Repository struct {
+	Repository string `json:"repository"`
+	Checkout   string `json:"checkout"`
+}
 
 func DefaultPath() (string, error) {
 	home, err := os.UserHomeDir()
@@ -229,6 +242,90 @@ func (s *Store) Close() error {
 	err := s.lock.Close()
 	s.lock = nil
 	return err
+}
+
+// LookupRepository returns the canonical checkout remembered for a repository.
+func (s *Store) LookupRepository(repository string) (string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.lock == nil {
+		return "", errors.New("session store closed")
+	}
+	repository, err := normalizeRepository(repository)
+	if err != nil {
+		return "", err
+	}
+	r, err := s.repositories()
+	if err != nil {
+		return "", err
+	}
+	for _, entry := range r.Repositories {
+		if entry.Repository == repository {
+			return entry.Checkout, nil
+		}
+	}
+	return "", ErrRepositoryNotFound
+}
+
+// RememberRepository replaces the one canonical checkout hint for a repository.
+func (s *Store) RememberRepository(repository, checkout string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.lock == nil {
+		return errors.New("session store closed")
+	}
+	repository, err := normalizeRepository(repository)
+	if err != nil {
+		return err
+	}
+	if !filepath.IsAbs(checkout) || filepath.Clean(checkout) != checkout {
+		return errors.New("repository checkout must be a canonical absolute path")
+	}
+	r, err := s.repositories()
+	if err != nil {
+		return err
+	}
+	updated := false
+	for i := range r.Repositories {
+		if r.Repositories[i].Repository == repository {
+			r.Repositories[i].Checkout = checkout
+			updated = true
+		}
+	}
+	if !updated {
+		r.Repositories = append(r.Repositories, Repository{Repository: repository, Checkout: checkout})
+	}
+	b, err := json.Marshal(r)
+	if err != nil {
+		return err
+	}
+	return atomicWrite(s.path, "repositories.json", b)
+}
+
+func (s *Store) repositories() (repositoryRecord, error) {
+	path := filepath.Join(s.path, "repositories.json")
+	if _, err := os.Lstat(path); os.IsNotExist(err) {
+		return repositoryRecord{}, nil
+	}
+	var r repositoryRecord
+	if _, err := readJSON(path, &r); err != nil {
+		return repositoryRecord{}, err
+	}
+	seen := map[string]bool{}
+	for _, entry := range r.Repositories {
+		if entry.Repository != strings.ToLower(entry.Repository) || !repositoryPattern.MatchString(entry.Repository) || seen[entry.Repository] || !filepath.IsAbs(entry.Checkout) || filepath.Clean(entry.Checkout) != entry.Checkout {
+			return repositoryRecord{}, errors.New("invalid remembered repository record; original retained")
+		}
+		seen[entry.Repository] = true
+	}
+	return r, nil
+}
+
+func normalizeRepository(repository string) (string, error) {
+	if !repositoryPattern.MatchString(repository) {
+		return "", errors.New("invalid GitHub repository")
+	}
+	return strings.ToLower(repository), nil
 }
 
 func privatePath(path string, directory bool) error {

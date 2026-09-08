@@ -10,7 +10,6 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/term"
-	"pr-review/internal/guide"
 	"pr-review/internal/review"
 	"pr-review/internal/session"
 	"pr-review/internal/source"
@@ -63,19 +62,6 @@ func run(args []string) int {
 	r := source.NewRunner()
 	limits := source.Defaults()
 	app := application{store: store, runner: r, limits: limits}
-	app.policy.Excluded = append([]string(nil), o.Excludes...)
-	if o.SendSource {
-		a, err := guide.NewOpenAI(guide.OpenAIOptions{APIKey: os.Getenv("OPENAI_API_KEY"), Model: o.Model, Endpoint: os.Getenv("OPENAI_BASE_URL")})
-		if err != nil {
-			fmt.Fprintln(os.Stderr, tui.Escape(err.Error()))
-			return 1
-		}
-		// The notice precedes any request, so the upload is announced even if
-		// the run is interrupted before a session exists.
-		fmt.Fprintln(os.Stderr, "Sending source to OpenAI: bounded pinned patches and repository evidence go to model", tui.Escape(a.Model()), "for guide analysis.")
-		fmt.Fprintln(os.Stderr, "Excluded paths and credential-like content are withheld and reported. The request asks for no provider-side retention. Your API key is not stored.")
-		app.analyzer = a
-	}
 	// gh runs outside both the workspace and the reviewed checkout.
 	if !o.Offline {
 		dir, err := os.MkdirTemp("", "pr-review-gh-")
