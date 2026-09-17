@@ -9,9 +9,9 @@ Building requires Go 1.26.8+. Opening a new comparison requires Git and authenti
 ```sh
 go run ./cmd/pr-review open https://github.com/owner/repo/pull/42 --repo /path/to/checkout
 go run ./cmd/pr-review open 42 --repo /path/to/checkout --github-repo owner/repo --plain
-go run ./cmd/pr-review open 42 --repo /path/to/checkout --github-repo owner/repo --exclude 'secrets/*'
-OPENAI_API_KEY=... go run ./cmd/pr-review open 42 --repo /path/to/checkout --github-repo owner/repo --send-source-to-openai
-OPENAI_API_KEY=... go run ./cmd/pr-review open 42 --repo /path/to/checkout --github-repo owner/repo --send-source-to-openai --model gpt-5.6-sol
+go run ./cmd/pr-review open 42 --github-repo owner/repo # reuse a remembered checkout
+go run ./cmd/pr-review prs owner/repo --plain
+go run ./cmd/pr-review prs # browse remembered repositories, then select a PR
 go run ./cmd/pr-review sessions
 go run ./cmd/pr-review resume SESSION_ID
 go run ./cmd/pr-review resume SESSION_ID --offline --plain
@@ -20,7 +20,7 @@ go run ./cmd/pr-review delete SESSION_ID
 go build -o pr-review ./cmd/pr-review
 ```
 
-`open`, normal `resume`, and explicit refresh contact GitHub. `sessions`, `delete`, and `resume --offline` do not. Implementation tests use synthetic objects, mocked GitHub, and a local test provider endpoint only. Without `--send-source-to-openai`, no source is uploaded to a model or other service. Git fetch sends requested revision IDs and Git protocol negotiation to GitHub; metadata/authentication use the user's trusted `gh` installation.
+`open`, normal `resume`, explicit refresh, and listing a repository’s PRs contact GitHub. `sessions`, `delete`, and `resume --offline` do not. Implementation tests use synthetic objects, mocked GitHub, and a local test provider endpoint only. Source is uploaded to OpenAI only after confirming the interactive guide consent screen. Opening, resuming, and browsing do not request guide analysis automatically. Git fetch sends requested revision IDs and Git protocol negotiation to GitHub; metadata/authentication use the user's trusted `gh` installation.
 
 `--plain` emits escaped text without a pager, color, terminal control sequences, or interaction. It includes the guide block, its analysis scope, and the bounded evidence scope report. It is automatic for redirected stdin/stdout or `TERM=dumb`, and stays uncolored even when the terminal supports color or `CLICOLOR_FORCE` is set. Exit codes: 0 successful raw inventory, 1 invalid input/open/runtime failure, 2 unavailable review content, 130 canceled loading. Analysis being unavailable never changes the exit status. Exit 0 is not approval or evidence that you read the review.
 
@@ -28,13 +28,15 @@ go build -o pr-review ./cmd/pr-review
 
 Guides group the frozen review units into functional chunks, each with a title, description, and ordered sections that reference specific units. They are an interpretation layer: `Slices` and `UnitFiles` are unchanged, reading progress stays file-slice based, and the raw inventory remains the complete source view. Every unit appears in guide navigation exactly once; anything the model did not group lands in a synthesized `Ungrouped changes` guide. Guides are separate from the provider plan behind `a` / `v` / `o`, which owns unit assignment and ordering; a guide never reassigns a unit.
 
-Analysis is off by default. `open --send-source-to-openai` is both the switch and the acknowledgement: there is no config file, environment toggle, or default-on path that uploads source. `--model MODEL` requires it and overrides the default `gpt-5.6-terra`; unknown ids are rejected by the API and become a stated fallback rather than a local allowlist error. `OPENAI_API_KEY` is required, read from the environment, and never written to a snapshot, log, or error string. Analysis is an `open`-only decision: `resume`, `sessions`, and `delete` never build an analyzer or contact a provider, so a stored session renders its guides with the network unavailable.
+Analysis is off by default. In an interactive review, press `g` to inspect the upload consent screen, then Enter to confirm or Escape to return without uploading. This works after opening, resuming, or choosing a PR in the browser. `OPENAI_API_KEY` is read only after confirmation and is never written to a snapshot, log, or error string. The default model is `gpt-5.6-terra`; `OPENAI_BASE_URL` may override the provider endpoint. There are no `--send-source-to-openai`, `--model`, or `--exclude` CLI flags. Plain output never starts analysis. `resume --offline` rejects guide generation and all GitHub operations before accessing clients or credentials; stored guides remain readable.
+
+A confirmed request creates a new derived session with empty reading progress, retaining the original frozen snapshot and its progress. Escape cancels an in-flight request; cancellation keeps the current session and does not save a derived session. Missing credentials or invalid provider configuration leave the current session intact.
 
 What leaves the machine is only the assembled request package: pinned patches and pinned-tree evidence that pass the privacy policy a second time at the upload boundary, within 400 units, 32 KiB per unit, 512 KiB total, and 60 seconds. Excluded paths, credential-like content, and budget-exhausted units are withheld and reported as analysis scope; withheld path names are not sent either. The request is one non-streaming HTTPS `POST /v1/responses` with `store: false` and a strict `pr_review_guides` JSON schema. Redirects are not followed, so the bearer credential cannot reach another host. Provider transcripts and credentials are never stored; the snapshot keeps the guides, provider, model, prompt version, schema name, input digest, evidence IDs, limits, and withheld ledger.
 
 Failure is cheap and explicit. A transport error, non-2xx status, refusal, deadline, oversize payload, or unusable structured output produces an `analysis_unavailable` bundle with a stated reason, a durable session, and the unchanged deterministic file plan. Retrying cannot modify a stored snapshot; a later successful attempt is a new session. Generated text is model interpretation of the bounded input, not source truth, approval, security findings, or complete architectural documentation, and it can be wrong about anything it was not shown.
 
-When a session has generated guides, they are the default left pane: guide, then section, then the file portions each section covers, with the selected portion's raw unit in the right pane. A file appears under every section that owns part of it. `n`/`p` walk the rows and select the row's first unit, `]`/`[` jump between guides, `tab`/`enter` expands or collapses the selected guide or section, and `G` switches to the deterministic file plan. `i` still lists every raw unit and navigates them one at a time, so the complete source view is never behind an interpretation. Marking is unchanged: `m` marks the whole file slice of the selected unit, including the units that file contributes to other guides, and both the header and footer say so. A fallback, absent, or empty bundle simply has no rows, so those sessions navigate the file plan exactly as before.
+When a session has generated guides, they are the default left pane: guide, then section, then the file portions each section covers, with the selected guide's combined diff in the right pane. Enter on a section or file jumps to its position in that diff. A file appears under every section that owns part of it. `n`/`p` walk the rows and select the row's first unit, `]`/`[` jump between guides, `tab` expands or collapses the selected guide or section, Enter focuses its diff, and `G` switches to the deterministic file plan. `i` still lists every raw unit and navigates them one at a time, so the complete source view is never behind an interpretation. Marking is unchanged: `m` marks the whole file slice of the selected unit, including the units that file contributes to other guides, and both the header and footer say so. A fallback, absent, or empty bundle simply has no rows, so those sessions navigate the file plan exactly as before.
 
 ## Keyboard
 
@@ -55,11 +57,14 @@ When a session has generated guides, they are the default left pane: guide, then
 | `e` | Show bounded evidence and included/excluded scope |
 | `a` | Show the accepted provider plan; advisory claims only |
 | `v` / `o` | Move the selected unit to another slice / reorder slices; `enter` confirms, `esc` cancels |
-| `g` | Show canonical GitHub URL for copying; does not launch a browser |
+| `u` | Show canonical GitHub URL for copying; does not launch a browser |
+| `g` | Inspect guide-upload consent; Enter confirms, Escape cancels |
+| `b` | Browse remembered repositories and their open pull requests |
 | `m` | Mark/unmark the whole file slice of the selected unit, including its units under other guide sections; saves immediately |
 | `r` | Explicit metadata refresh; no diff recomputation or polling |
 | `N` | Start a new comparison with empty progress; retain the old session |
 | `s` | Session picker; up/down to select, Enter to resume, Esc to return |
+| Escape during a cancellable action | Cancel the operation and retain the current review |
 | `?`, `q`, Ctrl+C | Help, quit, cancel loading |
 
 Selection, expansion, and per-unit vertical offsets survive resizing; navigation positions and expansion state are not persisted across processes, and they are rebuilt from the immutable bundle so navigation cannot drift from the stored guides. No mouse capture, so terminal-native text selection remains available. Textual markers and labels are primary: the selected row is marked `> ` when its pane is focused and `· ` when it is not, and reverse video only reinforces the focused row. The interactive view additionally colors diff structure — file headers, hunk locations, additions, removals — and unit states such as metadata, binary, gitlink, unavailable, and warning chrome. Color is presentation only: no wording, label, or ordering depends on it, and terminals without color show the same text. Extremely small terminals clip controls; enlarge or use plain output. The user approved Phase 1 terminal behavior; broad theme/platform/accessibility coverage is not established.
@@ -117,6 +122,8 @@ Entry/raw-record limits or missing comparison trees fail the comparison rather t
 Process stdout/stderr are bounded; overrun, timeout, or cancellation kills the process group. Fetch storage is sampled every 10 ms plus checked after each fetch. It can overshoot between samples or during filesystem scans, and counts stored bytes rather than network download bytes. Borrowed hard-linked objects are not counted as downloaded storage. No exact download cap or total process-memory bound is claimed.
 
 ## Verification
+
+Run `./scripts/verify.sh` for the complete gate, including compiled-binary terminal tests. It requires Go, Git, and Python 3 on macOS/Linux. See [TESTING.md](TESTING.md) for test layers, screen baseline updates, and the per-feature regression checklist. CI runs the same command on Linux and macOS.
 
 ```sh
 go vet ./... && go test -race -count=1 ./... && go build ./...
