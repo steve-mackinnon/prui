@@ -1,0 +1,8 @@
+Remembered repositories
+Select a repository to list its open pull requests.
+  example/repo-16
+  example/repo-17
+  example/repo-18
+  example/repo-19
+> example/repo-20
+up/down: select | enter: list PRs | r: reload | esc: back |

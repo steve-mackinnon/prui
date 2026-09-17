@@ -1,0 +1,13 @@
+PR #42 | head aaaaaaaaaaaa | inventory complete | analysis: file fallback | guides: generated (fixture/fixture, 1 guides
+Guides | focus: files | unit 1/2 [text_hunk] | unassigned 0 | unavailable 0 | m marks the whole file slice | guide 1/1
+> - 1. Greeting                      | main.go
+    Update the greeting and its      | main.go [text_hunk]
+    documentation.                   | @@ -1 +1 @@
+    - 1.1 Implementation             | -old greeting
+      main.go [text_hunk]            | +hello world
+    - 1.2 Documentation              |
+      README.md [file_metadata]      | README.md
+                                     | README.md [file_metadata]
+                                     | status  | mode  ->
+                                     | old path:
+ctrl+h/ctrl+l: focus list/diff  esc: back  n/p: next/previous guide row, or unit without guides  i: toggle full inventor

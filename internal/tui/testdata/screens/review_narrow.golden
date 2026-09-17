@@ -1,0 +1,9 @@
+PR #42 | head aaaaaaaaaaaa | inventory complete | analysis:
+File slices | focus: diff | unit 1/2 [text_hunk] | unassigne
+main.go [text_hunk]
+@@ -1 +1 @@
+-old greeting
++hello world
+
+
+ctrl+h/ctrl+l: focus list/diff  esc: back  n/p: next/previou
