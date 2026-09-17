@@ -184,6 +184,7 @@ func TestPullRequestPickerListsAndOpens(t *testing.T) {
 		return saved, nil
 	})
 	defer m.Close()
+	m.Update(m.Init()())
 	_, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	m.Update(cmd())
 	if m.top() != pagePullRequestPicker || !strings.Contains(m.View().Content, "Open me") {
@@ -199,6 +200,7 @@ func TestPullRequestPickerListsAndOpens(t *testing.T) {
 		return nil, errors.New("list unavailable")
 	}, nil)
 	defer failing.Close()
+	failing.Update(failing.Init()())
 	_, cmd = failing.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	failing.Update(cmd())
 	if failing.top() != pageRepositoryPicker || failing.ActionError == nil {
@@ -215,6 +217,7 @@ func TestPullRequestPickerListsAndOpens(t *testing.T) {
 		return []source.PullRequest{{Identity: meta.Identity, Title: "Retry"}}, nil
 	}, nil)
 	defer canceling.Close()
+	canceling.Update(canceling.Init()())
 	_, cmd = canceling.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	done := make(chan tea.Msg, 1)
 	go func() { done <- cmd() }()

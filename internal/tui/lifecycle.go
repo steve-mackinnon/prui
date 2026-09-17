@@ -2,6 +2,7 @@ package tui
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -116,6 +117,9 @@ type PullRequestListResult struct {
 
 func (m *Model) SetLifecycle(store *session.Store, reader review.MetadataReader, fresh FreshLoader) {
 	m.store, m.reader, m.fresh = store, reader, fresh
+	if store != nil {
+		m.listSessions, m.listRepositories = store.List, store.ListRepositories
+	}
 }
 
 func (m *Model) SetPullRequestLifecycle(list PullRequestLoader, open PullRequestOpener) {
@@ -160,6 +164,10 @@ func (m *Model) lifecycleKey(k string) (tea.Cmd, bool) {
 			return ActionResult{Session: &s, Err: err}
 		}), true
 	case "r":
+		if m.reader == nil {
+			m.ActionError = errors.New("offline mode: metadata refresh is unavailable")
+			return nil, true
+		}
 		m.notice = "Checking GitHub metadata only; source stays local..."
 		return m.start(func() tea.Msg {
 			err := review.Refresh(m.ctx, m.store, &s, m.reader)
@@ -179,15 +187,9 @@ func (m *Model) lifecycleKey(k string) (tea.Cmd, bool) {
 			return ActionResult{Session: fresh, Err: err, Reset: true}
 		}), true
 	case "s":
-		m.Entries, m.ActionError = m.store.List()
-		m.PickerIndex = 0
-		m.push(pagePicker)
-		return nil, true
+		return m.loadSessions(), true
 	case "b":
-		m.Repositories, m.ActionError = m.store.ListRepositories()
-		m.PickerIndex = 0
-		m.push(pageRepositoryPicker)
-		return nil, true
+		return m.loadRepositories(), true
 	case "g":
 		if m.generateGuide == nil {
 			return nil, true
@@ -208,8 +210,7 @@ func (m *Model) guideConsentKey(k string) tea.Cmd {
 		}
 		m.pop()
 		m.notice = "Sending bounded pinned source and evidence to OpenAI..."
-		ctx, cancel := context.WithCancel(m.ctx)
-		m.cancelAction = cancel
+		ctx := m.beginAction()
 		s := *m.Session
 		return m.start(func() tea.Msg {
 			n := m.notify
@@ -224,18 +225,21 @@ func (m *Model) guideConsentKey(k string) tea.Cmd {
 }
 
 func (m *Model) pickerKey(k string) tea.Cmd {
+	m.SessionPicker.clamp(len(m.Entries))
 	switch k {
+	case "r":
+		return m.loadSessions()
 	case "esc":
 		m.pop()
 	case "n", "down", "j":
-		m.PickerIndex = min(max(0, len(m.Entries)-1), m.PickerIndex+1)
+		m.SessionPicker.Index = min(max(0, len(m.Entries)-1), m.SessionPicker.Index+1)
 	case "p", "up", "k":
-		m.PickerIndex = max(0, m.PickerIndex-1)
+		m.SessionPicker.Index = max(0, m.SessionPicker.Index-1)
 	case "enter":
 		if len(m.Entries) == 0 {
 			return nil
 		}
-		id := m.Entries[m.PickerIndex].ID
+		id := m.Entries[m.SessionPicker.Index].ID
 		m.notice = "Resuming frozen session; checking metadata freshness..."
 		return m.start(func() tea.Msg {
 			s, err := review.Resume(m.ctx, m.store, id, m.reader)
@@ -246,21 +250,23 @@ func (m *Model) pickerKey(k string) tea.Cmd {
 }
 
 func (m *Model) repositoryPickerKey(k string) tea.Cmd {
+	m.RepositoryPicker.clamp(len(m.Repositories))
 	switch k {
+	case "r":
+		return m.loadRepositories()
 	case "esc":
 		m.pop()
 	case "n", "down", "j":
-		m.PickerIndex = min(max(0, len(m.Repositories)-1), m.PickerIndex+1)
+		m.RepositoryPicker.Index = min(max(0, len(m.Repositories)-1), m.RepositoryPicker.Index+1)
 	case "p", "up", "k":
-		m.PickerIndex = max(0, m.PickerIndex-1)
+		m.RepositoryPicker.Index = max(0, m.RepositoryPicker.Index-1)
 	case "enter":
 		if len(m.Repositories) == 0 || m.listPullRequests == nil {
 			return nil
 		}
-		repository := m.Repositories[m.PickerIndex].Repository
+		repository := m.Repositories[m.RepositoryPicker.Index].Repository
 		m.notice = "Listing open pull requests from GitHub..."
-		ctx, cancel := context.WithCancel(m.ctx)
-		m.cancelAction = cancel
+		ctx := m.beginAction()
 		return m.start(func() tea.Msg {
 			prs, err := m.listPullRequests(ctx, repository)
 			return PullRequestListResult{PullRequests: prs, Err: err}
@@ -270,18 +276,19 @@ func (m *Model) repositoryPickerKey(k string) tea.Cmd {
 }
 
 func (m *Model) pullRequestPickerKey(k string) tea.Cmd {
+	m.PullRequestPicker.clamp(len(m.PullRequests))
 	switch k {
 	case "esc":
 		m.pop()
 	case "n", "down", "j":
-		m.PickerIndex = min(max(0, len(m.PullRequests)-1), m.PickerIndex+1)
+		m.PullRequestPicker.Index = min(max(0, len(m.PullRequests)-1), m.PullRequestPicker.Index+1)
 	case "p", "up", "k":
-		m.PickerIndex = max(0, m.PickerIndex-1)
+		m.PullRequestPicker.Index = max(0, m.PullRequestPicker.Index-1)
 	case "enter":
 		if len(m.PullRequests) == 0 || len(m.Repositories) == 0 || m.openPullRequest == nil {
 			return nil
 		}
-		pr := m.PullRequests[m.PickerIndex]
+		pr := m.PullRequests[m.PullRequestPicker.Index]
 		checkout := m.Repositories[0].Checkout
 		for _, repository := range m.Repositories {
 			if repository.Repository == pr.Identity.Repository {
@@ -290,8 +297,7 @@ func (m *Model) pullRequestPickerKey(k string) tea.Cmd {
 			}
 		}
 		m.notice = "Opening selected pull request; source stays local..."
-		ctx, cancel := context.WithCancel(m.ctx)
-		m.cancelAction = cancel
+		ctx := m.beginAction()
 		return m.start(func() tea.Msg {
 			n := m.notify
 			if n == nil {
@@ -305,69 +311,38 @@ func (m *Model) pullRequestPickerKey(k string) tea.Cmd {
 }
 
 func (m *Model) pickerView() string {
-	lines := []string{"Sessions (stored checks are historical; resume checks freshness)", "Storage: " + Escape(m.store.Path())}
-	start := max(0, m.PickerIndex-max(1, m.Height-4)+1)
-	for i := start; i < min(len(m.Entries), start+max(1, m.Height-4)); i++ {
-		entry := m.Entries[i]
-		marker := "  "
-		if i == m.PickerIndex {
-			marker = "> "
-		}
+	rows := make([]string, len(m.Entries))
+	for i, entry := range m.Entries {
 		text := entry.ID
 		if entry.Err != nil {
-			text += " UNREADABLE: " + Escape(entry.Err.Error())
+			text += " UNREADABLE: " + entry.Err.Error()
 		} else {
 			meta := entry.Record.Inventory.Comparison.Metadata
 			text += fmt.Sprintf(" %s #%d %d/%d read", meta.Identity.Repository, meta.Identity.Number, len(entry.Record.ReviewedSliceIDs), len(entry.Record.Slices))
 		}
-		lines = append(lines, marker+Escape(text))
+		rows[i] = Escape(text)
 	}
-	if len(m.Entries) == 0 {
-		lines = append(lines, "No saved sessions.")
+	storage := ""
+	if m.store != nil {
+		storage = "Storage: " + Escape(m.store.Path())
 	}
-	lines = append(lines, "up/down: select | enter: resume | esc: back | q: quit")
-	if m.ActionError != nil {
-		lines = append(lines, Escape(m.ActionError.Error()))
-	}
-	return strings.Join(lines, "\n")
+	return m.pickerScreen(&m.SessionPicker, []string{"Sessions (stored checks are historical; resume checks freshness)", storage}, rows, "No saved sessions.", "up/down: select | enter: resume | r: reload | esc: back | q: quit")
 }
 
 func (m *Model) repositoryPickerView() string {
-	lines := []string{"Remembered repositories", "Select a repository to list its open pull requests."}
+	rows := make([]string, len(m.Repositories))
 	for i, repository := range m.Repositories {
-		marker := "  "
-		if i == m.PickerIndex {
-			marker = "> "
-		}
-		lines = append(lines, marker+Escape(repository.Repository))
+		rows[i] = Escape(repository.Repository)
 	}
-	if len(m.Repositories) == 0 {
-		lines = append(lines, "No remembered repositories. Open a PR with --repo first.")
-	}
-	lines = append(lines, "up/down: select | enter: list PRs | esc: back | q: quit")
-	if m.ActionError != nil {
-		lines = append(lines, Escape(m.ActionError.Error()))
-	}
-	return strings.Join(lines, "\n")
+	return m.pickerScreen(&m.RepositoryPicker, []string{"Remembered repositories", "Select a repository to list its open pull requests."}, rows, "No remembered repositories. Open a PR with --repo first.", "up/down: select | enter: list PRs | r: reload | esc: back | q: quit")
 }
 
 func (m *Model) pullRequestPickerView() string {
-	lines := []string{"Open pull requests"}
+	rows := make([]string, len(m.PullRequests))
 	for i, pr := range m.PullRequests {
-		marker := "  "
-		if i == m.PickerIndex {
-			marker = "> "
-		}
-		lines = append(lines, fmt.Sprintf("%s#%d %s", marker, pr.Identity.Number, Escape(pr.Title)))
+		rows[i] = fmt.Sprintf("#%d %s", pr.Identity.Number, Escape(pr.Title))
 	}
-	if len(m.PullRequests) == 0 {
-		lines = append(lines, "No open pull requests.")
-	}
-	lines = append(lines, "up/down: select | enter: open PR | esc: back | q: quit")
-	if m.ActionError != nil {
-		lines = append(lines, Escape(m.ActionError.Error()))
-	}
-	return strings.Join(lines, "\n")
+	return m.pickerScreen(&m.PullRequestPicker, []string{"Open pull requests"}, rows, "No open pull requests.", "up/down: select | enter: open PR | esc: back | q: quit")
 }
 
 func (m *Model) footer() string {

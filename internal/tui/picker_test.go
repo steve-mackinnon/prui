@@ -1,0 +1,208 @@
+package tui
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"path/filepath"
+	"strings"
+	"testing"
+	"time"
+
+	tea "charm.land/bubbletea/v2"
+	"pr-review/internal/session"
+	"pr-review/internal/source"
+)
+
+func TestPickerListingCancellationAndRetry(t *testing.T) {
+	for _, keyCode := range []rune{'s', 'b'} {
+		t.Run(string(keyCode), func(t *testing.T) {
+			m := New(context.Background(), nil)
+			m.Session = largeSession(1, 1)
+			original := m.Session
+			m.SetLifecycle(pickerStore(t), nil, nil)
+			release := make(chan struct{})
+			started := make(chan struct{})
+			t.Cleanup(m.Close)
+			// Registered after Close so a failed assertion cannot strand a worker.
+			t.Cleanup(func() {
+				select {
+				case <-release:
+				default:
+					close(release)
+				}
+			})
+			calls := 0
+			read := func() error {
+				calls++
+				if calls == 1 {
+					close(started)
+					<-release
+				}
+				if calls == 2 {
+					return errors.New("synthetic storage failure")
+				}
+				return nil
+			}
+			m.listSessions = func() ([]session.Entry, error) {
+				return []session.Entry{{ID: "fixture", Err: errors.New("unreadable fixture")}}, read()
+			}
+			m.listRepositories = func() ([]session.Repository, error) {
+				return []session.Repository{{Repository: "owner/fixture"}}, read()
+			}
+			returned := make(chan tea.Cmd, 1)
+			go func() { _, cmd := m.Update(tea.KeyPressMsg{Code: keyCode, Text: string(keyCode)}); returned <- cmd }()
+			var cmd tea.Cmd
+			select {
+			case cmd = <-returned:
+			case <-time.After(time.Second):
+				t.Fatal("Update blocked on storage")
+			}
+			if !m.Busy || !strings.Contains(m.View().Content, "Loading") {
+				t.Fatal("missing loading state")
+			}
+			select {
+			case <-started:
+			case <-time.After(time.Second):
+				t.Fatal("storage worker did not start")
+			}
+			namedKey(m, tea.KeyEscape)
+			close(release)
+			m.Update(cmd())
+			if !errors.Is(m.ActionError, context.Canceled) || m.Session != original || len(m.Entries)+len(m.Repositories) != 0 {
+				t.Fatal("canceled listing replaced the review or adopted late results")
+			}
+			action(t, m, 'r')
+			if m.ActionError == nil || !strings.Contains(m.ActionError.Error(), "storage failure") {
+				t.Fatal("listing failure hidden")
+			}
+			action(t, m, 'r')
+			if m.ActionError != nil || m.Busy || len(m.Entries)+len(m.Repositories) != 1 {
+				t.Fatal("listing could not retry")
+			}
+			namedKey(m, tea.KeyEscape)
+			if m.top() != pageReview || m.Session != original {
+				t.Fatal("back lost original review")
+			}
+		})
+	}
+}
+
+func TestEmptyPickersIgnoreEnter(t *testing.T) {
+	for _, screen := range []page{pagePicker, pageRepositoryPicker, pagePullRequestPicker} {
+		m := New(context.Background(), nil)
+		m.Stack = []page{screen}
+		_, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+		if cmd != nil || m.Busy {
+			t.Fatal("empty picker started an operation")
+		}
+		_ = m.View()
+		m.Close()
+	}
+}
+
+func pickerStore(t *testing.T) *session.Store {
+	t.Helper()
+	s, err := session.Open(filepath.Join(t.TempDir(), "sessions"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { s.Close() })
+	return s
+}
+
+func TestBrowserInitializationListsLocalRepositories(t *testing.T) {
+	store := pickerStore(t)
+	if err := store.RememberRepository("owner/repo", t.TempDir()); err != nil {
+		t.Fatal(err)
+	}
+	m := NewPullRequestBrowser(context.Background(), store, nil, nil)
+	defer m.Close()
+	cmd := m.Init()
+	if cmd == nil {
+		t.Fatal("browser initialization did not load local repositories")
+	}
+	m.Update(cmd())
+	if m.Busy || m.top() != pageRepositoryPicker || !strings.Contains(m.View().Content, "> owner/repo") {
+		t.Fatalf("browser not ready: %s", m.View().Content)
+	}
+	if m.GuideScroll == nil {
+		t.Fatal("browser did not initialize guide scrolling")
+	}
+}
+
+func TestPickerBackNavigationRestoresRepositorySelection(t *testing.T) {
+	for _, count := range []int{1, 3} {
+		t.Run(fmt.Sprint(count), func(t *testing.T) {
+			m := New(context.Background(), nil)
+			defer m.Close()
+			m.Loading = false
+			m.Stack = []page{pageRepositoryPicker}
+			for i := 0; i < count; i++ {
+				m.Repositories = append(m.Repositories, session.Repository{Repository: fmt.Sprintf("owner/repo%d", i)})
+			}
+			selected := ""
+			m.listPullRequests = func(_ context.Context, repository string) ([]source.PullRequest, error) {
+				selected = repository
+				return []source.PullRequest{{Title: "First"}, {Title: "Second"}, {Title: "Third"}, {Title: "Fourth"}}, nil
+			}
+			if count > 1 {
+				namedKey(m, tea.KeyDown)
+			}
+			enter := func() {
+				_, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+				if cmd != nil {
+					m.Update(cmd())
+				}
+			}
+			enter()
+			want := selected
+			namedKey(m, tea.KeyDown)
+			namedKey(m, tea.KeyDown)
+			namedKey(m, tea.KeyDown)
+			namedKey(m, tea.KeyEscape)
+			if !strings.Contains(m.View().Content, "> "+want) {
+				t.Fatalf("parent selection lost after back: %s", m.View().Content)
+			}
+			enter()
+			if selected != want {
+				t.Fatalf("reopened %q, want %q", selected, want)
+			}
+		})
+	}
+}
+
+func TestPickerViewportKeepsSelectionVisible(t *testing.T) {
+	for _, screen := range []page{pagePicker, pageRepositoryPicker, pagePullRequestPicker} {
+		t.Run(fmt.Sprint(screen), func(t *testing.T) {
+			m := New(context.Background(), nil)
+			defer m.Close()
+			m.Loading = false
+			m.store = pickerStore(t)
+			m.Stack = []page{screen}
+			for i := 0; i < 30; i++ {
+				m.Entries = append(m.Entries, session.Entry{ID: fmt.Sprintf("entry-%02d", i), Err: fmt.Errorf("fixture")})
+				m.Repositories = append(m.Repositories, session.Repository{Repository: fmt.Sprintf("repo-%02d", i)})
+				m.PullRequests = append(m.PullRequests, source.PullRequest{Identity: source.Identity{Number: i}, Title: fmt.Sprintf("pr-%02d", i)})
+			}
+			for i := 0; i < 20; i++ {
+				namedKey(m, tea.KeyDown)
+			}
+			for _, height := range []int{10, 4, 2, 1, 8} {
+				m.Update(tea.WindowSizeMsg{Width: 24, Height: height})
+				content := m.View().Content
+				if !strings.Contains(content, "> ") || !strings.Contains(content, "20") {
+					t.Fatalf("selection hidden at height %d: %s", height, content)
+				}
+				if len(strings.Split(content, "\n")) > height {
+					t.Fatalf("height overflow: %s", content)
+				}
+				for _, line := range strings.Split(content, "\n") {
+					if visibleWidth(line) > 24 {
+						t.Fatalf("width overflow: %q", line)
+					}
+				}
+			}
+		})
+	}
+}

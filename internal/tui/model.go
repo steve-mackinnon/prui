@@ -59,7 +59,9 @@ type Model struct {
 	Loading                   bool
 	Busy                      bool
 	EditIndex                 int
-	PickerIndex               int
+	SessionPicker             pickerState
+	RepositoryPicker          pickerState
+	PullRequestPicker         pickerState
 	Entries                   []session.Entry
 	Repositories              []session.Repository
 	PullRequests              []source.PullRequest
@@ -77,25 +79,44 @@ type Model struct {
 	openPullRequest           PullRequestOpener
 	generateGuide             GuideLoader
 	cancelAction              context.CancelFunc
+	actionCtx                 context.Context
+	listSessions              func() ([]session.Entry, error)
+	listRepositories          func() ([]session.Repository, error)
 }
 
 type PullRequestLoader func(context.Context, string) ([]source.PullRequest, error)
 type PullRequestOpener func(context.Context, string, source.Identity, func(string)) (*review.Session, error)
 
-func New(parent context.Context, load Loader) *Model {
+func newModel(parent context.Context) *Model {
 	ctx, cancel := context.WithCancel(parent)
-	return &Model{ctx: ctx, cancel: cancel, load: load, Scroll: map[int]int{}, GuideScroll: map[int]int{}, collapsed: newExpansion(), Stack: []page{pageReview}, Width: 100, Height: 24, Loading: true, notice: "Loading GitHub metadata and pinned committed objects..."}
+	return &Model{ctx: ctx, cancel: cancel, Scroll: map[int]int{}, GuideScroll: map[int]int{}, collapsed: newExpansion(), Stack: []page{pageReview}, Width: 100, Height: 24}
+}
+
+func New(parent context.Context, load Loader) *Model {
+	m := newModel(parent)
+	m.load, m.Loading = load, load != nil
+	m.notice = "Loading GitHub metadata and pinned committed objects..."
+	return m
 }
 
 // NewPullRequestBrowser starts with local repository selection and makes no
-// network request until the user explicitly selects a repository.
+// network request until the user explicitly selects a repository. Init loads
+// remembered repositories in a tracked worker, just like the other entry path.
 func NewPullRequestBrowser(parent context.Context, store *session.Store, list PullRequestLoader, open PullRequestOpener) *Model {
-	ctx, cancel := context.WithCancel(parent)
-	repositories, err := store.ListRepositories()
-	return &Model{ctx: ctx, cancel: cancel, Scroll: map[int]int{}, collapsed: newExpansion(), Stack: []page{pageRepositoryPicker}, Width: 100, Height: 24, store: store, Repositories: repositories, ActionError: err, listPullRequests: list, openPullRequest: open}
+	m := newModel(parent)
+	m.Stack = []page{pageRepositoryPicker}
+	m.SetLifecycle(store, nil, nil)
+	m.SetPullRequestLifecycle(list, open)
+	return m
 }
 func (m *Model) SetNotifier(f func(string)) { m.notify = f }
 func (m *Model) Init() tea.Cmd {
+	if m.top() == pageRepositoryPicker {
+		return m.loadRepositories()
+	}
+	if m.load == nil {
+		return nil
+	}
 	return m.start(func() tea.Msg {
 		n := m.notify
 		if n == nil {
@@ -114,9 +135,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.Busy = false
 		m.begin()
 	case ActionResult:
-		m.Busy = false
-		m.cancelAction = nil
-		m.ActionError = v.Err
+		v.Err = m.finishAction(v.Err)
 		if v.Err == nil && v.Session != nil {
 			m.Session = v.Session
 			if v.Reset {
@@ -130,13 +149,21 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 	case PullRequestListResult:
-		m.Busy = false
-		m.cancelAction = nil
-		m.ActionError = v.Err
+		v.Err = m.finishAction(v.Err)
 		if v.Err == nil {
 			m.PullRequests = v.PullRequests
-			m.PickerIndex = 0
+			m.PullRequestPicker = pickerState{}
 			m.push(pagePullRequestPicker)
+		}
+	case SessionListResult:
+		if m.finishAction(v.Err) == nil {
+			m.Entries = v.Entries
+			m.SessionPicker.clamp(len(m.Entries))
+		}
+	case RepositoryListResult:
+		if m.finishAction(v.Err) == nil {
+			m.Repositories = v.Repositories
+			m.RepositoryPicker.clamp(len(m.Repositories))
 		}
 	case Notice:
 		m.notice = string(v)
