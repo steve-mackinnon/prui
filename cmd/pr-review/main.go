@@ -10,8 +10,6 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/term"
-	"pr-review/internal/guide"
-	"pr-review/internal/review"
 	"pr-review/internal/session"
 	"pr-review/internal/source"
 	"pr-review/internal/tui"
@@ -62,7 +60,7 @@ func run(args []string) int {
 	}
 	r := source.NewRunner()
 	limits := source.Defaults()
-	app := application{store: store, runner: r, limits: limits}
+	app := application{store: store, runner: r, limits: limits, offline: o.Offline}
 	// gh runs outside both the workspace and the reviewed checkout.
 	if !o.Offline {
 		dir, err := os.MkdirTemp("", "pr-review-gh-")
@@ -86,9 +84,7 @@ func run(args []string) int {
 			fmt.Fprintln(os.Stderr, "prs without owner/repo requires an interactive terminal; pass owner/repo to list directly")
 			return 1
 		}
-		m := tui.NewPullRequestBrowser(ctx, store, app.listPullRequests, func(c context.Context, checkout string, id source.Identity, n func(string)) (*review.Session, error) {
-			return app.open(c, checkout, id, n)
-		})
+		m := app.model(ctx, o)
 		p := tea.NewProgram(m, tea.WithContext(ctx))
 		m.SetNotifier(func(s string) { p.Send(tui.Notice(s)) })
 		_, err := p.Run()
@@ -102,16 +98,14 @@ func run(args []string) int {
 		}
 		return 0
 	}
-	load := func(c context.Context, notify func(string)) (*review.Session, error) {
-		return app.load(c, o, notify)
-	}
+
 	if o.Plain || os.Getenv("TERM") == "dumb" || !term.IsTerminal(os.Stdout.Fd()) || !term.IsTerminal(os.Stdin.Fd()) {
 		if o.Offline {
 			fmt.Fprintln(os.Stderr, "Offline snapshot; no freshness check or network access.")
 		} else {
 			fmt.Fprintln(os.Stderr, "Reading GitHub PR metadata; source stays local. New comparisons may fetch missing objects.")
 		}
-		s, e := load(ctx, func(s string) { fmt.Fprintln(os.Stderr, tui.Escape(s)) })
+		s, e := app.load(ctx, o, func(s string) { fmt.Fprintln(os.Stderr, tui.Escape(s)) })
 		if e != nil {
 			fmt.Fprintln(os.Stderr, tui.Escape(e.Error()))
 			if ctx.Err() != nil {
@@ -127,34 +121,7 @@ func run(args []string) int {
 		}
 		return 0
 	}
-	m := tui.New(ctx, load)
-	var reader review.MetadataReader = &app
-	if o.Offline {
-		reader = nil
-	}
-	m.SetLifecycle(store, reader, func(c context.Context, old *review.Session, n func(string)) (*review.Session, error) {
-		if o.Offline {
-			return nil, errors.New("offline mode: resume without --offline to start a new comparison")
-		}
-		override := ""
-		if old.ID == o.SessionID {
-			override = o.Checkout
-		}
-		return app.fresh(c, old, override, n)
-	})
-	m.SetPullRequestLifecycle(app.listPullRequests, func(c context.Context, checkout string, id source.Identity, n func(string)) (*review.Session, error) {
-		return app.open(c, checkout, id, n)
-	})
-	m.SetGuideLifecycle(func(c context.Context, original *review.Session, n func(string)) (*review.Session, error) {
-		if n != nil {
-			n("Creating OpenAI analyzer for this confirmed guide request...")
-		}
-		analyzer, err := guide.NewOpenAI(guide.OpenAIOptions{APIKey: os.Getenv("OPENAI_API_KEY"), Endpoint: os.Getenv("OPENAI_BASE_URL")})
-		if err != nil {
-			return nil, err
-		}
-		return app.generateGuide(c, original, analyzer)
-	})
+	m := app.model(ctx, o)
 	p := tea.NewProgram(m, tea.WithContext(ctx))
 	m.SetNotifier(func(s string) { p.Send(tui.Notice(s)) })
 	_, e = p.Run()

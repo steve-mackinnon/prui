@@ -14,14 +14,19 @@ import (
 )
 
 type application struct {
-	store      *session.Store
-	gh         source.GitHub
-	setupError error
-	runner     source.Runner
-	limits     source.Limits
+	store       *session.Store
+	gh          source.GitHub
+	setupError  error
+	runner      source.Runner
+	limits      source.Limits
+	offline     bool
+	newAnalyzer func() (guide.Analyzer, error)
 }
 
 func (a *application) Metadata(ctx context.Context, id source.Identity) (source.Metadata, error) {
+	if err := a.online(ctx); err != nil {
+		return source.Metadata{}, err
+	}
 	if a.setupError != nil {
 		return source.Metadata{}, a.setupError
 	}
@@ -32,6 +37,9 @@ func (a *application) Metadata(ctx context.Context, id source.Identity) (source.
 }
 
 func (a *application) listPullRequests(ctx context.Context, repository string) ([]source.PullRequest, error) {
+	if err := a.online(ctx); err != nil {
+		return nil, err
+	}
 	if _, err := source.ParseIdentity("1", repository); err != nil {
 		return nil, err
 	}
@@ -45,6 +53,9 @@ func (a *application) listPullRequests(ctx context.Context, repository string) (
 }
 
 func (a *application) open(ctx context.Context, checkout string, id source.Identity, notify func(string)) (*review.Session, error) {
+	if err := a.online(ctx); err != nil {
+		return nil, err
+	}
 	checkout, err := canonicalPath(checkout)
 	if err != nil {
 		return nil, err
@@ -93,6 +104,9 @@ func (a *application) checkout(id source.Identity, explicit string) (string, boo
 }
 
 func (a *application) fresh(ctx context.Context, old *review.Session, checkout string, notify func(string)) (*review.Session, error) {
+	if err := a.online(ctx); err != nil {
+		return nil, err
+	}
 	if checkout == "" {
 		checkout = string(old.Checkout)
 	}
@@ -103,10 +117,17 @@ func (a *application) fresh(ctx context.Context, old *review.Session, checkout s
 }
 
 func (a *application) generateGuide(ctx context.Context, original *review.Session, analyzer guide.Analyzer) (*review.Session, error) {
+	if err := a.online(ctx); err != nil {
+		return nil, err
+	}
 	if original == nil || original.ID == "" {
 		return nil, errors.New("guide generation requires a saved review session")
 	}
-	return a.store.Create(review.DeriveGuide(ctx, original, analyzer, review.Config{}))
+	derived := review.DeriveGuide(ctx, original, analyzer, review.Config{})
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	return a.store.Create(derived)
 }
 
 func (a *application) load(ctx context.Context, o options, notify func(string)) (*review.Session, error) {
@@ -122,7 +143,7 @@ func (a *application) load(ctx context.Context, o options, notify func(string)) 
 		return saved, err
 	}
 	var reader review.MetadataReader = a
-	if o.Offline {
+	if o.Offline || a.offline {
 		reader = nil
 	}
 	saved, err := review.Resume(ctx, a.store, o.SessionID, reader)
