@@ -10,12 +10,21 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type View struct {
 	dir, git string
 	runner   Runner
 	limits   Limits
+}
+
+// PinTiming records the bounded phases of building a pinned comparison.
+// It is optional diagnostic data for callers such as the verifier.
+type PinTiming struct {
+	ViewSetup time.Duration
+	MergeBase time.Duration
+	Fetch     time.Duration
 }
 
 func (v *View) Close() error { return os.RemoveAll(v.dir) }
@@ -264,6 +273,11 @@ type PinnedComparison struct {
 }
 
 func Pin(ctx context.Context, checkout string, id Identity, gh GitHub, r Runner, l Limits, notify func(string)) (*View, PinnedComparison, error) {
+	return PinWithTiming(ctx, checkout, id, gh, r, l, notify, nil)
+}
+
+// PinWithTiming performs Pin and optionally accumulates its internal stage durations.
+func PinWithTiming(ctx context.Context, checkout string, id Identity, gh GitHub, r Runner, l Limits, notify func(string), timing *PinTiming) (*View, PinnedComparison, error) {
 	if notify == nil {
 		notify = func(string) {}
 	}
@@ -272,11 +286,19 @@ func Pin(ctx context.Context, checkout string, id Identity, gh GitHub, r Runner,
 		return nil, PinnedComparison{}, e
 	}
 	for attempt := 0; attempt < 2; attempt++ {
+		started := time.Now()
 		v, e := NewView(ctx, checkout, r, l)
+		if timing != nil {
+			timing.ViewSetup += time.Since(started)
+		}
 		if e != nil {
 			return nil, PinnedComparison{}, e
 		}
+		started = time.Now()
 		base, pinErr := v.mergeBase(ctx, m)
+		if timing != nil {
+			timing.MergeBase += time.Since(started)
+		}
 		if pinErr == nil {
 			return v, PinnedComparison{Metadata: m, MergeBaseSHA: base}, nil
 		}
@@ -284,7 +306,11 @@ func Pin(ctx context.Context, checkout string, id Identity, gh GitHub, r Runner,
 			_ = v.Close()
 			return nil, PinnedComparison{}, pinErr
 		}
+		started = time.Now()
 		fetchErr := v.fetch(ctx, m, gh, notify)
+		if timing != nil {
+			timing.Fetch += time.Since(started)
+		}
 		if errors.Is(fetchErr, ErrLimit) || errors.Is(fetchErr, ErrAuthentication) || ctx.Err() != nil {
 			_ = v.Close()
 			return nil, PinnedComparison{}, fetchErr
@@ -306,7 +332,11 @@ func Pin(ctx context.Context, checkout string, id Identity, gh GitHub, r Runner,
 			_ = v.Close()
 			return nil, PinnedComparison{}, fetchErr
 		}
+		started = time.Now()
 		base, e = v.mergeBase(ctx, m)
+		if timing != nil {
+			timing.MergeBase += time.Since(started)
+		}
 		if e != nil {
 			_ = v.Close()
 			return nil, PinnedComparison{}, fmt.Errorf("unresolved pinned ancestry: %w", e)

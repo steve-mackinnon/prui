@@ -140,6 +140,15 @@ func RunJourney(ctx context.Context, config JourneyConfig) (Journey, error) {
 		timing.Local.FirstReviewFrame = firstFrame
 		timing.Network.GitHubMetadata = openTiming.GitHubMetadata
 		timing.Network.PinAndInventory = openTiming.PinAndInventory
+		if run == 1 {
+			timing.Network.Stages = map[string]time.Duration{
+				"view_setup": openTiming.ViewSetup,
+				"fetch":      openTiming.Fetch,
+				"merge_base": openTiming.MergeBase,
+				"inventory":  openTiming.Inventory,
+				"evidence":   openTiming.Evidence,
+			}
+		}
 		timings = append(timings, timing)
 	}
 	journey.Report.Status = Passed

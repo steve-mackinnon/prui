@@ -3,19 +3,34 @@ package verify
 import (
 	"bytes"
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 )
 
 func TestOpenTimingRecordRoundTripsTypedDurations(t *testing.T) {
 	var stderr bytes.Buffer
-	want := OpenTiming{GitHubMetadata: 3 * time.Millisecond, PinAndInventory: 7 * time.Millisecond}
+	want := OpenTiming{GitHubMetadata: 3 * time.Millisecond, PinAndInventory: 7 * time.Millisecond, ViewSetup: time.Millisecond, Fetch: 2 * time.Millisecond, MergeBase: 3 * time.Millisecond, Inventory: 4 * time.Millisecond, Evidence: 5 * time.Millisecond}
 	if err := WriteOpenTiming(&stderr, want); err != nil {
 		t.Fatal(err)
 	}
 	got, err := parseOpenTiming(stderr.Bytes())
 	if err != nil || got != want {
 		t.Fatalf("timing = %#v, %v; want %#v", got, err, want)
+	}
+}
+
+func TestTimingJSONIncludesColdOpenStages(t *testing.T) {
+	timing := AggregateTiming([]TimingRun{{
+		Cache:   ColdCache,
+		Network: NetworkTiming{Stages: map[string]time.Duration{"fetch": 7 * time.Millisecond, "inventory": 3 * time.Millisecond}},
+	}})
+	b, err := json.Marshal(timing)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(b), `"stages":{"fetch":7,"inventory":3}`) {
+		t.Fatalf("timing JSON omitted stages: %s", b)
 	}
 }
 

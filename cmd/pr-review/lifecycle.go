@@ -92,8 +92,9 @@ func (a *application) open(ctx context.Context, checkout string, id source.Ident
 		timing = &timedGitHub{GitHub: a.gh}
 		gh = timing
 	}
+	var profile review.Timing
 	started := time.Now()
-	raw, err := review.Open(ctx, checkout, id, gh, a.runner, a.limits, notify)
+	raw, err := review.OpenWithConfig(ctx, checkout, id, gh, a.runner, a.limits, notify, review.Config{Timing: &profile})
 	openedIn := time.Since(started)
 	if err != nil {
 		return nil, err
@@ -103,7 +104,7 @@ func (a *application) open(ctx context.Context, checkout string, id source.Ident
 		if pinAndInventory < 0 {
 			pinAndInventory = 0
 		}
-		if err := verify.WriteOpenTiming(os.Stderr, verify.OpenTiming{GitHubMetadata: timing.metadata, PinAndInventory: pinAndInventory}); err != nil {
+		if err := verify.WriteOpenTiming(os.Stderr, verify.OpenTiming{GitHubMetadata: timing.metadata, PinAndInventory: pinAndInventory, ViewSetup: profile.Pin.ViewSetup, Fetch: profile.Pin.Fetch, MergeBase: profile.Pin.MergeBase, Inventory: profile.Inventory, Evidence: profile.Evidence}); err != nil {
 			return nil, err
 		}
 	}

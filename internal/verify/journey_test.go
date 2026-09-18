@@ -71,8 +71,9 @@ func TestRunJourneyOpensThenMarksAndResumesWithBoundedArtifacts(t *testing.T) {
 	if journey.Report.Timing.Runs[0].Network.GitHubMetadata <= 0 || journey.Report.Timing.Runs[0].Network.PinAndInventory <= 0 || journey.Report.Timing.Runs[0].Local.ProcessStart <= 0 || journey.Report.Timing.Runs[0].Local.FirstReviewFrame <= journey.Report.Timing.Runs[0].Local.ProcessStart {
 		t.Fatalf("journey did not record observed timings: %#v", journey.Report.Timing.Runs[0])
 	}
-	if journey.Report.Timing.Runs[1].Network != (NetworkTiming{}) {
-		t.Fatalf("warm run repeated network work: %#v", journey.Report.Timing.Runs[1])
+	warm := journey.Report.Timing.Runs[1].Network
+	if warm.GitHubMetadata != 0 || warm.PinAndInventory != 0 || len(warm.Stages) != 0 {
+		t.Fatalf("warm run repeated network work: %#v", warm)
 	}
 	if _, err := os.Stat(filepath.Join(artifacts, "terminal.txt")); err != nil {
 		t.Fatal(err)

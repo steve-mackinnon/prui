@@ -20,6 +20,11 @@ const openTimingPrefix = "pr-review-verify-timing:v1 "
 type OpenTiming struct {
 	GitHubMetadata  time.Duration `json:"github_metadata_ns"`
 	PinAndInventory time.Duration `json:"pin_and_inventory_ns"`
+	ViewSetup       time.Duration `json:"view_setup_ns"`
+	Fetch           time.Duration `json:"fetch_ns"`
+	MergeBase       time.Duration `json:"merge_base_ns"`
+	Inventory       time.Duration `json:"inventory_ns"`
+	Evidence        time.Duration `json:"evidence_ns"`
 }
 
 func WriteOpenTiming(w io.Writer, timing OpenTiming) error {
@@ -44,7 +49,7 @@ func parseOpenTiming(stderr []byte) (OpenTiming, error) {
 		if err := json.Unmarshal([]byte(strings.TrimPrefix(line, openTimingPrefix)), &result); err != nil {
 			return OpenTiming{}, fmt.Errorf("invalid open timing record: %w", err)
 		}
-		if result.GitHubMetadata < 0 || result.PinAndInventory < 0 {
+		if result.GitHubMetadata < 0 || result.PinAndInventory < 0 || result.ViewSetup < 0 || result.Fetch < 0 || result.MergeBase < 0 || result.Inventory < 0 || result.Evidence < 0 {
 			return OpenTiming{}, fmt.Errorf("invalid negative open timing")
 		}
 		found = true
@@ -79,6 +84,7 @@ type LocalTiming struct {
 type NetworkTiming struct {
 	GitHubMetadata  time.Duration
 	PinAndInventory time.Duration
+	Stages          map[string]time.Duration
 }
 
 type Timing struct {
@@ -157,8 +163,9 @@ func (t Timing) MarshalJSON() ([]byte, error) {
 		FirstReviewFrameMS int64 `json:"first_review_frame_ms"`
 	}
 	type networkRunJSON struct {
-		GitHubMetadataMS  int64 `json:"github_metadata_ms"`
-		PinAndInventoryMS int64 `json:"pin_and_inventory_ms"`
+		GitHubMetadataMS  int64            `json:"github_metadata_ms"`
+		PinAndInventoryMS int64            `json:"pin_and_inventory_ms"`
+		Stages            map[string]int64 `json:"stages,omitempty"`
 	}
 	type runJSON struct {
 		Cache   CacheState     `json:"cache"`
@@ -180,9 +187,13 @@ func (t Timing) MarshalJSON() ([]byte, error) {
 	}
 	runs := make([]runJSON, len(t.Runs))
 	for i, run := range t.Runs {
+		stages := make(map[string]int64, len(run.Network.Stages))
+		for name, duration := range run.Network.Stages {
+			stages[name] = duration.Milliseconds()
+		}
 		runs[i] = runJSON{Cache: run.Cache,
 			Local:   localRunJSON{ProcessStartMS: run.Local.ProcessStart.Milliseconds(), FirstReviewFrameMS: run.Local.FirstReviewFrame.Milliseconds()},
-			Network: networkRunJSON{GitHubMetadataMS: run.Network.GitHubMetadata.Milliseconds(), PinAndInventoryMS: run.Network.PinAndInventory.Milliseconds()},
+			Network: networkRunJSON{GitHubMetadataMS: run.Network.GitHubMetadata.Milliseconds(), PinAndInventoryMS: run.Network.PinAndInventory.Milliseconds(), Stages: stages},
 		}
 	}
 	var aggregate aggregateJSON

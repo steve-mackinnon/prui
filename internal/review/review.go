@@ -8,6 +8,7 @@ import (
 	"pr-review/internal/privacy"
 	"pr-review/internal/session"
 	"pr-review/internal/source"
+	"time"
 )
 
 type Slice = session.Slice
@@ -19,6 +20,14 @@ type Session = session.Record
 type Config struct {
 	Policy   privacy.Policy
 	Analyzer guide.Analyzer // nil means no analysis for this invocation
+	Timing   *Timing
+}
+
+// Timing records optional stage durations for one comparison opening.
+type Timing struct {
+	Pin       source.PinTiming
+	Inventory time.Duration
+	Evidence  time.Duration
 }
 
 func Open(ctx context.Context, checkout string, id source.Identity, gh source.GitHub, r source.Runner, l source.Limits, notify func(string)) (*Session, error) {
@@ -26,16 +35,28 @@ func Open(ctx context.Context, checkout string, id source.Identity, gh source.Gi
 }
 
 func OpenWithConfig(ctx context.Context, checkout string, id source.Identity, gh source.GitHub, r source.Runner, l source.Limits, notify func(string), cfg Config) (*Session, error) {
-	v, p, e := source.Pin(ctx, checkout, id, gh, r, l, notify)
+	var pinTiming *source.PinTiming
+	if cfg.Timing != nil {
+		pinTiming = &cfg.Timing.Pin
+	}
+	v, p, e := source.PinWithTiming(ctx, checkout, id, gh, r, l, notify, pinTiming)
 	if e != nil {
 		return nil, e
 	}
 	defer v.Close()
+	started := time.Now()
 	inv, e := inventory.Build(ctx, v, p, l)
+	if cfg.Timing != nil {
+		cfg.Timing.Inventory += time.Since(started)
+	}
 	if e != nil {
 		return nil, e
 	}
+	started = time.Now()
 	contextBundle := reviewcontext.Retrieve(ctx, v, p, inv, cfg.Policy, reviewcontext.Defaults)
+	if cfg.Timing != nil {
+		cfg.Timing.Evidence += time.Since(started)
+	}
 	// Analysis consumes only frozen material and runs before slicing, so it can
 	// interpret the change but never influence file ownership or progress.
 	b := guide.Analyze(ctx, cfg.Analyzer, inv, guide.InputFrom(inv, contextBundle, cfg.Policy, guide.Defaults))
