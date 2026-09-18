@@ -18,6 +18,12 @@ are needed. Local process execution, PTYs, and loopback listeners must be allowe
 a sandbox that denies those operations cannot run the full integration suite.
 Never run scripts from a reviewed repository as test fixtures.
 
+`pr-review verify` is intentionally not a test-suite command: it opens a real
+PR through the user's authenticated GitHub CLI. Its journey engine is covered
+with a synthetic child executable and standard-library PTY fixture; run a live
+verification manually only when an agent has been given a specific PR URL and
+checkout.
+
 The GitHub Actions workflow runs this gate on Linux and macOS for pull requests
 and pushes to `main`. Repository maintainers can require both `Verify` matrix
 checks in branch protection; adding the workflow alone does not configure that

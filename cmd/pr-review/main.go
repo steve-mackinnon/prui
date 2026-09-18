@@ -2,14 +2,17 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/signal"
 	"syscall"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/term"
+	"pr-review/internal/guideeval"
 	"pr-review/internal/session"
 	"pr-review/internal/source"
 	"pr-review/internal/tui"
@@ -27,6 +30,9 @@ func run(args []string) int {
 	}
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
+	if o.Command == "verify" {
+		return runVerify(ctx, o)
+	}
 	if o.Storage == "" {
 		o.Storage, e = session.DefaultPath()
 		if e != nil {
@@ -40,7 +46,12 @@ func run(args []string) int {
 			return 1
 		}
 	}
-	store, e := session.Open(o.Storage)
+	var store *session.Store
+	if o.Command == "eval-guides" {
+		store, e = session.OpenReadOnly(o.Storage)
+	} else {
+		store, e = session.Open(o.Storage)
+	}
 	if e != nil {
 		fmt.Fprintln(os.Stderr, tui.Escape(e.Error()))
 		return 1
@@ -49,6 +60,13 @@ func run(args []string) int {
 	fmt.Fprintln(os.Stderr, "Local session storage:", tui.Escape(store.Path()))
 	if o.Command == "sessions" {
 		return listSessions(store, os.Stdout)
+	}
+	if o.Command == "eval-guides" {
+		if e := evalGuides(store, o.SessionID, os.Stdout); e != nil {
+			fmt.Fprintln(os.Stderr, tui.Escape(e.Error()))
+			return 1
+		}
+		return 0
 	}
 	if o.Command == "delete" {
 		if e := store.Delete(o.SessionID); e != nil {
@@ -143,3 +161,17 @@ func run(args []string) int {
 	return 0
 }
 func main() { os.Exit(run(os.Args[1:])) }
+
+// evalGuides reads an immutable stored snapshot and emits deterministic guide
+// checks. It deliberately has no GitHub or analysis-provider dependency.
+func evalGuides(store *session.Store, id string, out io.Writer) error {
+	record, err := store.Load(id)
+	if err != nil {
+		return err
+	}
+	corpus, err := guideeval.CuratedCorpus()
+	if err != nil {
+		return err
+	}
+	return json.NewEncoder(out).Encode(guideeval.Evaluate(record.Guides, record.Inventory, corpus))
+}

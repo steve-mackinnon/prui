@@ -1,0 +1,24 @@
+[
+  {
+    "name": "authentication-flow",
+    "unit_ids": ["config", "handler", "test"],
+    "expectations": [
+      {
+        "title_keywords": ["authentication"],
+        "section_title_keywords": ["credentials", "login"],
+        "unit_id_groups": [["config", "handler"], ["test"]]
+      }
+    ]
+  },
+  {
+    "name": "configuration-and-docs",
+    "unit_ids": ["config", "docs"],
+    "expectations": [
+      {
+        "title_keywords": ["configuration"],
+        "section_title_keywords": ["document"],
+        "unit_id_groups": [["config"], ["docs"]]
+      }
+    ]
+  }
+]

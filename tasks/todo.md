@@ -95,3 +95,59 @@
 - Changes were reviewed for state ownership, cancellation, offline boundaries,
   preservation of source/snapshots, escaping, bounded test waits/output, and
   subprocess cleanup. No dependency or stored-session schema changes were needed.
+
+# Agent PR Verifier tasks
+
+## 1. Versioned verifier report contract
+
+- [x] Add `internal/verify` result types, relative artifact-path validation,
+      stable JSON encoding, and exit-status mapping.
+- Acceptance: every completed outcome has one JSON object and secrets or
+      absolute paths cannot appear in it.
+- Verify: write and run focused failing-then-passing package tests.
+- Depends on: none. Files: `internal/verify/*`.
+
+## 2. Bounded live PR terminal journey
+
+- [x] Add `pr-review verify` input validation and a private-store, fixed-PTY
+      journey that opens, navigates, marks, quits, and resumes offline.
+- Acceptance: synthetic integration proves the production open/resume path;
+      real runs stay manual and never execute reviewed code.
+- Verify: focused command/PTY tests and `go build ./...`.
+- Depends on: task 1. Files: `cmd/pr-review/*`, `internal/verify/*`, testdata.
+
+## Checkpoint: live verifier
+
+- [x] Focused report and journey tests pass; normal test suite remains
+      credential-free.
+
+## 3. Deterministic terminal artifacts
+
+- [x] Save bounded transcript, screen text, and deterministic SVG milestones
+      under the explicit artifact directory.
+- Acceptance: artifact paths are contained, escaped, and listed in the report.
+- Verify: focused artifact tests.
+- Depends on: tasks 1–2. Files: `internal/verify/*`.
+
+## 4. Timing observations
+
+- [x] Add typed per-run and aggregate lifecycle timing to the report.
+- Acceptance: local startup and network-backed work remain distinct and never
+      change pass/fail status.
+- Verify: focused timing tests.
+- Depends on: tasks 1–2. Files: `internal/verify/*`.
+
+## 5. Read-only stored-guide evaluation
+
+- [x] Add `eval-guides SESSION_ID`, structural validation, and curated synthetic
+      semantic-corpus evaluation.
+- Acceptance: no provider call or credential read; absent guides report
+      `not_available`; named expectations fail independently.
+- Verify: `go test ./internal/guideeval ./cmd/pr-review`.
+- Depends on: none. Files: `internal/guideeval/*`, `cmd/pr-review/*`.
+
+## Checkpoint: complete
+
+- [x] All focused tests, `./scripts/verify.sh`, and `git diff --check` pass.
+- [ ] An authorized manual real-PR run passes when a PR URL and checkout are
+      supplied.

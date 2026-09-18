@@ -16,11 +16,17 @@ go run ./cmd/pr-review sessions
 go run ./cmd/pr-review resume SESSION_ID
 go run ./cmd/pr-review resume SESSION_ID --offline --plain
 go run ./cmd/pr-review resume SESSION_ID --new --repo /path/to/checkout
+go run ./cmd/pr-review eval-guides SESSION_ID
+go run ./cmd/pr-review verify https://github.com/owner/repo/pull/42 --repo /path/to/checkout --artifacts /tmp/pr-review-artifacts
 go run ./cmd/pr-review delete SESSION_ID
 go build -o pr-review ./cmd/pr-review
 ```
 
 `open`, normal `resume`, explicit refresh, and listing a repository’s PRs contact GitHub. `sessions`, `delete`, and `resume --offline` do not. Implementation tests use synthetic objects, mocked GitHub, and a local test provider endpoint only. Source is uploaded to OpenAI only after confirming the interactive guide consent screen. Opening, resuming, and browsing do not request guide analysis automatically. Git fetch sends requested revision IDs and Git protocol negotiation to GitHub; metadata/authentication use the user's trusted `gh` installation.
+
+`eval-guides SESSION_ID` reads an existing local session through a read-only store handle and emits a JSON report. It never opens GitHub, reads provider credentials, or creates guides; a session without stored generated guides reports `not_available`. Reports always include structural validation, and include named synthetic-corpus checks only when the frozen inventory matches a curated synthetic fixture.
+
+`verify` is a manual acceptance utility for agents. It opens the requested PR through the production read-only source path, drives a fixed offline terminal journey (navigate, mark, quit, resume), and prints one JSON verdict. `--artifacts` must name a new directory outside the checkout; it receives `report.json`, the bounded terminal transcript, and fixed-size SVG screen captures that an agent can attach to chat. The verifier creates a private temporary session store and never executes reviewed code or generates guides. Its timing report separates offline terminal startup from the PR-open operation; GitHub metadata is not measured independently. It requires Python 3 for the standard-library PTY harness and is deliberately excluded from CI.
 
 `--plain` emits escaped text without a pager, color, terminal control sequences, or interaction. It includes the guide block, its analysis scope, and the bounded evidence scope report. It is automatic for redirected stdin/stdout or `TERM=dumb`, and stays uncolored even when the terminal supports color or `CLICOLOR_FORCE` is set. Exit codes: 0 successful raw inventory, 1 invalid input/open/runtime failure, 2 unavailable review content, 130 canceled loading. Analysis being unavailable never changes the exit status. Exit 0 is not approval or evidence that you read the review.
 

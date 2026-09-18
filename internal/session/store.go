@@ -80,6 +80,9 @@ func (r *Record) CurrentPlan() *plan.ValidatedPlan {
 func (s *Store) ApplyPlan(r *Record, replacement plan.ValidatedPlan) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if err := s.writable(); err != nil {
+		return err
+	}
 	unitIDs, evidenceIDs := map[string]bool{}, map[string]bool{}
 	for _, u := range r.Inventory.Units {
 		unitIDs[u.ID] = true
@@ -138,9 +141,11 @@ type Entry struct {
 }
 
 type Store struct {
-	mu   sync.Mutex
-	path string
-	lock *os.File
+	mu       sync.Mutex
+	path     string
+	lock     *os.File
+	readOnly bool
+	closed   bool
 }
 
 var idPattern = regexp.MustCompile(`^[0-9a-f]{32}$`)
@@ -213,6 +218,23 @@ func Open(path string) (*Store, error) {
 	return &Store{path: path, lock: lock}, nil
 }
 
+// OpenReadOnly opens an existing, app-owned store without creating files,
+// directories, or acquiring the writer lock. Mutating Store methods reject the
+// returned handle.
+func OpenReadOnly(path string) (*Store, error) {
+	path, err := filepath.Abs(path)
+	if err != nil {
+		return nil, err
+	}
+	if err := privatePath(path, true); err != nil {
+		return nil, err
+	}
+	if err := readStorageFormat(path); err != nil {
+		return nil, err
+	}
+	return &Store{path: path, readOnly: true}, nil
+}
+
 func storageFormat(path string) error {
 	type format struct {
 		Application string
@@ -224,8 +246,17 @@ func storageFormat(path string) error {
 		b, _ := json.Marshal(expected)
 		return atomicWrite(path, ".format", b)
 	}
+	return readStorageFormat(path)
+}
+
+func readStorageFormat(path string) error {
+	type format struct {
+		Application string
+		Version     int
+	}
+	expected := format{"pr-review", SchemaVersion}
 	var got format
-	if _, err := readJSON(marker, &got); err != nil {
+	if _, err := readJSON(filepath.Join(path, ".format"), &got); err != nil {
 		return err
 	}
 	if got != expected {
@@ -235,9 +266,24 @@ func storageFormat(path string) error {
 }
 
 func (s *Store) Path() string { return s.path }
+
+func (s *Store) writable() error {
+	if s.closed {
+		return errors.New("session store closed")
+	}
+	if s.readOnly {
+		return errors.New("session store is read-only")
+	}
+	return nil
+}
+
 func (s *Store) Close() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.closed {
+		return nil
+	}
+	s.closed = true
 	if s.lock == nil {
 		return nil
 	}
@@ -287,6 +333,9 @@ func (s *Store) ListRepositories() ([]Repository, error) {
 func (s *Store) RememberRepository(repository, checkout string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if err := s.writable(); err != nil {
+		return err
+	}
 	if s.lock == nil {
 		return errors.New("session store closed")
 	}
@@ -356,7 +405,7 @@ func privatePath(path string, directory bool) error {
 }
 
 func (s *Store) directory(id string) (string, error) {
-	if s.lock == nil {
+	if s.closed || (!s.readOnly && s.lock == nil) {
 		return "", errors.New("session store closed")
 	}
 	if !idPattern.MatchString(id) {
@@ -431,6 +480,9 @@ func syncDir(dir string) error {
 func (s *Store) Create(snapshot Snapshot) (*Record, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if err := s.writable(); err != nil {
+		return nil, err
+	}
 	if err := s.validateDerived(snapshot); err != nil {
 		return nil, err
 	}
@@ -532,6 +584,9 @@ func (s *Store) load(id string) (*Record, error) {
 func (s *Store) Save(r *Record) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if err := s.writable(); err != nil {
+		return err
+	}
 	old, err := s.load(r.ID)
 	if err != nil {
 		return err
@@ -581,6 +636,9 @@ func (s *Store) List() ([]Entry, error) {
 func (s *Store) Delete(id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if err := s.writable(); err != nil {
+		return err
+	}
 	dir, err := s.directory(id)
 	if err != nil {
 		return err

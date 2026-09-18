@@ -54,3 +54,60 @@ GitHub/provider credentials or execute reviewed repository code in fixtures.
 - Snapshot baselines must not include random session IDs, timestamps, or local
   paths; updating a baseline must be an explicit developer action.
 - Existing `.humanlayer/` data is unrelated and must remain untouched.
+
+# Implementation Plan: Agent PR Verifier
+
+## Overview
+
+Implement the approved agent verifier capability map in four small modules. The
+live runner is a manually invoked, real-PR acceptance tool; visual artifacts,
+measurements, and guide evaluation are additive follow-up capabilities. Normal
+verification and CI remain synthetic-only.
+
+## Architecture Decisions
+
+- Keep the live runner outside the standard verification command and use the
+  existing read-only pinning path with a fresh private store.
+- Emit versioned JSON with relative artifact paths so an agent can summarize a
+  run without parsing terminal output.
+- Build terminal artifacts from the PTY screen reconstruction, not a user GUI.
+- Report timings as observations, separately for local and network-backed work;
+  they do not gate success.
+- Evaluate only stored guides through the separate read-only `eval-guides`
+  command. Live verifier runs never bypass guide-upload consent.
+
+## Dependency Graph
+
+```text
+report contract + validation
+        |
+        +-- live PR PTY journey
+        |       |
+        |       +-- terminal artifacts
+        |       +-- performance reporting
+        |
+        +-- stored-guide evaluator
+```
+
+## Task List
+
+Tasks are recorded in [todo.md](todo.md). The first checkpoint follows the
+report contract and live journey; artifact and timing modules then integrate
+without changing source pinning. Guide evaluation is independently testable
+against synthetic stored sessions.
+
+## Risks and Mitigations
+
+| Risk | Impact | Mitigation |
+| --- | --- | --- |
+| Go has no portable standard-library PTY API | High | Reuse the repository's Python 3 standard-library PTY protocol behind a bounded, explicit command boundary. |
+| Real PR runs vary by host/network | Medium | Keep them manual and report context/timings rather than asserting thresholds. |
+| Terminal data can contain hostile bytes | High | Preserve existing escape rules, cap output, and never treat content as instructions. |
+| Guide upload consent could be bypassed | High | Only evaluate stored sessions and keep generation out of every new command. |
+
+## Verification
+
+Each module starts with a focused failing test, then runs its package tests.
+The final checkpoint is `./scripts/verify.sh`, `git diff --check`, and a
+manual real-PR run only when the user supplies a PR and already-authorized
+GitHub access.
