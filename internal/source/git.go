@@ -217,20 +217,42 @@ func (v *View) fetch(ctx context.Context, m Metadata, gh GitHub, notify func(str
 	if e = os.Remove(filepath.Join(v.dir, "objects/info/alternates")); e != nil && !errors.Is(e, fs.ErrNotExist) {
 		return e
 	}
-	for _, s := range [][2]string{{m.BaseRepository, m.BaseSHA}, {m.HeadRepository, m.HeadSHA}} {
+	targets := [][2]string{{m.BaseRepository, m.BaseSHA}, {m.HeadRepository, m.HeadSHA}}
+	for _, s := range targets {
 		if !repositoryPattern.MatchString(s[0]) || !shaPattern.MatchString(s[1]) {
 			return errors.New("invalid fetch target")
 		}
-		_, e = v.runner.Run(ctx, Request{Program: v.git, Args: []string{"--no-pager", "--git-dir=" + v.dir, "fetch", "--no-tags", "--no-write-fetch-head", "--no-auto-maintenance", "--recurse-submodules=no", "https://github.com/" + s[0] + ".git", s[1]}, Dir: v.dir, Env: gitEnvironment(v.dir, token), Limit: 1 << 20, Timeout: v.limits.Operation, StorageDir: filepath.Join(v.dir, "objects"), StorageLimit: v.limits.FetchBytes})
-		if e != nil {
-			return fmt.Errorf("pinned fetch failed (check GitHub access): %w", e)
-		}
-		size, e := storageSize(filepath.Join(v.dir, "objects"))
-		if e != nil {
-			return e
+	}
+	checkStorage := func() error {
+		size, err := storageSize(filepath.Join(v.dir, "objects"))
+		if err != nil {
+			return err
 		}
 		if size > v.limits.FetchBytes {
 			return ErrLimit
+		}
+		return nil
+	}
+	if m.BaseRepository == m.HeadRepository {
+		args := []string{"--no-pager", "--git-dir=" + v.dir, "fetch", "--no-tags", "--no-write-fetch-head", "--no-auto-maintenance", "--recurse-submodules=no", "https://github.com/" + m.BaseRepository + ".git", m.BaseSHA}
+		if m.HeadSHA != m.BaseSHA {
+			args = append(args, m.HeadSHA)
+		}
+		if _, e = v.runner.Run(ctx, Request{Program: v.git, Args: args, Dir: v.dir, Env: gitEnvironment(v.dir, token), Limit: 1 << 20, Timeout: v.limits.Operation, StorageDir: filepath.Join(v.dir, "objects"), StorageLimit: v.limits.FetchBytes}); e != nil {
+			return fmt.Errorf("pinned fetch failed (check GitHub access): %w", e)
+		}
+		if e = checkStorage(); e != nil {
+			return e
+		}
+	} else {
+		for _, s := range targets {
+			_, e = v.runner.Run(ctx, Request{Program: v.git, Args: []string{"--no-pager", "--git-dir=" + v.dir, "fetch", "--no-tags", "--no-write-fetch-head", "--no-auto-maintenance", "--recurse-submodules=no", "https://github.com/" + s[0] + ".git", s[1]}, Dir: v.dir, Env: gitEnvironment(v.dir, token), Limit: 1 << 20, Timeout: v.limits.Operation, StorageDir: filepath.Join(v.dir, "objects"), StorageLimit: v.limits.FetchBytes})
+			if e != nil {
+				return fmt.Errorf("pinned fetch failed (check GitHub access): %w", e)
+			}
+			if e = checkStorage(); e != nil {
+				return e
+			}
 		}
 	}
 	return nil

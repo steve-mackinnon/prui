@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
@@ -194,6 +195,47 @@ func TestPinnedShallowMissingAndRaces(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestPinnedShallowSameRepositoryFetchesBothRevisionsTogether(t *testing.T) {
+	remote := testutil.NewRepo(t)
+	remote.Write("f", "old\n")
+	base := remote.Commit()
+	remote.Write("f", "new\n")
+	head := remote.Commit()
+
+	local := testutil.NewRepo(t)
+	local.Git("fetch", "--depth=1", "file://"+remote.Dir, head)
+	meta := Metadata{
+		Identity:       Identity{"owner/repo", 42},
+		BaseRepository: "owner/repo",
+		HeadRepository: "owner/repo",
+		BaseSHA:        base,
+		HeadSHA:        head,
+	}
+	runner := &fixtureRunner{t: t, remote: remote.Dir}
+	v, p, err := Pin(context.Background(), local.Dir, meta.Identity, &fakeGH{values: []Metadata{meta}}, runner, Defaults(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer v.Close()
+	if p.MergeBaseSHA != base {
+		t.Fatalf("merge base = %s, want %s", p.MergeBaseSHA, base)
+	}
+
+	var fetches []Request
+	for _, request := range runner.requests {
+		if slices.Contains(request.Args, "fetch") {
+			fetches = append(fetches, request)
+		}
+	}
+	if len(fetches) != 1 {
+		t.Fatalf("fetch count = %d, want one batched fetch", len(fetches))
+	}
+	got := fetches[0].Args
+	if !slices.Contains(got, "https://github.com/owner/repo.git") || !slices.Contains(got, base) || !slices.Contains(got, head) {
+		t.Fatalf("batched fetch args = %q", got)
 	}
 }
 
