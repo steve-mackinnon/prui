@@ -8,8 +8,12 @@ import (
 
 func TestStorageCannotMutateReviewedCheckout(t *testing.T) {
 	checkout := t.TempDir()
+	if err := os.Mkdir(filepath.Join(checkout, ".git"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(checkout)
 	store := filepath.Join(checkout, "new", "sessions")
-	args := []string{"open", "https://github.com/o/r/pull/1", "--repo", checkout, "--store", store, "--plain"}
+	args := []string{"open", "https://github.com/o/r/pull/1", "--store", store, "--plain"}
 	if code := run(args); code != 1 {
 		t.Fatalf("unsafe store exit %d", code)
 	}

@@ -10,16 +10,16 @@ import (
 	"pr-review/internal/source"
 )
 
-const usage = `pr-review open <PR-URL-or-number> [--repo <checkout>] [--github-repo owner/repo] [--plain]
+const usage = `pr-review open <PR-URL-or-number> [--github-repo owner/repo] [--plain]
 pr-review prs [owner/repo] [--plain]
 pr-review sessions
 pr-review resume <id> [--offline] [--plain] [--new] [--repo <checkout>]
 pr-review eval-guides <id>
 pr-review delete <id>
-pr-review verify <PR-URL-or-number> --repo <checkout> --artifacts <output-directory> [--github-repo owner/repo] [--measure-runs N] [--open-timeout DURATION]
+pr-review verify <PR-URL-or-number> --artifacts <output-directory> [--github-repo owner/repo] [--measure-runs N] [--open-timeout DURATION]
 All commands accept --store <private-directory>; defaults to OS user-data storage.
 Resume checks metadata unless --offline. --new creates an unreviewed comparison; retains old session.
-Open uses a remembered checkout for the selected repository when --repo is omitted.`
+Open and verify must be launched from the root of the local repository checkout.`
 
 type options struct {
 	Command, SessionID, Storage string
@@ -45,7 +45,6 @@ func parseOptions(args []string) (options, error) {
 	var repository string
 	switch o.Command {
 	case "open", "verify":
-		f.StringVar(&o.Checkout, "repo", "", "existing local checkout")
 		f.StringVar(&repository, "github-repo", "", "explicit owner/repo for numbers")
 		if o.Command == "open" {
 			f.BoolVar(&o.Plain, "plain", false, "non-interactive escaped text, no pager")
@@ -88,7 +87,7 @@ func parseOptions(args []string) (options, error) {
 		if err != nil {
 			return o, err
 		}
-		if o.Command == "verify" && (o.Checkout == "" || o.Artifacts == "" || o.MeasureRuns < 1 || o.MeasureRuns > 10 || o.OpenTimeout < 0) {
+		if o.Command == "verify" && (o.Artifacts == "" || o.MeasureRuns < 1 || o.MeasureRuns > 10 || o.OpenTimeout < 0) {
 			return o, errors.New(usage)
 		}
 		return o, nil

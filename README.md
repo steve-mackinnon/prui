@@ -7,9 +7,9 @@ Read-only, pinned GitHub PR review in a local terminal. Deterministic file slice
 Building requires Go 1.26.8+. Opening a new comparison requires Git and authenticated GitHub CLI (`gh`); resuming a frozen snapshot does not require Git or its checkout. Missing `gh`/authentication/connectivity leaves resume usable with unknown freshness. Dependencies are pinned in `go.mod`/`go.sum`: Bubble Tea v2.0.9 and Lip Gloss v2.0.2. macOS/Linux only initially.
 
 ```sh
-go run ./cmd/pr-review open https://github.com/owner/repo/pull/42 --repo /path/to/checkout
-go run ./cmd/pr-review open 42 --repo /path/to/checkout --github-repo owner/repo --plain
-go run ./cmd/pr-review open 42 --github-repo owner/repo # reuse a remembered checkout
+cd /path/to/checkout # open and verify must run at the repository root
+pr-review open https://github.com/owner/repo/pull/42
+pr-review open 42 --github-repo owner/repo --plain
 go run ./cmd/pr-review prs owner/repo --plain
 go run ./cmd/pr-review prs # browse remembered repositories, then select a PR
 go run ./cmd/pr-review sessions
@@ -17,7 +17,7 @@ go run ./cmd/pr-review resume SESSION_ID
 go run ./cmd/pr-review resume SESSION_ID --offline --plain
 go run ./cmd/pr-review resume SESSION_ID --new --repo /path/to/checkout
 go run ./cmd/pr-review eval-guides SESSION_ID
-go run ./cmd/pr-review verify https://github.com/owner/repo/pull/42 --repo /path/to/checkout --artifacts /tmp/pr-review-artifacts
+pr-review verify https://github.com/owner/repo/pull/42 --artifacts /tmp/pr-review-artifacts
 go run ./cmd/pr-review delete SESSION_ID
 go build -o pr-review ./cmd/pr-review
 ```
@@ -26,7 +26,7 @@ go build -o pr-review ./cmd/pr-review
 
 `eval-guides SESSION_ID` reads an existing local session through a read-only store handle and emits a JSON report. It never opens GitHub, reads provider credentials, or creates guides; a session without stored generated guides reports `not_available`. Reports always include structural validation, and include named synthetic-corpus checks only when the frozen inventory matches a curated synthetic fixture.
 
-`verify` is a manual acceptance utility for agents. It opens the requested PR through the production read-only source path, drives a fixed offline terminal journey (navigate, mark, quit, resume), and prints one JSON verdict. `--artifacts` must name a new directory outside the checkout; it receives `report.json`, the bounded terminal transcript, and fixed-size SVG screen captures that an agent can attach to chat. Opening allows 60 seconds by default; pass `--open-timeout DURATION` for a host that needs a different bound. On an open failure, the report includes the fixed `open` stage name and locally measured elapsed milliseconds without process output. The verifier creates a private temporary session store and never executes reviewed code or generates guides. Its timing report separately records GitHub metadata, pin-and-inventory work, and offline terminal startup. It requires Python 3 for the standard-library PTY harness and is deliberately excluded from CI.
+`verify` is a manual acceptance utility for agents. Both `verify` and `open` must be launched from the root of the target local checkout; neither accepts a checkout path flag. It opens the requested PR through the production read-only source path, drives a fixed offline terminal journey (navigate, mark, quit, resume), and prints one JSON verdict. `--artifacts` must name a new directory outside the checkout; it receives `report.json`, the bounded terminal transcript, and fixed-size SVG screen captures that an agent can attach to chat. Opening allows 60 seconds by default; pass `--open-timeout DURATION` for a host that needs a different bound. On an open failure, the report includes the fixed `open` stage name and locally measured elapsed milliseconds without process output. The verifier creates a private temporary session store and never executes reviewed code or generates guides. Its timing report separately records GitHub metadata, pin-and-inventory work, and offline terminal startup. It requires Python 3 for the standard-library PTY harness and is deliberately excluded from CI.
 
 `--plain` emits escaped text without a pager, color, terminal control sequences, or interaction. It includes the guide block, its analysis scope, and the bounded evidence scope report. It is automatic for redirected stdin/stdout or `TERM=dumb`, and stays uncolored even when the terminal supports color or `CLICOLOR_FORCE` is set. Exit codes: 0 successful raw inventory, 1 invalid input/open/runtime failure, 2 unavailable review content, 130 canceled loading. Analysis being unavailable never changes the exit status. Exit 0 is not approval or evidence that you read the review.
 

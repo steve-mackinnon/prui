@@ -19,6 +19,8 @@ def main():
     command = sys.argv[1]
     store = option("--store")
     if command == "open":
+        if "--repo" in sys.argv or os.path.realpath(os.environ.get("PR_REVIEW_EXPECT_CWD", "")) != os.path.realpath(os.getcwd()):
+            raise SystemExit(4)
         time.sleep(float(os.environ.get("PR_REVIEW_FAKE_OPEN_DELAY_SECONDS", "0")))
         if os.environ.get("PR_REVIEW_VERIFY_TIMING") == "1":
             print("pr-review-verify-timing:v1 " + json.dumps({"github_metadata_ns": 1000000, "pin_and_inventory_ns": 2000000}), file=sys.stderr)

@@ -201,7 +201,8 @@ func runOpenWithTiming(ctx context.Context, config JourneyConfig) ([]byte, OpenT
 	}
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, config.Executable, "open", config.PRURL, "--repo", config.Checkout, "--store", config.StoreDir, "--plain")
+	cmd := exec.CommandContext(ctx, config.Executable, "open", config.PRURL, "--store", config.StoreDir, "--plain")
+	cmd.Dir = config.Checkout
 	cmd.Env = openTimingEnvironment(config.Environment)
 	var stdout, stderr boundedBuffer
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr

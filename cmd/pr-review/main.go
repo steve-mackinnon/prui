@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 
 	tea "charm.land/bubbletea/v2"
@@ -27,6 +28,13 @@ func run(args []string) int {
 	if e != nil {
 		fmt.Fprintln(os.Stderr, tui.Escape(e.Error()))
 		return 1
+	}
+	if o.Command == "open" || o.Command == "verify" {
+		o.Checkout, e = checkoutFromWorkingDirectory()
+		if e != nil {
+			fmt.Fprintln(os.Stderr, tui.Escape(e.Error()))
+			return 1
+		}
 	}
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
@@ -159,6 +167,32 @@ func run(args []string) int {
 		return 2
 	}
 	return 0
+}
+
+func checkoutFromWorkingDirectory() (string, error) {
+	workingDirectory, err := os.Getwd()
+	if err != nil {
+		return "", err
+	}
+	return checkoutFromDirectory(workingDirectory)
+}
+
+func checkoutFromDirectory(directory string) (string, error) {
+	checkout, err := canonicalPath(directory)
+	if err != nil {
+		return "", err
+	}
+	gitDirectory, err := os.Lstat(filepath.Join(checkout, ".git"))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return "", errors.New("open and verify must be run from a repository root")
+		}
+		return "", err
+	}
+	if !gitDirectory.IsDir() && !gitDirectory.Mode().IsRegular() {
+		return "", errors.New("open and verify must be run from a repository root")
+	}
+	return checkout, nil
 }
 func main() { os.Exit(run(os.Args[1:])) }
 

@@ -40,7 +40,7 @@ func TestRunJourneyOpensThenMarksAndResumesWithBoundedArtifacts(t *testing.T) {
 		Runs:        2,
 		Python:      python,
 		Timeout:     3 * time.Second,
-		Environment: append(os.Environ(), "TERM=dumb"),
+		Environment: append(os.Environ(), "TERM=dumb", "PR_REVIEW_EXPECT_CWD="+root),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -98,7 +98,7 @@ func TestRunOpenUsesItsConfiguredTimeoutInsteadOfThePTYTimeout(t *testing.T) {
 		StoreDir:    root,
 		Timeout:     10 * time.Millisecond,
 		OpenTimeout: 200 * time.Millisecond,
-		Environment: append(os.Environ(), "PR_REVIEW_FAKE_OPEN_DELAY_SECONDS=0.05"),
+		Environment: append(os.Environ(), "PR_REVIEW_FAKE_OPEN_DELAY_SECONDS=0.05", "PR_REVIEW_EXPECT_CWD="+root),
 	})
 	if err != nil {
 		t.Fatalf("runOpen returned error with its configured timeout: %v", err)
@@ -137,7 +137,7 @@ func TestRunJourneyReportsSanitizedOpenFailureStageAndElapsedTime(t *testing.T) 
 		Runs:        1,
 		Python:      python,
 		OpenTimeout: 10 * time.Millisecond,
-		Environment: append(os.Environ(), "PR_REVIEW_FAKE_OPEN_DELAY_SECONDS=0.05"),
+		Environment: append(os.Environ(), "PR_REVIEW_FAKE_OPEN_DELAY_SECONDS=0.05", "PR_REVIEW_EXPECT_CWD="+root),
 	})
 	if err == nil {
 		t.Fatal("RunJourney succeeded despite the open timeout")

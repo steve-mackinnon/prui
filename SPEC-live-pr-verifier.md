@@ -24,13 +24,15 @@ introduced by this module.
 The proposed public command is:
 
 ```sh
-pr-review verify PR-URL --repo /absolute/checkout --artifacts /absolute/output-directory
+cd /absolute/checkout
+pr-review verify PR-URL --artifacts /absolute/output-directory
 ```
 
 Required inputs:
 
 - `PR-URL` is parsed by the existing pinned-identity parser.
-- `--repo` is an existing checkout for the PR repository.
+- The command must be launched from the root of an existing checkout for the
+  PR repository; a checkout path flag is intentionally not accepted.
 - `--artifacts` names a new, empty directory owned by this run. It must be
   outside the reviewed checkout and the session store.
 
