@@ -1,10 +1,23 @@
 package verify
 
 import (
+	"bytes"
 	"encoding/json"
 	"testing"
 	"time"
 )
+
+func TestOpenTimingRecordRoundTripsTypedDurations(t *testing.T) {
+	var stderr bytes.Buffer
+	want := OpenTiming{GitHubMetadata: 3 * time.Millisecond, PinAndInventory: 7 * time.Millisecond}
+	if err := WriteOpenTiming(&stderr, want); err != nil {
+		t.Fatal(err)
+	}
+	got, err := parseOpenTiming(stderr.Bytes())
+	if err != nil || got != want {
+		t.Fatalf("timing = %#v, %v; want %#v", got, err, want)
+	}
+}
 
 func TestTimingAggregateSeparatesLocalAndNetworkMeasurements(t *testing.T) {
 	timing := AggregateTiming([]TimingRun{

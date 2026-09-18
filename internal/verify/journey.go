@@ -13,12 +13,16 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strings"
 	"time"
 
 	"pr-review/internal/source"
 )
 
-const defaultJourneyTimeout = 20 * time.Second
+const (
+	defaultOpenTimeout    = 60 * time.Second
+	defaultJourneyTimeout = 20 * time.Second
+)
 
 var sessionIDInPlain = regexp.MustCompile(`(?m)^Session: ([0-9a-f]{32}) \|`)
 
@@ -35,6 +39,7 @@ type JourneyConfig struct {
 	ArtifactDir string
 	Runs        int
 	Python      string
+	OpenTimeout time.Duration
 	Timeout     time.Duration
 	Environment []string // optional replacement environment, intended for synthetic tests
 }
@@ -50,6 +55,7 @@ type Journey struct {
 type harnessEvidence struct {
 	Transcript         string            `json:"transcript_base64"`
 	Screens            map[string]string `json:"screens"`
+	ProcessStartMS     int64             `json:"process_start_ms"`
 	FirstReviewFrameMS int64             `json:"first_review_frame_ms"`
 }
 
@@ -82,15 +88,20 @@ func RunJourney(ctx context.Context, config JourneyConfig) (Journey, error) {
 	var sessionID string
 	timings := make([]TimingRun, 0, config.Runs)
 	for run := 1; run <= config.Runs; run++ {
-		openedAt := time.Now()
-		opened, err := runOpen(ctx, config)
-		openDuration := time.Since(openedAt)
-		if err != nil {
-			journey.Report.Status, journey.Report.Reason = Failed, "could not open pull request"
-			journey.Report.Checks = checks(Failed, NotRun, NotRun)
-			return persistJourney(journey, config.ArtifactDir, err)
+		var openTiming OpenTiming
+		if run == 1 {
+			openedAt := time.Now()
+			opened, timing, err := runOpenWithTiming(ctx, config)
+			openDuration := time.Since(openedAt)
+			if err != nil {
+				journey.Report.Status, journey.Report.Reason = Failed, "could not open pull request"
+				journey.Report.Failure = &Failure{Stage: "open", ElapsedMS: openDuration.Milliseconds()}
+				journey.Report.Checks = checks(Failed, NotRun, NotRun)
+				return persistJourney(journey, config.ArtifactDir, err)
+			}
+			sessionID = sessionIDInPlain.FindStringSubmatch(string(opened))[1]
+			openTiming = timing
 		}
-		sessionID = sessionIDInPlain.FindStringSubmatch(string(opened))[1]
 		evidence, err := runHarness(ctx, config, harness, sessionID)
 		if err != nil {
 			journey.Report.Status, journey.Report.Reason = Failed, "terminal journey did not complete"
@@ -119,11 +130,16 @@ func RunJourney(ctx context.Context, config JourneyConfig) (Journey, error) {
 		// resume to its first screen. Opening a PR includes remote work, so it
 		// remains separate under the network bucket rather than being called
 		// startup.
-		timing, _ := NewTimingRun(ColdCache)
+		cache := ColdCache
+		if run > 1 {
+			cache = WarmCache
+		}
+		timing, _ := NewTimingRun(cache)
+		timing.Local.ProcessStart = time.Duration(evidence.ProcessStartMS) * time.Millisecond
 		firstFrame := time.Duration(evidence.FirstReviewFrameMS) * time.Millisecond
-		timing.Local.ProcessStart = firstFrame
 		timing.Local.FirstReviewFrame = firstFrame
-		timing.Network.PinAndInventory = openDuration
+		timing.Network.GitHubMetadata = openTiming.GitHubMetadata
+		timing.Network.PinAndInventory = openTiming.PinAndInventory
 		timings = append(timings, timing)
 	}
 	journey.Report.Status = Passed
@@ -139,7 +155,7 @@ func checks(open, navigate, mark Status) []Check {
 }
 
 func validateJourneyConfig(config JourneyConfig) error {
-	if config.Executable == "" || config.PRURL == "" || config.Checkout == "" || config.StoreDir == "" || config.ArtifactDir == "" || config.Runs < 1 || config.Runs > 10 {
+	if config.Executable == "" || config.PRURL == "" || config.Checkout == "" || config.StoreDir == "" || config.ArtifactDir == "" || config.Runs < 1 || config.Runs > 10 || config.OpenTimeout < 0 {
 		return errors.New("executable, PR URL, checkout, store, artifacts, and runs are required")
 	}
 	for _, path := range []string{config.Checkout, config.StoreDir, config.ArtifactDir} {
@@ -165,23 +181,44 @@ func validateJourneyConfig(config JourneyConfig) error {
 }
 
 func runOpen(ctx context.Context, config JourneyConfig) ([]byte, error) {
-	timeout := config.Timeout
+	output, _, err := runOpenWithTiming(ctx, config)
+	return output, err
+}
+
+func runOpenWithTiming(ctx context.Context, config JourneyConfig) ([]byte, OpenTiming, error) {
+	timeout := config.OpenTimeout
 	if timeout == 0 {
-		timeout = defaultJourneyTimeout
+		timeout = defaultOpenTimeout
 	}
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, config.Executable, "open", config.PRURL, "--repo", config.Checkout, "--store", config.StoreDir, "--plain")
-	if config.Environment != nil {
-		cmd.Env = config.Environment
-	}
+	cmd.Env = openTimingEnvironment(config.Environment)
 	var stdout, stderr boundedBuffer
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr
 	err := cmd.Run()
 	if err != nil || stdout.exceeded || sessionIDInPlain.FindStringSubmatch(string(stdout.Bytes())) == nil {
-		return nil, errors.New("open did not return a saved session")
+		return nil, OpenTiming{}, errors.New("open did not return a saved session")
 	}
-	return stdout.Bytes(), nil
+	timing, err := parseOpenTiming(stderr.Bytes())
+	if err != nil {
+		return nil, OpenTiming{}, err
+	}
+	return stdout.Bytes(), timing, nil
+}
+
+func openTimingEnvironment(environment []string) []string {
+	base := environment
+	if base == nil {
+		base = os.Environ()
+	}
+	result := make([]string, 0, len(base)+1)
+	for _, entry := range base {
+		if !strings.HasPrefix(entry, OpenTimingEnvironment+"=") {
+			result = append(result, entry)
+		}
+	}
+	return append(result, OpenTimingEnvironment+"=1")
 }
 
 func runHarness(ctx context.Context, config JourneyConfig, harness, sessionID string) (harnessEvidence, error) {

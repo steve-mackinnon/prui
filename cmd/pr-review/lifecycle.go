@@ -5,12 +5,15 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
+	"time"
 
 	"pr-review/internal/guide"
 	"pr-review/internal/review"
 	"pr-review/internal/session"
 	"pr-review/internal/source"
 	"pr-review/internal/tui"
+	"pr-review/internal/verify"
 )
 
 type application struct {
@@ -21,6 +24,20 @@ type application struct {
 	limits      source.Limits
 	offline     bool
 	newAnalyzer func() (guide.Analyzer, error)
+}
+
+// timedGitHub measures only the metadata requests made while opening the
+// pinned comparison. It is enabled solely for verifier subprocesses.
+type timedGitHub struct {
+	source.GitHub
+	metadata time.Duration
+}
+
+func (g *timedGitHub) Metadata(ctx context.Context, id source.Identity) (source.Metadata, error) {
+	started := time.Now()
+	result, err := g.GitHub.Metadata(ctx, id)
+	g.metadata += time.Since(started)
+	return result, err
 }
 
 func (a *application) Metadata(ctx context.Context, id source.Identity) (source.Metadata, error) {
@@ -69,9 +86,26 @@ func (a *application) open(ctx context.Context, checkout string, id source.Ident
 	if a.gh == nil {
 		return nil, errors.New("gh executable required; install GitHub CLI and authenticate")
 	}
-	raw, err := review.Open(ctx, checkout, id, a.gh, a.runner, a.limits, notify)
+	gh := source.GitHub(a.gh)
+	var timing *timedGitHub
+	if os.Getenv(verify.OpenTimingEnvironment) == "1" {
+		timing = &timedGitHub{GitHub: a.gh}
+		gh = timing
+	}
+	started := time.Now()
+	raw, err := review.Open(ctx, checkout, id, gh, a.runner, a.limits, notify)
+	openedIn := time.Since(started)
 	if err != nil {
 		return nil, err
+	}
+	if timing != nil {
+		pinAndInventory := openedIn - timing.metadata
+		if pinAndInventory < 0 {
+			pinAndInventory = 0
+		}
+		if err := verify.WriteOpenTiming(os.Stderr, verify.OpenTiming{GitHubMetadata: timing.metadata, PinAndInventory: pinAndInventory}); err != nil {
+			return nil, err
+		}
 	}
 	saved, err := a.store.Create(raw.Snapshot)
 	if err != nil {

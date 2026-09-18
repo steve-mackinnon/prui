@@ -5,6 +5,7 @@ import (
 	"flag"
 	"io"
 	"regexp"
+	"time"
 
 	"pr-review/internal/source"
 )
@@ -15,7 +16,7 @@ pr-review sessions
 pr-review resume <id> [--offline] [--plain] [--new] [--repo <checkout>]
 pr-review eval-guides <id>
 pr-review delete <id>
-pr-review verify <PR-URL-or-number> --repo <checkout> --artifacts <output-directory> [--github-repo owner/repo] [--measure-runs N]
+pr-review verify <PR-URL-or-number> --repo <checkout> --artifacts <output-directory> [--github-repo owner/repo] [--measure-runs N] [--open-timeout DURATION]
 All commands accept --store <private-directory>; defaults to OS user-data storage.
 Resume checks metadata unless --offline. --new creates an unreviewed comparison; retains old session.
 Open uses a remembered checkout for the selected repository when --repo is omitted.`
@@ -27,6 +28,7 @@ type options struct {
 	Checkout                    string
 	Artifacts                   string
 	MeasureRuns                 int
+	OpenTimeout                 time.Duration
 	Plain, Offline, New         bool
 }
 
@@ -50,6 +52,7 @@ func parseOptions(args []string) (options, error) {
 		} else {
 			f.StringVar(&o.Artifacts, "artifacts", "", "new empty artifact directory")
 			f.IntVar(&o.MeasureRuns, "measure-runs", 1, "number of timing observations (1-10)")
+			f.DurationVar(&o.OpenTimeout, "open-timeout", 0, "maximum time to open a pull request (default 60s)")
 		}
 	case "resume":
 		f.StringVar(&o.Checkout, "repo", "", "checkout override for a new comparison")
@@ -85,7 +88,7 @@ func parseOptions(args []string) (options, error) {
 		if err != nil {
 			return o, err
 		}
-		if o.Command == "verify" && (o.Checkout == "" || o.Artifacts == "" || o.MeasureRuns < 1 || o.MeasureRuns > 10) {
+		if o.Command == "verify" && (o.Checkout == "" || o.Artifacts == "" || o.MeasureRuns < 1 || o.MeasureRuns > 10 || o.OpenTimeout < 0) {
 			return o, errors.New(usage)
 		}
 		return o, nil

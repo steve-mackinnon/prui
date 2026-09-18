@@ -29,6 +29,13 @@ type Artifacts struct {
 	Screens    []string `json:"screens,omitempty"`
 }
 
+// Failure contains source-safe diagnostic context for a failed verifier stage.
+// Stage is a fixed verifier step name; elapsed_ms is measured locally.
+type Failure struct {
+	Stage     string `json:"stage"`
+	ElapsedMS int64  `json:"elapsed_ms"`
+}
+
 type Report struct {
 	SchemaVersion int       `json:"schema_version"`
 	Status        Status    `json:"status"`
@@ -39,6 +46,7 @@ type Report struct {
 	Checks        []Check   `json:"checks"`
 	Artifacts     Artifacts `json:"artifacts"`
 	Timing        *Timing   `json:"timing,omitempty"`
+	Failure       *Failure  `json:"failure,omitempty"`
 }
 
 func NewReport() Report { return Report{SchemaVersion: 1, Status: NotRun} }

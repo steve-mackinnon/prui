@@ -3,9 +3,57 @@ package verify
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"sort"
+	"strings"
 	"time"
 )
+
+// OpenTimingEnvironment enables the private timing record emitted by open for
+// the verifier. It is intentionally unset for normal user-facing commands.
+const OpenTimingEnvironment = "PR_REVIEW_VERIFY_TIMING"
+
+const openTimingPrefix = "pr-review-verify-timing:v1 "
+
+// OpenTiming is the private process boundary between verify and open. Its
+// durations remain typed until the report is serialized.
+type OpenTiming struct {
+	GitHubMetadata  time.Duration `json:"github_metadata_ns"`
+	PinAndInventory time.Duration `json:"pin_and_inventory_ns"`
+}
+
+func WriteOpenTiming(w io.Writer, timing OpenTiming) error {
+	b, err := json.Marshal(timing)
+	if err != nil {
+		return err
+	}
+	_, err = fmt.Fprintln(w, openTimingPrefix+string(b))
+	return err
+}
+
+func parseOpenTiming(stderr []byte) (OpenTiming, error) {
+	var result OpenTiming
+	found := false
+	for _, line := range strings.Split(string(stderr), "\n") {
+		if !strings.HasPrefix(line, openTimingPrefix) {
+			continue
+		}
+		if found {
+			return OpenTiming{}, fmt.Errorf("multiple open timing records")
+		}
+		if err := json.Unmarshal([]byte(strings.TrimPrefix(line, openTimingPrefix)), &result); err != nil {
+			return OpenTiming{}, fmt.Errorf("invalid open timing record: %w", err)
+		}
+		if result.GitHubMetadata < 0 || result.PinAndInventory < 0 {
+			return OpenTiming{}, fmt.Errorf("invalid negative open timing")
+		}
+		found = true
+	}
+	if !found {
+		return OpenTiming{}, fmt.Errorf("missing open timing record")
+	}
+	return result, nil
+}
 
 // CacheState describes whether a verifier run reused its private session store.
 type CacheState string

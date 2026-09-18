@@ -108,7 +108,8 @@ class Terminal:
         fcntl.ioctl(self.slave, termios.TIOCSWINSZ, struct.pack("HHHH", 24, 120, 0, 0))
         self.output, self.screen, self.timeout = bytearray(), Screen(), timeout
         self.selector = selectors.DefaultSelector(); self.selector.register(self.master, selectors.EVENT_READ)
-        self.process = subprocess.Popen([binary, *args], stdin=self.slave, stdout=self.slave, stderr=self.slave, start_new_session=True)
+        env = os.environ.copy(); env["TERM"] = "xterm-256color"
+        self.process = subprocess.Popen([binary, *args], stdin=self.slave, stdout=self.slave, stderr=self.slave, start_new_session=True, env=env)
 
     def close(self):
         if self.process.poll() is None:
@@ -152,6 +153,7 @@ def one_run(binary, store, session, timeout):
     started = time.monotonic()
     first = Terminal(binary, ["resume", session, "--store", store, "--offline"], timeout)
     try:
+        process_start_ms = round((time.monotonic() - started) * 1000)
         match = first.wait(r"(\d+)/(\d+) read \(local\)")
         first_frame_ms = round((time.monotonic() - started) * 1000)
         before, total = int(match.group(1)), int(match.group(2))
@@ -171,7 +173,7 @@ def one_run(binary, store, session, timeout):
         resumed.quit()
         transcript += bytes(resumed.output)
     finally: resumed.close()
-    return {"transcript_base64": base64.b64encode(transcript).decode(), "screens": {"initial": initial, "marked": marked, "resumed": screen}, "first_review_frame_ms": first_frame_ms}
+    return {"transcript_base64": base64.b64encode(transcript).decode(), "screens": {"initial": initial, "marked": marked, "resumed": screen}, "process_start_ms": process_start_ms, "first_review_frame_ms": first_frame_ms}
 
 
 def main():

@@ -39,6 +39,7 @@ func runVerify(ctx context.Context, o options) int {
 	journey, journeyErr := verify.RunJourney(ctx, verify.JourneyConfig{
 		Executable: executable, PRURL: o.Identity.URL(), Checkout: o.Checkout,
 		StoreDir: store, ArtifactDir: o.Artifacts, Runs: o.MeasureRuns,
+		OpenTimeout: o.OpenTimeout,
 	})
 	report := journey.Report
 	if report.Status == verify.NotRun {

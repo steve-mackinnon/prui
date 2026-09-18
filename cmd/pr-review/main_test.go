@@ -30,6 +30,8 @@ func TestOptions(t *testing.T) {
 		{[]string{"verify", "https://github.com/o/r/pull/1", "--repo", "/tmp/checkout", "--artifacts", "/tmp/artifacts"}, true},
 		{[]string{"verify", "https://github.com/o/r/pull/1", "--repo", "/tmp/checkout"}, false},
 		{[]string{"verify", "1", "--repo", "/tmp/checkout", "--github-repo", "o/r", "--artifacts", "/tmp/artifacts", "--measure-runs", "3"}, true},
+		{[]string{"verify", "1", "--repo", "/tmp/checkout", "--github-repo", "o/r", "--artifacts", "/tmp/artifacts", "--open-timeout", "90s"}, true},
+		{[]string{"verify", "1", "--repo", "/tmp/checkout", "--github-repo", "o/r", "--artifacts", "/tmp/artifacts", "--open-timeout", "-1s"}, false},
 		{[]string{"verify", "1", "--repo", "/tmp/checkout", "--github-repo", "o/r", "--artifacts", "/tmp/artifacts", "--measure-runs", "0"}, false},
 	} {
 		_, e := parseOptions(tc.args)
