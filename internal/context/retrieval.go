@@ -122,6 +122,11 @@ func Retrieve(parent context.Context, objects Objects, comparison source.PinnedC
 				result.OmittedPaths = append(result.OmittedPaths, Omitted{Path: c.path, Reason: reason})
 				continue
 			}
+			remaining := limits.Bytes - usedBytes
+			if remaining <= 0 {
+				result.OmittedPaths = append(result.OmittedPaths, Omitted{Path: c.path, Reason: "excerpt byte budget exhausted"})
+				continue
+			}
 			b, err := objects.Blob(ctx, c.oid, limits.ExcerptBytes)
 			if err != nil {
 				result.OmittedPaths = append(result.OmittedPaths, Omitted{Path: c.path, Reason: "blob unavailable"})
@@ -133,11 +138,6 @@ func Retrieve(parent context.Context, objects Objects, comparison source.PinnedC
 			}
 			if len(b) == 0 || bytes.IndexByte(b, 0) >= 0 {
 				result.OmittedPaths = append(result.OmittedPaths, Omitted{Path: c.path, Reason: "binary or empty content"})
-				continue
-			}
-			remaining := limits.Bytes - usedBytes
-			if remaining <= 0 {
-				result.OmittedPaths = append(result.OmittedPaths, Omitted{Path: c.path, Reason: "excerpt byte budget exhausted"})
 				continue
 			}
 			if len(b) > remaining {

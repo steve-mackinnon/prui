@@ -11,17 +11,37 @@ import (
 )
 
 type fakeObjects struct {
-	tree  []byte
-	blobs map[string][]byte
+	tree      []byte
+	blobs     map[string][]byte
+	blobCalls *int
 }
 
 func (f fakeObjects) Git(context.Context, int, ...string) ([]byte, error) { return f.tree, nil }
 func (f fakeObjects) Blob(_ context.Context, oid string, limit int) ([]byte, error) {
+	if f.blobCalls != nil {
+		*f.blobCalls++
+	}
 	b := f.blobs[oid]
 	if len(b) > limit {
 		return nil, source.ErrLimit
 	}
 	return b, nil
+}
+
+func TestRetrieveDoesNotReadBlobsAfterExcerptBudgetIsExhausted(t *testing.T) {
+	base, head := "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+	first, second, third := "cccccccccccccccccccccccccccccccccccccccc", "dddddddddddddddddddddddddddddddddddddddd", "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+	calls := 0
+	f := fakeObjects{
+		tree:      []byte("100644 blob " + first + "\ta.md\x00" + "100644 blob " + second + "\tb.md\x00" + "100644 blob " + third + "\tc.md\x00"),
+		blobs:     map[string][]byte{first: []byte("1234"), second: []byte("5678"), third: []byte("9012")},
+		blobCalls: &calls,
+	}
+	p := source.PinnedComparison{InventoryID: "comparison", MergeBaseSHA: base, Metadata: source.Metadata{Identity: source.Identity{Repository: "o/r", Number: 1}, HeadSHA: head}}
+	c := Retrieve(context.Background(), f, p, inventory.Inventory{}, privacy.Policy{}, Limits{Files: 10, ExcerptBytes: 4, Bytes: 4, Duration: time.Second})
+	if len(c.Evidence) != 1 || calls != 1 {
+		t.Fatalf("evidence=%d blob calls=%d, want 1 each", len(c.Evidence), calls)
+	}
 }
 
 func TestRetrieveReportsPinnedEvidenceAndOmissions(t *testing.T) {
