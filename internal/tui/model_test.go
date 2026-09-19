@@ -368,6 +368,22 @@ func TestFullDiffDoesNotScrollPastViewport(t *testing.T) {
 	}
 }
 
+func TestHLFocusesReviewPanes(t *testing.T) {
+	m := New(context.Background(), nil)
+	m.Loading = false
+	m.Session = screenSession()
+	m.Focus = paneList
+
+	key(m, 'l')
+	if m.Focus != paneDiff {
+		t.Fatal("l did not focus the diff pane")
+	}
+	key(m, 'h')
+	if m.Focus != paneList {
+		t.Fatal("h did not focus the list pane")
+	}
+}
+
 func TestRawReviewCancelAndFailure(t *testing.T) {
 	canceled := make(chan struct{})
 	m := New(context.Background(), func(c context.Context, _ func(string)) (*review.Session, error) {
@@ -441,12 +457,12 @@ func TestBindingsRenderHelpAndFooter(t *testing.T) {
 			t.Fatalf("updated help wording missing %q", wording)
 		}
 	}
-	for _, key := range []string{"ctrl+p / p", "j/k", "J/K", "ctrl+h/ctrl+l", "esc", "q/ctrl+c"} {
+	for _, key := range []string{"ctrl+p / p", "j/k", "J/K", "h/l, ctrl+h/ctrl+l", "esc", "q/ctrl+c"} {
 		if !strings.Contains(help, key) {
 			t.Fatalf("binding %q missing from help", key)
 		}
 	}
-	for _, key := range []string{"ctrl+p / p", "ctrl+h/ctrl+l", "esc", "q/ctrl+c", "m", "N"} {
+	for _, key := range []string{"ctrl+p / p", "h/l, ctrl+h/ctrl+l", "esc", "q/ctrl+c", "m", "N"} {
 		if !strings.Contains(footer, key) {
 			t.Fatalf("binding %q missing from footer", key)
 		}

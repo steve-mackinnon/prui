@@ -291,9 +291,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.beginReorder()
 		case "esc":
 			m.back()
-		case "ctrl+h":
+		case "h", "ctrl+h":
 			m.Focus = paneList
-		case "ctrl+l", "enter":
+		case "l", "ctrl+l", "enter":
 			m.focusDetail(m.navigable())
 		case "tab":
 			// enter keeps main's meaning (focus the diff), so expansion gets
@@ -341,9 +341,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.scroll(m.pageStep())
 		case "pgup":
 			m.scroll(-m.pageStep())
-		case "right", "l":
+		case "right":
 			m.Horizontal += 8
-		case "left", "h":
+		case "left":
 			m.Horizontal = max(0, m.Horizontal-8)
 		case "home":
 			m.setOffset(0)
