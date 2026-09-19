@@ -42,7 +42,7 @@ func TestScreenSnapshots(t *testing.T) {
 	}{
 		{"review_wide", 120, 12, func(m *Model) { m.Focus = paneDiff }},
 		{"review_narrow", 60, 10, func(m *Model) { m.Focus = paneDiff }},
-		{"loading", 80, 8, func(m *Model) { m.Loading = true }},
+		{"loading", 80, 8, func(m *Model) { m.Loading, m.cancelAction = true, func() {} }},
 		{"load_error", 80, 8, func(m *Model) { m.Err = errors.New("synthetic metadata failure") }},
 		{"guides", 120, 14, func(m *Model) {
 			m.Session.Guides = &guide.Bundle{Status: guide.Generated, Provider: "fixture", Model: "fixture", Items: []guide.Item{{

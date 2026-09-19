@@ -152,7 +152,7 @@ func (m *Model) start(work func() tea.Msg) tea.Cmd {
 	done := make(chan struct{})
 	m.worker = done
 	go func() { defer close(done); result <- work() }()
-	return func() tea.Msg { return <-result }
+	return waitForLoading(result)
 }
 
 func (m *Model) Close() {
@@ -187,8 +187,9 @@ func (m *Model) lifecycleKey(k string) (tea.Cmd, bool) {
 			return nil, true
 		}
 		m.notice = "Checking GitHub metadata only; source stays local..."
+		ctx := m.beginAction()
 		return m.start(func() tea.Msg {
-			err := review.Refresh(m.ctx, m.store, &s, m.reader)
+			err := review.Refresh(ctx, m.store, &s, m.reader)
 			return ActionResult{Session: &s, Err: err}
 		}), true
 	case "N":
@@ -196,12 +197,13 @@ func (m *Model) lifecycleKey(k string) (tea.Cmd, bool) {
 			return nil, true
 		}
 		m.notice = "Opening new comparison; old snapshot and progress retained..."
+		ctx := m.beginAction()
 		return m.start(func() tea.Msg {
 			n := m.notify
 			if n == nil {
 				n = func(string) {}
 			}
-			fresh, err := m.fresh(m.ctx, &s, n)
+			fresh, err := m.fresh(ctx, &s, n)
 			return ActionResult{Session: fresh, Err: err, Reset: true}
 		}), true
 	case "s":
@@ -259,8 +261,9 @@ func (m *Model) pickerKey(k string) tea.Cmd {
 		}
 		id := m.Entries[m.SessionPicker.Index].ID
 		m.notice = "Resuming frozen session; checking metadata freshness..."
+		ctx := m.beginAction()
 		return m.start(func() tea.Msg {
-			s, err := review.Resume(m.ctx, m.store, id, m.reader)
+			s, err := review.Resume(ctx, m.store, id, m.reader)
 			return ActionResult{Session: s, Err: err, Reset: true}
 		})
 	}
@@ -442,8 +445,8 @@ func (m *Model) switcherKey(k string) tea.Cmd {
 		}
 		selected := results[m.PullRequestPicker.Index]
 		if selected.open {
-			if m.Busy && m.cancelAction != nil {
-				m.cancelAction()
+			if m.Busy {
+				m.cancelCurrentAction()
 			}
 			m.pop() // do not persist the overlay in either review's saved state
 			for i, tab := range m.tabs {

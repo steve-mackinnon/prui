@@ -45,6 +45,15 @@ func (m *Model) finishAction(err error) error {
 	return err
 }
 
+func (m *Model) cancelCurrentAction() {
+	if m.cancelAction == nil {
+		return
+	}
+	cancel := m.cancelAction
+	m.cancelAction = nil
+	cancel()
+}
+
 func (m *Model) loadSessions() tea.Cmd {
 	m.push(pagePicker)
 	m.notice = "Loading saved sessions..."

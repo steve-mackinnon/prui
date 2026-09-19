@@ -35,23 +35,24 @@ type workspaceTab struct {
 // reviewTabState is the reviewer-visible state that must travel with an open
 // review. Window dimensions and services remain shared by the workspace.
 type reviewTabState struct {
-	Session     *review.Session
-	Err         error
-	Selected    int
-	Row         int
-	Files       bool
-	collapsed   expansion
-	Scroll      map[int]int
-	GuideScroll map[int]int
-	Horizontal  int
-	Inventory   bool
-	Focus       pane
-	Stack       []page
-	Loading     bool
-	Busy        bool
-	EditIndex   int
-	ActionError error
-	notice      string
+	Session      *review.Session
+	Err          error
+	Selected     int
+	Row          int
+	Files        bool
+	collapsed    expansion
+	Scroll       map[int]int
+	GuideScroll  map[int]int
+	Horizontal   int
+	Inventory    bool
+	Focus        pane
+	Stack        []page
+	Loading      bool
+	Busy         bool
+	EditIndex    int
+	ActionError  error
+	notice       string
+	loadingFrame int
 }
 
 type page int
@@ -94,6 +95,7 @@ type Model struct {
 	PullRequests              []source.PullRequest
 	SwitcherQuery             string
 	ActionError               error
+	loadingFrame              int
 	store                     *session.Store
 	reader                    review.MetadataReader
 	fresh                     FreshLoader
@@ -163,21 +165,30 @@ func (m *Model) Init() tea.Cmd {
 	if m.load == nil {
 		return nil
 	}
+	ctx := m.beginAction()
 	return m.start(func() tea.Msg {
 		n := m.notify
 		if n == nil {
 			n = func(string) {}
 		}
-		s, e := m.load(m.ctx, n)
+		s, e := m.load(ctx, n)
 		return Loaded{s, e}
 	})
 }
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch v := msg.(type) {
+	case loadingTick:
+		if !m.loadingModal().active {
+			return m, nil
+		}
+		m.loadingFrame = (m.loadingFrame + 1) % loadingBarWidth
+		if v.result != nil {
+			return m, waitForLoading(v.result)
+		}
+		return m, nextLoadingTick()
 	case Loaded:
-		m.Err = v.Err
+		m.Err = m.finishAction(v.Err)
 		m.Loading = false
-		m.Busy = false
 		if v.Err == nil && v.Session != nil {
 			m.openReviewTab(v.Session)
 		} else {
@@ -245,7 +256,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.Height = max(1, v.Height)
 	case tea.KeyPressMsg:
 		if m.Busy && v.String() == "esc" && m.cancelAction != nil {
-			m.cancelAction()
+			m.cancelCurrentAction()
 			return m, nil
 		}
 		if v.String() != "q" && v.String() != "ctrl+c" {
@@ -426,7 +437,7 @@ func (m *Model) saveActiveReview() {
 		collapsed: m.collapsed, Scroll: m.Scroll, GuideScroll: m.GuideScroll,
 		Horizontal: m.Horizontal, Inventory: m.Inventory, Focus: m.Focus,
 		Stack: m.Stack, Loading: m.Loading, Busy: m.Busy, EditIndex: m.EditIndex,
-		ActionError: m.ActionError, notice: m.notice,
+		ActionError: m.ActionError, notice: m.notice, loadingFrame: m.loadingFrame,
 	}
 }
 
@@ -439,7 +450,7 @@ func (m *Model) restoreReviewTab(state *reviewTabState) {
 	m.collapsed, m.Scroll, m.GuideScroll = state.collapsed, state.Scroll, state.GuideScroll
 	m.Horizontal, m.Inventory, m.Focus = state.Horizontal, state.Inventory, state.Focus
 	m.Stack, m.Loading, m.Busy, m.EditIndex = state.Stack, state.Loading, state.Busy, state.EditIndex
-	m.ActionError, m.notice = state.ActionError, state.notice
+	m.ActionError, m.notice, m.loadingFrame = state.ActionError, state.notice, state.loadingFrame
 }
 
 func (m *Model) push(p page) {
@@ -586,7 +597,7 @@ func (m *Model) View() tea.View {
 	text := ""
 	switch {
 	case m.Loading:
-		text = "Loading\n" + Escape(m.notice) + "\nq / ctrl+c: cancel"
+		text = "Opening review..."
 	case m.Err != nil:
 		text = "Unable to open review\n" + Escape(m.Err.Error()) + "\nNo complete comparison available. q: quit"
 	default:
@@ -620,6 +631,9 @@ func (m *Model) View() tea.View {
 			}
 		}
 	}
+	if modal := m.loadingModal(); modal.active {
+		text = renderLoadingModal(m.Width, m.Height, text, modal)
+	}
 	lines := strings.Split(text, "\n")
 	if len(lines) > m.Height {
 		lines = lines[:m.Height]
@@ -630,6 +644,20 @@ func (m *Model) View() tea.View {
 	v := tea.NewView(strings.Join(lines, "\n"))
 	v.AltScreen = true
 	return v
+}
+
+func (m *Model) loadingModal() loadingModal {
+	title := "Working"
+	if m.Loading {
+		title = "Loading"
+	}
+	return loadingModal{
+		active:     m.Loading || m.Busy,
+		cancelable: m.cancelAction != nil,
+		frame:      m.loadingFrame,
+		notice:     m.notice,
+		title:      title,
+	}
 }
 
 func (m *Model) guideConsentView() string {
