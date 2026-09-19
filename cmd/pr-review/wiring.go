@@ -25,9 +25,9 @@ func (a *application) online(ctx context.Context) error {
 func (a *application) model(ctx context.Context, o options) *tui.Model {
 	var m *tui.Model
 	if o.Command == "prs" {
-		m = tui.NewPullRequestBrowser(ctx, a.store, a.listPullRequests, a.open)
+		m = tui.NewPullRequestBrowser(ctx, a.store, a.listPullRequests, a.openFromPullRequestList)
 	} else if o.Command == "current" {
-		m = tui.NewCurrentRepositoryBrowser(ctx, a.store, o.Repository, o.Checkout, a.listPullRequests, a.open)
+		m = tui.NewCurrentRepositoryBrowser(ctx, a.store, o.Repository, o.Checkout, a.listPullRequests, a.openFromPullRequestList)
 	} else {
 		m = tui.New(ctx, func(c context.Context, notify func(string)) (*review.Session, error) {
 			return a.load(c, o, notify)
@@ -44,9 +44,19 @@ func (a *application) model(ctx context.Context, o options) *tui.Model {
 		}
 		return a.fresh(c, old, override, notify)
 	})
-	m.SetPullRequestLifecycle(a.listPullRequests, a.open)
+	m.SetPullRequestLifecycle(a.listPullRequests, a.openFromPullRequestList)
 	m.SetGuideLifecycle(a.requestGuide)
 	return m
+}
+
+func (a *application) createGuideAnalyzer() (guide.Analyzer, error) {
+	create := a.newAnalyzer
+	if create == nil {
+		create = func() (guide.Analyzer, error) {
+			return guide.NewOpenAI(guide.OpenAIOptions{APIKey: os.Getenv("OPENAI_API_KEY"), Endpoint: os.Getenv("OPENAI_BASE_URL")})
+		}
+	}
+	return create()
 }
 
 func (a *application) requestGuide(ctx context.Context, original *review.Session, notify func(string)) (*review.Session, error) {
@@ -56,13 +66,7 @@ func (a *application) requestGuide(ctx context.Context, original *review.Session
 	if notify != nil {
 		notify("Creating OpenAI analyzer for this confirmed guide request...")
 	}
-	create := a.newAnalyzer
-	if create == nil {
-		create = func() (guide.Analyzer, error) {
-			return guide.NewOpenAI(guide.OpenAIOptions{APIKey: os.Getenv("OPENAI_API_KEY"), Endpoint: os.Getenv("OPENAI_BASE_URL")})
-		}
-	}
-	analyzer, err := create()
+	analyzer, err := a.createGuideAnalyzer()
 	if err != nil {
 		return nil, err
 	}

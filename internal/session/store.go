@@ -150,6 +150,7 @@ type Store struct {
 
 var idPattern = regexp.MustCompile(`^[0-9a-f]{32}$`)
 var repositoryPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]*/[A-Za-z0-9][A-Za-z0-9_.-]*$`)
+var shaPattern = regexp.MustCompile(`^[0-9a-f]{40}$`)
 
 var ErrRepositoryNotFound = errors.New("remembered repository not found")
 
@@ -160,6 +161,24 @@ type repositoryRecord struct {
 type Repository struct {
 	Repository string `json:"repository"`
 	Checkout   string `json:"checkout"`
+}
+
+// GuideCacheKey identifies the immutable comparison a generated guide
+// describes. Both base and head revisions matter because either can change the
+// review units for the same pull request.
+type GuideCacheKey struct {
+	Repository string
+	Number     int
+	BaseSHA    string
+	HeadSHA    string
+}
+
+type guideCacheRecord struct {
+	Repository string       `json:"repository"`
+	Number     int          `json:"number"`
+	BaseSHA    string       `json:"base_sha"`
+	HeadSHA    string       `json:"head_sha"`
+	Bundle     guide.Bundle `json:"bundle"`
 }
 
 func DefaultPath() (string, error) {
@@ -391,6 +410,96 @@ func normalizeRepository(repository string) (string, error) {
 		return "", errors.New("invalid GitHub repository")
 	}
 	return strings.ToLower(repository), nil
+}
+
+func normalizeGuideCacheKey(key GuideCacheKey) (GuideCacheKey, error) {
+	repository, err := normalizeRepository(key.Repository)
+	if err != nil || key.Number <= 0 || !shaPattern.MatchString(key.BaseSHA) || !shaPattern.MatchString(key.HeadSHA) {
+		return GuideCacheKey{}, errors.New("invalid guide cache key")
+	}
+	key.Repository = repository
+	return key, nil
+}
+
+func guideCacheMatchesInventory(key GuideCacheKey, inv inventory.Inventory) bool {
+	comparison := inv.Comparison.Metadata
+	repository, err := normalizeRepository(comparison.Identity.Repository)
+	return err == nil && repository == key.Repository && comparison.Identity.Number == key.Number && comparison.BaseSHA == key.BaseSHA && comparison.HeadSHA == key.HeadSHA
+}
+
+func (s *Store) guideCacheDirectory() string { return filepath.Join(s.path, "guides") }
+
+func (s *Store) guideCachePath(key GuideCacheKey) string {
+	// A hash makes the on-disk filename fixed-width and prevents untrusted
+	// repository metadata from becoming a path component. The record repeats
+	// the canonical identity so reads can detect a misplaced artifact.
+	b, _ := json.Marshal(key)
+	return filepath.Join(s.guideCacheDirectory(), digest(b)+".json")
+}
+
+// SaveGeneratedGuide atomically persists a generated guide for an immutable
+// comparison. Unavailable or structurally invalid bundles are deliberately not
+// cached so a later PR-list open can retry analysis.
+func (s *Store) SaveGeneratedGuide(key GuideCacheKey, bundle guide.Bundle, inv inventory.Inventory) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if err := s.writable(); err != nil {
+		return err
+	}
+	key, err := normalizeGuideCacheKey(key)
+	if err != nil {
+		return err
+	}
+	if !guideCacheMatchesInventory(key, inv) {
+		return errors.New("guide cache key does not match inventory comparison")
+	}
+	if bundle.Status != guide.Generated || guide.Validate(bundle, inv) != nil {
+		return errors.New("only valid generated guides may be cached")
+	}
+	dir := s.guideCacheDirectory()
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		return err
+	}
+	if err := privatePath(dir, true); err != nil {
+		return err
+	}
+	b, err := json.Marshal(guideCacheRecord{Repository: key.Repository, Number: key.Number, BaseSHA: key.BaseSHA, HeadSHA: key.HeadSHA, Bundle: bundle})
+	if err != nil {
+		return err
+	}
+	return atomicWrite(dir, filepath.Base(s.guideCachePath(key)), b)
+}
+
+// LoadGeneratedGuide returns a valid generated guide for key, or nil on a
+// cache miss. Corrupt, unsafe, mismatched, and inventory-invalid artifacts are
+// treated as misses and are left in place for inspection rather than replaced.
+func (s *Store) LoadGeneratedGuide(key GuideCacheKey, inv inventory.Inventory) (*guide.Bundle, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed || (!s.readOnly && s.lock == nil) {
+		return nil, errors.New("session store closed")
+	}
+	key, err := normalizeGuideCacheKey(key)
+	if err != nil {
+		return nil, err
+	}
+	if !guideCacheMatchesInventory(key, inv) {
+		return nil, nil
+	}
+	dir := s.guideCacheDirectory()
+	if err := privatePath(dir, true); err != nil {
+		return nil, nil
+	}
+	var cached guideCacheRecord
+	if _, err := readJSON(s.guideCachePath(key), &cached); err != nil {
+		return nil, nil
+	}
+	cachedKey, err := normalizeGuideCacheKey(GuideCacheKey{Repository: cached.Repository, Number: cached.Number, BaseSHA: cached.BaseSHA, HeadSHA: cached.HeadSHA})
+	if err != nil || cachedKey != key || cached.Bundle.Status != guide.Generated || guide.Validate(cached.Bundle, inv) != nil {
+		return nil, nil
+	}
+	bundle := cached.Bundle
+	return &bundle, nil
 }
 
 func privatePath(path string, directory bool) error {

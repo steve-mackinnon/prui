@@ -162,7 +162,49 @@ func (a *application) generateGuide(ctx context.Context, original *review.Sessio
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
+	if derived.Guides != nil && derived.Guides.Status == guide.Generated {
+		if err := a.store.SaveGeneratedGuide(guideCacheKey(original), *derived.Guides, original.Inventory); err != nil {
+			return nil, err
+		}
+	}
 	return a.store.Create(derived)
+}
+
+func guideCacheKey(s *review.Session) session.GuideCacheKey {
+	m := s.Inventory.Comparison.Metadata
+	return session.GuideCacheKey{Repository: m.Identity.Repository, Number: m.Identity.Number, BaseSHA: m.BaseSHA, HeadSHA: m.HeadSHA}
+}
+
+// openFromPullRequestList is the only automatic guide path. It still pins a
+// fresh local comparison before using a cache, so a base/head change cannot
+// reuse interpretation for different review units.
+func (a *application) openFromPullRequestList(ctx context.Context, checkout string, id source.Identity, notify func(string)) (*review.Session, error) {
+	raw, err := a.open(ctx, checkout, id, notify)
+	if err != nil {
+		return nil, err
+	}
+	if notify != nil {
+		notify("Checking local guide cache for this pinned comparison...")
+	}
+	if cached, err := a.store.LoadGeneratedGuide(guideCacheKey(raw), raw.Inventory); err != nil {
+		return nil, err
+	} else if cached != nil {
+		if notify != nil {
+			notify("Reusing local guide for this pinned comparison...")
+		}
+		derived := raw.Snapshot
+		derived.Guides = cached
+		derived.DerivedFrom = raw.ID
+		return a.store.Create(derived)
+	}
+	if notify != nil {
+		notify("Generating OpenAI guide from bounded pinned source and evidence...")
+	}
+	analyzer, err := a.createGuideAnalyzer()
+	if err != nil {
+		return raw, nil
+	}
+	return a.generateGuide(ctx, raw, analyzer)
 }
 
 func (a *application) load(ctx context.Context, o options, notify func(string)) (*review.Session, error) {

@@ -28,6 +28,16 @@ func (unavailableGuideAnalyzer) Analyze(context.Context, guide.Input) (guide.Bun
 	return guide.Bundle{}, errors.New("provider unavailable")
 }
 
+type generatedGuideAnalyzer struct{}
+
+func (generatedGuideAnalyzer) Analyze(_ context.Context, in guide.Input) (guide.Bundle, error) {
+	ids := make([]string, len(in.Units))
+	for i, unit := range in.Units {
+		ids[i] = unit.ID
+	}
+	return guide.Bundle{Status: guide.Generated, Items: []guide.Item{{Title: "Review guide", Sections: []guide.Section{{Title: "Changed code", UnitIDs: ids}}}}}, nil
+}
+
 func (g *fixtureGH) Metadata(context.Context, source.Identity) (source.Metadata, error) {
 	return g.value, g.err
 }
@@ -215,5 +225,64 @@ func TestLifecycleCreatesDerivedGuideSession(t *testing.T) {
 	loaded, err := store.Load(original.ID)
 	if err != nil || len(loaded.ReviewedSliceIDs) != 1 || loaded.DerivedFrom != "" {
 		t.Fatal("guide action changed source session", loaded, err)
+	}
+}
+
+func TestLifecyclePRListOpenCachesOnlyGeneratedGuides(t *testing.T) {
+	r := testutil.NewRepo(t)
+	r.Write("a", "old\n")
+	base := r.Commit()
+	r.Write("a", "new\n")
+	head := r.Commit()
+	meta := source.Metadata{Identity: source.Identity{Repository: "o/r", Number: 1}, BaseRepository: "o/r", HeadRepository: "o/r", BaseSHA: base, HeadSHA: head}
+	store, err := session.Open(filepath.Join(t.TempDir(), "sessions"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	calls := 0
+	app := application{store: store, gh: &fixtureGH{value: meta}, runner: source.NewRunner(), limits: source.Defaults(), newAnalyzer: func() (guide.Analyzer, error) {
+		calls++
+		return generatedGuideAnalyzer{}, nil
+	}}
+	first, err := app.openFromPullRequestList(context.Background(), r.Dir, meta.Identity, nil)
+	if err != nil || first.Guides == nil || first.Guides.Status != guide.Generated || calls != 1 {
+		t.Fatalf("first PR-list guide = %#v, calls=%d, err=%v", first, calls, err)
+	}
+	app.newAnalyzer = func() (guide.Analyzer, error) {
+		calls++
+		return nil, errors.New("cache hit must not create analyzer")
+	}
+	second, err := app.openFromPullRequestList(context.Background(), r.Dir, meta.Identity, nil)
+	if err != nil || second.Guides == nil || second.Guides.Status != guide.Generated || calls != 1 {
+		t.Fatalf("cached PR-list guide = %#v, calls=%d, err=%v", second, calls, err)
+	}
+}
+
+func TestLifecyclePRListOpenRetriesUnavailableGuides(t *testing.T) {
+	r := testutil.NewRepo(t)
+	r.Write("a", "old\n")
+	base := r.Commit()
+	r.Write("a", "new\n")
+	head := r.Commit()
+	meta := source.Metadata{Identity: source.Identity{Repository: "o/r", Number: 1}, BaseRepository: "o/r", HeadRepository: "o/r", BaseSHA: base, HeadSHA: head}
+	store, err := session.Open(filepath.Join(t.TempDir(), "sessions"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	calls := 0
+	app := application{store: store, gh: &fixtureGH{value: meta}, runner: source.NewRunner(), limits: source.Defaults(), newAnalyzer: func() (guide.Analyzer, error) {
+		calls++
+		return unavailableGuideAnalyzer{}, nil
+	}}
+	for attempt := 1; attempt <= 2; attempt++ {
+		got, err := app.openFromPullRequestList(context.Background(), r.Dir, meta.Identity, nil)
+		if err != nil || got.Guides == nil || got.Guides.Status != guide.Unavailable {
+			t.Fatalf("attempt %d unavailable guide = %#v, %v", attempt, got, err)
+		}
+	}
+	if calls != 2 {
+		t.Fatalf("unavailable guide analyzer calls = %d, want retry", calls)
 	}
 }

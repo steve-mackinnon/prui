@@ -402,7 +402,7 @@ func (m *Model) pullRequestPickerKey(k string) tea.Cmd {
 				}
 			}
 		}
-		m.notice = "Opening selected pull request; source stays local..."
+		m.notice = "Opening selected pull request and resolving its guide; source stays local..."
 		ctx := m.beginAction()
 		target := m.activeTab
 		return m.start(func() tea.Msg {
@@ -484,7 +484,7 @@ func (m *Model) openSelectedPullRequest(identity source.Identity) tea.Cmd {
 		m.ActionError = errors.New("no pinned checkout available for selected pull request")
 		return nil
 	}
-	m.notice = "Opening selected pull request; source stays local..."
+	m.notice = "Opening selected pull request and resolving its guide; source stays local..."
 	ctx := m.beginAction()
 	target := m.activeTab
 	return m.start(func() tea.Msg {

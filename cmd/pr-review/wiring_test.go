@@ -47,8 +47,12 @@ func TestEntryPointsShareReviewOperations(t *testing.T) {
 			if m.Session == nil || m.Err != nil || m.ActionError != nil {
 				t.Fatal("entry failed", m.Err, m.ActionError)
 			}
-			if calls != 0 {
-				t.Fatal("entry created analyzer without consent")
+			expectedCalls := 0
+			if command == "prs" || command == "current" {
+				expectedCalls = 1
+			}
+			if calls != expectedCalls {
+				t.Fatalf("analyzer calls after %s entry = %d, want %d", command, calls, expectedCalls)
 			}
 			modelKey(m, 'r')
 			if m.ActionError != nil || m.Session.RevisionStatus != session.Current {
@@ -61,11 +65,11 @@ func TestEntryPointsShareReviewOperations(t *testing.T) {
 			}
 			id = m.Session.ID
 			modelKey(m, 'g')
-			if calls != 0 {
+			if calls != expectedCalls {
 				t.Fatal("consent screen created analyzer")
 			}
 			modelKey(m, tea.KeyEnter)
-			if m.ActionError != nil || calls != 1 || m.Session.DerivedFrom != id {
+			if m.ActionError != nil || calls != expectedCalls+1 || m.Session.DerivedFrom != id {
 				t.Fatal("guide not wired", m.ActionError)
 			}
 		})

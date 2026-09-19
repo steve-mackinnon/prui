@@ -8,20 +8,150 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	reviewcontext "pr-review/internal/context"
 	"pr-review/internal/guide"
 	"pr-review/internal/inventory"
 	"pr-review/internal/plan"
+	"pr-review/internal/source"
 )
 
 func fixture() Snapshot {
 	patch := []byte("@@ -1 +1 @@\n-old\n+new\xff\n")
 	ref := fmt.Sprintf("%x", sha256.Sum256(patch))
 	i := inventory.Inventory{Complete: true, Files: []inventory.FileChange{{ID: "file", NewPath: []byte{'a', 0xff}}}, Units: []inventory.ReviewUnit{{ID: "unit", InventoryID: "inventory", FileChangeID: "file", Kind: inventory.TextHunk, PatchReference: ref}}, Patches: map[string][]byte{ref: patch}}
-	i.Comparison.InventoryID = "inventory"
+	i.Comparison = source.PinnedComparison{Metadata: source.Metadata{Identity: source.Identity{Repository: "owner/repo", Number: 7}, BaseSHA: strings.Repeat("a", 40), HeadSHA: strings.Repeat("b", 40)}, InventoryID: "inventory"}
 	return Snapshot{Inventory: i, PlanVersion: "file-v1", Slices: []Slice{{FileID: "file", Units: []int{0}}}, UnitFiles: []int{0}, Context: reviewcontext.ContextBundle{ComparisonID: "inventory", Evidence: []reviewcontext.Evidence{{EvidenceID: "evidence", CommitSHA: "commit", Path: []byte("README.md"), Excerpt: []byte("docs")}}, OmittedPaths: []reviewcontext.Omitted{{Path: []byte(".env"), Reason: "credential-like filename"}}}}
+}
+
+func guideCacheKey() GuideCacheKey {
+	return GuideCacheKey{Repository: "owner/repo", Number: 7, BaseSHA: strings.Repeat("a", 40), HeadSHA: strings.Repeat("b", 40)}
+}
+
+func generatedGuide() guide.Bundle {
+	return guide.Bundle{Status: guide.Generated, Provider: "openai", Model: "test-model", PromptVersion: "guides-v1", SchemaName: "pr_review_guides", InputDigest: "digest", Items: []guide.Item{{Title: "Authentication flow", Sections: []guide.Section{{Title: "Add login endpoint", UnitIDs: []string{"unit"}}}}}}
+}
+
+func TestGuideCacheStoresOnlyValidGeneratedGuidesByComparison(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "sessions")
+	s, err := Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	key, inv, bundle := guideCacheKey(), fixture().Inventory, generatedGuide()
+	if err := s.SaveGeneratedGuide(key, bundle, inv); err != nil {
+		t.Fatal(err)
+	}
+	normalized := key
+	normalized.Repository = "OWNER/REPO"
+	if got, err := s.LoadGeneratedGuide(normalized, inv); err != nil || got == nil {
+		t.Fatalf("normalized key cache hit = %#v, %v", got, err)
+	}
+	if err := s.Close(); err != nil {
+		t.Fatal(err)
+	}
+	s, err = Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	got, err := s.LoadGeneratedGuide(key, inv)
+	if err != nil || got == nil || got.Status != guide.Generated || got.Model != "test-model" {
+		t.Fatalf("durable cache hit = %#v, %v", got, err)
+	}
+	for _, changed := range []GuideCacheKey{
+		{Repository: key.Repository, Number: key.Number, BaseSHA: strings.Repeat("c", 40), HeadSHA: key.HeadSHA},
+		{Repository: key.Repository, Number: key.Number, BaseSHA: key.BaseSHA, HeadSHA: strings.Repeat("c", 40)},
+	} {
+		got, err := s.LoadGeneratedGuide(changed, inv)
+		if err != nil || got != nil {
+			t.Fatalf("changed comparison cache hit = %#v, %v", got, err)
+		}
+	}
+	for _, path := range []string{filepath.Join(dir, "guides"), s.guideCachePath(key)} {
+		info, err := os.Stat(path)
+		if err != nil || info.Mode().Perm()&0077 != 0 {
+			t.Fatalf("unsafe guide cache permissions: %s %v", path, err)
+		}
+	}
+}
+
+func TestGuideCacheRejectsUnavailableAndInvalidGuides(t *testing.T) {
+	s, err := Open(filepath.Join(t.TempDir(), "sessions"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	key, inv := guideCacheKey(), fixture().Inventory
+	if err := s.SaveGeneratedGuide(key, guide.Fallback("provider unavailable"), inv); err == nil {
+		t.Fatal("unavailable guide cached")
+	}
+	bad := generatedGuide()
+	bad.Items[0].Sections[0].UnitIDs = []string{"invented"}
+	if err := s.SaveGeneratedGuide(key, bad, inv); err == nil {
+		t.Fatal("invalid guide cached")
+	}
+	got, err := s.LoadGeneratedGuide(key, inv)
+	if err != nil || got != nil {
+		t.Fatalf("rejected guide became cache hit = %#v, %v", got, err)
+	}
+}
+
+func TestGuideCacheFailsClosedForInvalidArtifacts(t *testing.T) {
+	s, err := Open(filepath.Join(t.TempDir(), "sessions"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	key, inv := guideCacheKey(), fixture().Inventory
+	if err := s.SaveGeneratedGuide(key, generatedGuide(), inv); err != nil {
+		t.Fatal(err)
+	}
+	path := s.guideCachePath(key)
+	for _, data := range [][]byte{
+		[]byte("{"),
+		[]byte(`{"repository":"owner/repo","number":7,"base_sha":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","head_sha":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","bundle":{"status":"analysis_unavailable","reason":"no"}}`),
+		[]byte(`{"repository":"owner/repo","number":7,"base_sha":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","head_sha":"cccccccccccccccccccccccccccccccccccccccc","bundle":{"status":"generated"}}`),
+	} {
+		if err := os.WriteFile(path, data, 0600); err != nil {
+			t.Fatal(err)
+		}
+		got, err := s.LoadGeneratedGuide(key, inv)
+		if err != nil || got != nil {
+			t.Fatalf("invalid artifact cache hit = %#v, %v", got, err)
+		}
+	}
+	if err := os.Remove(path); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink("/tmp/not-a-guide", path); err != nil {
+		t.Fatal(err)
+	}
+	got, err := s.LoadGeneratedGuide(key, inv)
+	if err != nil || got != nil {
+		t.Fatalf("symlink artifact cache hit = %#v, %v", got, err)
+	}
+}
+
+func TestGuideCacheRejectsArtifactInvalidForCurrentInventory(t *testing.T) {
+	s, err := Open(filepath.Join(t.TempDir(), "sessions"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	key, inv := guideCacheKey(), fixture().Inventory
+	if err := s.SaveGeneratedGuide(key, generatedGuide(), inv); err != nil {
+		t.Fatal(err)
+	}
+	changedInventory := inv
+	changedInventory.Units = append([]inventory.ReviewUnit(nil), inv.Units...)
+	changedInventory.Units[0].ID = "changed-unit"
+	got, err := s.LoadGeneratedGuide(key, changedInventory)
+	if err != nil || got != nil {
+		t.Fatalf("inventory-invalid guide cache hit = %#v, %v", got, err)
+	}
 }
 
 func TestStoreRestartFrozenBytesAndProgress(t *testing.T) {

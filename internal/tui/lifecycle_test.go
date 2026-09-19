@@ -259,6 +259,9 @@ func TestCurrentRepositoryBrowserListsAndOpensWithoutRepositoryPicker(t *testing
 		t.Fatalf("current repository browser did not show PRs: %s", m.View().Content)
 	}
 	_, cmd = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	if !m.Busy || !strings.Contains(m.View().Content, "Opening selected pull request and resolving its guide") {
+		t.Fatal("PR selection did not show guide-resolution loading state")
+	}
 	m.Update(cmd())
 	if m.top() != pageReview || m.Session != saved {
 		t.Fatal("current repository browser did not open selected PR")
