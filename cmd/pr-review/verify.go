@@ -30,7 +30,7 @@ func runVerify(ctx context.Context, o options) int {
 		fmt.Fprintln(os.Stderr, tui.Escape(err.Error()))
 		return 1
 	}
-	defer os.RemoveAll(store)
+	defer func() { _ = os.RemoveAll(store) }()
 	executable, err := os.Executable()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, tui.Escape(err.Error()))
@@ -76,7 +76,7 @@ func writeVerifyReport(dir string, report *verify.Report) error {
 		return err
 	}
 	if _, err := f.Write(append(b, '\n')); err != nil {
-		f.Close()
+		_ = f.Close()
 		return err
 	}
 	return f.Close()

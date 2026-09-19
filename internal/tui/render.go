@@ -136,7 +136,7 @@ func guidesText(s *review.Session) string {
 		}
 		for j, section := range item.Sections {
 			if !item.Ungrouped {
-				b.WriteString(fmt.Sprintf("   %d.%d %s\n", i+1, j+1, Escape(section.Title)))
+				fmt.Fprintf(&b, "   %d.%d %s\n", i+1, j+1, Escape(section.Title))
 				if strings.TrimSpace(section.Description) != "" {
 					b.WriteString("       " + Escape(section.Description) + "\n")
 				}
@@ -195,13 +195,13 @@ func scope(s *review.Session, g *guide.Bundle) string {
 func Plain(s *review.Session) string {
 	var b strings.Builder
 	b.WriteString(status(s) + "\n" + s.Inventory.Comparison.Metadata.Identity.URL() + "\n")
-	b.WriteString(fmt.Sprintf("%d files; %d units. Reading is not GitHub approval.\n", len(s.Inventory.Files), len(s.Inventory.Units)))
+	fmt.Fprintf(&b, "%d files; %d units. Reading is not GitHub approval.\n", len(s.Inventory.Files), len(s.Inventory.Units))
 	if s.ID != "" {
 		b.WriteString("Session: " + s.ID + "\n" + progress(s) + "\n")
 		b.WriteString("Optional full source context not retained; frozen patches and metadata available.\n")
 	}
 	b.WriteString(guidesText(s))
-	b.WriteString(fmt.Sprintf("Evidence: %d retained, %d omitted; examined paths: %d; budgets files=%d excerpts=%d bytes=%d\n", len(s.Context.Evidence), len(s.Context.OmittedPaths), len(s.Context.ExaminedPaths), s.Context.FileBudget, s.Context.ExcerptBudget, s.Context.ByteBudget))
+	fmt.Fprintf(&b, "Evidence: %d retained, %d omitted; examined paths: %d; budgets files=%d excerpts=%d bytes=%d\n", len(s.Context.Evidence), len(s.Context.OmittedPaths), len(s.Context.ExaminedPaths), s.Context.FileBudget, s.Context.ExcerptBudget, s.Context.ByteBudget)
 	for _, budget := range s.Context.ExhaustedBudgets {
 		b.WriteString("SCOPE WARNING: " + Escape(budget) + " budget exhausted\n")
 	}

@@ -258,7 +258,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		if v.String() != "q" && v.String() != "ctrl+c" {
-			if m.Busy && !(m.top() == pagePullRequestPicker && m.Session != nil) {
+			if m.Busy && (m.top() != pagePullRequestPicker || m.Session == nil) {
 				return m, nil
 			}
 			if p := m.top(); p != pageReview {
@@ -583,7 +583,7 @@ func (m *Model) bodyHeight() int {
 
 func (m *Model) pageStep() int { return max(1, m.bodyHeight()-1) }
 func (m *Model) View() tea.View {
-	text := ""
+	var text string
 	switch {
 	case m.Loading:
 		text = "Opening review..."
@@ -700,17 +700,18 @@ func (m *Model) reviewView() string {
 		leftWidth = min(36, m.Width/3)
 	}
 	list := []listLine{}
-	selectedRow := 0
-	if m.Inventory {
+	var selectedRow int
+	switch {
+	case m.Inventory:
 		selectedRow = m.Selected
 		for i, u := range s.Inventory.Units {
 			marker := selectionMarker(i == m.Selected)
 			list = append(list, listLine{row: i, text: marker + pathLabel(s.Inventory.Files[s.UnitFiles[i]]) + " [" + string(u.Kind) + "]"})
 		}
-	} else if rows != nil {
+	case rows != nil:
 		selectedRow = max(0, min(len(rows)-1, m.Row))
 		list = guideList(s, rows, selectedRow, leftWidth, m.Focus == paneList)
-	} else {
+	default:
 		selectedRow = s.UnitFiles[m.Selected]
 		for i, f := range s.Inventory.Files {
 			marker := selectionMarker(i == selectedRow)

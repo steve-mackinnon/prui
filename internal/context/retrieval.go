@@ -196,11 +196,9 @@ func classify(p []byte) Kind {
 }
 func rank(p []byte, inv inventory.Inventory) int {
 	k := classify(p)
-	n := 0
+	n := 1
 	if k == Manifest || k == Documentation || k == NearbyTest {
 		n = 0
-	} else {
-		n = 1
 	}
 	for _, f := range inv.Files {
 		for _, q := range [][]byte{f.OldPath, f.NewPath} {

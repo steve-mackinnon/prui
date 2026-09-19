@@ -186,7 +186,7 @@ func (o *OpenAI) post(ctx context.Context, body []byte) ([]byte, error) {
 		// header, but the reason is sanitized regardless.
 		return nil, errors.New(o.sanitize("request failed: " + err.Error()))
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	raw, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseBytes+1))
 	if err != nil {
 		return nil, errors.New(o.sanitize("response could not be read: " + err.Error()))

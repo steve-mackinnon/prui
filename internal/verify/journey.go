@@ -83,7 +83,7 @@ func RunJourney(ctx context.Context, config JourneyConfig) (Journey, error) {
 		journey.Report.Status, journey.Report.Reason = Failed, "could not prepare terminal verifier"
 		return journey, err
 	}
-	defer os.Remove(harness)
+	defer func() { _ = os.Remove(harness) }()
 
 	var sessionID string
 	timings := make([]TimingRun, 0, config.Runs)
@@ -181,7 +181,7 @@ func validateJourneyConfig(config JourneyConfig) error {
 		return errors.New("artifact directory must be new and empty")
 	}
 	if _, err := exec.LookPath(config.Python); err != nil {
-		return errors.New("Python 3 is required for terminal verification")
+		return errors.New("python 3 is required for terminal verification")
 	}
 	if _, err := os.Stat(config.Executable); err != nil {
 		return errors.New("pr-review executable is unavailable")
@@ -294,12 +294,12 @@ func writeHarness() (string, error) {
 		return "", err
 	}
 	if _, err := f.Write(journeyHarness); err != nil {
-		f.Close()
-		os.Remove(f.Name())
+		_ = f.Close()
+		_ = os.Remove(f.Name())
 		return "", err
 	}
 	if err := f.Close(); err != nil {
-		os.Remove(f.Name())
+		_ = os.Remove(f.Name())
 		return "", err
 	}
 	return f.Name(), nil

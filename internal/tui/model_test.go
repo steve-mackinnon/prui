@@ -649,9 +649,17 @@ func TestPlainGuides(t *testing.T) {
 	if strings.Index(plain, "Guides interpret") > strings.Index(plain, "[file_metadata]") {
 		t.Fatal("guides render after the raw units they interpret")
 	}
-	ungrouped := plain[strings.Index(plain, "2. Ungrouped changes"):]
+	ungroupedStart := strings.Index(plain, "2. Ungrouped changes")
+	if ungroupedStart < 0 {
+		t.Fatal("ungrouped guide is missing")
+	}
+	ungrouped := plain[ungroupedStart:]
+	analysisScopeStart := strings.Index(ungrouped, "Analysis scope")
+	if analysisScopeStart < 0 {
+		t.Fatal("analysis scope is missing")
+	}
 	for _, want := range []string{"README.md [", ".env ["} {
-		if !strings.Contains(ungrouped[:strings.Index(ungrouped, "Analysis scope")], want) {
+		if !strings.Contains(ungrouped[:analysisScopeStart], want) {
 			t.Fatalf("ungrouped guide hides %q", want)
 		}
 	}

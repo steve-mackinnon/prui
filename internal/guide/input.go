@@ -143,7 +143,7 @@ func (in Input) digest() string {
 
 func field(h hash.Hash, parts ...[]byte) {
 	for _, p := range parts {
-		fmt.Fprintf(h, "%d:", len(p))
+		_, _ = fmt.Fprintf(h, "%d:", len(p))
 		h.Write(p)
 	}
 }

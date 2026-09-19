@@ -75,7 +75,7 @@ func run(args []string) int {
 		fmt.Fprintln(os.Stderr, tui.Escape(e.Error()))
 		return 1
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 	fmt.Fprintln(os.Stderr, "Local session storage:", tui.Escape(store.Path()))
 	if o.Command == "sessions" {
 		return listSessions(store, os.Stdout)
@@ -103,7 +103,7 @@ func run(args []string) int {
 		dir, err := os.MkdirTemp("", "pr-review-gh-")
 		app.setupError = err
 		if err == nil {
-			defer os.RemoveAll(dir)
+			defer func() { _ = os.RemoveAll(dir) }()
 			app.gh, app.setupError = source.NewGH(r, limits, dir)
 		}
 	}

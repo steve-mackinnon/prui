@@ -43,7 +43,7 @@ func OpenWithConfig(ctx context.Context, checkout string, id source.Identity, gh
 	if e != nil {
 		return nil, e
 	}
-	defer v.Close()
+	defer func() { _ = v.Close() }()
 	started := time.Now()
 	inv, e := inventory.Build(ctx, v, p, l)
 	if cfg.Timing != nil {

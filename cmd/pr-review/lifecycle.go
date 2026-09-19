@@ -86,7 +86,7 @@ func (a *application) open(ctx context.Context, checkout string, id source.Ident
 	if a.gh == nil {
 		return nil, errors.New("gh executable required; install GitHub CLI and authenticate")
 	}
-	gh := source.GitHub(a.gh)
+	gh := a.gh
 	var timing *timedGitHub
 	if os.Getenv(verify.OpenTimingEnvironment) == "1" {
 		timing = &timedGitHub{GitHub: a.gh}
@@ -302,31 +302,31 @@ func (a *application) load(ctx context.Context, o options, notify func(string)) 
 func listSessions(store *session.Store, out io.Writer) int {
 	entries, err := store.List()
 	if err != nil {
-		fmt.Fprintln(out, tui.Escape(err.Error()))
+		_, _ = fmt.Fprintln(out, tui.Escape(err.Error()))
 		return 1
 	}
-	fmt.Fprintln(out, "Stored freshness checks are historical; resume checks again. Reading is not GitHub approval.")
+	_, _ = fmt.Fprintln(out, "Stored freshness checks are historical; resume checks again. Reading is not GitHub approval.")
 	code := 0
 	for _, entry := range entries {
 		if entry.Err != nil {
-			fmt.Fprintln(out, entry.ID, "UNREADABLE (retained):", tui.Escape(entry.Err.Error()))
+			_, _ = fmt.Fprintln(out, entry.ID, "UNREADABLE (retained):", tui.Escape(entry.Err.Error()))
 			code = 1
 			continue
 		}
 		s := entry.Record
-		fmt.Fprintf(out, "%s %s #%d head %.12s %d/%d read | last check: %s | updated %s\n", entry.ID, tui.Escape(s.Inventory.Comparison.Metadata.Identity.Repository), s.Inventory.Comparison.Metadata.Identity.Number, s.Inventory.Comparison.Metadata.HeadSHA, len(s.ReviewedSliceIDs), len(s.Slices), s.RevisionStatus, s.UpdatedAt.Format("2006-01-02T15:04:05Z"))
+		_, _ = fmt.Fprintf(out, "%s %s #%d head %.12s %d/%d read | last check: %s | updated %s\n", entry.ID, tui.Escape(s.Inventory.Comparison.Metadata.Identity.Repository), s.Inventory.Comparison.Metadata.Identity.Number, s.Inventory.Comparison.Metadata.HeadSHA, len(s.ReviewedSliceIDs), len(s.Slices), s.RevisionStatus, s.UpdatedAt.Format("2006-01-02T15:04:05Z"))
 	}
 	if len(entries) == 0 {
-		fmt.Fprintln(out, "No saved sessions.")
+		_, _ = fmt.Fprintln(out, "No saved sessions.")
 	}
 	return code
 }
 
 func listPullRequests(out io.Writer, repository string, prs []source.PullRequest) {
 	for _, pr := range prs {
-		fmt.Fprintf(out, "%s #%d %s\n", tui.Escape(repository), pr.Identity.Number, tui.Escape(pr.Title))
+		_, _ = fmt.Fprintf(out, "%s #%d %s\n", tui.Escape(repository), pr.Identity.Number, tui.Escape(pr.Title))
 	}
 	if len(prs) == 0 {
-		fmt.Fprintln(out, "No open pull requests.")
+		_, _ = fmt.Fprintln(out, "No open pull requests.")
 	}
 }

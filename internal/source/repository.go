@@ -146,7 +146,7 @@ func readRegularSmall(path string, limit int64) ([]byte, error) {
 }
 
 func repositoryFromRemote(remote string) (string, error) {
-	path := ""
+	var path string
 	switch {
 	case strings.HasPrefix(remote, "git@github.com:"):
 		path = strings.TrimPrefix(remote, "git@github.com:")

@@ -24,11 +24,12 @@ func (a *application) online(ctx context.Context) error {
 // differs, so arriving through the browser cannot silently lose capabilities.
 func (a *application) model(ctx context.Context, o options) *tui.Model {
 	var m *tui.Model
-	if o.Command == "prs" {
+	switch o.Command {
+	case "prs":
 		m = tui.NewPullRequestBrowser(ctx, a.store, a.listPullRequests, a.openFromPullRequestList)
-	} else if o.Command == "current" {
+	case "current":
 		m = tui.NewCurrentRepositoryBrowser(ctx, a.store, o.Repository, o.Checkout, a.listPullRequests, a.openFromPullRequestList)
-	} else {
+	default:
 		m = tui.New(ctx, func(c context.Context, notify func(string)) (*review.Session, error) {
 			return a.load(c, o, notify)
 		})

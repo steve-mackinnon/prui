@@ -1,0 +1,33 @@
+version: "2"
+
+run:
+  timeout: 5m
+
+linters:
+  # Start with correctness-focused checks. Additional opinionated style and
+  # complexity linters were audited separately before choosing this baseline.
+  default: none
+  enable:
+    - errcheck
+    - gocritic
+    - govet
+    - ineffassign
+    - staticcheck
+    - unconvert
+    - wastedassign
+  exclusions:
+    rules:
+      # Test cleanup is intentionally best-effort; production resource handling
+      # remains covered by errcheck.
+      - path: _test\.go
+        linters:
+          - errcheck
+          # This rule mistakes the intentional prefix-direction assertion used
+          # by ANSI clipping tests for an argument-order error.
+          - gocritic
+      # usage is printed verbatim to the terminal, so it deliberately contains
+      # punctuation and newlines rather than being a conventional error string.
+      - path: cmd/pr-review/options\.go
+        text: "ST1005:"
+        linters:
+          - staticcheck

@@ -39,7 +39,7 @@ func largeTextSession(files, units int) *review.Session {
 	var patch strings.Builder
 	patch.WriteString("diff --git a/f b/f\nindex 1111111..2222222 100644\n--- a/f\n+++ b/f\n@@ -1,20 +1,20 @@\n")
 	for i := 0; i < 20; i++ {
-		patch.WriteString(fmt.Sprintf(" context %d\n-old %d\n+new %d\n", i, i, i))
+		fmt.Fprintf(&patch, " context %d\n-old %d\n+new %d\n", i, i, i)
 	}
 	s.Inventory.Patches = map[string][]byte{"p": []byte(patch.String())}
 	for i := range s.Inventory.Units {

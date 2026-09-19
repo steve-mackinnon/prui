@@ -6,6 +6,17 @@ Run the same gate as CI from the repository root:
 ./scripts/verify.sh
 ```
 
+Run the expanded static-analysis gate locally with:
+
+```sh
+golangci-lint run ./...
+```
+
+CI installs the pinned GolangCI-Lint release and runs this check separately
+from the platform verification matrix. Its configuration deliberately focuses
+on correctness and bug detection; the full all-linters audit is not a merge
+gate because it mixes incompatible style rules and arbitrary complexity caps.
+
 Requirements: macOS or Linux, the Go version declared in `go.mod`, Git, and
 Python 3. The gate checks Go formatting without rewriting files, runs `go vet`,
 runs every Go test with the race detector and a five-minute package timeout,

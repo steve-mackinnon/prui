@@ -172,11 +172,11 @@ func Open(path string) (*Store, error) {
 		return nil, err
 	}
 	if err = syscall.Flock(int(lock.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
-		lock.Close()
+		_ = lock.Close()
 		return nil, errors.New("session storage busy: another pr-review process holds the writer lock")
 	}
 	if err := storageFormat(path); err != nil {
-		lock.Close()
+		_ = lock.Close()
 		return nil, err
 	}
 	return &Store{path: path, lock: lock}, nil
@@ -478,7 +478,7 @@ func readJSON(path string, value any) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	b, err := io.ReadAll(io.LimitReader(f, maxJSONBytes+1))
 	if err != nil {
 		return nil, err
@@ -505,8 +505,8 @@ func atomicWrite(dir, name string, b []byte) error {
 	if err != nil {
 		return err
 	}
-	defer os.Remove(f.Name())
-	defer f.Close()
+	defer func() { _ = os.Remove(f.Name()) }()
+	defer func() { _ = f.Close() }()
 	if _, err = f.Write(b); err != nil {
 		return err
 	}
@@ -527,7 +527,7 @@ func syncDir(dir string) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	return f.Sync()
 }
 
