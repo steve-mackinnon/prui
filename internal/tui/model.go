@@ -472,6 +472,10 @@ func (m *Model) pageKey(p page, k string) tea.Cmd {
 	case pageRepositoryPicker:
 		return m.repositoryPickerKey(k)
 	case pagePullRequestPicker:
+		if k == "?" {
+			m.push(pageHelp)
+			return nil
+		}
 		return m.pullRequestPickerKey(k)
 	case pageGuideConsent:
 		return m.guideConsentKey(k)
@@ -603,7 +607,7 @@ func (m *Model) View() tea.View {
 			text = m.pullRequestPickerView()
 		case pageHelp:
 			text = "Health & help\n" + renderHealth() + "\n\nControls and invalid bytes escaped. No mouse capture.\nReading progress is local, not GitHub approval.\nGuides interpret the diff; the raw inventory remains the complete source view.\nMarking any portion of a file marks its whole slice, under every guide.\nEvidence is pinned, bounded, and omissions are reported. Analysis is optional and consent-bound."
-			if m.store != nil {
+			if m.store != nil && m.Session != nil {
 				text += "\nStorage: " + Escape(m.store.Path()) + "\nSession: " + m.Session.ID
 			}
 		case pageURL:

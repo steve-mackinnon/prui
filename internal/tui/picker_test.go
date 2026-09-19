@@ -145,6 +145,21 @@ func TestPickerUsesSharedSelectionAndHealthChrome(t *testing.T) {
 	}
 }
 
+func TestPullRequestPickerOpensHelpAndReturns(t *testing.T) {
+	m := NewCurrentRepositoryBrowser(context.Background(), pickerStore(t), "owner/repo", t.TempDir(), nil, nil)
+	defer m.Close()
+	m.PullRequests = []source.PullRequest{{Identity: source.Identity{Repository: "owner/repo", Number: 42}, Title: "Open me"}}
+
+	key(m, '?')
+	if m.top() != pageHelp || !strings.Contains(ansi.Strip(m.View().Content), "Health & help") {
+		t.Fatalf("pull request picker did not open help: %s", m.View().Content)
+	}
+	namedKey(m, tea.KeyEscape)
+	if m.top() != pagePullRequestPicker || !strings.Contains(ansi.Strip(m.View().Content), "Open me") {
+		t.Fatalf("help did not return to pull request picker: %s", m.View().Content)
+	}
+}
+
 func TestPickerBackNavigationRestoresRepositorySelection(t *testing.T) {
 	for _, count := range []int{1, 3} {
 		t.Run(fmt.Sprint(count), func(t *testing.T) {
