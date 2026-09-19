@@ -112,6 +112,8 @@ type ActionResult struct {
 
 type PullRequestListResult struct {
 	PullRequests []source.PullRequest
+	Repository   string
+	Target       int
 	Err          error
 }
 
@@ -123,6 +125,12 @@ type PullRequestOpenResult struct {
 	Identity source.Identity
 	Session  *review.Session
 	Err      error
+}
+
+type switcherResult struct {
+	identity source.Identity
+	title    string
+	open     bool
 }
 
 func (m *Model) SetLifecycle(store *session.Store, reader review.MetadataReader, fresh FreshLoader) {
@@ -284,13 +292,55 @@ func (m *Model) loadPullRequests(repository string) tea.Cmd {
 	m.notice = "Listing open pull requests from GitHub..."
 	ctx := m.beginAction()
 	list := m.listPullRequests
+	target := m.activeTab
 	return m.start(func() tea.Msg {
 		if list == nil {
-			return PullRequestListResult{Err: errors.New("pull request listing unavailable")}
+			return PullRequestListResult{Target: target, Repository: repository, Err: errors.New("pull request listing unavailable")}
 		}
 		prs, err := list(ctx, repository)
-		return PullRequestListResult{PullRequests: prs, Err: err}
+		return PullRequestListResult{PullRequests: prs, Repository: repository, Target: target, Err: err}
 	})
+}
+
+// openSwitcher keeps the active review visible until the overlay is rendered.
+// Listing is deliberately scoped to the active repository; open reviews are
+// immediately useful even while that cancellable request is in flight.
+func (m *Model) openSwitcher() tea.Cmd {
+	if m.Session == nil {
+		return nil
+	}
+	m.SwitcherQuery = ""
+	m.PullRequestPicker = pickerState{}
+	m.push(pagePullRequestPicker)
+	repository := m.Session.Inventory.Comparison.Metadata.Identity.Repository
+	if repository == "" || m.listPullRequests == nil {
+		return nil
+	}
+	return m.loadPullRequests(repository)
+}
+
+func (m *Model) switcherResults() []switcherResult {
+	query := strings.ToLower(strings.TrimSpace(m.SwitcherQuery))
+	matches := func(s string) bool { return query == "" || strings.Contains(strings.ToLower(s), query) }
+	results := make([]switcherResult, 0, len(m.tabs)+len(m.PullRequests))
+	opened := make(map[source.Identity]bool, len(m.tabs))
+	for _, tab := range m.tabs {
+		opened[tab.identity] = true
+		label := fmt.Sprintf("%s#%d", tab.identity.Repository, tab.identity.Number)
+		if matches(label) {
+			results = append(results, switcherResult{identity: tab.identity, title: label, open: true})
+		}
+	}
+	for _, pr := range m.PullRequests {
+		if opened[pr.Identity] {
+			continue
+		}
+		label := fmt.Sprintf("%s#%d %s", pr.Identity.Repository, pr.Identity.Number, pr.Title)
+		if matches(label) {
+			results = append(results, switcherResult{identity: pr.Identity, title: pr.Title})
+		}
+	}
+	return results
 }
 
 func (m *Model) pullRequestRepository() string {
@@ -305,6 +355,9 @@ func (m *Model) pullRequestRepository() string {
 }
 
 func (m *Model) pullRequestPickerKey(k string) tea.Cmd {
+	if m.Session != nil {
+		return m.switcherKey(k)
+	}
 	m.PullRequestPicker.clamp(len(m.PullRequests))
 	switch k {
 	case "esc":
@@ -327,7 +380,7 @@ func (m *Model) pullRequestPickerKey(k string) tea.Cmd {
 		}
 		pr := m.PullRequests[m.PullRequestPicker.Index]
 		for i, tab := range m.tabs {
-			if tab.kind == tabReview && tab.identity == pr.Identity {
+			if tab.identity == pr.Identity {
 				m.activateTab(i)
 				return nil
 			}
@@ -364,6 +417,86 @@ func (m *Model) pullRequestPickerKey(k string) tea.Cmd {
 	return nil
 }
 
+func (m *Model) switcherKey(k string) tea.Cmd {
+	results := m.switcherResults()
+	m.PullRequestPicker.clamp(len(results))
+	switch k {
+	case "esc":
+		m.pop()
+		return nil
+	case "backspace":
+		if len(m.SwitcherQuery) > 0 {
+			m.SwitcherQuery = m.SwitcherQuery[:len(m.SwitcherQuery)-1]
+			m.PullRequestPicker.Index = 0
+		}
+		return nil
+	case "up", "k":
+		m.PullRequestPicker.Index = max(0, m.PullRequestPicker.Index-1)
+		return nil
+	case "down", "j":
+		m.PullRequestPicker.Index = min(max(0, len(results)-1), m.PullRequestPicker.Index+1)
+		return nil
+	case "enter":
+		if len(results) == 0 {
+			return nil
+		}
+		selected := results[m.PullRequestPicker.Index]
+		if selected.open {
+			if m.Busy && m.cancelAction != nil {
+				m.cancelAction()
+			}
+			m.pop() // do not persist the overlay in either review's saved state
+			for i, tab := range m.tabs {
+				if tab.identity == selected.identity {
+					m.activateTab(i)
+					return nil
+				}
+			}
+		}
+		return m.openSelectedPullRequest(selected.identity)
+	}
+	if len(k) == 1 && k >= " " && k <= "~" {
+		m.SwitcherQuery += k
+		m.PullRequestPicker.Index = 0
+	}
+	return nil
+}
+
+func (m *Model) openSelectedPullRequest(identity source.Identity) tea.Cmd {
+	if m.openPullRequest == nil {
+		m.ActionError = errors.New("pull request opening unavailable")
+		return nil
+	}
+	if len(m.tabs) >= maxTabs {
+		m.ActionError = fmt.Errorf("maximum of %d reviews open; switch to an existing review", maxTabs)
+		return nil
+	}
+	checkout := m.currentCheckout
+	if checkout == "" {
+		for _, repository := range m.Repositories {
+			if repository.Repository == identity.Repository {
+				checkout = repository.Checkout
+				break
+			}
+		}
+	}
+	if checkout == "" {
+		m.ActionError = errors.New("no pinned checkout available for selected pull request")
+		return nil
+	}
+	m.notice = "Opening selected pull request; source stays local..."
+	ctx := m.beginAction()
+	target := m.activeTab
+	return m.start(func() tea.Msg {
+		n := m.notify
+		if n == nil {
+			n = func(string) {}
+		}
+		s, err := m.openPullRequest(ctx, checkout, identity, n)
+		return PullRequestOpenResult{Target: target, Identity: identity, Session: s, Err: err}
+	})
+}
+
 func (m *Model) pickerView() string {
 	rows := make([]string, len(m.Entries))
 	for i, entry := range m.Entries {
@@ -392,11 +525,30 @@ func (m *Model) repositoryPickerView() string {
 }
 
 func (m *Model) pullRequestPickerView() string {
+	if m.Session != nil {
+		return m.switcherView()
+	}
 	rows := make([]string, len(m.PullRequests))
 	for i, pr := range m.PullRequests {
 		rows[i] = fmt.Sprintf("#%d %s", pr.Identity.Number, Escape(pr.Title))
 	}
 	return m.pickerScreen(&m.PullRequestPicker, []string{"Open pull requests"}, rows, "No open pull requests.", "up/down: select | enter: open PR | esc: back | q: quit")
+}
+
+func (m *Model) switcherView() string {
+	results := m.switcherResults()
+	m.PullRequestPicker.clamp(len(results))
+	rows := make([]string, len(results))
+	for i, result := range results {
+		if result.open {
+			rows[i] = "open " + Escape(result.title)
+		} else {
+			rows[i] = fmt.Sprintf("#%d %s", result.identity.Number, Escape(result.title))
+		}
+	}
+	header := []string{"Switch pull requests", "filter: " + Escape(m.SwitcherQuery), "Open reviews first; then open PRs in this repository."}
+	footer := "type: filter | up/down j/k: select | enter: switch/open | esc: cancel | q: quit"
+	return m.pickerScreen(&m.PullRequestPicker, header, rows, "No matching open reviews or pull requests.", footer)
 }
 
 func (m *Model) footer() string {

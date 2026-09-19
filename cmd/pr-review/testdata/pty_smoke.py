@@ -275,6 +275,8 @@ def main():
     resume = ["resume", session_id, "--store", store, "--offline"]
     with Terminal(binary, resume, environment) as terminal:
         terminal.wait_for("0/2 read (local)")
+        terminal.key(b"\x10", "Switch pull requests")
+        terminal.key(b"\x1b", "0/2 read (local)")
         terminal.key(b"\x1b[B", "unit 2/2")
         terminal.key(b"m", "1/2 read (local)")
         # Resizing across the split-pane breakpoint must cause a real repaint.

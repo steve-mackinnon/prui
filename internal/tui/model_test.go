@@ -30,38 +30,74 @@ func key(m *Model, k rune)                                 { m.Update(tea.KeyPre
 func namedKey(m *Model, k rune)                            { m.Update(tea.KeyPressMsg{Code: k}) }
 func ctrlKey(m *Model, k rune)                             { m.Update(tea.KeyPressMsg{Code: k, Mod: tea.ModCtrl}) }
 
-func TestWorkspaceTabsKeepPRsFixedAndSelectNumberedReviews(t *testing.T) {
+func TestCommandSwitcherOpensOverReviewAndListsOpenTabsFirst(t *testing.T) {
 	m := New(context.Background(), nil)
-	if len(m.tabs) != 1 || m.tabs[0].kind != tabPullRequests || m.activeTab != 0 {
-		t.Fatalf("new model did not start on the fixed PRs tab: %#v, active=%d", m.tabs, m.activeTab)
+	first := largeSession(1, 1)
+	first.Inventory.Comparison.Metadata.Identity = source.Identity{Repository: "owner/repo", Number: 1}
+	second := largeSession(1, 1)
+	second.Inventory.Comparison.Metadata.Identity = source.Identity{Repository: "owner/repo", Number: 2}
+	m.openReviewTab(first)
+	m.openReviewTab(second)
+
+	ctrlKey(m, 'p')
+	if m.top() != pagePullRequestPicker {
+		t.Fatalf("ctrl+p did not open the PR switcher: %#v", m.Stack)
+	}
+	view := ansi.Strip(m.View().Content)
+	if !strings.Contains(view, "Switch pull requests") || !strings.Contains(view, "open owner/repo#1") || !strings.Contains(view, "open owner/repo#2") {
+		t.Fatalf("switcher did not list open reviews first:\n%s", view)
+	}
+	namedKey(m, tea.KeyEscape)
+	if m.top() != pageReview || m.Session != second {
+		t.Fatal("escape did not dismiss the switcher without changing the active review")
+	}
+}
+
+func TestCommandSwitcherFiltersAndActivatesExistingReviewWithoutOpening(t *testing.T) {
+	m := New(context.Background(), nil)
+	first := largeSession(1, 1)
+	first.Inventory.Comparison.Metadata.Identity = source.Identity{Repository: "owner/repo", Number: 1}
+	second := largeSession(1, 1)
+	second.Inventory.Comparison.Metadata.Identity = source.Identity{Repository: "owner/repo", Number: 2}
+	m.openReviewTab(first)
+	m.openReviewTab(second)
+	m.PullRequests = []source.PullRequest{
+		{Identity: first.Inventory.Comparison.Metadata.Identity, Title: "duplicate"},
+		{Identity: source.Identity{Repository: "owner/repo", Number: 3}, Title: "database migration"},
+	}
+
+	ctrlKey(m, 'p')
+	key(m, 'm')
+	key(m, 'i')
+	key(m, 'g')
+	if view := ansi.Strip(m.View().Content); strings.Contains(view, "owner/repo#1") || !strings.Contains(view, "database migration") {
+		t.Fatalf("filter did not use the query or deduplicate opened PRs:\n%s", view)
+	}
+	namedKey(m, tea.KeyBackspace)
+	namedKey(m, tea.KeyBackspace)
+	namedKey(m, tea.KeyBackspace)
+	m.PullRequestPicker.Index = 0
+	namedKey(m, tea.KeyEnter)
+	if m.Session != first || m.top() != pageReview {
+		t.Fatal("selecting an open review did not restore it and dismiss the switcher")
+	}
+}
+
+func TestWorkspaceReviewsStartEmptyAndActivateLoadedReview(t *testing.T) {
+	m := New(context.Background(), nil)
+	if len(m.tabs) != 0 || m.activeTab != -1 {
+		t.Fatalf("new model did not start with no review tabs: %#v, active=%d", m.tabs, m.activeTab)
 	}
 
 	s := largeSession(1, 1)
 	s.Inventory.Comparison.Metadata.Identity = source.Identity{Repository: "owner/repo", Number: 17}
 	m.Update(Loaded{Session: s})
-	if len(m.tabs) != 2 || m.activeTab != 1 || m.tabs[1].identity != s.Inventory.Comparison.Metadata.Identity {
-		t.Fatalf("loaded review was not activated as tab 2: %#v, active=%d", m.tabs, m.activeTab)
-	}
-
-	key(m, '1')
-	if m.activeTab != 0 {
-		t.Fatalf("1 selected tab %d, want fixed PRs tab", m.activeTab)
-	}
-	key(m, '2')
-	if m.activeTab != 1 {
-		t.Fatalf("2 selected tab %d, want loaded review", m.activeTab)
-	}
-	key(m, '9')
-	if m.activeTab != 1 {
-		t.Fatalf("unpopulated tab number changed active tab to %d", m.activeTab)
-	}
-	key(m, 'b')
-	if m.activeTab != 0 {
-		t.Fatalf("b selected tab %d, want fixed PRs tab", m.activeTab)
+	if len(m.tabs) != 1 || m.activeTab != 0 || m.tabs[0].identity != s.Inventory.Comparison.Metadata.Identity {
+		t.Fatalf("loaded review was not activated: %#v, active=%d", m.tabs, m.activeTab)
 	}
 }
 
-func TestWorkspaceTabNavigationWrapsWithoutTakingOverGuideTab(t *testing.T) {
+func TestCommandSwitcherDoesNotTakeOverGuideTab(t *testing.T) {
 	m := New(context.Background(), nil)
 	first := largeSession(1, 1)
 	first.Inventory.Comparison.Metadata.Identity = source.Identity{Repository: "owner/repo", Number: 1}
@@ -70,19 +106,6 @@ func TestWorkspaceTabNavigationWrapsWithoutTakingOverGuideTab(t *testing.T) {
 	m.openReviewTab(first)
 	m.openReviewTab(second)
 	m.activateTab(0)
-
-	key(m, 'T')
-	if m.activeTab != 2 {
-		t.Fatalf("T from fixed PRs tab selected %d, want last tab", m.activeTab)
-	}
-	key(m, 't')
-	if m.activeTab != 0 {
-		t.Fatalf("t from last tab selected %d, want fixed PRs tab", m.activeTab)
-	}
-	key(m, 't')
-	if m.activeTab != 1 {
-		t.Fatalf("t selected %d, want next review tab", m.activeTab)
-	}
 
 	guided, _, _ := guidedSession(t, groupingAnalyzer{path: "a.go"})
 	m.Session = guided
@@ -122,7 +145,7 @@ func TestWorkspaceTabsRestoreIndependentReviewState(t *testing.T) {
 	m.Stack, m.EditIndex = []page{pageReview, pageEvidence}, 0
 	m.Err, m.Loading, m.Busy, m.ActionError, m.notice = secondErr, false, false, secondErr, "second notice"
 
-	key(m, '2')
+	m.activateTab(0)
 	if m.Session != first || m.Selected != 1 || m.Row != 3 || !m.Files || !m.collapsed.guides[0] || m.Scroll[1] != 9 || m.GuideScroll[0] != 4 || m.Horizontal != 12 || !m.Inventory || m.Focus != paneDiff || m.EditIndex != 1 || m.Err != firstErr || !m.Loading || !m.Busy || m.ActionError != firstErr || m.notice != "first notice" {
 		t.Fatalf("tab 2 did not restore first review state: %#v", m)
 	}
@@ -130,7 +153,7 @@ func TestWorkspaceTabsRestoreIndependentReviewState(t *testing.T) {
 		t.Fatalf("first review stack = %#v, want analysis page", m.Stack)
 	}
 
-	key(m, 't')
+	m.activateTab(1)
 	if m.Session != second || m.Selected != 0 || m.Row != 1 || m.Files || m.Scroll[0] != 2 || m.GuideScroll[1] != 7 || m.Horizontal != 3 || m.Inventory || m.Focus != paneList || m.EditIndex != 0 || m.Err != secondErr || m.Loading || m.Busy || m.ActionError != secondErr || m.notice != "second notice" {
 		t.Fatalf("tab 3 did not restore second review state: %#v", m)
 	}
@@ -139,7 +162,7 @@ func TestWorkspaceTabsRestoreIndependentReviewState(t *testing.T) {
 	}
 }
 
-func TestWorkspaceTabStripIsFirstRowAndFitsViewport(t *testing.T) {
+func TestReviewHeaderExposesSwitcherAndFitsViewport(t *testing.T) {
 	m := New(context.Background(), nil)
 	s := largeSession(1, 1)
 	s.Inventory.Comparison.Metadata.Identity = source.Identity{Repository: "owner/repository", Number: 42}
@@ -147,8 +170,8 @@ func TestWorkspaceTabStripIsFirstRowAndFitsViewport(t *testing.T) {
 	m.Update(tea.WindowSizeMsg{Width: 15, Height: 8})
 
 	lines := strings.Split(ansi.Strip(m.View().Content), "\n")
-	if len(lines) == 0 || lines[0] != "1 PRs  [2 owner" {
-		t.Fatalf("first view row = %q, want clipped numeric tab strip", lines[0])
+	if len(lines) == 0 || strings.Contains(lines[0], "PRs") {
+		t.Fatalf("first view row retained a permanent PR strip: %q", lines[0])
 	}
 	for _, line := range lines {
 		if visibleWidth(line) > 15 {
@@ -185,7 +208,7 @@ func TestRawReviewMockedEndToEnd(t *testing.T) {
 		}
 		key(m, 'n')
 	}
-	key(m, 'p')
+	key(m, 'n')
 	key(m, 'j')
 	selected, scroll := m.Selected, m.Scroll[m.Selected]
 	m.Update(tea.WindowSizeMsg{Width: 60, Height: 15})
@@ -355,12 +378,12 @@ func TestBindingsRenderHelpAndFooter(t *testing.T) {
 			t.Fatalf("updated help wording missing %q", wording)
 		}
 	}
-	for _, key := range []string{"1-9", "t/T", "j/k", "J/K", "ctrl+h/ctrl+l", "esc", "q/ctrl+c"} {
+	for _, key := range []string{"ctrl+p / p", "j/k", "J/K", "ctrl+h/ctrl+l", "esc", "q/ctrl+c"} {
 		if !strings.Contains(help, key) {
 			t.Fatalf("binding %q missing from help", key)
 		}
 	}
-	for _, key := range []string{"1-9", "t/T", "ctrl+h/ctrl+l", "esc", "q/ctrl+c", "m", "N"} {
+	for _, key := range []string{"ctrl+p / p", "ctrl+h/ctrl+l", "esc", "q/ctrl+c", "m", "N"} {
 		if !strings.Contains(footer, key) {
 			t.Fatalf("binding %q missing from footer", key)
 		}

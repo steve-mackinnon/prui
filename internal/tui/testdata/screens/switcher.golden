@@ -1,0 +1,6 @@
+Switch pull requests
+filter:
+Open reviews first; then open PRs in this repository.
+> open example/review#7
+  #99 Unopened change
+type: filter | up/down j/k: select | enter: switch/open | esc: cancel | q: quit

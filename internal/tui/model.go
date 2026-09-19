@@ -27,17 +27,7 @@ const (
 
 const diffStep = 5
 
-// tabKind distinguishes the permanent PR browser from reviews opened in this
-// process.
-type tabKind int
-
-const (
-	tabPullRequests tabKind = iota
-	tabReview
-)
-
 type workspaceTab struct {
-	kind     tabKind
 	identity source.Identity
 	review   *reviewTabState
 }
@@ -102,6 +92,7 @@ type Model struct {
 	Entries                   []session.Entry
 	Repositories              []session.Repository
 	PullRequests              []source.PullRequest
+	SwitcherQuery             string
 	ActionError               error
 	store                     *session.Store
 	reader                    review.MetadataReader
@@ -130,7 +121,7 @@ type PullRequestOpener func(context.Context, string, source.Identity, func(strin
 
 func newModel(parent context.Context) *Model {
 	ctx, cancel := context.WithCancel(parent)
-	return &Model{ctx: ctx, cancel: cancel, Scroll: map[int]int{}, GuideScroll: map[int]int{}, collapsed: newExpansion(), Stack: []page{pageReview}, Width: 100, Height: 24, tabs: []workspaceTab{{kind: tabPullRequests}}}
+	return &Model{ctx: ctx, cancel: cancel, Scroll: map[int]int{}, GuideScroll: map[int]int{}, collapsed: newExpansion(), Stack: []page{pageReview}, Width: 100, Height: 24, activeTab: -1}
 }
 
 func New(parent context.Context, load Loader) *Model {
@@ -215,17 +206,27 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		busy, actionErr, notice := m.Busy, m.ActionError, m.notice
 		v.Err = m.finishAction(v.Err)
 		if v.Err == nil && v.Session != nil {
+			if active == v.Target && m.top() == pagePullRequestPicker {
+				m.pop()
+			}
 			m.registerReviewTab(v.Session, active == v.Target)
 		}
 		if active != v.Target {
 			m.Busy, m.ActionError, m.notice = busy, actionErr, notice
 		}
 	case PullRequestListResult:
+		active := m.activeTab
+		busy, actionErr, notice := m.Busy, m.ActionError, m.notice
 		v.Err = m.finishAction(v.Err)
-		if v.Err == nil {
+		if v.Err == nil && (m.Session == nil || m.Session.Inventory.Comparison.Metadata.Identity.Repository == v.Repository) {
 			m.PullRequests = v.PullRequests
 			m.PullRequestPicker = pickerState{}
-			m.push(pagePullRequestPicker)
+			if m.Session == nil {
+				m.push(pagePullRequestPicker)
+			}
+		}
+		if active != v.Target {
+			m.Busy, m.ActionError, m.notice = busy, actionErr, notice
 		}
 	case SessionListResult:
 		if m.finishAction(v.Err) == nil {
@@ -247,19 +248,15 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.cancelAction()
 			return m, nil
 		}
-		previousTab := m.activeTab
-		if m.workspaceKey(v.String()) {
-			if m.activeTab == 0 && previousTab != 0 && m.currentRepository == "" {
-				return m, m.loadRepositories()
-			}
-			return m, nil
-		}
 		if v.String() != "q" && v.String() != "ctrl+c" {
-			if m.Busy {
+			if m.Busy && !(m.top() == pagePullRequestPicker && m.Session != nil) {
 				return m, nil
 			}
 			if p := m.top(); p != pageReview {
 				return m, m.pageKey(p, v.String())
+			}
+			if v.String() == "ctrl+p" || v.String() == "p" {
+				return m, m.openSwitcher()
 			}
 			if cmd, handled := m.lifecycleKey(v.String()); handled {
 				return m, cmd
@@ -380,7 +377,7 @@ func (m *Model) registerReviewTab(s *review.Session, activate bool) {
 	}
 	identity := s.Inventory.Comparison.Metadata.Identity
 	for i, tab := range m.tabs {
-		if tab.kind == tabReview && tab.identity == identity {
+		if tab.identity == identity {
 			if activate {
 				m.activateTab(i)
 			}
@@ -391,11 +388,11 @@ func (m *Model) registerReviewTab(s *review.Session, activate bool) {
 		return
 	}
 	if !activate {
-		m.tabs = append(m.tabs, workspaceTab{kind: tabReview, identity: identity, review: newReviewTabState(s)})
+		m.tabs = append(m.tabs, workspaceTab{identity: identity, review: newReviewTabState(s)})
 		return
 	}
 	m.saveActiveReview()
-	m.tabs = append(m.tabs, workspaceTab{kind: tabReview, identity: identity, review: newReviewTabState(s)})
+	m.tabs = append(m.tabs, workspaceTab{identity: identity, review: newReviewTabState(s)})
 	m.activeTab = len(m.tabs) - 1
 	m.restoreReviewTab(m.tabs[m.activeTab].review)
 }
@@ -409,14 +406,7 @@ func (m *Model) activateTab(index int) bool {
 	}
 	m.saveActiveReview()
 	m.activeTab = index
-	if tab := m.tabs[index]; tab.kind == tabReview {
-		m.restoreReviewTab(tab.review)
-		return true
-	}
-	// The permanent tab is the existing PR browser. Its picker data is already
-	// workspace-wide; hiding the active review makes that browser visible.
-	m.Session, m.Err = nil, nil
-	m.Stack = []page{pagePullRequestPicker}
+	m.restoreReviewTab(m.tabs[index].review)
 	return true
 }
 
@@ -428,7 +418,7 @@ func newReviewTabState(s *review.Session) *reviewTabState {
 }
 
 func (m *Model) saveActiveReview() {
-	if m.activeTab < 0 || m.activeTab >= len(m.tabs) || m.tabs[m.activeTab].kind != tabReview {
+	if m.activeTab < 0 || m.activeTab >= len(m.tabs) {
 		return
 	}
 	m.tabs[m.activeTab].review = &reviewTabState{
@@ -450,34 +440,6 @@ func (m *Model) restoreReviewTab(state *reviewTabState) {
 	m.Horizontal, m.Inventory, m.Focus = state.Horizontal, state.Inventory, state.Focus
 	m.Stack, m.Loading, m.Busy, m.EditIndex = state.Stack, state.Loading, state.Busy, state.EditIndex
 	m.ActionError, m.notice = state.ActionError, state.notice
-}
-
-// workspaceKey handles the keys reserved for the process-local workspace.
-// It intentionally does not include "tab": that key remains guide expansion.
-func (m *Model) workspaceKey(key string) bool {
-	switch key {
-	case "b":
-		// Models constructed by older unit fixtures may have a Session assigned
-		// directly, before it has become a review tab. Preserve their legacy
-		// browser action until a real review tab exists.
-		if len(m.tabs) == 1 {
-			return false
-		}
-		return m.activateTab(0)
-	case "t":
-		if len(m.tabs) == 0 {
-			return false
-		}
-		return m.activateTab((m.activeTab + 1) % len(m.tabs))
-	case "T":
-		if len(m.tabs) == 0 {
-			return false
-		}
-		return m.activateTab((m.activeTab - 1 + len(m.tabs)) % len(m.tabs))
-	case "1", "2", "3", "4", "5", "6", "7", "8", "9":
-		return m.activateTab(int(key[0] - '1'))
-	}
-	return false
 }
 
 func (m *Model) push(p page) {
@@ -616,10 +578,9 @@ func (m *Model) setOffset(offset int) {
 }
 
 func (m *Model) bodyHeight() int {
-	// The numbered workspace strip occupies the first row.
-	n := m.Height - 5
+	n := m.Height - 4
 	if m.Session != nil && m.Session.ID != "" {
-		n = m.Height - 6
+		n = m.Height - 5
 	}
 	return max(1, n)
 }
@@ -663,9 +624,6 @@ func (m *Model) View() tea.View {
 			}
 		}
 	}
-	if strip := tabStrip(m.Width, m.tabLabels(), m.activeTab); strip != "" {
-		text = strip + "\n" + text
-	}
 	lines := strings.Split(text, "\n")
 	if len(lines) > m.Height {
 		lines = lines[:m.Height]
@@ -678,24 +636,17 @@ func (m *Model) View() tea.View {
 	return v
 }
 
-func (m *Model) tabLabels() []string {
-	labels := make([]string, 0, len(m.tabs))
-	for _, tab := range m.tabs {
-		if tab.kind == tabPullRequests {
-			labels = append(labels, "PRs")
-			continue
-		}
-		labels = append(labels, fmt.Sprintf("%s#%d", tab.identity.Repository, tab.identity.Number))
-	}
-	return labels
-}
-
 func (m *Model) guideConsentView() string {
 	return "Generate OpenAI guide?\n\nThis sends bounded pinned patches and repository evidence to OpenAI. Exclusions and credential-like content are withheld. The request uses store:false; your API key is not persisted.\n\nenter: send source and generate a new guided session | esc: cancel | q: quit"
 }
 func (m *Model) reviewView() string {
 	s := m.Session
-	title := styleLine(statusClass(s), status(s))
+	identity := s.Inventory.Comparison.Metadata.Identity
+	active := fmt.Sprintf("review · %s#%d · ctrl+p (or p): switch PR", Escape(identity.Repository), identity.Number)
+	if guide, ok := m.activeGuide(); ok {
+		active += fmt.Sprintf(" · guide %d/%d", guide+1, len(s.Guides.Items))
+	}
+	title := styleLine(classTitle, active) + "\n" + styleLine(statusClass(s), status(s))
 	if s.ID != "" {
 		title += "\n" + styleLine(progressClass(s), progress(s))
 	}

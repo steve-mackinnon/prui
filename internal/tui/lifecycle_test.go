@@ -300,15 +300,14 @@ func TestPullRequestOpeningUsesWorkspaceTabsWithoutReplacingOtherReviews(t *test
 	defer m.Close()
 	m.Update(m.Init()())
 
-	// Open the first PR, then return to the fixed browser and request the
-	// second. Its delayed result must not replace the first review after a tab
-	// switch.
+	// Open the first PR, then request the second from the overlay. Its delayed
+	// result must not replace the first review after selecting it again.
 	_, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	m.Update(cmd())
-	if len(m.tabs) != 2 || m.activeTab != 1 || m.Session != first {
+	if len(m.tabs) != 1 || m.activeTab != 0 || m.Session != first {
 		t.Fatalf("first open tabs=%d active=%d session=%p", len(m.tabs), m.activeTab, m.Session)
 	}
-	key(m, '1')
+	ctrlKey(m, 'p')
 	m.PullRequestPicker.Index = 1
 	_, cmd = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	if cmd == nil {
@@ -317,21 +316,22 @@ func TestPullRequestOpeningUsesWorkspaceTabsWithoutReplacingOtherReviews(t *test
 	done := make(chan tea.Msg, 1)
 	go func() { done <- cmd() }()
 	<-started
-	key(m, '2')
+	key(m, 'k')
+	namedKey(m, tea.KeyEnter)
 	close(release)
 	m.Update(<-done)
-	if m.activeTab != 1 || m.Session != first {
+	if m.activeTab != 0 || m.Session != first {
 		t.Fatal("late second open replaced the active first review")
 	}
-	if len(m.tabs) != 3 || m.tabs[2].identity != secondID {
-		t.Fatalf("late second open did not create its tab: %#v", m.tabs)
+	if len(m.tabs) != 1 {
+		t.Fatalf("cancelled second open created a review: %#v", m.tabs)
 	}
 
 	// Selecting an already open identity activates it without opening again.
-	key(m, '1')
+	ctrlKey(m, 'p')
 	m.PullRequestPicker.Index = 0
 	_, cmd = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
-	if cmd != nil || m.activeTab != 1 || calls[firstID] != 1 || len(m.tabs) != 3 {
+	if cmd != nil || m.activeTab != 0 || calls[firstID] != 1 || len(m.tabs) != 1 {
 		t.Fatalf("duplicate open calls=%d active=%d tabs=%d", calls[firstID], m.activeTab, len(m.tabs))
 	}
 }
@@ -350,15 +350,14 @@ func TestPullRequestOpeningCapacityAndFailureRetainBrowserAndReviews(t *testing.
 		})
 	defer m.Close()
 	m.Update(m.Init()())
-	for i := 1; i < maxTabs; i++ {
+	for i := 1; i <= maxTabs; i++ {
 		s := largeSession(1, 1)
 		s.Inventory.Comparison.Metadata.Identity = source.Identity{Repository: "owner/repo", Number: i}
 		m.openReviewTab(s)
 	}
-	key(m, '1')
-	_, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
-	if cmd != nil || called != 0 || m.activeTab != 0 || len(m.tabs) != maxTabs || m.ActionError == nil || !strings.Contains(m.ActionError.Error(), "9 tabs") {
-		t.Fatalf("capacity did not retain browser: called=%d active=%d tabs=%d err=%v", called, m.activeTab, len(m.tabs), m.ActionError)
+	cmd := m.openSelectedPullRequest(identity)
+	if cmd != nil || called != 0 || len(m.tabs) != maxTabs || m.ActionError == nil || !strings.Contains(m.ActionError.Error(), "9 reviews") {
+		t.Fatalf("capacity did not retain active review: called=%d tabs=%d err=%v", called, len(m.tabs), m.ActionError)
 	}
 }
 

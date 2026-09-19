@@ -61,6 +61,7 @@ func TestScreenSnapshots(t *testing.T) {
 			}
 		}},
 		{"pull_requests", 60, 8, func(m *Model) {
+			m.Session = nil
 			m.Stack = []page{pagePullRequestPicker}
 			for i := 0; i < 20; i++ {
 				m.PullRequests = append(m.PullRequests, source.PullRequest{Identity: source.Identity{Repository: "example/review", Number: i + 1}, Title: fmt.Sprintf("Change %02d", i+1)})
@@ -68,6 +69,14 @@ func TestScreenSnapshots(t *testing.T) {
 			for i := 0; i < 19; i++ {
 				key(m, 'j')
 			}
+		}},
+		{"switcher", 80, 10, func(m *Model) {
+			other := screenSession()
+			other.Inventory.Comparison.Metadata.Identity = source.Identity{Repository: "example/review", Number: 7}
+			m.openReviewTab(other)
+			m.activateTab(0)
+			m.PullRequests = []source.PullRequest{{Identity: source.Identity{Repository: "example/review", Number: 99}, Title: "Unopened change"}}
+			ctrlKey(m, 'p')
 		}},
 		{"action_error", 100, 10, func(m *Model) { m.ActionError = errors.New("synthetic save failure") }},
 	} {

@@ -17,15 +17,14 @@ type binding struct {
 }
 
 var bindings = []binding{
-	{keys: "1-9", desc: "switch to a numbered PRs or review tab", groups: groupFooter | groupHelp},
-	{keys: "t/T", desc: "next/previous PRs or review tab", groups: groupFooter | groupHelp},
+	{keys: "ctrl+p / p", desc: "open the pull-request switcher", groups: groupFooter | groupHelp},
 	{keys: "j/k, up/down", desc: "move selection or scroll diff", groups: groupNav | groupHelp},
 	{keys: "J/K", desc: "scroll diff by 5", groups: groupNav | groupHelp},
 	{keys: "ctrl+h/ctrl+l", desc: "focus list/diff", groups: groupNav | groupFooter | groupHelp},
 	{keys: "enter", desc: "focus the diff; on a file, jump to its place in the guide diff", groups: groupNav | groupHelp},
 	{keys: "tab", desc: "expand/collapse the selected guide or section", groups: groupNav | groupHelp},
 	{keys: "esc", desc: "back", groups: groupNav | groupFooter | groupHelp},
-	{keys: "n/p", desc: "next/previous guide row, or unit without guides", groups: groupNav | groupFooter | groupHelp},
+	{keys: "n", desc: "next guide row, or unit without guides", groups: groupNav | groupFooter | groupHelp},
 	{keys: "[/]", desc: "next/previous guide, or file slice without guides", groups: groupNav | groupHelp},
 	{keys: "pgup/pgdown", desc: "page through diff", groups: groupNav | groupHelp},
 	{keys: "h/l, left/right", desc: "horizontal scroll", groups: groupNav | groupHelp},
@@ -42,7 +41,6 @@ var bindings = []binding{
 	{keys: "r", desc: "refresh GitHub metadata", groups: groupFooter | groupHelp},
 	{keys: "N", desc: "new comparison, empty progress", groups: groupFooter | groupHelp},
 	{keys: "s", desc: "open saved sessions", groups: groupFooter | groupHelp},
-	{keys: "b", desc: "switch to the fixed PRs tab", groups: groupFooter | groupHelp},
 	{keys: "?", desc: "show keyboard help", groups: groupFooter | groupHelp},
 	{keys: "q/ctrl+c", desc: "quit", groups: groupFooter | groupHelp},
 }

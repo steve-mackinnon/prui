@@ -48,15 +48,16 @@ What leaves the machine is only the assembled request package: pinned patches an
 
 Failure is cheap and explicit. A transport error, non-2xx status, refusal, deadline, oversize payload, or unusable structured output produces an `analysis_unavailable` bundle with a stated reason, a durable session, and the unchanged deterministic file plan. Retrying cannot modify a stored snapshot; a later successful attempt is a new session. Generated text is model interpretation of the bounded input, not source truth, approval, security findings, or complete architectural documentation, and it can be wrong about anything it was not shown.
 
-When a session has generated guides, they are the default left pane: guide, then section, then the file portions each section covers, with the selected guide's combined diff in the right pane. Enter on a section or file jumps to its position in that diff. A file appears under every section that owns part of it. `n`/`p` walk the rows and select the row's first unit, `]`/`[` jump between guides, `tab` expands or collapses the selected guide or section, Enter focuses its diff, and `G` switches to the deterministic file plan. `i` still lists every raw unit and navigates them one at a time, so the complete source view is never behind an interpretation. Marking is unchanged: `m` marks the whole file slice of the selected unit, including the units that file contributes to other guides, and both the header and footer say so. A fallback, absent, or empty bundle simply has no rows, so those sessions navigate the file plan exactly as before.
+When a session has generated guides, they are the default left pane: guide, then section, then the file portions each section covers, with the selected guide's combined diff in the right pane. Enter on a section or file jumps to its position in that diff. A file appears under every section that owns part of it. `n` walks rows, `]`/`[` jump between guides, `tab` expands or collapses the selected guide or section, Enter focuses its diff, and `G` switches to the deterministic file plan. `i` still lists every raw unit and navigates them one at a time, so the complete source view is never behind an interpretation. Marking is unchanged: `m` marks the whole file slice of the selected unit, including the units that file contributes to other guides, and both the header and footer say so. A fallback, absent, or empty bundle simply has no rows, so those sessions navigate the file plan exactly as before.
+
+Reviews opened in one process keep independent in-memory reading positions, hierarchy expansion, pane focus, scroll offsets, notices, and errors. `ctrl+p` (or `p` where control-key reporting is unreliable) opens a keyboard-only PR switcher over the current review. It lists already-open reviews first, then open PRs for the active repository; typing filters, Enter switches or starts a new read-only pinned review, and Escape leaves the current review unchanged. The overlay never takes a permanent column or changes plain output.
 
 ## Keyboard
 
 | Key | Action |
 | --- | --- |
-| `1`–`9` | Switch directly to the numbered PRs or open-review tab |
-| `t` / `T` | Next / previous PRs or open-review tab |
-| `n` / `p` | Next / previous guide row; next / previous unit in the file plan and inventory |
+| `ctrl+p` / `p` | Open the PR switcher; type to filter, Enter switches/opens, Escape cancels |
+| `n` | Next guide row; next unit in the file plan and inventory |
 | `]` / `[` | Next / previous guide, or file slice without guides |
 | `G` | Switch between the guide hierarchy and the deterministic file plan |
 | `tab` | Expand / collapse the selected guide or section |
@@ -73,7 +74,6 @@ When a session has generated guides, they are the default left pane: guide, then
 | `v` / `o` | Move the selected unit to another slice / reorder slices; `enter` confirms, `esc` cancels |
 | `u` | Show canonical GitHub URL for copying; does not launch a browser |
 | `g` | Inspect guide-upload consent; Enter confirms, Escape cancels |
-| `b` | Switch to the fixed PRs tab, where remembered repositories and open pull requests are browsed |
 | `m` | Mark/unmark the whole file slice of the selected unit, including its units under other guide sections; saves immediately |
 | `r` | Explicit metadata refresh; no diff recomputation or polling |
 | `N` | Start a new comparison with empty progress; retain the old session |
