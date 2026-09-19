@@ -21,6 +21,7 @@ import (
 	"pr-review/internal/guide"
 	"pr-review/internal/inventory"
 	"pr-review/internal/plan"
+	"pr-review/internal/source"
 )
 
 const SchemaVersion = 1
@@ -657,6 +658,85 @@ func (s *Store) Load(id string) (*Record, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.load(id)
+}
+
+// HasComparisonSnapshot reports whether any valid local frozen snapshot exists
+// for a pull request. It lets callers avoid a metadata request for PRs that
+// have never been opened locally.
+func (s *Store) HasComparisonSnapshot(id source.Identity) (bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed || (!s.readOnly && s.lock == nil) {
+		return false, errors.New("session store closed")
+	}
+	repository, err := normalizeRepository(id.Repository)
+	if err != nil || id.Number <= 0 {
+		return false, errors.New("invalid pull request identity")
+	}
+	entries, err := os.ReadDir(s.path)
+	if err != nil {
+		return false, err
+	}
+	for _, entry := range entries {
+		if !idPattern.MatchString(entry.Name()) {
+			continue
+		}
+		r, err := s.load(entry.Name())
+		if err != nil {
+			continue
+		}
+		comparison := r.Inventory.Comparison.Metadata.Identity
+		cachedRepository, err := normalizeRepository(comparison.Repository)
+		if err == nil && cachedRepository == repository && comparison.Number == id.Number {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+// LoadComparisonSnapshot returns a previously validated frozen snapshot for
+// the exact immutable comparison metadata, or nil when none is available. It is a
+// local source cache: callers must first obtain fresh PR metadata and match
+// both base and head revisions before using it.
+//
+// Unreadable sessions are treated as cache misses and deliberately left in
+// place, matching guide-cache behavior. The returned snapshot is a value, so
+// callers can safely update invocation-specific hints such as Checkout before
+// creating a new session.
+func (s *Store) LoadComparisonSnapshot(metadata source.Metadata) (*Snapshot, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed || (!s.readOnly && s.lock == nil) {
+		return nil, errors.New("session store closed")
+	}
+	key := GuideCacheKey{Repository: metadata.Identity.Repository, Number: metadata.Identity.Number, BaseSHA: metadata.BaseSHA, HeadSHA: metadata.HeadSHA}
+	if _, err := normalizeGuideCacheKey(key); err != nil {
+		return nil, err
+	}
+	entries, err := os.ReadDir(s.path)
+	if err != nil {
+		return nil, err
+	}
+	for _, entry := range entries {
+		if !idPattern.MatchString(entry.Name()) {
+			continue
+		}
+		r, err := s.load(entry.Name())
+		if err != nil || !guideCacheMatchesInventory(key, r.Inventory) {
+			continue
+		}
+		cached := r.Inventory.Comparison.Metadata
+		if !strings.EqualFold(cached.BaseRepository, metadata.BaseRepository) || !strings.EqualFold(cached.HeadRepository, metadata.HeadRepository) {
+			continue
+		}
+		snapshot := r.Snapshot
+		// Guides and their parent links are derived interpretation, not source
+		// material. The caller resolves the guide cache separately.
+		snapshot.Guides = nil
+		snapshot.DerivedFrom = ""
+		return &snapshot, nil
+	}
+	return nil, nil
 }
 
 func (s *Store) load(id string) (*Record, error) {

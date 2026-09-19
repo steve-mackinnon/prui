@@ -22,6 +22,12 @@ type fixtureGH struct {
 	prs   []source.PullRequest
 }
 
+type requestFunc func(context.Context, source.Request) ([]byte, error)
+
+func (f requestFunc) Run(ctx context.Context, request source.Request) ([]byte, error) {
+	return f(ctx, request)
+}
+
 type unavailableGuideAnalyzer struct{}
 
 func (unavailableGuideAnalyzer) Analyze(context.Context, guide.Input) (guide.Bundle, error) {
@@ -253,6 +259,9 @@ func TestLifecyclePRListOpenCachesOnlyGeneratedGuides(t *testing.T) {
 		calls++
 		return nil, errors.New("cache hit must not create analyzer")
 	}
+	app.runner = requestFunc(func(context.Context, source.Request) ([]byte, error) {
+		return nil, errors.New("source cache hit must not run git")
+	})
 	second, err := app.openFromPullRequestList(context.Background(), r.Dir, meta.Identity, nil)
 	if err != nil || second.Guides == nil || second.Guides.Status != guide.Generated || calls != 1 {
 		t.Fatalf("cached PR-list guide = %#v, calls=%d, err=%v", second, calls, err)

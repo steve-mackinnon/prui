@@ -175,11 +175,77 @@ func guideCacheKey(s *review.Session) session.GuideCacheKey {
 	return session.GuideCacheKey{Repository: m.Identity.Repository, Number: m.Identity.Number, BaseSHA: m.BaseSHA, HeadSHA: m.HeadSHA}
 }
 
+// cachedPullRequestSnapshot first verifies the PR's current immutable
+// comparison through GitHub, then reuses the locally stored frozen source
+// material. This avoids Git fetches and inventory/context rebuilding when the
+// base and head have not changed, while never trusting a cache entry as a
+// freshness signal.
+func (a *application) cachedPullRequestSnapshot(ctx context.Context, checkout string, id source.Identity, notify func(string)) (*review.Session, error) {
+	if err := a.online(ctx); err != nil {
+		return nil, err
+	}
+	hasCached, err := a.store.HasComparisonSnapshot(id)
+	if err != nil {
+		return nil, err
+	}
+	if !hasCached {
+		return nil, nil
+	}
+	checkout, err = canonicalPath(checkout)
+	if err != nil {
+		return nil, err
+	}
+	if err := outsideCheckout(a.store.Path(), checkout); err != nil {
+		return nil, err
+	}
+	if a.setupError != nil {
+		return nil, a.setupError
+	}
+	if a.gh == nil {
+		return nil, errors.New("gh executable required; install GitHub CLI and authenticate")
+	}
+	if notify != nil {
+		notify("Checking current PR revision and local source cache...")
+	}
+	m, err := a.Metadata(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	snapshot, err := a.store.LoadComparisonSnapshot(m)
+	if err != nil || snapshot == nil {
+		return nil, err
+	}
+	// The checkout is only a future-refresh hint; frozen source material stays
+	// byte-identical to the cache entry.
+	snapshot.Checkout = []byte(checkout)
+	saved, err := a.store.Create(*snapshot)
+	if err != nil {
+		return nil, err
+	}
+	saved.RevisionStatus = session.Current
+	if err := a.store.Save(saved); err != nil {
+		return nil, err
+	}
+	if err := a.store.RememberRepository(m.BaseRepository, checkout); err != nil {
+		return nil, err
+	}
+	if notify != nil {
+		notify("Reused local frozen source for the unchanged PR comparison.")
+	}
+	return saved, nil
+}
+
 // openFromPullRequestList is the only automatic guide path. It still pins a
-// fresh local comparison before using a cache, so a base/head change cannot
-// reuse interpretation for different review units.
+// current PR revision before using a local frozen-source cache, so a base/head
+// change cannot reuse source material or interpretation for different units.
 func (a *application) openFromPullRequestList(ctx context.Context, checkout string, id source.Identity, notify func(string)) (*review.Session, error) {
-	raw, err := a.open(ctx, checkout, id, notify)
+	raw, err := a.cachedPullRequestSnapshot(ctx, checkout, id, notify)
+	if err != nil {
+		return nil, err
+	}
+	if raw == nil {
+		raw, err = a.open(ctx, checkout, id, notify)
+	}
 	if err != nil {
 		return nil, err
 	}

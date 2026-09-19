@@ -154,6 +154,43 @@ func TestGuideCacheRejectsArtifactInvalidForCurrentInventory(t *testing.T) {
 	}
 }
 
+func TestComparisonSnapshotCacheMatchesOnlyExactPinnedRevisions(t *testing.T) {
+	s, err := Open(filepath.Join(t.TempDir(), "sessions"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	snapshot := fixture()
+	snapshot.Inventory.Comparison.Metadata.BaseRepository = "owner/repo"
+	snapshot.Inventory.Comparison.Metadata.HeadRepository = "fork/repo"
+	metadata := snapshot.Inventory.Comparison.Metadata
+	if _, err := s.Create(snapshot); err != nil {
+		t.Fatal(err)
+	}
+	key := guideCacheKey()
+	if found, err := s.HasComparisonSnapshot(source.Identity{Repository: "OWNER/REPO", Number: key.Number}); err != nil || !found {
+		t.Fatalf("comparison candidate = %v, %v", found, err)
+	}
+	got, err := s.LoadComparisonSnapshot(metadata)
+	if err != nil || got == nil || got.Inventory.Comparison.InventoryID != snapshot.Inventory.Comparison.InventoryID || len(got.Inventory.Patches) != len(snapshot.Inventory.Patches) {
+		t.Fatalf("exact comparison cache hit = %#v, %v", got, err)
+	}
+	for _, changed := range []source.Metadata{
+		{Identity: metadata.Identity, BaseSHA: strings.Repeat("c", 40), HeadSHA: metadata.HeadSHA},
+		{Identity: metadata.Identity, BaseSHA: metadata.BaseSHA, HeadSHA: strings.Repeat("c", 40)},
+		{Identity: source.Identity{Repository: metadata.Identity.Repository, Number: metadata.Identity.Number + 1}, BaseSHA: metadata.BaseSHA, HeadSHA: metadata.HeadSHA},
+		{Identity: metadata.Identity, BaseRepository: "other/repo", HeadRepository: metadata.HeadRepository, BaseSHA: metadata.BaseSHA, HeadSHA: metadata.HeadSHA},
+	} {
+		got, err := s.LoadComparisonSnapshot(changed)
+		if err != nil || got != nil {
+			t.Fatalf("changed comparison cache hit = %#v, %v", got, err)
+		}
+	}
+	if found, err := s.HasComparisonSnapshot(source.Identity{Repository: key.Repository, Number: key.Number + 1}); err != nil || found {
+		t.Fatalf("unrelated comparison candidate = %v, %v", found, err)
+	}
+}
+
 func TestStoreRestartFrozenBytesAndProgress(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "sessions")
 	s, err := Open(dir)
