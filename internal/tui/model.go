@@ -277,7 +277,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		case "?":
 			m.push(pageHelp)
-		case "u":
+		case "U":
 			m.push(pageURL)
 		case "i":
 			m.Inventory = !m.Inventory
@@ -339,6 +339,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.scroll(diffStep)
 		case "K":
 			m.scroll(-diffStep)
+		case "d":
+			m.scroll(m.pageStep())
+		case "u":
+			m.scroll(-m.pageStep())
 		case "pgdown":
 			m.scroll(m.pageStep())
 		case "pgup":

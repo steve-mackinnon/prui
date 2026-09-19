@@ -396,6 +396,20 @@ func TestFullDiffDoesNotScrollPastViewport(t *testing.T) {
 	}
 }
 
+func TestDUPageFocusedDiff(t *testing.T) {
+	m := largeModel(largeTextSession(1, 1), 120, 10)
+	m.Focus = paneDiff
+
+	key(m, 'd')
+	if got, want := m.Scroll[m.Selected], m.pageStep(); got != want {
+		t.Fatalf("d page-down offset = %d, want %d", got, want)
+	}
+	key(m, 'u')
+	if got := m.Scroll[m.Selected]; got != 0 {
+		t.Fatalf("u did not restore the initial offset: %d", got)
+	}
+}
+
 func TestHLFocusesReviewPanes(t *testing.T) {
 	m := New(context.Background(), nil)
 	m.Loading = false
@@ -461,7 +475,7 @@ func TestModalPagesOwnInputAndBack(t *testing.T) {
 	if m.top() != pageReview {
 		t.Fatal("esc did not leave help")
 	}
-	key(m, 'u')
+	key(m, 'U')
 	if m.top() != pageURL || !strings.Contains(m.View().Content, "esc: back") {
 		t.Fatal("URL page or back hint missing")
 	}

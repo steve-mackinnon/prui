@@ -74,12 +74,12 @@ primary workspace action.
 | `enter` / `esc` | Open selected item / go back |
 | Up / down, `j` / `k` | Navigate list or scroll focused diff |
 | `J` / `K` | Scroll diff by 5 lines |
-| Page Down / Page Up | Page through actual diff |
+| `d` / `u`, Page Down / Page Up | Page through actual diff |
 | `h` / `l`, left / right | Horizontal scrolling; no hidden line truncation in plain output |
 | Home | Reset selected unit's scroll |
 | `i` | Toggle the full unit inventory; every raw unit, unfiltered by guides |
 | `e` | Show bounded evidence and included/excluded scope |
-| `u` | Show canonical GitHub URL for copying; does not launch a browser |
+| `U` | Show canonical GitHub URL for copying; does not launch a browser |
 | `g` | Manually retry guide generation; Escape cancels an in-flight request |
 | `m` | Mark/unmark the whole file slice of the selected unit, including its units under other guide sections; saves immediately |
 | `r` | Explicit metadata refresh; no diff recomputation or polling |
