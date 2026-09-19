@@ -29,6 +29,134 @@ func (g fakeGitHub) Token(context.Context) (string, error) { panic("no live netw
 func key(m *Model, k rune)                                 { m.Update(tea.KeyPressMsg{Code: k, Text: string(k)}) }
 func namedKey(m *Model, k rune)                            { m.Update(tea.KeyPressMsg{Code: k}) }
 func ctrlKey(m *Model, k rune)                             { m.Update(tea.KeyPressMsg{Code: k, Mod: tea.ModCtrl}) }
+
+func TestWorkspaceTabsKeepPRsFixedAndSelectNumberedReviews(t *testing.T) {
+	m := New(context.Background(), nil)
+	if len(m.tabs) != 1 || m.tabs[0].kind != tabPullRequests || m.activeTab != 0 {
+		t.Fatalf("new model did not start on the fixed PRs tab: %#v, active=%d", m.tabs, m.activeTab)
+	}
+
+	s := largeSession(1, 1)
+	s.Inventory.Comparison.Metadata.Identity = source.Identity{Repository: "owner/repo", Number: 17}
+	m.Update(Loaded{Session: s})
+	if len(m.tabs) != 2 || m.activeTab != 1 || m.tabs[1].identity != s.Inventory.Comparison.Metadata.Identity {
+		t.Fatalf("loaded review was not activated as tab 2: %#v, active=%d", m.tabs, m.activeTab)
+	}
+
+	key(m, '1')
+	if m.activeTab != 0 {
+		t.Fatalf("1 selected tab %d, want fixed PRs tab", m.activeTab)
+	}
+	key(m, '2')
+	if m.activeTab != 1 {
+		t.Fatalf("2 selected tab %d, want loaded review", m.activeTab)
+	}
+	key(m, '9')
+	if m.activeTab != 1 {
+		t.Fatalf("unpopulated tab number changed active tab to %d", m.activeTab)
+	}
+	key(m, 'b')
+	if m.activeTab != 0 {
+		t.Fatalf("b selected tab %d, want fixed PRs tab", m.activeTab)
+	}
+}
+
+func TestWorkspaceTabNavigationWrapsWithoutTakingOverGuideTab(t *testing.T) {
+	m := New(context.Background(), nil)
+	first := largeSession(1, 1)
+	first.Inventory.Comparison.Metadata.Identity = source.Identity{Repository: "owner/repo", Number: 1}
+	second := largeSession(1, 1)
+	second.Inventory.Comparison.Metadata.Identity = source.Identity{Repository: "owner/repo", Number: 2}
+	m.openReviewTab(first)
+	m.openReviewTab(second)
+	m.activateTab(0)
+
+	key(m, 'T')
+	if m.activeTab != 2 {
+		t.Fatalf("T from fixed PRs tab selected %d, want last tab", m.activeTab)
+	}
+	key(m, 't')
+	if m.activeTab != 0 {
+		t.Fatalf("t from last tab selected %d, want fixed PRs tab", m.activeTab)
+	}
+	key(m, 't')
+	if m.activeTab != 1 {
+		t.Fatalf("t selected %d, want next review tab", m.activeTab)
+	}
+
+	guided, _, _ := guidedSession(t, groupingAnalyzer{path: "a.go"})
+	m.Session = guided
+	m.Stack = []page{pageReview}
+	rows := m.rows()
+	if len(rows) == 0 {
+		t.Fatal("fixture has no guide rows")
+	}
+	before := len(rows)
+	m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	if m.activeTab != 1 || len(m.rows()) >= before {
+		t.Fatal("guide tab key was repurposed for workspace navigation")
+	}
+}
+
+func TestWorkspaceTabsRestoreIndependentReviewState(t *testing.T) {
+	m := New(context.Background(), nil)
+	first := largeSession(2, 2)
+	first.Inventory.Comparison.Metadata.Identity = source.Identity{Repository: "owner/repo", Number: 1}
+	second := largeSession(2, 2)
+	second.Inventory.Comparison.Metadata.Identity = source.Identity{Repository: "owner/repo", Number: 2}
+
+	m.openReviewTab(first)
+	firstErr := errors.New("first failed")
+	m.Selected, m.Row, m.Files = 1, 3, true
+	m.collapsed.guides[0] = true
+	m.Scroll, m.GuideScroll = map[int]int{1: 9}, map[int]int{0: 4}
+	m.Horizontal, m.Inventory, m.Focus = 12, true, paneDiff
+	m.Stack, m.EditIndex = []page{pageReview, pageAnalysis}, 1
+	m.Err, m.Loading, m.Busy, m.ActionError, m.notice = firstErr, true, true, firstErr, "first notice"
+
+	m.openReviewTab(second)
+	secondErr := errors.New("second failed")
+	m.Selected, m.Row, m.Files = 0, 1, false
+	m.Scroll, m.GuideScroll = map[int]int{0: 2}, map[int]int{1: 7}
+	m.Horizontal, m.Inventory, m.Focus = 3, false, paneList
+	m.Stack, m.EditIndex = []page{pageReview, pageEvidence}, 0
+	m.Err, m.Loading, m.Busy, m.ActionError, m.notice = secondErr, false, false, secondErr, "second notice"
+
+	key(m, '2')
+	if m.Session != first || m.Selected != 1 || m.Row != 3 || !m.Files || !m.collapsed.guides[0] || m.Scroll[1] != 9 || m.GuideScroll[0] != 4 || m.Horizontal != 12 || !m.Inventory || m.Focus != paneDiff || m.EditIndex != 1 || m.Err != firstErr || !m.Loading || !m.Busy || m.ActionError != firstErr || m.notice != "first notice" {
+		t.Fatalf("tab 2 did not restore first review state: %#v", m)
+	}
+	if len(m.Stack) != 2 || m.Stack[1] != pageAnalysis {
+		t.Fatalf("first review stack = %#v, want analysis page", m.Stack)
+	}
+
+	key(m, 't')
+	if m.Session != second || m.Selected != 0 || m.Row != 1 || m.Files || m.Scroll[0] != 2 || m.GuideScroll[1] != 7 || m.Horizontal != 3 || m.Inventory || m.Focus != paneList || m.EditIndex != 0 || m.Err != secondErr || m.Loading || m.Busy || m.ActionError != secondErr || m.notice != "second notice" {
+		t.Fatalf("tab 3 did not restore second review state: %#v", m)
+	}
+	if len(m.Stack) != 2 || m.Stack[1] != pageEvidence {
+		t.Fatalf("second review stack = %#v, want evidence page", m.Stack)
+	}
+}
+
+func TestWorkspaceTabStripIsFirstRowAndFitsViewport(t *testing.T) {
+	m := New(context.Background(), nil)
+	s := largeSession(1, 1)
+	s.Inventory.Comparison.Metadata.Identity = source.Identity{Repository: "owner/repository", Number: 42}
+	m.openReviewTab(s)
+	m.Update(tea.WindowSizeMsg{Width: 15, Height: 8})
+
+	lines := strings.Split(ansi.Strip(m.View().Content), "\n")
+	if len(lines) == 0 || lines[0] != "1 PRs  [2 owner" {
+		t.Fatalf("first view row = %q, want clipped numeric tab strip", lines[0])
+	}
+	for _, line := range lines {
+		if visibleWidth(line) > 15 {
+			t.Fatalf("tab workspace viewport exceeded width: %q", line)
+		}
+	}
+}
+
 func TestRawReviewMockedEndToEnd(t *testing.T) {
 	r := testutil.NewRepo(t)
 	r.Write("a", "old\n")
@@ -227,12 +355,12 @@ func TestBindingsRenderHelpAndFooter(t *testing.T) {
 			t.Fatalf("updated help wording missing %q", wording)
 		}
 	}
-	for _, key := range []string{"j/k", "J/K", "ctrl+h/ctrl+l", "esc", "q/ctrl+c"} {
+	for _, key := range []string{"1-9", "t/T", "j/k", "J/K", "ctrl+h/ctrl+l", "esc", "q/ctrl+c"} {
 		if !strings.Contains(help, key) {
 			t.Fatalf("binding %q missing from help", key)
 		}
 	}
-	for _, key := range []string{"ctrl+h/ctrl+l", "esc", "q/ctrl+c", "m", "N"} {
+	for _, key := range []string{"1-9", "t/T", "ctrl+h/ctrl+l", "esc", "q/ctrl+c", "m", "N"} {
 		if !strings.Contains(footer, key) {
 			t.Fatalf("binding %q missing from footer", key)
 		}

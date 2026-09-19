@@ -28,7 +28,7 @@ func modelKey(m *tui.Model, code rune) {
 }
 
 func TestEntryPointsShareReviewOperations(t *testing.T) {
-	for _, command := range []string{"prs", "open", "resume"} {
+	for _, command := range []string{"prs", "current", "open", "resume"} {
 		t.Run(command, func(t *testing.T) {
 			app, original := wiringFixture(t)
 			calls := 0
@@ -36,11 +36,11 @@ func TestEntryPointsShareReviewOperations(t *testing.T) {
 				calls++
 				return unavailableGuideAnalyzer{}, nil
 			}
-			o := options{Command: command, SessionID: original.ID, Identity: original.Inventory.Comparison.Metadata.Identity, Checkout: string(original.Checkout)}
+			o := options{Command: command, SessionID: original.ID, Identity: original.Inventory.Comparison.Metadata.Identity, Repository: original.Inventory.Comparison.Metadata.Identity.Repository, Checkout: string(original.Checkout)}
 			m := app.model(context.Background(), o)
 			defer m.Close()
 			m.Update(m.Init()())
-			if command == "prs" {
+			if command == "prs" || command == "current" {
 				modelKey(m, tea.KeyEnter)
 				modelKey(m, tea.KeyEnter)
 			}

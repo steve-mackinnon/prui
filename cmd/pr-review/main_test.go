@@ -13,6 +13,7 @@ func TestOptions(t *testing.T) {
 		valid bool
 	}{
 		{[]string{"open", "https://github.com/o/r/pull/1", "--plain"}, true},
+		{[]string{}, true},
 		{[]string{"open", "1", "--github-repo", "o/r"}, true},
 		{[]string{"open", "1"}, false},
 		{[]string{"open", "1", "--repo", "/tmp/checkout", "--github-repo", "o/r"}, false},

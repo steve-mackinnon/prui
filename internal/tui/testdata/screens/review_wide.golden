@@ -1,3 +1,4 @@
+[1 PRs]
 PR #42 | head aaaaaaaaaaaa | inventory complete | analysis: file fallback
 File slices | focus: diff | unit 1/2 [text_hunk] | unassigned 0 | unavailable 0
 · main.go                            | main.go [text_hunk]
@@ -7,5 +8,4 @@ File slices | focus: diff | unit 1/2 [text_hunk] | unassigned 0 | unavailable 0
                                      |
                                      |
                                      |
-                                     |
-ctrl+h/ctrl+l: focus list/diff  esc: back  n/p: next/previous guide row, or unit without guides  i: toggle full inventor
+1-9: switch to a numbered PRs or review tab  t/T: next/previous PRs or review tab  ctrl+h/ctrl+l: focus list/diff  esc:

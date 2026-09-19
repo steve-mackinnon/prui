@@ -17,6 +17,8 @@ type binding struct {
 }
 
 var bindings = []binding{
+	{keys: "1-9", desc: "switch to a numbered PRs or review tab", groups: groupFooter | groupHelp},
+	{keys: "t/T", desc: "next/previous PRs or review tab", groups: groupFooter | groupHelp},
 	{keys: "j/k, up/down", desc: "move selection or scroll diff", groups: groupNav | groupHelp},
 	{keys: "J/K", desc: "scroll diff by 5", groups: groupNav | groupHelp},
 	{keys: "ctrl+h/ctrl+l", desc: "focus list/diff", groups: groupNav | groupFooter | groupHelp},
@@ -40,7 +42,7 @@ var bindings = []binding{
 	{keys: "r", desc: "refresh GitHub metadata", groups: groupFooter | groupHelp},
 	{keys: "N", desc: "new comparison, empty progress", groups: groupFooter | groupHelp},
 	{keys: "s", desc: "open saved sessions", groups: groupFooter | groupHelp},
-	{keys: "b", desc: "browse remembered repositories and open pull requests", groups: groupFooter | groupHelp},
+	{keys: "b", desc: "switch to the fixed PRs tab", groups: groupFooter | groupHelp},
 	{keys: "?", desc: "show keyboard help", groups: groupFooter | groupHelp},
 	{keys: "q/ctrl+c", desc: "quit", groups: groupFooter | groupHelp},
 }

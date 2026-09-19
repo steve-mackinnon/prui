@@ -351,7 +351,7 @@ func TestGuideDetailFileJumps(t *testing.T) {
 		t.Fatalf("Enter focus/offset = %v/%d, want diff/%d", m.Focus, m.GuideScroll[b.guide], want)
 	}
 	view := strings.Split(ansi.Strip(m.View().Content), "\n")
-	if len(view) < 3 || view[2] != "b.go" {
+	if len(view) < 4 || view[3] != "b.go" {
 		t.Fatalf("jumped diff body = %q, want b.go header", view)
 	}
 

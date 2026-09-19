@@ -1,3 +1,4 @@
+[1 PRs]
 PR #42 | head aaaaaaaaaaaa | inventory complete | analysis:
 File slices | focus: diff | unit 1/2 [text_hunk] | unassigne
 main.go [text_hunk]
@@ -5,5 +6,4 @@ main.go [text_hunk]
 -old greeting
 +hello world
 
-
-ctrl+h/ctrl+l: focus list/diff  esc: back  n/p: next/previou
+1-9: switch to a numbered PRs or review tab  t/T: next/previ

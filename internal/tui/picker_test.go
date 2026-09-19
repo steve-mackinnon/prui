@@ -191,7 +191,10 @@ func TestPickerViewportKeepsSelectionVisible(t *testing.T) {
 			for _, height := range []int{10, 4, 2, 1, 8} {
 				m.Update(tea.WindowSizeMsg{Width: 24, Height: height})
 				content := m.View().Content
-				if !strings.Contains(content, "> ") || !strings.Contains(content, "20") {
+				// One-line terminals show the fixed workspace strip; there is no
+				// remaining row for a picker item. At two rows and above, the
+				// selected item must stay visible below that strip.
+				if height >= 2 && (!strings.Contains(content, "> ") || !strings.Contains(content, "20")) {
 					t.Fatalf("selection hidden at height %d: %s", height, content)
 				}
 				if len(strings.Split(content, "\n")) > height {

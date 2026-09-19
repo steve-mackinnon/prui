@@ -8,6 +8,7 @@ Building requires Go 1.26.8+. Opening a new comparison requires Git and authenti
 
 ```sh
 cd /path/to/checkout # open and verify must run at the repository root
+pr-review # browse this checkout's open GitHub PRs, then select one to review
 pr-review open https://github.com/owner/repo/pull/42
 pr-review open 42 --github-repo owner/repo --plain
 go run ./cmd/pr-review prs owner/repo --plain
@@ -21,6 +22,11 @@ pr-review verify https://github.com/owner/repo/pull/42 --artifacts /tmp/pr-revie
 go run ./cmd/pr-review delete SESSION_ID
 go build -o pr-review ./cmd/pr-review
 ```
+
+The no-argument interactive launcher reads the checkout's standard GitHub.com
+`origin` remote locally, then lists its open pull requests. It accepts ordinary
+HTTPS/SSH GitHub origins and never runs Git in the checkout to resolve them. If
+the checkout has no supported `origin`, use `prs owner/repo` or `open` instead.
 
 `open`, normal `resume`, explicit refresh, and listing a repository’s PRs contact GitHub. `sessions`, `delete`, and `resume --offline` do not. Implementation tests use synthetic objects, mocked GitHub, and a local test provider endpoint only. Source is uploaded to OpenAI only after confirming the interactive guide consent screen. Opening, resuming, and browsing do not request guide analysis automatically. Git fetch sends requested revision IDs and Git protocol negotiation to GitHub; metadata/authentication use the user's trusted `gh` installation.
 
@@ -48,6 +54,8 @@ When a session has generated guides, they are the default left pane: guide, then
 
 | Key | Action |
 | --- | --- |
+| `1`–`9` | Switch directly to the numbered PRs or open-review tab |
+| `t` / `T` | Next / previous PRs or open-review tab |
 | `n` / `p` | Next / previous guide row; next / previous unit in the file plan and inventory |
 | `]` / `[` | Next / previous guide, or file slice without guides |
 | `G` | Switch between the guide hierarchy and the deterministic file plan |
@@ -65,7 +73,7 @@ When a session has generated guides, they are the default left pane: guide, then
 | `v` / `o` | Move the selected unit to another slice / reorder slices; `enter` confirms, `esc` cancels |
 | `u` | Show canonical GitHub URL for copying; does not launch a browser |
 | `g` | Inspect guide-upload consent; Enter confirms, Escape cancels |
-| `b` | Browse remembered repositories and their open pull requests |
+| `b` | Switch to the fixed PRs tab, where remembered repositories and open pull requests are browsed |
 | `m` | Mark/unmark the whole file slice of the selected unit, including its units under other guide sections; saves immediately |
 | `r` | Explicit metadata refresh; no diff recomputation or polling |
 | `N` | Start a new comparison with empty progress; retain the old session |

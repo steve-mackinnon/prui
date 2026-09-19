@@ -1,3 +1,4 @@
+[1 PRs]
 PR #42 | head aaaaaaaaaaaa | inventory complete | analysis: file fallback | guides: generated (fixture/fixture, 1 guides
 Guides | focus: files | unit 1/2 [text_hunk] | unassigned 0 | unavailable 0 | m marks the whole file slice | guide 1/1
 > - 1. Greeting                      | main.go
@@ -9,5 +10,4 @@ Guides | focus: files | unit 1/2 [text_hunk] | unassigned 0 | unavailable 0 | m 
       README.md [file_metadata]      | README.md
                                      | README.md [file_metadata]
                                      | status  | mode  ->
-                                     | old path:
-ctrl+h/ctrl+l: focus list/diff  esc: back  n/p: next/previous guide row, or unit without guides  i: toggle full inventor
+1-9: switch to a numbered PRs or review tab  t/T: next/previous PRs or review tab  ctrl+h/ctrl+l: focus list/diff  esc:

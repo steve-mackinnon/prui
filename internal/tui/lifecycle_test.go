@@ -233,6 +233,135 @@ func TestPullRequestPickerListsAndOpens(t *testing.T) {
 	}
 }
 
+func TestCurrentRepositoryBrowserListsAndOpensWithoutRepositoryPicker(t *testing.T) {
+	store := pickerStore(t)
+	checkout := t.TempDir()
+	identity := source.Identity{Repository: "owner/repo", Number: 42}
+	saved := largeSession(1, 1)
+	listed := ""
+	m := NewCurrentRepositoryBrowser(context.Background(), store, "owner/repo", checkout, func(_ context.Context, repository string) ([]source.PullRequest, error) {
+		listed = repository
+		return []source.PullRequest{{Identity: identity, Title: "Current checkout change"}}, nil
+	}, func(_ context.Context, gotCheckout string, gotIdentity source.Identity, _ func(string)) (*review.Session, error) {
+		if gotCheckout != checkout || gotIdentity != identity {
+			t.Fatalf("opened %q %v", gotCheckout, gotIdentity)
+		}
+		return saved, nil
+	})
+	defer m.Close()
+
+	cmd := m.Init()
+	if cmd == nil {
+		t.Fatal("current repository browser did not start listing")
+	}
+	m.Update(cmd())
+	if listed != "owner/repo" || m.top() != pagePullRequestPicker || !strings.Contains(m.View().Content, "Current checkout change") {
+		t.Fatalf("current repository browser did not show PRs: %s", m.View().Content)
+	}
+	_, cmd = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	m.Update(cmd())
+	if m.top() != pageReview || m.Session != saved {
+		t.Fatal("current repository browser did not open selected PR")
+	}
+}
+
+func TestPullRequestOpeningUsesWorkspaceTabsWithoutReplacingOtherReviews(t *testing.T) {
+	store := pickerStore(t)
+	checkout := t.TempDir()
+	firstID := source.Identity{Repository: "owner/repo", Number: 1}
+	secondID := source.Identity{Repository: "owner/repo", Number: 2}
+	first, second := largeSession(1, 1), largeSession(1, 1)
+	first.Inventory.Comparison.Metadata.Identity = firstID
+	second.Inventory.Comparison.Metadata.Identity = secondID
+
+	started := make(chan struct{})
+	release := make(chan struct{})
+	calls := map[source.Identity]int{}
+	m := NewCurrentRepositoryBrowser(context.Background(), store, "owner/repo", checkout,
+		func(context.Context, string) ([]source.PullRequest, error) {
+			return []source.PullRequest{{Identity: firstID, Title: "first"}, {Identity: secondID, Title: "second"}}, nil
+		},
+		func(ctx context.Context, gotCheckout string, id source.Identity, _ func(string)) (*review.Session, error) {
+			if gotCheckout != checkout {
+				t.Fatalf("checkout = %q, want %q", gotCheckout, checkout)
+			}
+			calls[id]++
+			if id == secondID {
+				close(started)
+				select {
+				case <-release:
+				case <-ctx.Done():
+					return nil, ctx.Err()
+				}
+				return second, nil
+			}
+			return first, nil
+		})
+	defer m.Close()
+	m.Update(m.Init()())
+
+	// Open the first PR, then return to the fixed browser and request the
+	// second. Its delayed result must not replace the first review after a tab
+	// switch.
+	_, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	m.Update(cmd())
+	if len(m.tabs) != 2 || m.activeTab != 1 || m.Session != first {
+		t.Fatalf("first open tabs=%d active=%d session=%p", len(m.tabs), m.activeTab, m.Session)
+	}
+	key(m, '1')
+	m.PullRequestPicker.Index = 1
+	_, cmd = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	if cmd == nil {
+		t.Fatal("second open did not start")
+	}
+	done := make(chan tea.Msg, 1)
+	go func() { done <- cmd() }()
+	<-started
+	key(m, '2')
+	close(release)
+	m.Update(<-done)
+	if m.activeTab != 1 || m.Session != first {
+		t.Fatal("late second open replaced the active first review")
+	}
+	if len(m.tabs) != 3 || m.tabs[2].identity != secondID {
+		t.Fatalf("late second open did not create its tab: %#v", m.tabs)
+	}
+
+	// Selecting an already open identity activates it without opening again.
+	key(m, '1')
+	m.PullRequestPicker.Index = 0
+	_, cmd = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	if cmd != nil || m.activeTab != 1 || calls[firstID] != 1 || len(m.tabs) != 3 {
+		t.Fatalf("duplicate open calls=%d active=%d tabs=%d", calls[firstID], m.activeTab, len(m.tabs))
+	}
+}
+
+func TestPullRequestOpeningCapacityAndFailureRetainBrowserAndReviews(t *testing.T) {
+	store := pickerStore(t)
+	identity := source.Identity{Repository: "owner/repo", Number: 99}
+	called := 0
+	m := NewCurrentRepositoryBrowser(context.Background(), store, "owner/repo", t.TempDir(),
+		func(context.Context, string) ([]source.PullRequest, error) {
+			return []source.PullRequest{{Identity: identity, Title: "blocked"}}, nil
+		},
+		func(context.Context, string, source.Identity, func(string)) (*review.Session, error) {
+			called++
+			return nil, errors.New("open failed")
+		})
+	defer m.Close()
+	m.Update(m.Init()())
+	for i := 1; i < maxTabs; i++ {
+		s := largeSession(1, 1)
+		s.Inventory.Comparison.Metadata.Identity = source.Identity{Repository: "owner/repo", Number: i}
+		m.openReviewTab(s)
+	}
+	key(m, '1')
+	_, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	if cmd != nil || called != 0 || m.activeTab != 0 || len(m.tabs) != maxTabs || m.ActionError == nil || !strings.Contains(m.ActionError.Error(), "9 tabs") {
+		t.Fatalf("capacity did not retain browser: called=%d active=%d tabs=%d err=%v", called, m.activeTab, len(m.tabs), m.ActionError)
+	}
+}
+
 func TestGuideConsentCancelsOrSwitchesToDerivedSession(t *testing.T) {
 	r := testutil.NewRepo(t)
 	r.Write("a", "old\n")

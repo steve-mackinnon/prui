@@ -281,7 +281,7 @@ def main():
         start = len(terminal.output)
         terminal.resize(70, 12)
         terminal.wait_until(lambda screen: "> [x] b.go" in screen and
-                            all(" | " not in row for row in screen.splitlines()[3:10]),
+                            all(" | " not in row for row in screen.splitlines()[4:11]),
                             "narrow file pane after resize", start)
         terminal.key(b"?", "Keyboard")
         terminal.key(b"\x1b", "1/2 read (local)")

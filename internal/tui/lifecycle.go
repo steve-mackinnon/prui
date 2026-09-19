@@ -115,6 +115,16 @@ type PullRequestListResult struct {
 	Err          error
 }
 
+// PullRequestOpenResult carries the browser tab and immutable identity that
+// initiated an asynchronous open. A result must never be applied to whichever
+// review happens to be visible when the worker finishes.
+type PullRequestOpenResult struct {
+	Target   int
+	Identity source.Identity
+	Session  *review.Session
+	Err      error
+}
+
 func (m *Model) SetLifecycle(store *session.Store, reader review.MetadataReader, fresh FreshLoader) {
 	m.store, m.reader, m.fresh = store, reader, fresh
 	if store != nil {
@@ -265,46 +275,90 @@ func (m *Model) repositoryPickerKey(k string) tea.Cmd {
 			return nil
 		}
 		repository := m.Repositories[m.RepositoryPicker.Index].Repository
-		m.notice = "Listing open pull requests from GitHub..."
-		ctx := m.beginAction()
-		return m.start(func() tea.Msg {
-			prs, err := m.listPullRequests(ctx, repository)
-			return PullRequestListResult{PullRequests: prs, Err: err}
-		})
+		return m.loadPullRequests(repository)
 	}
 	return nil
+}
+
+func (m *Model) loadPullRequests(repository string) tea.Cmd {
+	m.notice = "Listing open pull requests from GitHub..."
+	ctx := m.beginAction()
+	list := m.listPullRequests
+	return m.start(func() tea.Msg {
+		if list == nil {
+			return PullRequestListResult{Err: errors.New("pull request listing unavailable")}
+		}
+		prs, err := list(ctx, repository)
+		return PullRequestListResult{PullRequests: prs, Err: err}
+	})
+}
+
+func (m *Model) pullRequestRepository() string {
+	if m.currentRepository != "" {
+		return m.currentRepository
+	}
+	if len(m.Repositories) == 0 {
+		return ""
+	}
+	m.RepositoryPicker.clamp(len(m.Repositories))
+	return m.Repositories[m.RepositoryPicker.Index].Repository
 }
 
 func (m *Model) pullRequestPickerKey(k string) tea.Cmd {
 	m.PullRequestPicker.clamp(len(m.PullRequests))
 	switch k {
 	case "esc":
+		if m.currentRepository != "" && len(m.Stack) == 1 {
+			m.cancel()
+			return tea.Quit
+		}
 		m.pop()
+	case "r":
+		if repository := m.pullRequestRepository(); repository != "" {
+			return m.loadPullRequests(repository)
+		}
 	case "n", "down", "j":
 		m.PullRequestPicker.Index = min(max(0, len(m.PullRequests)-1), m.PullRequestPicker.Index+1)
 	case "p", "up", "k":
 		m.PullRequestPicker.Index = max(0, m.PullRequestPicker.Index-1)
 	case "enter":
-		if len(m.PullRequests) == 0 || len(m.Repositories) == 0 || m.openPullRequest == nil {
+		if len(m.PullRequests) == 0 || m.openPullRequest == nil {
 			return nil
 		}
 		pr := m.PullRequests[m.PullRequestPicker.Index]
-		checkout := m.Repositories[0].Checkout
-		for _, repository := range m.Repositories {
-			if repository.Repository == pr.Identity.Repository {
-				checkout = repository.Checkout
-				break
+		for i, tab := range m.tabs {
+			if tab.kind == tabReview && tab.identity == pr.Identity {
+				m.activateTab(i)
+				return nil
+			}
+		}
+		if len(m.tabs) >= maxTabs {
+			m.ActionError = fmt.Errorf("maximum of %d tabs open; switch to an existing review", maxTabs)
+			return nil
+		}
+		checkout := m.currentCheckout
+		if checkout == "" {
+			if len(m.Repositories) == 0 {
+				return nil
+			}
+			checkout = m.Repositories[0].Checkout
+			for _, repository := range m.Repositories {
+				if repository.Repository == pr.Identity.Repository {
+					checkout = repository.Checkout
+					break
+				}
 			}
 		}
 		m.notice = "Opening selected pull request; source stays local..."
 		ctx := m.beginAction()
+		target := m.activeTab
 		return m.start(func() tea.Msg {
 			n := m.notify
 			if n == nil {
 				n = func(string) {}
 			}
 			s, err := m.openPullRequest(ctx, checkout, pr.Identity, n)
-			return ActionResult{Session: s, Err: err, Reset: true}
+			return PullRequestOpenResult{Target: target, Identity: pr.Identity, Session: s, Err: err}
 		})
 	}
 	return nil

@@ -27,6 +27,43 @@ const (
 
 const diffStep = 5
 
+// tabKind distinguishes the permanent PR browser from reviews opened in this
+// process.
+type tabKind int
+
+const (
+	tabPullRequests tabKind = iota
+	tabReview
+)
+
+type workspaceTab struct {
+	kind     tabKind
+	identity source.Identity
+	review   *reviewTabState
+}
+
+// reviewTabState is the reviewer-visible state that must travel with an open
+// review. Window dimensions and services remain shared by the workspace.
+type reviewTabState struct {
+	Session     *review.Session
+	Err         error
+	Selected    int
+	Row         int
+	Files       bool
+	collapsed   expansion
+	Scroll      map[int]int
+	GuideScroll map[int]int
+	Horizontal  int
+	Inventory   bool
+	Focus       pane
+	Stack       []page
+	Loading     bool
+	Busy        bool
+	EditIndex   int
+	ActionError error
+	notice      string
+}
+
 type page int
 
 const (
@@ -82,6 +119,10 @@ type Model struct {
 	actionCtx                 context.Context
 	listSessions              func() ([]session.Entry, error)
 	listRepositories          func() ([]session.Repository, error)
+	currentRepository         string
+	currentCheckout           string
+	tabs                      []workspaceTab
+	activeTab                 int
 }
 
 type PullRequestLoader func(context.Context, string) ([]source.PullRequest, error)
@@ -89,7 +130,7 @@ type PullRequestOpener func(context.Context, string, source.Identity, func(strin
 
 func newModel(parent context.Context) *Model {
 	ctx, cancel := context.WithCancel(parent)
-	return &Model{ctx: ctx, cancel: cancel, Scroll: map[int]int{}, GuideScroll: map[int]int{}, collapsed: newExpansion(), Stack: []page{pageReview}, Width: 100, Height: 24}
+	return &Model{ctx: ctx, cancel: cancel, Scroll: map[int]int{}, GuideScroll: map[int]int{}, collapsed: newExpansion(), Stack: []page{pageReview}, Width: 100, Height: 24, tabs: []workspaceTab{{kind: tabPullRequests}}}
 }
 
 func New(parent context.Context, load Loader) *Model {
@@ -109,8 +150,22 @@ func NewPullRequestBrowser(parent context.Context, store *session.Store, list Pu
 	m.SetPullRequestLifecycle(list, open)
 	return m
 }
+
+// NewCurrentRepositoryBrowser starts directly at the open-PR list for one
+// validated checkout. It does not consult remembered repositories.
+func NewCurrentRepositoryBrowser(parent context.Context, store *session.Store, repository, checkout string, list PullRequestLoader, open PullRequestOpener) *Model {
+	m := newModel(parent)
+	m.Stack = []page{pagePullRequestPicker}
+	m.currentRepository, m.currentCheckout = repository, checkout
+	m.SetLifecycle(store, nil, nil)
+	m.SetPullRequestLifecycle(list, open)
+	return m
+}
 func (m *Model) SetNotifier(f func(string)) { m.notify = f }
 func (m *Model) Init() tea.Cmd {
+	if m.currentRepository != "" {
+		return m.loadPullRequests(m.currentRepository)
+	}
 	if m.top() == pageRepositoryPicker {
 		return m.loadRepositories()
 	}
@@ -129,10 +184,14 @@ func (m *Model) Init() tea.Cmd {
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch v := msg.(type) {
 	case Loaded:
-		m.Session = v.Session
 		m.Err = v.Err
 		m.Loading = false
 		m.Busy = false
+		if v.Err == nil && v.Session != nil {
+			m.openReviewTab(v.Session)
+		} else {
+			m.Session = v.Session
+		}
 		m.begin()
 	case ActionResult:
 		v.Err = m.finishAction(v.Err)
@@ -147,6 +206,19 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.Focus = paneList
 				m.begin()
 			}
+		}
+	case PullRequestOpenResult:
+		// Opening always starts in the fixed browser. If the reviewer changes
+		// tabs while it runs, finish the worker without touching that review's
+		// visible state; the completed PR is merely registered as another tab.
+		active := m.activeTab
+		busy, actionErr, notice := m.Busy, m.ActionError, m.notice
+		v.Err = m.finishAction(v.Err)
+		if v.Err == nil && v.Session != nil {
+			m.registerReviewTab(v.Session, active == v.Target)
+		}
+		if active != v.Target {
+			m.Busy, m.ActionError, m.notice = busy, actionErr, notice
 		}
 	case PullRequestListResult:
 		v.Err = m.finishAction(v.Err)
@@ -173,6 +245,13 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyPressMsg:
 		if m.Busy && v.String() == "esc" && m.cancelAction != nil {
 			m.cancelAction()
+			return m, nil
+		}
+		previousTab := m.activeTab
+		if m.workspaceKey(v.String()) {
+			if m.activeTab == 0 && previousTab != 0 && m.currentRepository == "" {
+				return m, m.loadRepositories()
+			}
 			return m, nil
 		}
 		if v.String() != "q" && v.String() != "ctrl+c" {
@@ -283,6 +362,124 @@ func (m *Model) top() page {
 	}
 	return m.Stack[len(m.Stack)-1]
 }
+
+// openReviewTab registers an initial review as a workspace tab and makes it
+// active. Lifecycle will own capacity and asynchronous opening in later
+// slices; keeping duplicate activation here makes this primitive safe for
+// callers that discover an already-open review.
+func (m *Model) openReviewTab(s *review.Session) {
+	m.registerReviewTab(s, true)
+}
+
+// registerReviewTab adds a completed review, optionally activating it. The
+// latter is false for an opener result that completed after the user moved to
+// another tab.
+func (m *Model) registerReviewTab(s *review.Session, activate bool) {
+	if s == nil {
+		return
+	}
+	identity := s.Inventory.Comparison.Metadata.Identity
+	for i, tab := range m.tabs {
+		if tab.kind == tabReview && tab.identity == identity {
+			if activate {
+				m.activateTab(i)
+			}
+			return
+		}
+	}
+	if len(m.tabs) >= maxTabs {
+		return
+	}
+	if !activate {
+		m.tabs = append(m.tabs, workspaceTab{kind: tabReview, identity: identity, review: newReviewTabState(s)})
+		return
+	}
+	m.saveActiveReview()
+	m.tabs = append(m.tabs, workspaceTab{kind: tabReview, identity: identity, review: newReviewTabState(s)})
+	m.activeTab = len(m.tabs) - 1
+	m.restoreReviewTab(m.tabs[m.activeTab].review)
+}
+
+func (m *Model) activateTab(index int) bool {
+	if index < 0 || index >= len(m.tabs) {
+		return false
+	}
+	if index == m.activeTab {
+		return true
+	}
+	m.saveActiveReview()
+	m.activeTab = index
+	if tab := m.tabs[index]; tab.kind == tabReview {
+		m.restoreReviewTab(tab.review)
+		return true
+	}
+	// The permanent tab is the existing PR browser. Its picker data is already
+	// workspace-wide; hiding the active review makes that browser visible.
+	m.Session, m.Err = nil, nil
+	m.Stack = []page{pagePullRequestPicker}
+	return true
+}
+
+func newReviewTabState(s *review.Session) *reviewTabState {
+	return &reviewTabState{
+		Session: s, Scroll: map[int]int{}, GuideScroll: map[int]int{},
+		collapsed: newExpansion(), Stack: []page{pageReview}, Focus: paneList,
+	}
+}
+
+func (m *Model) saveActiveReview() {
+	if m.activeTab < 0 || m.activeTab >= len(m.tabs) || m.tabs[m.activeTab].kind != tabReview {
+		return
+	}
+	m.tabs[m.activeTab].review = &reviewTabState{
+		Session: m.Session, Err: m.Err, Selected: m.Selected, Row: m.Row, Files: m.Files,
+		collapsed: m.collapsed, Scroll: m.Scroll, GuideScroll: m.GuideScroll,
+		Horizontal: m.Horizontal, Inventory: m.Inventory, Focus: m.Focus,
+		Stack: m.Stack, Loading: m.Loading, Busy: m.Busy, EditIndex: m.EditIndex,
+		ActionError: m.ActionError, notice: m.notice,
+	}
+}
+
+func (m *Model) restoreReviewTab(state *reviewTabState) {
+	if state == nil {
+		return
+	}
+	m.Session, m.Err = state.Session, state.Err
+	m.Selected, m.Row, m.Files = state.Selected, state.Row, state.Files
+	m.collapsed, m.Scroll, m.GuideScroll = state.collapsed, state.Scroll, state.GuideScroll
+	m.Horizontal, m.Inventory, m.Focus = state.Horizontal, state.Inventory, state.Focus
+	m.Stack, m.Loading, m.Busy, m.EditIndex = state.Stack, state.Loading, state.Busy, state.EditIndex
+	m.ActionError, m.notice = state.ActionError, state.notice
+}
+
+// workspaceKey handles the keys reserved for the process-local workspace.
+// It intentionally does not include "tab": that key remains guide expansion.
+func (m *Model) workspaceKey(key string) bool {
+	switch key {
+	case "b":
+		// Models constructed by older unit fixtures may have a Session assigned
+		// directly, before it has become a review tab. Preserve their legacy
+		// browser action until a real review tab exists.
+		if len(m.tabs) == 1 {
+			return false
+		}
+		return m.activateTab(0)
+	case "t":
+		if len(m.tabs) == 0 {
+			return false
+		}
+		return m.activateTab((m.activeTab + 1) % len(m.tabs))
+	case "T":
+		if len(m.tabs) == 0 {
+			return false
+		}
+		return m.activateTab((m.activeTab - 1 + len(m.tabs)) % len(m.tabs))
+	case "1", "2", "3", "4", "5", "6", "7", "8", "9":
+		return m.activateTab(int(key[0] - '1'))
+	}
+	return false
+}
+
 func (m *Model) push(p page) {
 	if m.top() != p {
 		m.Stack = append(m.Stack, p)
@@ -419,9 +616,10 @@ func (m *Model) setOffset(offset int) {
 }
 
 func (m *Model) bodyHeight() int {
-	n := m.Height - 4
+	// The numbered workspace strip occupies the first row.
+	n := m.Height - 5
 	if m.Session != nil && m.Session.ID != "" {
-		n = m.Height - 5
+		n = m.Height - 6
 	}
 	return max(1, n)
 }
@@ -465,6 +663,9 @@ func (m *Model) View() tea.View {
 			}
 		}
 	}
+	if strip := tabStrip(m.Width, m.tabLabels(), m.activeTab); strip != "" {
+		text = strip + "\n" + text
+	}
 	lines := strings.Split(text, "\n")
 	if len(lines) > m.Height {
 		lines = lines[:m.Height]
@@ -475,6 +676,18 @@ func (m *Model) View() tea.View {
 	v := tea.NewView(strings.Join(lines, "\n"))
 	v.AltScreen = true
 	return v
+}
+
+func (m *Model) tabLabels() []string {
+	labels := make([]string, 0, len(m.tabs))
+	for _, tab := range m.tabs {
+		if tab.kind == tabPullRequests {
+			labels = append(labels, "PRs")
+			continue
+		}
+		labels = append(labels, fmt.Sprintf("%s#%d", tab.identity.Repository, tab.identity.Number))
+	}
+	return labels
 }
 
 func (m *Model) guideConsentView() string {

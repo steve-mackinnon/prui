@@ -29,10 +29,21 @@ func run(args []string) int {
 		fmt.Fprintln(os.Stderr, tui.Escape(e.Error()))
 		return 1
 	}
-	if o.Command == "open" || o.Command == "verify" {
+	if o.Command == "open" || o.Command == "verify" || o.Command == "current" {
 		o.Checkout, e = checkoutFromWorkingDirectory()
 		if e != nil {
 			fmt.Fprintln(os.Stderr, tui.Escape(e.Error()))
+			return 1
+		}
+	}
+	if o.Command == "current" && (o.Plain || os.Getenv("TERM") == "dumb" || !term.IsTerminal(os.Stdout.Fd()) || !term.IsTerminal(os.Stdin.Fd())) {
+		fmt.Fprintln(os.Stderr, "pr-review without arguments requires an interactive terminal; use prs owner/repo --plain or open instead")
+		return 1
+	}
+	if o.Command == "current" {
+		o.Repository, e = source.RepositoryFromCheckout(o.Checkout)
+		if e != nil {
+			fmt.Fprintln(os.Stderr, tui.Escape("current checkout has no supported GitHub origin: "+e.Error()))
 			return 1
 		}
 	}
@@ -96,15 +107,17 @@ func run(args []string) int {
 			app.gh, app.setupError = source.NewGH(r, limits, dir)
 		}
 	}
-	if o.Command == "prs" {
+	if o.Command == "prs" || o.Command == "current" {
 		if o.Repository != "" {
-			prs, err := app.listPullRequests(ctx, o.Repository)
-			if err != nil {
-				fmt.Fprintln(os.Stderr, tui.Escape(err.Error()))
-				return 1
+			if o.Command == "prs" {
+				prs, err := app.listPullRequests(ctx, o.Repository)
+				if err != nil {
+					fmt.Fprintln(os.Stderr, tui.Escape(err.Error()))
+					return 1
+				}
+				listPullRequests(os.Stdout, o.Repository, prs)
+				return 0
 			}
-			listPullRequests(os.Stdout, o.Repository, prs)
-			return 0
 		}
 		if o.Plain || os.Getenv("TERM") == "dumb" || !term.IsTerminal(os.Stdout.Fd()) || !term.IsTerminal(os.Stdin.Fd()) {
 			fmt.Fprintln(os.Stderr, "prs without owner/repo requires an interactive terminal; pass owner/repo to list directly")

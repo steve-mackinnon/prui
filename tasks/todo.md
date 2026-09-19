@@ -151,3 +151,58 @@
 - [x] All focused tests, `./scripts/verify.sh`, and `git diff --check` pass.
 - [ ] An authorized manual real-PR run passes when a PR URL and checkout are
       supplied.
+
+# Persistent PR list and review tabs tasks
+
+## 1. Workspace tab foundation
+
+- [x] Add process-local fixed PRs tab, numbered tab selection (`1`–`9`), and
+      next/previous navigation without changing current review behavior.
+- Acceptance: initial review becomes a numbered review tab; `1` selects PRs;
+      each populated number selects exactly its matching tab; `tab` still
+      expands a guide/section.
+- Verify: write the failing model tests first, then run
+      `go test ./internal/tui -run 'Test.*Tab' -count=1`.
+- Depends on: none. Files: `internal/tui/model.go`, `internal/tui/model_test.go`.
+
+## 2. Isolated review state and tab-aware lifecycle
+
+- [x] Preserve each review's selection, focus, scroll, expansion, errors, and
+      action result while another tab is active; associate lifecycle results
+      with their originating tab.
+- Acceptance: switching between two reviews restores independent state; a
+      delayed action cannot overwrite the active tab.
+- Verify: failing-then-passing lifecycle tests and
+      `go test ./internal/tui -run 'Test.*Tab' -count=1`.
+- Depends on: task 1. Files: `internal/tui/model.go`,
+      `internal/tui/lifecycle.go`, `internal/tui/lifecycle_test.go`.
+
+## Checkpoint: workspace behavior
+
+- [x] Focused TUI tests pass and `go build ./...` succeeds.
+
+## 3. Open, deduplicate, and cap review tabs
+
+- [x] Open selected PRs as tabs, activate an already-open immutable review,
+      and keep PRs usable with a stated nine-tab capacity error.
+- Acceptance: two PRs remain switchable; duplicate selection makes no second
+      open call; canceled/failed/capacity-limited opens leave other tabs intact.
+- Verify: focused lifecycle tests and `go test ./internal/tui -count=1`.
+- Depends on: tasks 1–2. Files: `internal/tui/lifecycle.go`,
+      `internal/tui/lifecycle_test.go`.
+
+## 4. Render, document, and verify tabs
+
+- [x] Render accessible numbered tab labels across terminal sizes; add bindings,
+      README guidance, snapshots, and end-to-end program coverage.
+- Acceptance: tab labels survive color removal and width clipping; help/footer
+      document keys; plain output stays single-review.
+- Verify: `go test ./internal/tui ./cmd/pr-review -count=1`, then
+      `./scripts/verify.sh` and `git diff --check`.
+- Depends on: tasks 1–3. Files: `internal/tui/{render,style,bindings}.go`,
+      `internal/tui/*_test.go`, `README.md`.
+
+## Completion checkpoint
+
+- [x] All tab spec success criteria pass through synthetic tests and the full
+      verification command; existing dirty changes remain separately visible.

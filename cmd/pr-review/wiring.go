@@ -26,6 +26,8 @@ func (a *application) model(ctx context.Context, o options) *tui.Model {
 	var m *tui.Model
 	if o.Command == "prs" {
 		m = tui.NewPullRequestBrowser(ctx, a.store, a.listPullRequests, a.open)
+	} else if o.Command == "current" {
+		m = tui.NewCurrentRepositoryBrowser(ctx, a.store, o.Repository, o.Checkout, a.listPullRequests, a.open)
 	} else {
 		m = tui.New(ctx, func(c context.Context, notify func(string)) (*review.Session, error) {
 			return a.load(c, o, notify)

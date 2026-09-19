@@ -10,7 +10,8 @@ import (
 	"pr-review/internal/source"
 )
 
-const usage = `pr-review open <PR-URL-or-number> [--github-repo owner/repo] [--plain]
+const usage = `pr-review
+pr-review open <PR-URL-or-number> [--github-repo owner/repo] [--plain]
 pr-review prs [owner/repo] [--plain]
 pr-review sessions
 pr-review resume <id> [--offline] [--plain] [--new] [--repo <checkout>]
@@ -35,7 +36,8 @@ type options struct {
 func parseOptions(args []string) (options, error) {
 	var o options
 	if len(args) == 0 {
-		return o, errors.New(usage)
+		o.Command = "current"
+		return o, nil
 	}
 	o.Command = args[0]
 	f := flag.NewFlagSet(o.Command, flag.ContinueOnError)
@@ -67,6 +69,8 @@ func parseOptions(args []string) (options, error) {
 			start = 1
 		}
 	case "sessions":
+		start = 1
+	case "current":
 		start = 1
 	case "delete", "eval-guides":
 	default:

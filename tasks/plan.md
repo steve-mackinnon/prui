@@ -111,3 +111,57 @@ Each module starts with a focused failing test, then runs its package tests.
 The final checkpoint is `./scripts/verify.sh`, `git diff --check`, and a
 manual real-PR run only when the user supplies a PR and already-authorized
 GitHub access.
+
+# Implementation Plan: Persistent PR List and Review Tabs
+
+## Overview
+
+Add a process-local Bubble Tea workspace that keeps one fixed PR browser and
+up to eight opened review tabs. Number labels `1` through `9` provide direct
+keyboard activation without changing any persisted session schema or the
+existing read-only source path.
+
+## Architecture Decisions
+
+- Keep workspace state in `internal/tui.Model`; the existing review view state
+  becomes tab-owned so a switch cannot reset another review's selection or
+  scroll position.
+- Keep `1` as the fixed PRs tab and cap the workspace at nine tabs. `b`, `t`,
+  and `T` remain discoverable navigation alternatives, while `tab` preserves
+  guide expansion.
+- Attach every asynchronous result to its initiating tab before applying it.
+  A late open/list result must never replace the currently active review.
+- Retain current command entry points, pinning, cancellation, local progress,
+  plain output, and synthetic-only verification.
+
+## Dependency Graph
+
+```text
+tab state + key routing
+        |
+        +-- review-view state isolation
+        |       |
+        |       +-- open/deduplicate/capacity lifecycle
+        |
+        +-- tab-strip rendering + bindings + documentation
+                |
+                +-- scenario, snapshot, and program regression coverage
+```
+
+## Task List
+
+Tasks are appended to [todo.md](todo.md), after the existing unrelated
+checklists. Work is sequential because all slices share `tui.Model`.
+
+## Risks and Mitigations
+
+| Risk | Impact | Mitigation |
+| --- | --- | --- |
+| Existing `Model` mixes workspace and review state | High | First isolate review state behind tab activation, with a failing state-retention test. |
+| Async work lands after a tab switch | High | Carry tab identity in operation results and test late delivery. |
+| Number keys collide with review keys or narrow layouts | Medium | Reserve `1`–`9` only at workspace routing, preserve review keys, and snapshot narrow rendering. |
+| Dirty worktree overlaps TUI files | High | Preserve current edits; stage/commit nothing unless the user separately asks to isolate them. |
+
+## Open Questions
+
+None. Close/reorder/pin/restore tabs and background PR refresh remain out of scope.

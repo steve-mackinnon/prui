@@ -85,13 +85,15 @@ func (m *Model) pickerScreen(p *pickerState, header, rows []string, empty, foote
 	} else if m.ActionError != nil {
 		footer = "Action failed: " + Escape(m.ActionError.Error())
 	}
-	// Preserve at least one content row, even in a one-line terminal.
-	header = header[:min(len(header), max(0, m.Height-1))]
+	// The workspace tab strip owns the first terminal row. Preserve at least
+	// one picker content row in the remaining space, even in a tiny terminal.
+	height := max(1, m.Height-1)
+	header = header[:min(len(header), max(0, height-1))]
 	footerRows := 0
-	if m.Height > len(header)+1 {
+	if height > len(header)+1 {
 		footerRows = 1
 	}
-	capacity := max(1, m.Height-len(header)-footerRows)
+	capacity := max(1, height-len(header)-footerRows)
 	lines := append([]string(nil), header...)
 	if len(rows) == 0 {
 		if m.Busy {
