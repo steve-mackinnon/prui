@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"unicode/utf8"
 
 	tea "charm.land/bubbletea/v2"
 	"pr-review/internal/review"
@@ -46,6 +47,9 @@ type reviewTabState struct {
 	collapsed                                            expansion
 	Scroll                                               map[int]int
 	GuideScroll                                          map[int]int
+	Cursor                                               map[int]int
+	GuideCursor                                          map[int]int
+	cursorActive                                         bool
 	Horizontal                                           int
 	guidePathOffset, guidePathPause, guidePathGeneration int
 	Inventory                                            bool
@@ -54,6 +58,7 @@ type reviewTabState struct {
 	Loading                                              bool
 	Busy                                                 bool
 	ActionError                                          error
+	Composer                                             *commentComposer
 	notice                                               string
 	loadingFrame                                         int
 }
@@ -69,7 +74,17 @@ const (
 	pageRepositoryPicker
 	pagePullRequestPicker
 	pageGuideConsent
+	pageCommentComposer
 )
+
+// commentComposer is deliberately tab-owned. Its target is copied from the
+// immutable diff provenance when the reviewer opens the composer, so later
+// navigation cannot silently retarget a draft.
+type commentComposer struct {
+	Target     source.ReviewCommentTarget
+	Draft      string
+	generation uint64
+}
 
 type Model struct {
 	Session                                              *review.Session
@@ -80,6 +95,9 @@ type Model struct {
 	collapsed                                            expansion
 	Scroll                                               map[int]int
 	GuideScroll                                          map[int]int
+	Cursor                                               map[int]int
+	GuideCursor                                          map[int]int
+	cursorActive                                         bool
 	Width, Height, Horizontal                            int
 	guidePathOffset, guidePathPause, guidePathGeneration int
 	Inventory                                            bool
@@ -95,6 +113,7 @@ type Model struct {
 	PullRequests                                         []source.PullRequest
 	SwitcherQuery                                        string
 	ActionError                                          error
+	Composer                                             *commentComposer
 	store                                                *session.Store
 	reader                                               review.MetadataReader
 	fresh                                                FreshLoader
@@ -108,6 +127,7 @@ type Model struct {
 	listPullRequests                                     PullRequestLoader
 	openPullRequest                                      PullRequestOpener
 	generateGuide                                        GuideLoader
+	submitComment                                        CommentSubmitter
 	cancelAction                                         context.CancelFunc
 	actionCtx                                            context.Context
 	listSessions                                         func() ([]session.Entry, error)
@@ -123,7 +143,7 @@ type PullRequestOpener func(context.Context, string, source.Identity, func(strin
 
 func newModel(parent context.Context) *Model {
 	ctx, cancel := context.WithCancel(parent)
-	return &Model{ctx: ctx, cancel: cancel, Scroll: map[int]int{}, GuideScroll: map[int]int{}, collapsed: newExpansion(), Stack: []page{pageReview}, Width: 100, Height: 24, activeTab: -1}
+	return &Model{ctx: ctx, cancel: cancel, Scroll: map[int]int{}, GuideScroll: map[int]int{}, Cursor: map[int]int{}, GuideCursor: map[int]int{}, collapsed: newExpansion(), Stack: []page{pageReview}, Width: 100, Height: 24, activeTab: -1}
 }
 
 func New(parent context.Context, load Loader) *Model {
@@ -224,10 +244,21 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.collapsed = newExpansion()
 				m.Scroll = map[int]int{}
 				m.GuideScroll = map[int]int{}
+				m.Cursor = map[int]int{}
+				m.GuideCursor = map[int]int{}
+				m.cursorActive = false
 				m.Stack = []page{pageReview}
 				m.Focus = paneList
 				m.begin()
 			}
+		}
+	case CommentResult:
+		active := m.activeTab
+		busy, actionErr, notice := m.Busy, m.ActionError, m.notice
+		v.Err = m.finishAction(v.Err)
+		m.applyCommentResult(v)
+		if active != v.Target {
+			m.Busy, m.ActionError, m.notice = busy, actionErr, notice
 		}
 	case PullRequestOpenResult:
 		// Opening always starts in the fixed browser. If the reviewer changes
@@ -274,6 +305,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.Width = max(1, v.Width)
 		m.Height = max(1, v.Height)
+		m.cursorInViewport(1)
 		return m, m.restartGuidePathScroll()
 	case tea.KeyPressMsg:
 		if m.Busy && v.String() == "esc" && m.cancelAction != nil {
@@ -285,7 +317,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 			if p := m.top(); p != pageReview {
-				return m, m.pageKey(p, v.String())
+				return m, m.pageKey(p, v)
 			}
 			if v.String() == "ctrl+p" {
 				return m, m.openSwitcher()
@@ -318,8 +350,14 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.back()
 		case "h", "ctrl+h":
 			m.Focus = paneList
-		case "l", "ctrl+l", "enter":
+		case "l", "ctrl+l":
 			m.focusDetail(m.navigable())
+		case "enter":
+			if m.Focus == paneDiff {
+				m.openCommentComposer()
+			} else {
+				m.focusDetail(m.navigable())
+			}
 		case "tab":
 			// enter keeps main's meaning (focus the diff), so expansion gets
 			// its own key rather than overloading one the reviewer already uses.
@@ -348,13 +386,15 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		case "j":
 			if m.Focus == paneDiff {
-				m.scroll(1)
+				m.cursorActive = true
+				m.moveCursor(1)
 			} else {
 				m.move(1)
 			}
 		case "k":
 			if m.Focus == paneDiff {
-				m.scroll(-1)
+				m.cursorActive = true
+				m.moveCursor(-1)
 			} else {
 				m.move(-1)
 			}
@@ -377,6 +417,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "home":
 			m.setOffset(0)
 			m.Horizontal = 0
+			m.cursorInViewport(-1)
 		}
 		return m, m.restartGuidePathScroll()
 	}
@@ -442,7 +483,7 @@ func (m *Model) activateTab(index int) bool {
 
 func newReviewTabState(s *review.Session) *reviewTabState {
 	return &reviewTabState{
-		Session: s, Scroll: map[int]int{}, GuideScroll: map[int]int{},
+		Session: s, Scroll: map[int]int{}, GuideScroll: map[int]int{}, Cursor: map[int]int{}, GuideCursor: map[int]int{},
 		collapsed: newExpansion(), Stack: []page{pageReview}, Focus: paneList,
 	}
 }
@@ -453,11 +494,12 @@ func (m *Model) saveActiveReview() {
 	}
 	m.tabs[m.activeTab].review = &reviewTabState{
 		Session: m.Session, Err: m.Err, Selected: m.Selected, Row: m.Row, Files: m.Files,
-		collapsed: m.collapsed, Scroll: m.Scroll, GuideScroll: m.GuideScroll,
-		Horizontal: m.Horizontal, Inventory: m.Inventory, Focus: m.Focus,
+		collapsed: m.collapsed, Scroll: m.Scroll, GuideScroll: m.GuideScroll, Cursor: m.Cursor, GuideCursor: m.GuideCursor,
+		Horizontal: m.Horizontal, Inventory: m.Inventory, Focus: m.Focus, cursorActive: m.cursorActive,
 		guidePathOffset: m.guidePathOffset, guidePathPause: m.guidePathPause, guidePathGeneration: m.guidePathGeneration,
 		Stack: m.Stack, Loading: m.Loading, Busy: m.Busy,
 		ActionError: m.ActionError, notice: m.notice, loadingFrame: m.loadingFrame,
+		Composer: m.Composer,
 	}
 }
 
@@ -467,11 +509,13 @@ func (m *Model) restoreReviewTab(state *reviewTabState) {
 	}
 	m.Session, m.Err = state.Session, state.Err
 	m.Selected, m.Row, m.Files = state.Selected, state.Row, state.Files
-	m.collapsed, m.Scroll, m.GuideScroll = state.collapsed, state.Scroll, state.GuideScroll
+	m.collapsed, m.Scroll, m.GuideScroll, m.Cursor, m.GuideCursor = state.collapsed, state.Scroll, state.GuideScroll, state.Cursor, state.GuideCursor
 	m.Horizontal, m.Inventory, m.Focus = state.Horizontal, state.Inventory, state.Focus
+	m.cursorActive = state.cursorActive
 	m.guidePathOffset, m.guidePathPause, m.guidePathGeneration = state.guidePathOffset, state.guidePathPause, state.guidePathGeneration
 	m.Stack, m.Loading, m.Busy = state.Stack, state.Loading, state.Busy
 	m.ActionError, m.notice, m.loadingFrame = state.ActionError, state.notice, state.loadingFrame
+	m.Composer = state.Composer
 }
 
 func (m *Model) push(p page) {
@@ -491,7 +535,8 @@ func (m *Model) back() {
 		m.Focus = paneList
 	}
 }
-func (m *Model) pageKey(p page, k string) tea.Cmd {
+func (m *Model) pageKey(p page, key tea.KeyPressMsg) tea.Cmd {
+	k := key.String()
 	switch p {
 	case pagePicker:
 		return m.pickerKey(k)
@@ -505,12 +550,30 @@ func (m *Model) pageKey(p page, k string) tea.Cmd {
 		return m.pullRequestPickerKey(k)
 	case pageGuideConsent:
 		return m.guideConsentKey(k)
+	case pageCommentComposer:
+		return m.commentComposerKey(key)
 	case pageHelp, pageURL, pageEvidence:
 		if k == "esc" {
 			m.pop()
 		}
 	}
 	return nil
+}
+
+func (m *Model) openCommentComposer() {
+	if m.Focus != paneDiff || m.Composer != nil {
+		return
+	}
+	cursor := m.cursor()
+	if cursor < 0 {
+		return
+	}
+	target := m.detail()[cursor].target
+	if target == nil || target.Path == "" || !utf8.ValidString(target.Path) {
+		return
+	}
+	m.Composer = &commentComposer{Target: *target}
+	m.push(pageCommentComposer)
 }
 
 // navigable returns the guide rows when they are the active hierarchy. The
@@ -591,6 +654,9 @@ func (m *Model) scroll(delta int) {
 	// The clamp counts the same display lines the diff pane renders, so a diff
 	// that already fits cannot be scrolled past its end.
 	m.setOffset(m.clampOffset(m.offset() + delta))
+	if m.Focus == paneDiff {
+		m.cursorInViewport(delta)
+	}
 }
 
 func (m *Model) clampOffset(offset int) int {
@@ -608,6 +674,9 @@ func (m *Model) focusDetail(rows []row) {
 		}
 	}
 	m.Focus = paneDiff
+	m.cursorInViewport(1)
+	cursor := m.cursor()
+	m.cursorActive = cursor >= m.offset() && cursor < m.offset()+m.bodyHeight()
 }
 
 func (m *Model) activeGuide() (int, bool) {
@@ -621,7 +690,7 @@ func (m *Model) activeGuide() (int, bool) {
 	return rows[max(0, min(len(rows)-1, m.Row))].guide, true
 }
 
-func (m *Model) detail() []styledLine {
+func (m *Model) detail() []diffLine {
 	if guide, ok := m.activeGuide(); ok {
 		return detailFor(m.Session, guide).lines
 	}
@@ -644,6 +713,121 @@ func (m *Model) setOffset(offset int) {
 		return
 	}
 	m.Scroll[m.Selected] = offset
+}
+
+// cursor is the selected commentable detail line. It is kept separately for
+// every raw unit and guide so changing tabs or detail modes preserves review
+// context without changing the list selection.
+func (m *Model) cursor() int {
+	detail := m.detail()
+	if len(detail) == 0 {
+		return -1
+	}
+	stored, ok := m.cursorValue()
+	if ok && stored >= 0 && stored < len(detail) && detail[stored].target != nil {
+		return stored
+	}
+	for i, line := range detail {
+		if line.target != nil {
+			m.setCursor(i)
+			return i
+		}
+	}
+	return -1
+}
+
+func (m *Model) cursorValue() (int, bool) {
+	if guide, ok := m.activeGuide(); ok {
+		if m.GuideCursor == nil {
+			return 0, false
+		}
+		v, found := m.GuideCursor[guide]
+		return v, found
+	}
+	if m.Cursor == nil {
+		return 0, false
+	}
+	v, found := m.Cursor[m.Selected]
+	return v, found
+}
+
+func (m *Model) setCursor(line int) {
+	if guide, ok := m.activeGuide(); ok {
+		if m.GuideCursor == nil {
+			m.GuideCursor = map[int]int{}
+		}
+		m.GuideCursor[guide] = line
+		return
+	}
+	if m.Cursor == nil {
+		m.Cursor = map[int]int{}
+	}
+	m.Cursor[m.Selected] = line
+}
+
+func (m *Model) moveCursor(delta int) {
+	if delta == 0 {
+		return
+	}
+	detail, current := m.detail(), m.cursor()
+	if current < 0 {
+		return
+	}
+	targets := make([]int, 0, len(detail))
+	for i, line := range detail {
+		if line.target != nil {
+			targets = append(targets, i)
+		}
+	}
+	for i, target := range targets {
+		if target == current {
+			m.setCursor(targets[max(0, min(len(targets)-1, i+delta))])
+			m.ensureCursorVisible()
+			return
+		}
+	}
+}
+
+// cursorInViewport replaces a cursor only when scrolling would hide it.
+// Forward scrolling chooses the first available target in view; backward
+// scrolling chooses the last, while stable cursors are left untouched.
+func (m *Model) cursorInViewport(delta int) {
+	current := m.cursor()
+	start, end := m.offset(), m.offset()+m.bodyHeight()
+	if current >= start && current < end {
+		return
+	}
+	detail := m.detail()
+	if delta < 0 {
+		for i := min(len(detail)-1, end-1); i >= start; i-- {
+			if detail[i].target != nil {
+				m.setCursor(i)
+				return
+			}
+		}
+		return
+	}
+	for i := max(0, start); i < min(len(detail), end); i++ {
+		if detail[i].target != nil {
+			m.setCursor(i)
+			return
+		}
+	}
+}
+
+func (m *Model) ensureCursorVisible() {
+	cursor := m.cursor()
+	if cursor < 0 {
+		return
+	}
+	offset := m.offset()
+	if cursor < offset {
+		m.setOffset(cursor)
+		return
+	}
+	if cursor >= offset+m.bodyHeight() {
+		m.setOffset(m.clampOffset(cursor - m.bodyHeight() + 1))
+	}
 }
 
 func (m *Model) bodyHeight() int {
@@ -675,6 +859,8 @@ func (m *Model) View() tea.View {
 			text = m.Session.Inventory.Comparison.Metadata.Identity.URL() + "\nOpen this URL in your browser for GitHub review actions.\nesc: back | q: quit"
 		case pageGuideConsent:
 			text = m.guideConsentView()
+		case pageCommentComposer:
+			text = m.commentComposerView()
 		case pageEvidence:
 			text = m.evidenceView()
 		default:
@@ -792,7 +978,11 @@ func (m *Model) reviewView() string {
 	// Horizontal scrolling stays on unstyled text; styles are applied after clipping.
 	for i, line := range detail {
 		runes := []rune(line.Text)
-		detail[i].Text = string(runes[min(m.Horizontal, len(runes)):])
+		marker := ""
+		if m.cursorActive {
+			marker = cursorMarker(offset+i == m.cursor())
+		}
+		detail[i].Text = marker + string(runes[min(m.Horizontal, len(runes)):])
 	}
 	body := []string{}
 	for row := 0; row < bodyHeight; row++ {

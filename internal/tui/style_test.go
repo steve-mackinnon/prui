@@ -102,6 +102,15 @@ func TestSelectionChromeKeepsMarkerAndFocusDistinctWithoutColor(t *testing.T) {
 	}
 }
 
+func TestCursorMarkerReservesVisibleDetailGutter(t *testing.T) {
+	if got := cursorMarker(false); got != "  " {
+		t.Fatalf("unselected cursor marker = %q, want blank gutter", got)
+	}
+	if got := cursorMarker(true); got != "› " {
+		t.Fatalf("selected cursor marker = %q, want chevron", got)
+	}
+}
+
 func TestClipIsANSIAware(t *testing.T) {
 	styled := styleLine(classAdded, "+abcdefgh")
 	for _, w := range []int{0, 1, 3, 5, 9, 20} {
@@ -206,6 +215,96 @@ func TestUnitLinesWordingMatchesUnitText(t *testing.T) {
 		}
 		if got := ansi.Strip(b.String()); got != unitText(s, i) {
 			t.Fatalf("%s styled wording changed:\n%q\n%q", u.Kind, got, unitText(s, i))
+		}
+	}
+}
+
+func TestUnitLinesPreserveReviewCommentTargets(t *testing.T) {
+	sha := "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+	s := kindsSession()
+	s.Inventory.Comparison.Metadata.HeadSHA = sha
+	s.Inventory.Files[0] = inventory.FileChange{ID: "rename", OldPath: []byte("old-name.go"), NewPath: []byte("new-name.go")}
+	s.Inventory.Units[1].OldRange = inventory.Range{Start: 4, Count: 3}
+	s.Inventory.Units[1].NewRange = inventory.Range{Start: 10, Count: 4}
+	s.Inventory.Patches["p"] = []byte("diff --git a/old-name.go b/new-name.go\n--- a/old-name.go\n+++ b/new-name.go\n@@ -4,3 +10,4 @@\n context\n-old\n+new\n+added\n context two\n\\ No newline at end of file\n")
+
+	lines := unitLines(s, 1)
+	want := map[string]struct {
+		path string
+		side string
+		line int
+	}{
+		" context":     {"new-name.go", "RIGHT", 10},
+		"-old":         {"old-name.go", "LEFT", 5},
+		"+new":         {"new-name.go", "RIGHT", 11},
+		"+added":       {"new-name.go", "RIGHT", 12},
+		" context two": {"new-name.go", "RIGHT", 13},
+	}
+	for _, got := range lines {
+		if expected, ok := want[got.Text]; ok {
+			if got.target == nil {
+				t.Fatalf("%q has no target", got.Text)
+			}
+			if got.target.Identity != s.Inventory.Comparison.Metadata.Identity || got.target.CommitID != sha || got.target.Path != expected.path || got.target.Side != expected.side || got.target.Line != expected.line {
+				t.Fatalf("%q target = %#v, want path=%q side=%s line=%d", got.Text, got.target, expected.path, expected.side, expected.line)
+			}
+			delete(want, got.Text)
+			continue
+		}
+		if got.target != nil {
+			t.Fatalf("structural line %q unexpectedly commentable: %#v", got.Text, got.target)
+		}
+	}
+	if len(want) != 0 {
+		t.Fatalf("missing targets: %#v", want)
+	}
+}
+
+func TestUnitLinesPreserveDeletionTargetAndInvalidPath(t *testing.T) {
+	s := kindsSession()
+	s.Inventory.Files[0] = inventory.FileChange{ID: "deleted", OldPath: []byte("deleted.go")}
+	s.Inventory.Units[1].OldRange = inventory.Range{Start: 7, Count: 1}
+	s.Inventory.Units[1].NewRange = inventory.Range{Start: 0, Count: 0}
+	s.Inventory.Patches["p"] = []byte("@@ -7 +0,0 @@\n-gone\n")
+	lines := unitLines(s, 1)
+	if got := lines[2].target; got == nil || got.Path != "deleted.go" || got.Side != "LEFT" || got.Line != 7 {
+		t.Fatalf("deleted line target = %#v", got)
+	}
+
+	s.Inventory.Files[0] = inventory.FileChange{ID: "invalid", NewPath: []byte("bad\xff")}
+	s.Inventory.Units[1].OldRange = inventory.Range{Start: 0, Count: 0}
+	s.Inventory.Units[1].NewRange = inventory.Range{Start: 2, Count: 1}
+	s.Inventory.Patches["p"] = []byte("@@ -0,0 +2 @@\n+added\n")
+	lines = unitLines(s, 1)
+	if got := lines[2].target; got == nil || got.Path != string([]byte("bad\xff")) || got.Side != "RIGHT" || got.Line != 2 {
+		t.Fatalf("invalid-path addition target = %#v", got)
+	}
+}
+
+func TestUnitLinesResetTargetsAtLaterHunkHeaders(t *testing.T) {
+	s := kindsSession()
+	s.Inventory.Files[0] = inventory.FileChange{ID: "text", OldPath: []byte("text.go"), NewPath: []byte("text.go")}
+	s.Inventory.Units[1].OldRange = inventory.Range{Start: 1, Count: 1}
+	s.Inventory.Units[1].NewRange = inventory.Range{Start: 1, Count: 1}
+	s.Inventory.Patches["p"] = []byte("@@ -1 +1 @@\n-old\n+new\n@@ -9,2 +20,2 @@\n context\n-oldtwo\n+newtwo\n")
+
+	want := map[string]struct {
+		side string
+		line int
+	}{
+		"-old":     {"LEFT", 1},
+		"+new":     {"RIGHT", 1},
+		" context": {"RIGHT", 20},
+		"-oldtwo":  {"LEFT", 10},
+		"+newtwo":  {"RIGHT", 21},
+	}
+	for _, line := range unitLines(s, 1) {
+		expected, ok := want[line.Text]
+		if !ok {
+			continue
+		}
+		if line.target == nil || line.target.Side != expected.side || line.target.Line != expected.line {
+			t.Fatalf("%q target = %#v, want side=%s line=%d", line.Text, line.target, expected.side, expected.line)
 		}
 	}
 }

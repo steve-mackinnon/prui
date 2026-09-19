@@ -333,3 +333,161 @@
 ## Completion checkpoint
 
 - [x] All Guide Path Overflow success criteria are met and verified.
+
+# Pull Request Line Comments tasks
+
+## 1. Comment request contract and safe GH transport
+
+**Description:** Define the narrow review-comment request/interface, add bounded
+stdin support to the subprocess runner, and implement `GH.CreateReviewComment`
+with JSON stdin and the documented GitHub REST endpoint.
+
+**Acceptance criteria:**
+- [x] Invalid identity, SHA, side, line, UTF-8 path/body, and empty body are rejected before `gh` runs.
+- [x] A valid request invokes `gh api --hostname github.com --method POST --input - repos/{repo}/pulls/{number}/comments`; its stdin JSON has exactly body, commit_id, path, line, and side.
+- [x] Typed comment text is absent from program arguments, errors, and persistence; cancellation and bounded output remain enforced.
+
+**Verification:**
+- [x] Write failing source-package tests, then run `go test ./internal/source -count=1`.
+- [x] Run `go test -race ./internal/source -count=1`.
+
+**Dependencies:** None.
+
+**Files likely touched:** `internal/source/{github,process}.go`,
+`internal/source/{source_test,process_test}.go`.
+
+**Estimated scope:** Medium (4 files).
+
+## 2. Provenance-preserving diff-line targets
+
+**Description:** Preserve an optional GitHub target alongside each rendered
+raw/guide detail line. This is a pure mapping change; it introduces no user
+interaction yet.
+
+**Acceptance criteria:**
+- [x] Additions/context resolve to `RIGHT` new-file lines; deletions resolve to `LEFT` old-file lines; all structural/non-text lines are non-commentable.
+- [x] The mapping works across hunk boundaries, renames, deleted files, raw inventory, deterministic file plan, and guide detail.
+- [x] Existing rendering text, escape behavior, color classification, and plain output remain unchanged.
+
+**Verification:**
+- [x] Write failing TUI mapping tests, then run `go test ./internal/tui -run 'Test.*(Comment|Guide)' -count=1`.
+- [x] Run `go test -race ./internal/tui -count=1`.
+
+**Dependencies:** Task 1 contract types.
+
+**Files likely touched:** `internal/tui/{render,guidedetail,style}.go`,
+`internal/tui/{render,guides}_test.go`.
+
+**Estimated scope:** Medium (5 files).
+
+## 3. Scroll-aware selected diff-line cursor
+
+**Description:** Add a visible cursor over provenance-bearing detail lines and
+keep it valid as the reviewer moves, scrolls, changes panes, or switches tabs.
+
+**Acceptance criteria:**
+- [x] The selected detail line remains visible and visibly marked while the diff scrolls; only a line with target metadata is commentable later.
+- [x] Cursor movement does not change existing list selection, file, guide, horizontal-scroll, or tab-isolation behavior.
+
+**Verification:**
+- [x] Write failing model/cursor tests, then run `go test ./internal/tui -run 'Test.*(Cursor|Scroll|Tab)' -count=1`.
+- [x] Run `go test -race ./internal/tui -count=1`.
+
+**Dependencies:** Task 2.
+
+**Files likely touched:** `internal/tui/{model,render,style}.go`, `internal/tui/model_test.go`.
+
+**Estimated scope:** Medium (4 files).
+
+## Checkpoint: safe selectable targets
+
+- [ ] Source contract and all target grammar cases pass under the race detector.
+- [ ] Existing raw/guide/file/inventory navigation and plain output remain unchanged apart from the interactive cursor marker.
+
+## 4. Composer state and key routing
+
+**Description:** Add tab-owned draft/target state, page routing, and the
+injected submit action, without first changing the main review rendering.
+
+**Acceptance criteria:**
+- [x] Diff-pane Enter opens only for a commentable target; list-pane Enter still focuses the diff.
+- [x] Enter adds a newline, Ctrl+Enter submits, and Esc discards without a write.
+- [x] Failed submission retains draft/target; success clears them; a late action result cannot alter a different active tab.
+
+**Verification:**
+- [x] Write failing model/lifecycle tests, then run `go test ./internal/tui -run 'Test.*(Comment|Composer|Tab)' -count=1`.
+- [x] Run `go test -race ./internal/tui -count=1`.
+
+**Dependencies:** Tasks 1–3.
+
+**Files likely touched:** `internal/tui/{model,lifecycle}.go`, `internal/tui/{model,lifecycle}_test.go`.
+
+**Estimated scope:** Medium (4 files).
+
+## 5. Composer rendering, help, and program journey
+
+**Description:** Render the multiline composer as a focused modal/page, expose
+its keys in help, and prove the synthetic interactive journey.
+
+**Acceptance criteria:**
+- [x] The composer identifies the frozen path/side/line, safely renders a multiline draft, and advertises Enter, Ctrl+Enter, and Escape semantics.
+- [x] Program coverage proves compose → submit → success as well as error and cancellation paths without a real GitHub request.
+
+**Verification:**
+- [x] Write failing render/program tests, then run `go test ./internal/tui -run 'Test.*(Composer|Comment|Program)' -count=1`.
+- [x] Run `go test -race ./internal/tui -count=1`.
+
+**Dependencies:** Task 4.
+
+**Files likely touched:** `internal/tui/{render,bindings}.go`, `internal/tui/{render,program}_test.go`.
+
+**Estimated scope:** Medium (4 files).
+
+## 6. Application freshness preflight and lifecycle wiring
+
+**Description:** Inject the explicit comment operation from the application,
+enforce online/current metadata equality just before the write, and preserve
+the existing offline and setup-error boundaries.
+
+**Acceptance criteria:**
+- [x] Offline mode, unavailable GH, invalid target, or preflight mismatch calls no commenter.
+- [x] An exact metadata match calls the commenter once with the frozen target and head SHA.
+- [x] A canceled/unknown delivery outcome makes no false success claim and never auto-retries.
+
+**Verification:**
+- [x] Write failing command/lifecycle tests, then run `go test ./cmd/pr-review -count=1`.
+- [x] Run `go test -race ./cmd/pr-review ./internal/review -count=1`.
+
+**Dependencies:** Tasks 1 and 4.
+
+**Files likely touched:** `cmd/pr-review/{lifecycle,wiring}.go`,
+`cmd/pr-review/{lifecycle,wiring}_test.go`.
+
+**Estimated scope:** Medium (4 files).
+
+## 7. Documentation, snapshots, and full regression verification
+
+**Description:** Update the public read-only/write-boundary contract, keyboard
+reference, and affected deterministic screens; run the full verification gate.
+
+**Acceptance criteria:**
+- [x] README and constraints state that comment posting is explicit, fresh-head-gated, permission-dependent, and unavailable offline/plain.
+- [x] Help/composer chrome identifies submission and cancel keys without leaking draft text into a persisted artifact.
+- [x] Snapshot and program coverage demonstrate a successful synthetic journey and safe error/cancel paths.
+
+**Verification:**
+- [x] Run `go test -race -count=1 ./...` and `go build ./...`.
+- [x] Run `./scripts/verify.sh` and `git diff --check`.
+- [ ] Conduct one authorized manual real-PR comment as the final acceptance check.
+
+**Dependencies:** Tasks 1–6.
+
+**Files likely touched:** `README.md`, `CONSTRAINTS.md`,
+`internal/tui/testdata/screens/*`, relevant `*_test.go` files.
+
+**Estimated scope:** Small (3–5 files).
+
+## Completion checkpoint
+
+- [x] All spec success criteria are verified with synthetic tests; no unrelated dirty worktree changes were modified.
+- [ ] An authorized manual real-PR comment succeeds and appears at the intended line.

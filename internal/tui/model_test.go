@@ -426,6 +426,144 @@ func TestHLFocusesReviewPanes(t *testing.T) {
 	}
 }
 
+func TestDiffCursorMovesBetweenCommentTargetsAndKeepsThemVisible(t *testing.T) {
+	m := New(context.Background(), nil)
+	m.Loading = false
+	m.Session = kindsSession()
+	m.Selected, m.Focus = 1, paneDiff
+	m.Width, m.Height = 120, 5 // two detail rows: force cursor-following scroll.
+	m.cursorActive = true
+	m.ensureCursorVisible()
+
+	first := m.cursor()
+	if got := m.detail()[first].target; got == nil || got.Side != "RIGHT" || got.Line != 1 {
+		t.Fatalf("initial cursor target = %#v, want first commentable context line", got)
+	}
+	view := ansi.Strip(m.View().Content)
+	if !strings.Contains(view, "›  context") {
+		t.Fatalf("initial comment target is not visibly marked:\n%s", view)
+	}
+	if !strings.Contains(view, "|   @@ -1,2 +1,2 @@") {
+		t.Fatalf("unselected detail line does not retain the cursor gutter:\n%s", view)
+	}
+
+	key(m, 'j')
+	second := m.cursor()
+	if second <= first || m.detail()[second].target == nil || m.detail()[second].target.Side != "LEFT" {
+		t.Fatalf("j cursor = %d (%#v), want deletion target after %d", second, m.detail()[second].target, first)
+	}
+	if second < m.offset() || second >= m.offset()+m.bodyHeight() {
+		t.Fatalf("cursor %d fell outside visible detail [%d,%d)", second, m.offset(), m.offset()+m.bodyHeight())
+	}
+
+	key(m, 'k')
+	if got := m.cursor(); got != first {
+		t.Fatalf("k cursor = %d, want %d", got, first)
+	}
+}
+
+func TestDiffCursorTracksScrollingAndTabStateWithoutChangingReviewSelection(t *testing.T) {
+	m := New(context.Background(), nil)
+	first, second := kindsSession(), kindsSession()
+	first.Inventory.Comparison.Metadata.Identity = source.Identity{Repository: "owner/repo", Number: 1}
+	second.Inventory.Comparison.Metadata.Identity = source.Identity{Repository: "owner/repo", Number: 2}
+	m.openReviewTab(first)
+	m.Width, m.Height, m.Selected, m.Focus, m.Horizontal = 120, 5, 1, paneDiff, 8
+	key(m, 'j')
+	wantCursor, wantSelected := m.cursor(), m.Selected
+	key(m, 'J')
+	if got := m.cursor(); got < m.offset() || got >= m.offset()+m.bodyHeight() {
+		t.Fatalf("scroll left cursor %d outside visible detail [%d,%d)", got, m.offset(), m.offset()+m.bodyHeight())
+	}
+	wantCursor = m.cursor()
+	if m.Selected != wantSelected || m.Horizontal != 8 {
+		t.Fatalf("diff scrolling changed selection or horizontal position: selected=%d horizontal=%d", m.Selected, m.Horizontal)
+	}
+
+	m.openReviewTab(second)
+	m.Selected, m.Focus = 1, paneDiff
+	key(m, 'j')
+	secondCursor := m.cursor()
+	m.activateTab(0)
+	if got := m.cursor(); got != wantCursor {
+		t.Fatalf("first tab cursor was not restored: got %d, want %d", got, wantCursor)
+	}
+	m.activateTab(1)
+	if got := m.cursor(); got != secondCursor {
+		t.Fatalf("second tab cursor = %d, want %d", got, secondCursor)
+	}
+}
+
+func TestDiffEnterOpensACommentComposerOnlyForTheCursorTarget(t *testing.T) {
+	m := New(context.Background(), nil)
+	m.Loading = false
+	m.Session = kindsSession()
+	m.Selected, m.Focus = 1, paneList
+
+	namedKey(m, tea.KeyEnter)
+	if m.Focus != paneDiff || m.top() != pageReview {
+		t.Fatalf("list enter did not retain its focus-diff meaning: focus=%v page=%v", m.Focus, m.top())
+	}
+	namedKey(m, tea.KeyEnter)
+	if m.top() != pageCommentComposer || m.Composer == nil || m.Composer.Target.Line != 1 || m.Composer.Target.Side != "RIGHT" {
+		t.Fatalf("diff enter did not open composer for cursor target: page=%v composer=%#v", m.top(), m.Composer)
+	}
+
+	m = New(context.Background(), nil)
+	m.Loading = false
+	m.Session = kindsSession()
+	m.Selected, m.Focus = 0, paneDiff // file metadata has no commentable target.
+	namedKey(m, tea.KeyEnter)
+	if m.top() != pageReview || m.Composer != nil {
+		t.Fatalf("non-commentable detail opened composer: page=%v composer=%#v", m.top(), m.Composer)
+	}
+}
+
+func TestDiffEnterRejectsCommentTargetsWithUnsafePaths(t *testing.T) {
+	for name, path := range map[string][]byte{
+		"empty":        {},
+		"invalid utf8": {0xff},
+	} {
+		t.Run(name, func(t *testing.T) {
+			m := New(context.Background(), nil)
+			m.Loading = false
+			m.Session = kindsSession()
+			m.Session.Inventory.Files[0].NewPath = path
+			m.Selected, m.Focus = 1, paneDiff
+
+			namedKey(m, tea.KeyEnter)
+			if m.top() != pageReview || m.Composer != nil {
+				t.Fatalf("unsafe target path opened composer: page=%v composer=%#v", m.top(), m.Composer)
+			}
+		})
+	}
+}
+
+func TestCommentComposerEditsNewlinesAndEscapeDiscardsWithoutSubmitting(t *testing.T) {
+	m := New(context.Background(), nil)
+	m.Loading = false
+	m.Session, m.Selected, m.Focus = kindsSession(), 1, paneDiff
+	submissions := 0
+	m.SetCommentSubmitter(func(context.Context, CommentSubmission) error {
+		submissions++
+		return nil
+	})
+	namedKey(m, tea.KeyEnter)
+	if m.Composer == nil {
+		t.Fatal("composer did not open")
+	}
+	key(m, 'a')
+	namedKey(m, tea.KeyEnter)
+	key(m, 'b')
+	if got, want := m.Composer.Draft, "a\nb"; got != want {
+		t.Fatalf("composer draft = %q, want %q", got, want)
+	}
+	namedKey(m, tea.KeyEscape)
+	if submissions != 0 || m.Composer != nil || m.top() != pageReview {
+		t.Fatalf("escape did not discard composer: page=%v composer=%#v", m.top(), m.Composer)
+	}
+}
+
 func TestRawReviewCancelAndFailure(t *testing.T) {
 	canceled := make(chan struct{})
 	m := New(context.Background(), func(c context.Context, _ func(string)) (*review.Session, error) {
@@ -494,7 +632,7 @@ func TestModalPagesOwnInputAndBack(t *testing.T) {
 func TestBindingsRenderHelpAndFooter(t *testing.T) {
 	help := renderBindings(groupHelp)
 	footer := renderBindings(groupFooter)
-	for _, wording := range []string{"focus the diff; on a file, jump to its place in the guide diff", "reset selected guide scroll, or selected unit's without guides"} {
+	for _, wording := range []string{"focus the diff; on a commentable line, open a comment composer", "reset selected guide scroll, or selected unit's without guides"} {
 		if !strings.Contains(help, wording) {
 			t.Fatalf("updated help wording missing %q", wording)
 		}

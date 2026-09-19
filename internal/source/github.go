@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 )
 
 var repositoryPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]*/[A-Za-z0-9][A-Za-z0-9_.-]*$`)
@@ -62,6 +63,29 @@ type GitHub interface {
 	ListPullRequests(context.Context, string) ([]PullRequest, error)
 	Token(context.Context) (string, error)
 }
+
+// ReviewComment describes one explicitly requested, line-anchored pull request
+// review comment. It is intentionally separate from GitHub, whose operations
+// are otherwise read-only.
+type ReviewComment struct {
+	Target ReviewCommentTarget
+	Body   string
+}
+
+// ReviewCommentTarget identifies the frozen pull request diff line to comment
+// on. Side is either LEFT or RIGHT, following GitHub's review-comment API.
+type ReviewCommentTarget struct {
+	Identity Identity
+	CommitID string
+	Path     string
+	Side     string
+	Line     int
+}
+
+type ReviewCommenter interface {
+	CreateReviewComment(context.Context, ReviewComment) error
+}
+
 type GH struct {
 	Runner     Runner
 	Executable string
@@ -74,7 +98,58 @@ func NewGH(r Runner, l Limits, dir string) (*GH, error) {
 	return &GH{r, p, l, dir}, e
 }
 func (g *GH) call(ctx context.Context, args ...string) ([]byte, error) {
-	return g.Runner.Run(ctx, Request{Program: g.Executable, Args: args, Env: userEnvironment(), Dir: g.Dir, Limit: 1 << 20, Timeout: g.Limits.Operation})
+	return g.callWithStdin(ctx, nil, args...)
+}
+func (g *GH) callWithStdin(ctx context.Context, stdin []byte, args ...string) ([]byte, error) {
+	return g.Runner.Run(ctx, Request{Program: g.Executable, Args: args, Stdin: stdin, Env: userEnvironment(), Dir: g.Dir, Limit: 1 << 20, Timeout: g.Limits.Operation})
+}
+
+func validateReviewComment(comment ReviewComment) error {
+	target := comment.Target
+	if _, err := ParseIdentity(strconv.Itoa(target.Identity.Number), target.Identity.Repository); err != nil {
+		return errors.New("invalid review comment target")
+	}
+	if !shaPattern.MatchString(target.CommitID) || target.Line <= 0 || (target.Side != "LEFT" && target.Side != "RIGHT") || target.Path == "" || !utf8.ValidString(target.Path) || comment.Body == "" || !utf8.ValidString(comment.Body) {
+		return errors.New("invalid review comment")
+	}
+	return nil
+}
+
+func (g *GH) CreateReviewComment(ctx context.Context, comment ReviewComment) error {
+	if err := validateReviewComment(comment); err != nil {
+		return err
+	}
+	payload, err := json.Marshal(struct {
+		Body     string `json:"body"`
+		CommitID string `json:"commit_id"`
+		Path     string `json:"path"`
+		Line     int    `json:"line"`
+		Side     string `json:"side"`
+	}{
+		Body: comment.Body, CommitID: comment.Target.CommitID, Path: comment.Target.Path,
+		Line: comment.Target.Line, Side: comment.Target.Side,
+	})
+	if err != nil {
+		return errors.New("could not prepare review comment")
+	}
+	_, err = g.callWithStdin(ctx, payload, "api", "--hostname", "github.com", "--method", "POST", "--input", "-", fmt.Sprintf("repos/%s/pulls/%d/comments", comment.Target.Identity.Repository, comment.Target.Identity.Number))
+	if err != nil {
+		return safeReviewCommentError(err)
+	}
+	return nil
+}
+
+func safeReviewCommentError(err error) error {
+	switch {
+	case errors.Is(err, context.Canceled):
+		return context.Canceled
+	case errors.Is(err, context.DeadlineExceeded):
+		return context.DeadlineExceeded
+	case errors.Is(err, ErrLimit):
+		return fmt.Errorf("GitHub review comment unavailable: %w", ErrLimit)
+	default:
+		return fmt.Errorf("GitHub review comment unavailable (check authentication and connectivity): %w", ErrCommand)
+	}
 }
 func (g *GH) Metadata(ctx context.Context, id Identity) (Metadata, error) {
 	if _, err := ParseIdentity(strconv.Itoa(id.Number), id.Repository); err != nil {

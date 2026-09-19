@@ -47,6 +47,7 @@ func (a *application) model(ctx context.Context, o options) *tui.Model {
 	})
 	m.SetPullRequestLifecycle(a.listPullRequests, a.openFromPullRequestList)
 	m.SetGuideLifecycle(a.requestGuide)
+	m.SetCommentSubmitter(a.submitReviewComment)
 	return m
 }
 

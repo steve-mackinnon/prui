@@ -28,6 +28,7 @@ func Defaults() Limits { return Limits{10000, 50 << 20, 1 << 20, 100000, 60 * ti
 type Request struct {
 	Program      string
 	Args, Env    []string
+	Stdin        []byte
 	Dir          string
 	Limit        int
 	Timeout      time.Duration
@@ -90,6 +91,7 @@ func (processRunner) Run(parent context.Context, r Request) ([]byte, error) {
 	stderr := &boundedBuffer{remaining: 64 << 10, cancel: cancel}
 	cmd.Stdout = out
 	cmd.Stderr = stderr
+	cmd.Stdin = bytes.NewReader(r.Stdin)
 	if err := cmd.Start(); err != nil {
 		if parent.Err() != nil {
 			return nil, parent.Err()

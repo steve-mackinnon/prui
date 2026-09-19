@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"bytes"
 	"fmt"
 	"strconv"
 	"strings"
@@ -10,6 +11,7 @@ import (
 	"pr-review/internal/guide"
 	"pr-review/internal/inventory"
 	"pr-review/internal/review"
+	"pr-review/internal/source"
 )
 
 func Escape(s string) string { q := strconv.Quote(s); return q[1 : len(q)-1] }
@@ -70,26 +72,34 @@ func statusClass(s *review.Session) lineClass {
 }
 
 // body splits an already-assembled card body into classified display lines.
-func body(c lineClass, text string) []styledLine {
-	lines := []styledLine{}
+func body(c lineClass, text string) []diffLine {
+	lines := []diffLine{}
 	for _, l := range strings.Split(strings.TrimSuffix(text, "\n"), "\n") {
-		lines = append(lines, styledLine{c, l})
+		lines = append(lines, diffLine{styledLine: styledLine{c, l}})
 	}
 	return lines
 }
 
 // unitLines is the classified form of unitText: the same escaped lines, each
 // tagged with its semantic class. Classification never edits the text.
-func unitLines(s *review.Session, i int) []styledLine {
+func unitLines(s *review.Session, i int) []diffLine {
 	u := s.Inventory.Units[i]
 	f := s.Inventory.Files[s.UnitFiles[i]]
-	lines := []styledLine{{classTitle, fmt.Sprintf("%s [%s]", pathLabel(f), u.Kind)}}
+	lines := []diffLine{{styledLine: styledLine{classTitle, fmt.Sprintf("%s [%s]", pathLabel(f), u.Kind)}}}
 	switch u.Kind {
 	case inventory.TextHunk:
+		oldLine, newLine, inHunk := u.OldRange.Start, u.NewRange.Start, false
 		// The patch keeps its trailing newline, so the final empty element is a real display line.
-		for _, line := range strings.Split(string(s.Inventory.Patches[u.PatchReference]), "\n") {
-			e := Escape(line)
-			lines = append(lines, styledLine{classifyPatch(e), e})
+		for _, raw := range bytes.Split(s.Inventory.Patches[u.PatchReference], []byte{'\n'}) {
+			if oldStart, newStart, ok := hunkStarts(raw); ok {
+				oldLine, newLine, inHunk = oldStart, newStart, true
+			}
+			e := Escape(string(raw))
+			line := diffLine{styledLine: styledLine{classifyPatch(e), e}}
+			if inHunk {
+				line.target = patchTarget(s, f, raw, &oldLine, &newLine)
+			}
+			lines = append(lines, line)
 		}
 	case inventory.FileMetadata:
 		lines = append(lines, body(cardClass(u.Kind), fmt.Sprintf("status %s | mode %s -> %s\nold path: %s\nnew path: %s\nold object: %s\nnew object: %s\n", f.Status, f.OldMode, f.NewMode, Escape(string(f.OldPath)), Escape(string(f.NewPath)), f.OldOID, f.NewOID))...)
@@ -101,6 +111,75 @@ func unitLines(s *review.Session, i int) []styledLine {
 		lines = append(lines, body(cardClass(u.Kind), "UNAVAILABLE: "+Escape(u.UnavailableReason)+"\nNot fully reviewable; file remains in inventory.\n")...)
 	}
 	return lines
+}
+
+// hunkStarts extracts the two line counters from an unescaped unified-diff
+// hunk header. Inventory creates one unit per hunk, but recognizing later
+// headers keeps this pure renderer correct for all stored patch grammar.
+func hunkStarts(raw []byte) (old, new int, ok bool) {
+	if !bytes.HasPrefix(raw, []byte("@@ -")) {
+		return 0, 0, false
+	}
+	old, rest, ok := diffRangeStart(raw[len("@@ -"):])
+	if !ok || !bytes.HasPrefix(rest, []byte(" +")) {
+		return 0, 0, false
+	}
+	new, rest, ok = diffRangeStart(rest[2:])
+	if !ok || !bytes.HasPrefix(rest, []byte(" @@")) {
+		return 0, 0, false
+	}
+	return old, new, true
+}
+
+func diffRangeStart(raw []byte) (start int, rest []byte, ok bool) {
+	i := 0
+	for i < len(raw) && raw[i] >= '0' && raw[i] <= '9' {
+		start = start*10 + int(raw[i]-'0')
+		i++
+	}
+	if i == 0 {
+		return 0, nil, false
+	}
+	if i < len(raw) && raw[i] == ',' {
+		i++
+		countStart := i
+		for i < len(raw) && raw[i] >= '0' && raw[i] <= '9' {
+			i++
+		}
+		if i == countStart {
+			return 0, nil, false
+		}
+	}
+	return start, raw[i:], true
+}
+
+// patchTarget maps a raw patch body line and advances counters according to
+// unified-diff grammar. Headers and no-newline markers never receive targets.
+func patchTarget(s *review.Session, f inventory.FileChange, raw []byte, oldLine, newLine *int) *source.ReviewCommentTarget {
+	if len(raw) == 0 || bytes.HasPrefix(raw, []byte(`\ No newline at end of file`)) {
+		return nil
+	}
+	metadata := s.Inventory.Comparison.Metadata
+	target := func(path []byte, side string, line int) *source.ReviewCommentTarget {
+		return &source.ReviewCommentTarget{Identity: metadata.Identity, CommitID: metadata.HeadSHA, Path: string(path), Side: side, Line: line}
+	}
+	switch raw[0] {
+	case '+':
+		out := target(f.NewPath, "RIGHT", *newLine)
+		*newLine++
+		return out
+	case '-':
+		out := target(f.OldPath, "LEFT", *oldLine)
+		*oldLine++
+		return out
+	case ' ':
+		out := target(f.NewPath, "RIGHT", *newLine)
+		*oldLine++
+		*newLine++
+		return out
+	default:
+		return nil
+	}
 }
 func unitText(s *review.Session, i int) string {
 	var b strings.Builder
@@ -230,6 +309,38 @@ func (m *Model) evidenceView() string {
 		lines = append(lines, fmt.Sprintf("[omitted] %s: %s", Escape(string(o.Path)), Escape(o.Reason)))
 	}
 	lines = append(lines, "esc: back | raw inventory remains available | omissions are not missing diff entries")
+	return strings.Join(lines, "\n")
+}
+
+// commentComposerView is deliberately a transient page: it renders the
+// target copied when the composer opened and the in-memory draft, but does not
+// add either to session state or any persisted review artifact.
+func (m *Model) commentComposerView() string {
+	composer := m.Composer
+	if composer == nil {
+		return "Comment composer is unavailable. esc: back"
+	}
+	lines := []string{
+		"Leave line comment",
+		fmt.Sprintf("path: %s | side: %s | line: %d", Escape(composer.Target.Path), Escape(composer.Target.Side), composer.Target.Line),
+		"",
+		"Draft (Markdown):",
+	}
+	draft := strings.Split(composer.Draft, "\n")
+	// Reserve the page title, frozen target, draft label, controls, and an
+	// optional error. This keeps submit/cancel discoverable while composing a
+	// long multiline comment.
+	capacity := max(1, m.Height-6)
+	for _, line := range draft[:min(len(draft), capacity)] {
+		lines = append(lines, "  "+Escape(line))
+	}
+	if omitted := len(draft) - capacity; omitted > 0 {
+		lines = append(lines, fmt.Sprintf("  … %d more draft lines", omitted))
+	}
+	if m.ActionError != nil {
+		lines = append(lines, "! Submission failed: "+Escape(m.ActionError.Error()))
+	}
+	lines = append(lines, "enter: newline | ctrl+enter: submit | esc: discard")
 	return strings.Join(lines, "\n")
 }
 

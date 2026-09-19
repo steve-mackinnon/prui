@@ -3,9 +3,9 @@ package tui
 import "pr-review/internal/review"
 
 // guideDetail is the selected guide's diff assembled from its ordered section
-// unit IDs. Lines are unstyled styledLine values, exactly as unitLines emits.
+// unit IDs. Lines carry the same optional review targets as unitLines emits.
 type guideDetail struct {
-	lines []styledLine
+	lines []diffLine
 	files []fileAnchor
 }
 
@@ -50,7 +50,7 @@ func detailFor(s *review.Session, guide int) guideDetail {
 			file := s.UnitFiles[unit]
 			if file != previous {
 				detail.files = append(detail.files, fileAnchor{section: si, file: file, offset: len(detail.lines)})
-				detail.lines = append(detail.lines, styledLine{Class: classFileHeader, Text: pathLabel(s.Inventory.Files[file])})
+				detail.lines = append(detail.lines, diffLine{styledLine: styledLine{Class: classFileHeader, Text: pathLabel(s.Inventory.Files[file])}})
 				previous = file
 			}
 			detail.lines = append(detail.lines, unitLines(s, unit)...)

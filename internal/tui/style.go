@@ -6,6 +6,7 @@ import (
 
 	"charm.land/lipgloss/v2"
 	"pr-review/internal/inventory"
+	"pr-review/internal/source"
 )
 
 // lineClass names the semantic role of a complete display line. Classes are
@@ -32,6 +33,13 @@ const (
 type styledLine struct {
 	Class lineClass
 	Text  string
+}
+
+// diffLine keeps the immutable GitHub review target next to the already-safe
+// display data. The target is derived from patch bytes, never terminal text.
+type diffLine struct {
+	styledLine
+	target *source.ReviewCommentTarget
 }
 
 // palette is the semantic style table, named by meaning rather than color.
@@ -66,6 +74,15 @@ func selectionMarker(selected bool) string {
 		return "  "
 	}
 	return "› "
+}
+
+// cursorMarker reserves a stable detail gutter. The selected line uses the
+// same color-independent chevron as list selection.
+func cursorMarker(selected bool) string {
+	if selected {
+		return "› "
+	}
+	return "  "
 }
 
 func selectedClass(focused bool) lineClass {

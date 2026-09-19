@@ -14,12 +14,15 @@ import (
 	"pr-review/internal/session"
 	"pr-review/internal/source"
 	"pr-review/internal/testutil"
+	"pr-review/internal/tui"
 )
 
 type fixtureGH struct {
-	value source.Metadata
-	err   error
-	prs   []source.PullRequest
+	value      source.Metadata
+	err        error
+	prs        []source.PullRequest
+	comments   []source.ReviewComment
+	commentErr error
 }
 
 type requestFunc func(context.Context, source.Request) ([]byte, error)
@@ -49,6 +52,91 @@ func (g *fixtureGH) Metadata(context.Context, source.Identity) (source.Metadata,
 }
 func (g *fixtureGH) ListPullRequests(context.Context, string) ([]source.PullRequest, error) {
 	return g.prs, g.err
+}
+
+func (g *fixtureGH) CreateReviewComment(_ context.Context, comment source.ReviewComment) error {
+	g.comments = append(g.comments, comment)
+	return g.commentErr
+}
+
+func TestSubmitReviewCommentRequiresExactFrozenMetadata(t *testing.T) {
+	app, saved := wiringFixture(t)
+	gh := app.gh.(*fixtureGH)
+	frozen := saved.Inventory.Comparison.Metadata
+	comment := source.ReviewComment{Target: source.ReviewCommentTarget{
+		Identity: frozen.Identity, CommitID: frozen.HeadSHA, Path: "a", Side: "RIGHT", Line: 1,
+	}, Body: "Please consider this."}
+
+	submission := tui.CommentSubmission{Comment: comment, Metadata: frozen}
+	if err := app.submitReviewComment(context.Background(), submission); err != nil {
+		t.Fatal("matching metadata rejected", err)
+	}
+	if len(gh.comments) != 1 || gh.comments[0] != comment {
+		t.Fatalf("comments = %#v, want one frozen request %#v", gh.comments, comment)
+	}
+
+	for name, current := range map[string]source.Metadata{
+		"base repository": {Identity: frozen.Identity, BaseRepository: "other/repo", HeadRepository: frozen.HeadRepository, BaseSHA: frozen.BaseSHA, HeadSHA: frozen.HeadSHA},
+		"head repository": {Identity: frozen.Identity, BaseRepository: frozen.BaseRepository, HeadRepository: "other/repo", BaseSHA: frozen.BaseSHA, HeadSHA: frozen.HeadSHA},
+		"base SHA":        {Identity: frozen.Identity, BaseRepository: frozen.BaseRepository, HeadRepository: frozen.HeadRepository, BaseSHA: frozen.HeadSHA, HeadSHA: frozen.HeadSHA},
+		"head SHA":        {Identity: frozen.Identity, BaseRepository: frozen.BaseRepository, HeadRepository: frozen.HeadRepository, BaseSHA: frozen.BaseSHA, HeadSHA: frozen.BaseSHA},
+	} {
+		t.Run(name, func(t *testing.T) {
+			gh.value = current
+			before := len(gh.comments)
+			if err := app.submitReviewComment(context.Background(), submission); err == nil || !strings.Contains(err.Error(), "new comparison") {
+				t.Fatal("mismatched metadata was allowed", err)
+			}
+			if len(gh.comments) != before {
+				t.Fatal("mismatch called commenter")
+			}
+		})
+	}
+}
+
+func TestSubmitReviewCommentRejectsBeforeCommenter(t *testing.T) {
+	app, saved := wiringFixture(t)
+	gh := app.gh.(*fixtureGH)
+	frozen := saved.Inventory.Comparison.Metadata
+	valid := source.ReviewComment{Target: source.ReviewCommentTarget{Identity: frozen.Identity, CommitID: frozen.HeadSHA, Path: "a", Side: "RIGHT", Line: 1}, Body: "body"}
+	for name, mutate := range map[string]func(){
+		"offline":            func() { app.offline = true },
+		"invalid target":     func() { valid.Target.Line = 0 },
+		"unavailable GitHub": func() { app.gh = nil },
+	} {
+		t.Run(name, func(t *testing.T) {
+			app.offline, app.gh, valid = false, gh, source.ReviewComment{Target: source.ReviewCommentTarget{Identity: frozen.Identity, CommitID: frozen.HeadSHA, Path: "a", Side: "RIGHT", Line: 1}, Body: "body"}
+			mutate()
+			before := len(gh.comments)
+			if err := app.submitReviewComment(context.Background(), tui.CommentSubmission{Comment: valid, Metadata: frozen}); err == nil {
+				t.Fatal("invalid delivery was allowed")
+			}
+			if len(gh.comments) != before {
+				t.Fatal("rejected delivery called commenter")
+			}
+		})
+	}
+}
+
+func TestSubmitReviewCommentDoesNotRetryUnknownDelivery(t *testing.T) {
+	app, saved := wiringFixture(t)
+	gh := app.gh.(*fixtureGH)
+	frozen := saved.Inventory.Comparison.Metadata
+	submission := tui.CommentSubmission{Metadata: frozen, Comment: source.ReviewComment{Target: source.ReviewCommentTarget{
+		Identity: frozen.Identity, CommitID: frozen.HeadSHA, Path: "a", Side: "RIGHT", Line: 1,
+	}, Body: "body"}}
+	for name, deliveryErr := range map[string]error{
+		"canceled": context.Canceled,
+		"unknown":  errors.New("connection ended after request"),
+	} {
+		t.Run(name, func(t *testing.T) {
+			gh.comments, gh.commentErr = nil, deliveryErr
+			err := app.submitReviewComment(context.Background(), submission)
+			if !errors.Is(err, deliveryErr) || len(gh.comments) != 1 {
+				t.Fatalf("delivery error = %v, calls = %d; want propagated error and one call", err, len(gh.comments))
+			}
+		})
+	}
 }
 
 func TestLifecycleListPullRequests(t *testing.T) {

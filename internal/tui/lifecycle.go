@@ -21,6 +21,25 @@ type ActionResult struct {
 	Reset   bool
 }
 
+// CommentSubmission carries the immutable comparison that produced the target
+// alongside the explicit write request. The model copies Metadata before
+// starting asynchronous work, so a tab switch cannot retarget its preflight.
+type CommentSubmission struct {
+	Comment  source.ReviewComment
+	Metadata source.Metadata
+}
+
+// CommentSubmitter is the only TUI write seam. The command layer injects an
+// implementation after its explicit freshness check; the model never reaches
+// directly into a GitHub client.
+type CommentSubmitter func(context.Context, CommentSubmission) error
+
+type CommentResult struct {
+	Target     int
+	Generation uint64
+	Err        error
+}
+
 type PullRequestListResult struct {
 	PullRequests []source.PullRequest
 	Repository   string
@@ -56,6 +75,80 @@ func (m *Model) SetPullRequestLifecycle(list PullRequestLoader, open PullRequest
 }
 
 func (m *Model) SetGuideLifecycle(generate GuideLoader) { m.generateGuide = generate }
+
+// SetCommentSubmitter installs the explicit write action used by the composer.
+// It is intentionally separate from the read lifecycle dependencies.
+func (m *Model) SetCommentSubmitter(submit CommentSubmitter) { m.submitComment = submit }
+
+func (m *Model) commentComposerKey(key tea.KeyPressMsg) tea.Cmd {
+	composer := m.Composer
+	if composer == nil {
+		m.pop()
+		return nil
+	}
+	switch key.String() {
+	case "esc":
+		m.Composer = nil
+		m.pop()
+		return nil
+	case "enter":
+		composer.Draft += "\n"
+		return nil
+	case "ctrl+enter":
+		if m.submitComment == nil {
+			m.ActionError = errors.New("review comment submission unavailable")
+			return nil
+		}
+		if composer.Draft == "" {
+			m.ActionError = errors.New("review comment body is required")
+			return nil
+		}
+		composer.generation++
+		generation, target, submit := composer.generation, m.activeTab, m.submitComment
+		if m.Session == nil {
+			m.ActionError = errors.New("review comment submission unavailable")
+			return nil
+		}
+		submission := CommentSubmission{
+			Comment:  source.ReviewComment{Target: composer.Target, Body: composer.Draft},
+			Metadata: m.Session.Inventory.Comparison.Metadata,
+		}
+		m.notice = "Submitting pull request comment..."
+		ctx := m.beginAction()
+		return m.start(func() tea.Msg {
+			return CommentResult{Target: target, Generation: generation, Err: submit(ctx, submission)}
+		})
+	}
+	if key.Text != "" && !key.Mod.Contains(tea.ModCtrl) && !key.Mod.Contains(tea.ModAlt) {
+		composer.Draft += key.Text
+	}
+	return nil
+}
+
+func (m *Model) applyCommentResult(result CommentResult) {
+	apply := func(state *reviewTabState) {
+		if state == nil || state.Composer == nil || state.Composer.generation != result.Generation {
+			return
+		}
+		state.Busy = false
+		state.ActionError = result.Err
+		if result.Err == nil {
+			state.Composer = nil
+			if len(state.Stack) > 1 && state.Stack[len(state.Stack)-1] == pageCommentComposer {
+				state.Stack = state.Stack[:len(state.Stack)-1]
+			}
+		}
+	}
+	if result.Target == m.activeTab {
+		state := &reviewTabState{Composer: m.Composer, Stack: m.Stack, Busy: m.Busy, ActionError: m.ActionError}
+		apply(state)
+		m.Composer, m.Stack, m.Busy, m.ActionError = state.Composer, state.Stack, state.Busy, state.ActionError
+		return
+	}
+	if result.Target >= 0 && result.Target < len(m.tabs) {
+		apply(m.tabs[result.Target].review)
+	}
+}
 
 func (m *Model) start(work func() tea.Msg) tea.Cmd {
 	m.Busy = true

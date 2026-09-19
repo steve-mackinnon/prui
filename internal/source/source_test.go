@@ -2,6 +2,7 @@ package source
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -51,6 +52,16 @@ func TestSafetyProcessBounds(t *testing.T) {
 	}
 }
 
+func TestProcessRunnerProvidesBoundedStdin(t *testing.T) {
+	out, err := NewRunner().Run(context.Background(), Request{
+		Program: "/bin/sh", Args: []string{"-c", "IFS= read -r line; printf %s \"$line\""},
+		Stdin: []byte("comment body\n"), Limit: 100, Timeout: time.Second,
+	})
+	if err != nil || string(out) != "comment body" {
+		t.Fatalf("stdin output = %q, error = %v", out, err)
+	}
+}
+
 func TestSafetyCredentialEnvironment(t *testing.T) {
 	env := gitEnvironment(t.TempDir(), "synthetic-token")
 	joined := strings.Join(env, "\n")
@@ -95,5 +106,86 @@ func TestGitHubListPullRequestsReadOnlyContract(t *testing.T) {
 		if _, err := g.ListPullRequests(context.Background(), "owner/repo"); err == nil {
 			t.Fatal("accepted invalid list", body)
 		}
+	}
+}
+
+func TestGitHubCreateReviewCommentUsesJSONStdin(t *testing.T) {
+	const body = "Please handle the edge case.\n\nThanks!"
+	calls := 0
+	g := GH{Executable: "trusted-gh", Dir: t.TempDir(), Limits: Defaults(), Runner: listRunner(func(_ context.Context, request Request) ([]byte, error) {
+		calls++
+		want := []string{"api", "--hostname", "github.com", "--method", "POST", "--input", "-", "repos/owner/repo/pulls/42/comments"}
+		if !reflect.DeepEqual(request.Args, want) {
+			t.Fatal("unexpected GitHub operation", request.Args)
+		}
+		if strings.Contains(strings.Join(request.Args, "\x00"), body) {
+			t.Fatal("comment body leaked into process arguments")
+		}
+		var payload map[string]any
+		if err := json.Unmarshal(request.Stdin, &payload); err != nil {
+			t.Fatal(err)
+		}
+		wantPayload := map[string]any{
+			"body": body, "commit_id": "0123456789abcdef0123456789abcdef01234567",
+			"path": "internal/source/github.go", "line": float64(17), "side": "RIGHT",
+		}
+		if !reflect.DeepEqual(payload, wantPayload) {
+			t.Fatalf("stdin payload = %#v, want %#v", payload, wantPayload)
+		}
+		return nil, nil
+	})}
+	comment := ReviewComment{Target: ReviewCommentTarget{
+		Identity: Identity{Repository: "owner/repo", Number: 42}, CommitID: "0123456789abcdef0123456789abcdef01234567",
+		Path: "internal/source/github.go", Side: "RIGHT", Line: 17,
+	}, Body: body}
+	if err := g.CreateReviewComment(context.Background(), comment); err != nil || calls != 1 {
+		t.Fatal(err, calls)
+	}
+}
+
+func TestGitHubCreateReviewCommentRejectsInvalidRequestBeforeCallingGH(t *testing.T) {
+	valid := ReviewComment{Target: ReviewCommentTarget{
+		Identity: Identity{Repository: "owner/repo", Number: 42}, CommitID: "0123456789abcdef0123456789abcdef01234567",
+		Path: "internal/source/github.go", Side: "RIGHT", Line: 17,
+	}, Body: "Please handle this."}
+	for name, mutate := range map[string]func(*ReviewComment){
+		"identity":  func(c *ReviewComment) { c.Target.Identity = Identity{Repository: "../repo", Number: 42} },
+		"sha":       func(c *ReviewComment) { c.Target.CommitID = "not-a-sha" },
+		"path":      func(c *ReviewComment) { c.Target.Path = "" },
+		"path utf8": func(c *ReviewComment) { c.Target.Path = string([]byte{0xff}) },
+		"side":      func(c *ReviewComment) { c.Target.Side = "BOTH" },
+		"line":      func(c *ReviewComment) { c.Target.Line = 0 },
+		"body":      func(c *ReviewComment) { c.Body = "" },
+		"body utf8": func(c *ReviewComment) { c.Body = string([]byte{0xff}) },
+	} {
+		t.Run(name, func(t *testing.T) {
+			comment := valid
+			mutate(&comment)
+			called := false
+			g := GH{Executable: "trusted-gh", Dir: t.TempDir(), Limits: Defaults(), Runner: listRunner(func(context.Context, Request) ([]byte, error) {
+				called = true
+				return nil, nil
+			})}
+			if err := g.CreateReviewComment(context.Background(), comment); err == nil {
+				t.Fatal("accepted invalid comment")
+			}
+			if called {
+				t.Fatal("called gh for invalid comment")
+			}
+		})
+	}
+}
+
+func TestGitHubCreateReviewCommentDoesNotExposeBodyInErrors(t *testing.T) {
+	const body = "private comment text"
+	g := GH{Executable: "trusted-gh", Dir: t.TempDir(), Limits: Defaults(), Runner: listRunner(func(context.Context, Request) ([]byte, error) {
+		return nil, errors.New(body)
+	})}
+	err := g.CreateReviewComment(context.Background(), ReviewComment{Target: ReviewCommentTarget{
+		Identity: Identity{Repository: "owner/repo", Number: 42}, CommitID: "0123456789abcdef0123456789abcdef01234567",
+		Path: "internal/source/github.go", Side: "LEFT", Line: 17,
+	}, Body: body})
+	if err == nil || strings.Contains(err.Error(), body) {
+		t.Fatalf("comment body leaked in error: %v", err)
 	}
 }

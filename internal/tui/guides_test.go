@@ -276,7 +276,7 @@ func TestGuideDetailAndScroll(t *testing.T) {
 			t.Fatalf("row %d detail length = %d, want %d", i, len(got), len(want))
 		}
 		for j := range want {
-			if got[j] != want[j] {
+			if got[j].styledLine != want[j].styledLine || !sameTarget(got[j].target, want[j].target) {
 				t.Fatalf("row %d detail line %d = %#v, want %#v", i, j, got[j], want[j])
 			}
 		}
@@ -323,6 +323,39 @@ func TestGuideDetailAndScroll(t *testing.T) {
 	if m.offset() != last {
 		t.Fatalf("guide offset = %d, want clamp %d", m.offset(), last)
 	}
+}
+
+func TestGuideDetailPreservesRawCommentTargets(t *testing.T) {
+	s := kindsSession()
+	s.Inventory.Comparison.Metadata.HeadSHA = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+	s.Guides = &guide.Bundle{Status: guide.Generated, Items: []guide.Item{{Title: "Text", Sections: []guide.Section{{Title: "Change", UnitIDs: []string{"u-text"}}}}}}
+
+	raw := unitLines(s, 1)
+	detail := detailFor(s, 0).lines
+	for _, rawLine := range raw {
+		if rawLine.target == nil {
+			continue
+		}
+		found := false
+		for _, detailLine := range detail {
+			if detailLine.Text == rawLine.Text && detailLine.target != nil && *detailLine.target == *rawLine.target {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Fatalf("guide detail lost raw target for %q: %#v", rawLine.Text, rawLine.target)
+		}
+	}
+	for _, line := range detail {
+		if line.Class == classFileHeader && line.Text == pathLabel(s.Inventory.Files[0]) && line.target != nil {
+			t.Fatalf("guide boundary is unexpectedly commentable: %#v", line.target)
+		}
+	}
+}
+
+func sameTarget(a, b *source.ReviewCommentTarget) bool {
+	return a == nil && b == nil || a != nil && b != nil && *a == *b
 }
 
 func TestGuideDetailFileJumps(t *testing.T) {
