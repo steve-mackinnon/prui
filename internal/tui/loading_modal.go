@@ -40,6 +40,17 @@ func waitForLoading(result <-chan tea.Msg) tea.Cmd {
 }
 
 func loadingBar(frame int) string {
+	cells := make([]rune, loadingBarWidth)
+	for i := range cells {
+		cells[i] = '▱'
+	}
+	for i := 0; i < loadingCometWidth; i++ {
+		cells[(frame+i)%len(cells)] = '▰'
+	}
+	return string(cells)
+}
+
+func compactLoadingBar(frame int) string {
 	cells := make([]byte, loadingBarWidth)
 	for i := range cells {
 		cells[i] = '-'
@@ -48,6 +59,10 @@ func loadingBar(frame int) string {
 		cells[(frame+i)%len(cells)] = '='
 	}
 	return "[" + string(cells) + "]"
+}
+
+func loadingSpinner(frame int) string {
+	return []string{"◐", "◓", "◑", "◒"}[frame%4]
 }
 
 // renderLoadingModal places a compact, ASCII-safe modal over a clipped base
@@ -70,17 +85,17 @@ func renderLoadingModal(width, height int, background string, modal loadingModal
 		title = "Loading"
 	}
 	content := []string{
-		"+" + strings.Repeat("-", modalWidth-2) + "+",
-		"| " + clip(title, inside) + strings.Repeat(" ", max(0, inside-visibleWidth(clip(title, inside)))) + " |",
-		"|" + strings.Repeat(" ", modalWidth-2) + "|",
-		"| " + center(loadingBar(modal.frame), inside) + " |",
-		"| " + clip(Escape(modal.notice), inside) + strings.Repeat(" ", max(0, inside-visibleWidth(clip(Escape(modal.notice), inside)))) + " |",
-		"|" + strings.Repeat(" ", modalWidth-2) + "|",
+		"╭" + strings.Repeat("─", modalWidth-2) + "╮",
+		modalLine("  "+loadingSpinner(modal.frame)+"  "+title, inside),
+		modalLine("", inside),
+		modalLine(center(loadingBar(modal.frame), inside), inside),
+		modalLine("  ↳ "+Escape(modal.notice), inside),
+		modalLine("", inside),
 	}
 	if modal.cancelable {
-		content = append(content, "| "+clip("esc: cancel", inside)+strings.Repeat(" ", max(0, inside-visibleWidth("esc: cancel")))+" |")
+		content = append(content, modalLine("  esc: cancel", inside))
 	}
-	content = append(content, "+"+strings.Repeat("-", modalWidth-2)+"+")
+	content = append(content, "╰"+strings.Repeat("─", modalWidth-2)+"╯")
 
 	startRow := max(0, (height-len(content))/2)
 	left := max(0, (width-modalWidth)/2)
@@ -94,11 +109,16 @@ func renderLoadingModal(width, height int, background string, modal loadingModal
 }
 
 func renderCompactLoading(width, height int, modal loadingModal) string {
-	lines := []string{clip(loadingBar(modal.frame), width), clip(Escape(modal.notice), width)}
+	lines := []string{clip(compactLoadingBar(modal.frame), width), clip(Escape(modal.notice), width)}
 	if modal.cancelable && len(lines) < height {
 		lines = append(lines, clip("esc: cancel", width))
 	}
 	return strings.Join(lines[:min(len(lines), height)], "\n")
+}
+
+func modalLine(text string, width int) string {
+	text = clip(text, width)
+	return "│ " + text + strings.Repeat(" ", max(0, width-visibleWidth(text))) + " │"
 }
 
 func viewportLines(background string, width, height int) []string {

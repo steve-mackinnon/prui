@@ -61,10 +61,10 @@ border. Its content is, in order:
 - The title is `Loading` for initial open and `Working` for an in-review action;
   implementation may use the current operation name if it is already available
   without adding new strings.
-- The bar is an indeterminate 18-cell ASCII-safe track with a six-cell comet. On
-  each animation tick, the comet advances one cell and wraps. Unicode glyphs and
-  color are optional decoration only: the no-color representation must remain
-  readable using `=` for the comet and `-` for the track.
+- The full-size card uses an indeterminate 18-cell solid/light Unicode sweep and
+  a four-frame activity glyph. On each animation tick, both advance one frame.
+  Tiny terminals use the readable ASCII fallback: `=` for the comet and `-` for
+  the track. The state never relies on color.
 - The current, escaped notification text is rendered immediately beneath the bar.
   It is clipped to the modal's interior width; it never wraps into an unbounded
   height or leaks terminal control bytes.

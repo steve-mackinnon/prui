@@ -19,9 +19,9 @@ func TestLoadingModalRendersBarAboveEscapedNotice(t *testing.T) {
 		notice:     "Fetching\x1b[31m pinned objects",
 	}))
 
-	bar := strings.Index(got, "[---======---------]")
-	notice := strings.Index(got, "Fetching\\x1b[31m pinned objects")
-	if bar < 0 || notice < 0 || bar > notice {
+	bar := strings.Index(got, "▱▱▱▰▰▰▰▰▰")
+	notice := strings.Index(got, "↳ Fetching\\x1b[31m pinned objects")
+	if !strings.Contains(got, "╭") || !strings.Contains(got, "◒  Loading") || bar < 0 || notice < 0 || bar > notice {
 		t.Fatalf("modal does not render bar above escaped notice:\n%s", got)
 	}
 	if !strings.Contains(got, "esc: cancel") {
@@ -40,12 +40,12 @@ func TestModelLoadingModalAnimatesAndEscCancelsOnlyCancelableWork(t *testing.T) 
 	m.cancelAction = func() { canceled++ }
 
 	before := ansi.Strip(m.View().Content)
-	if !strings.Contains(before, "Working") || !strings.Contains(before, "[======------------]") || !strings.Contains(before, "esc: cancel") {
+	if !strings.Contains(before, "◐  Working") || !strings.Contains(before, "▰▰▰▰▰▰") || !strings.Contains(before, "esc: cancel") {
 		t.Fatalf("busy action does not render the cancellable modal:\n%s", before)
 	}
 	_, cmd := m.Update(loadingTick{})
 	after := ansi.Strip(m.View().Content)
-	if cmd == nil || before == after || !strings.Contains(after, "[-======-----------]") {
+	if cmd == nil || before == after || !strings.Contains(after, "▱▰▰▰▰▰▰") {
 		t.Fatalf("loading tick did not advance the modal:\n%s", after)
 	}
 	namedKey(m, tea.KeyEscape)
@@ -89,10 +89,10 @@ func TestLoadingModalAnimatesInProgram(t *testing.T) {
 	})
 	h := runProgram(t, m)
 	h.expect("initial loading modal", func(f programFrame) bool {
-		return f.loading && strings.Contains(f.text, "[======------------]") && strings.Contains(f.text, "esc: cancel")
+		return f.loading && strings.Contains(f.text, "▰▰▰▰▰▰") && strings.Contains(f.text, "esc: cancel")
 	})
 	h.expect("advanced loading frame", func(f programFrame) bool {
-		return f.loading && strings.Contains(f.text, "[-======-----------]")
+		return f.loading && strings.Contains(f.text, "▱▰▰▰▰▰▰")
 	})
 	h.p.Send(tea.KeyPressMsg{Code: tea.KeyEscape})
 	h.expect("canceled initial loading", func(f programFrame) bool {
