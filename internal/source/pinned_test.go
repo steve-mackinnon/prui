@@ -143,7 +143,7 @@ func TestPinnedShallowMissingAndRaces(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			local := testutil.NewRepo(t)
 			// A real depth-one clone has a tip object but not its parents.
-			local.Git("fetch", "--depth=1", "file://"+remote.Dir, head)
+			local.Git("fetch", "--no-auto-maintenance", "--depth=1", "file://"+remote.Dir, head)
 			before := local.Snapshot()
 			values := []Metadata{metadata(base, head)}
 			if tc.race {
@@ -206,7 +206,7 @@ func TestPinnedShallowSameRepositoryFetchesBothRevisionsTogether(t *testing.T) {
 	head := remote.Commit()
 
 	local := testutil.NewRepo(t)
-	local.Git("fetch", "--depth=1", "file://"+remote.Dir, head)
+	local.Git("fetch", "--no-auto-maintenance", "--depth=1", "file://"+remote.Dir, head)
 	meta := Metadata{
 		Identity:       Identity{"owner/repo", 42},
 		BaseRepository: "owner/repo",

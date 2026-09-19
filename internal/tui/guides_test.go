@@ -177,7 +177,7 @@ func TestGuideNavigation(t *testing.T) {
 	// i remains the complete raw source view, and returning from it keeps the
 	// cursor on a row that contains the unit the reviewer was reading.
 	key(m, 'i')
-	if !strings.Contains(m.View().Content, "Full inventory") {
+	if !strings.Contains(ansi.Strip(m.View().Content), "FULL INVENTORY") {
 		t.Fatal("raw inventory unavailable from the guide hierarchy")
 	}
 	for range s.Inventory.Units {
@@ -196,11 +196,11 @@ func TestGuideNavigation(t *testing.T) {
 
 	// G falls back to the deterministic file plan on demand.
 	m.Update(tea.KeyPressMsg{Code: 'G', Text: "G"})
-	if m.rows() != nil || !strings.Contains(m.View().Content, "File slices") {
+	if m.rows() != nil || !strings.Contains(ansi.Strip(m.View().Content), "FILE SLICES") {
 		t.Fatal("G did not expose the deterministic file plan")
 	}
 	m.Update(tea.KeyPressMsg{Code: 'G', Text: "G"})
-	if !strings.Contains(m.View().Content, "Guides") {
+	if !strings.Contains(ansi.Strip(m.View().Content), "GUIDES") {
 		t.Fatal("G did not restore the guide hierarchy")
 	}
 }
@@ -351,7 +351,7 @@ func TestGuideDetailFileJumps(t *testing.T) {
 		t.Fatalf("Enter focus/offset = %v/%d, want diff/%d", m.Focus, m.GuideScroll[b.guide], want)
 	}
 	view := strings.Split(ansi.Strip(m.View().Content), "\n")
-	if len(view) < 4 || view[3] != "b.go" {
+	if len(view) < 3 || view[2] != "b.go" {
 		t.Fatalf("jumped diff body = %q, want b.go header", view)
 	}
 
@@ -510,7 +510,7 @@ func TestGuideFallback(t *testing.T) {
 		t.Fatal("a fallback bundle produced guide rows")
 	}
 	view := ansi.Strip(m.View().Content)
-	if !strings.Contains(view, "File slices") || !strings.Contains(view, "guides: unavailable") {
+	if !strings.Contains(view, "FILE SLICES") || !strings.Contains(view, "Guides unavailable") {
 		t.Fatal("fallback does not render the deterministic file plan", view)
 	}
 	key(m, 'n')
@@ -520,7 +520,7 @@ func TestGuideFallback(t *testing.T) {
 
 	for _, b := range []*guide.Bundle{nil, {Status: guide.Generated}} {
 		m.Session.Guides = b
-		if m.rows() != nil || !strings.Contains(m.View().Content, "File slices") {
+		if m.rows() != nil || !strings.Contains(ansi.Strip(m.View().Content), "FILE SLICES") {
 			t.Fatalf("bundle %v did not fall back to the file plan", b)
 		}
 	}

@@ -264,7 +264,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if p := m.top(); p != pageReview {
 				return m, m.pageKey(p, v.String())
 			}
-			if v.String() == "ctrl+p" || v.String() == "p" {
+			if v.String() == "ctrl+p" {
 				return m, m.openSwitcher()
 			}
 			if cmd, handled := m.lifecycleKey(v.String()); handled {

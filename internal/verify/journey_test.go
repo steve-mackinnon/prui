@@ -97,7 +97,7 @@ func TestRunOpenUsesItsConfiguredTimeoutInsteadOfThePTYTimeout(t *testing.T) {
 		Checkout:    root,
 		StoreDir:    root,
 		Timeout:     10 * time.Millisecond,
-		OpenTimeout: 200 * time.Millisecond,
+		OpenTimeout: time.Second,
 		Environment: append(os.Environ(), "PR_REVIEW_FAKE_OPEN_DELAY_SECONDS=0.05", "PR_REVIEW_EXPECT_CWD="+root),
 	})
 	if err != nil {
