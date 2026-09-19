@@ -10,6 +10,7 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 	"pr-review/internal/session"
 	"pr-review/internal/source"
 )
@@ -123,11 +124,24 @@ func TestBrowserInitializationListsLocalRepositories(t *testing.T) {
 		t.Fatal("browser initialization did not load local repositories")
 	}
 	m.Update(cmd())
-	if m.Busy || m.top() != pageRepositoryPicker || !strings.Contains(m.View().Content, "> owner/repo") {
+	if m.Busy || m.top() != pageRepositoryPicker || !strings.Contains(ansi.Strip(m.View().Content), "› owner/repo") {
 		t.Fatalf("browser not ready: %s", m.View().Content)
 	}
 	if m.GuideScroll == nil {
 		t.Fatal("browser did not initialize guide scrolling")
+	}
+}
+
+func TestPickerUsesSharedSelectionAndHealthChrome(t *testing.T) {
+	m := New(context.Background(), nil)
+	m.Loading = false
+	m.Stack = []page{pageRepositoryPicker}
+	m.Repositories = []session.Repository{{Repository: "owner/repo"}}
+	m.Width, m.Height = 80, 8
+
+	view := m.View().Content
+	if !strings.Contains(view, "› owner/repo") || !strings.Contains(view, "?: Health & help") {
+		t.Fatalf("picker does not use shared chrome:\n%s", view)
 	}
 }
 
@@ -161,7 +175,7 @@ func TestPickerBackNavigationRestoresRepositorySelection(t *testing.T) {
 			namedKey(m, tea.KeyDown)
 			namedKey(m, tea.KeyDown)
 			namedKey(m, tea.KeyEscape)
-			if !strings.Contains(m.View().Content, "> "+want) {
+			if !strings.Contains(ansi.Strip(m.View().Content), "› "+want) {
 				t.Fatalf("parent selection lost after back: %s", m.View().Content)
 			}
 			enter()
@@ -190,11 +204,11 @@ func TestPickerViewportKeepsSelectionVisible(t *testing.T) {
 			}
 			for _, height := range []int{10, 4, 2, 1, 8} {
 				m.Update(tea.WindowSizeMsg{Width: 24, Height: height})
-				content := m.View().Content
+				content := ansi.Strip(m.View().Content)
 				// One-line terminals show the fixed workspace strip; there is no
 				// remaining row for a picker item. At two rows and above, the
 				// selected item must stay visible below that strip.
-				if height >= 2 && (!strings.Contains(content, "> ") || !strings.Contains(content, "20")) {
+				if height >= 2 && (!strings.Contains(content, "› ") || !strings.Contains(content, "20")) {
 					t.Fatalf("selection hidden at height %d: %s", height, content)
 				}
 				if len(strings.Split(content, "\n")) > height {

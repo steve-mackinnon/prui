@@ -52,6 +52,15 @@ When a session has generated guides, they are the default left pane: guide, then
 
 Reviews opened in one process keep independent in-memory reading positions, hierarchy expansion, pane focus, scroll offsets, notices, and errors. `ctrl+p` (or `p` where control-key reporting is unreliable) opens a keyboard-only PR switcher over the current review. It lists already-open reviews first, then open PRs for the active repository; typing filters, Enter switches or starts a new read-only pinned review, and Escape leaves the current review unchanged. The overlay never takes a permanent column or changes plain output.
 
+The interactive review uses a compact workspace: an identity header, a mode and
+selection header, the file/guide rail and detail pane, and a one-line health
+status. The health status reports local reading progress plus inventory,
+guides, freshness, and unavailable-content state; narrow terminals keep
+progress and the highest-severity state. `?` opens **Health & help**, which
+groups all shortcuts under Navigate, Review, Views, Diagnostics, and App. The
+review surface keeps only `ctrl+p` discoverable because switching PRs is the
+primary workspace action.
+
 ## Keyboard
 
 | Key | Action |
@@ -81,7 +90,7 @@ Reviews opened in one process keep independent in-memory reading positions, hier
 | Escape during a cancellable action | Cancel the operation and retain the current review |
 | `?`, `q`, Ctrl+C | Help, quit, cancel loading |
 
-Selection, expansion, and per-unit vertical offsets survive resizing; navigation positions and expansion state are not persisted across processes, and they are rebuilt from the immutable bundle so navigation cannot drift from the stored guides. No mouse capture, so terminal-native text selection remains available. Textual markers and labels are primary: the selected row is marked `> ` when its pane is focused and `· ` when it is not, and reverse video only reinforces the focused row. The interactive view additionally colors diff structure — file headers, hunk locations, additions, removals — and unit states such as metadata, binary, gitlink, unavailable, and warning chrome. Color is presentation only: no wording, label, or ordering depends on it, and terminals without color show the same text. Extremely small terminals clip controls; enlarge or use plain output. The user approved Phase 1 terminal behavior; broad theme/platform/accessibility coverage is not established.
+Selection, expansion, and per-unit vertical offsets survive resizing; navigation positions and expansion state are not persisted across processes, and they are rebuilt from the immutable bundle so navigation cannot drift from the stored guides. No mouse capture, so terminal-native text selection remains available. Textual markers and labels are primary: the selected row is marked `› ` whether or not its pane is focused; a muted background reinforces it when unfocused and reverse video reinforces the focused row. The interactive view additionally colors diff structure — file headers, hunk locations, additions, removals — and unit states such as metadata, binary, gitlink, unavailable, and warning chrome. Color is presentation only: no wording, label, or ordering depends on it, and terminals without color show the same text. Extremely small terminals clip controls; enlarge or use plain output. The user approved Phase 1 terminal behavior; broad theme/platform/accessibility coverage is not established.
 
 ## Color
 

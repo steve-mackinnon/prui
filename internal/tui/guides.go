@@ -222,13 +222,7 @@ func guideList(s *review.Session, rows []row, selected, width int, focused bool)
 		selectedGuide = rows[selected].guide
 	}
 	for i, r := range rows {
-		marker := "  "
-		if i == selected {
-			marker = "· "
-			if focused {
-				marker = "> "
-			}
-		}
+		marker := selectionMarker(i == selected)
 		line := marker + strings.Repeat("  ", r.depth)
 		if r.kind == portionRow {
 			line += readMarker(s, s.Inventory.Files[r.file].ID)

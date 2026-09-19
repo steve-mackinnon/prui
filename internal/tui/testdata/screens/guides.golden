@@ -1,7 +1,6 @@
-review · example/review#42 · ctrl+p (or p): switch PR · guide 1/1
-PR #42 | head aaaaaaaaaaaa | inventory complete | analysis: file fallback | guides: generated (fixture/fixture, 1 guides
-Guides | focus: files | unit 1/2 [text_hunk] | unassigned 0 | unavailable 0 | m marks the whole file slice | guide 1/1
-> - 1. Greeting                      | main.go
+review · example/review#42 · guide 1/1 · ctrl+p: switch PR
+GUIDES 2 · main.go [text_hunk] · focus: files · marking: whole files · guide detail 1/1
+› - 1. Greeting                      | main.go
     Update the greeting and its      | main.go [text_hunk]
     documentation.                   | @@ -1 +1 @@
     - 1.1 Implementation             | -old greeting
@@ -11,4 +10,5 @@ Guides | focus: files | unit 1/2 [text_hunk] | unassigned 0 | unavailable 0 | m 
                                      | README.md [file_metadata]
                                      | status  | mode  ->
                                      | old path:
-ctrl+p / p: open the pull-request switcher  ctrl+h/ctrl+l: focus list/diff  esc: back  n: next guide row, or unit withou
+                                     | new path: README.md
+0/2 read · ✓ Inventory complete · ✓ Guides 1 · ? Freshness unknown · ?: Health & help

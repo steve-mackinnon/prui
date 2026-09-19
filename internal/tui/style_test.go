@@ -81,6 +81,27 @@ func TestStyleLinePreservesTextAndWidth(t *testing.T) {
 	}
 }
 
+func TestSelectionChromeKeepsMarkerAndFocusDistinctWithoutColor(t *testing.T) {
+	if got := selectionMarker(false); got != "  " {
+		t.Fatalf("unselected marker = %q, want blank gutter", got)
+	}
+	if got := selectionMarker(true); got != "› " {
+		t.Fatalf("selected marker = %q, want persistent chevron", got)
+	}
+	if selectedClass(false) != classSelection {
+		t.Fatal("unfocused selection did not use the shared selection style")
+	}
+	if selectedClass(true) != classSelectionFocused {
+		t.Fatal("focused selection did not use the shared focused selection style")
+	}
+	for _, focused := range []bool{false, true} {
+		styled := styleLine(selectedClass(focused), selectionMarker(true)+"main.go")
+		if got := ansi.Strip(styled); got != "› main.go" {
+			t.Fatalf("focused=%t selection changed visible text: %q", focused, got)
+		}
+	}
+}
+
 func TestClipIsANSIAware(t *testing.T) {
 	styled := styleLine(classAdded, "+abcdefgh")
 	for _, w := range []int{0, 1, 3, 5, 9, 20} {

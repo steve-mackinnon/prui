@@ -513,7 +513,7 @@ func (m *Model) pickerView() string {
 	if m.store != nil {
 		storage = "Storage: " + Escape(m.store.Path())
 	}
-	return m.pickerScreen(&m.SessionPicker, []string{"Sessions (stored checks are historical; resume checks freshness)", storage}, rows, "No saved sessions.", "up/down: select | enter: resume | r: reload | esc: back | q: quit")
+	return m.pickerScreen(&m.SessionPicker, []string{appHeader("Sessions", ""), "Stored checks are historical; resume checks freshness.", storage}, rows, "No saved sessions.", "enter: resume · r: reload · esc: back")
 }
 
 func (m *Model) repositoryPickerView() string {
@@ -521,7 +521,7 @@ func (m *Model) repositoryPickerView() string {
 	for i, repository := range m.Repositories {
 		rows[i] = Escape(repository.Repository)
 	}
-	return m.pickerScreen(&m.RepositoryPicker, []string{"Remembered repositories", "Select a repository to list its open pull requests."}, rows, "No remembered repositories. Open a PR with --repo first.", "up/down: select | enter: list PRs | r: reload | esc: back | q: quit")
+	return m.pickerScreen(&m.RepositoryPicker, []string{appHeader("Repositories", ""), "Select a repository to list its open pull requests."}, rows, "No remembered repositories. Open a PR with --repo first.", "enter: open · r: reload · esc: back")
 }
 
 func (m *Model) pullRequestPickerView() string {
@@ -532,7 +532,7 @@ func (m *Model) pullRequestPickerView() string {
 	for i, pr := range m.PullRequests {
 		rows[i] = fmt.Sprintf("#%d %s", pr.Identity.Number, Escape(pr.Title))
 	}
-	return m.pickerScreen(&m.PullRequestPicker, []string{"Open pull requests"}, rows, "No open pull requests.", "up/down: select | enter: open PR | esc: back | q: quit")
+	return m.pickerScreen(&m.PullRequestPicker, []string{appHeader("Open pull requests", "")}, rows, "No open pull requests.", "enter: open · esc: back")
 }
 
 func (m *Model) switcherView() string {
@@ -546,8 +546,8 @@ func (m *Model) switcherView() string {
 			rows[i] = fmt.Sprintf("#%d %s", result.identity.Number, Escape(result.title))
 		}
 	}
-	header := []string{"Switch pull requests", "filter: " + Escape(m.SwitcherQuery), "Open reviews first; then open PRs in this repository."}
-	footer := "type: filter | up/down j/k: select | enter: switch/open | esc: cancel | q: quit"
+	header := []string{appHeader("Switch pull requests", "type to filter"), "filter: " + Escape(m.SwitcherQuery)}
+	footer := "type: filter · enter: switch/open · esc: cancel"
 	return m.pickerScreen(&m.PullRequestPicker, header, rows, "No matching open reviews or pull requests.", footer)
 }
 

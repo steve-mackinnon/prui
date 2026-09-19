@@ -49,11 +49,30 @@ var palette = map[lineClass]lipgloss.Style{
 	classMetadata:    semantic(lipgloss.Blue, false),
 	classWarning:     semantic(lipgloss.BrightYellow, true),
 	classUnavailable: semantic(lipgloss.BrightRed, true),
-	// Selection carries no color so it survives downsampling and any background.
-	classSelection: lipgloss.NewStyle().Bold(true).TabWidth(lipgloss.NoTabConversion),
+	// A muted background makes the selected row discoverable even while focus is
+	// in the detail pane. The textual chevron remains the primary cue when a
+	// terminal removes colors.
+	classSelection: lipgloss.NewStyle().Bold(true).Background(lipgloss.Color("236")).TabWidth(lipgloss.NoTabConversion),
 	// The selection in the focused pane adds reverse video, also colorless, so
 	// the two selection states differ without either depending on color.
 	classSelectionFocused: lipgloss.NewStyle().Bold(true).Reverse(true).TabWidth(lipgloss.NoTabConversion),
+}
+
+// selectionMarker makes selection readable even when styles are unavailable.
+// Focus is expressed by the style, not another glyph, so every selected row
+// scans consistently across review and picker surfaces.
+func selectionMarker(selected bool) string {
+	if !selected {
+		return "  "
+	}
+	return "› "
+}
+
+func selectedClass(focused bool) lineClass {
+	if focused {
+		return classSelectionFocused
+	}
+	return classSelection
 }
 
 // cardClass is the state style for a non-text unit body. Text hunks classify

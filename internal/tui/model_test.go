@@ -116,7 +116,7 @@ func TestCommandSwitcherDoesNotTakeOverGuideTab(t *testing.T) {
 	}
 	before := len(rows)
 	m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
-	if m.activeTab != 1 || len(m.rows()) >= before {
+	if m.activeTab != 0 || len(m.rows()) >= before {
 		t.Fatal("guide tab key was repurposed for workspace navigation")
 	}
 }
@@ -180,6 +180,69 @@ func TestReviewHeaderExposesSwitcherAndFitsViewport(t *testing.T) {
 	}
 }
 
+func TestReviewSelectionUsesPersistentChevronOutsideFocusedPane(t *testing.T) {
+	m := New(context.Background(), nil)
+	m.Loading = false
+	m.Session = screenSession()
+	m.Width, m.Height, m.Focus = 120, 12, paneDiff
+
+	view := ansi.Strip(m.View().Content)
+	if !strings.Contains(view, "› main.go") {
+		t.Fatalf("unfocused file selection lacks persistent chevron:\n%s", view)
+	}
+}
+
+func TestReviewWorkspaceUsesCompactHealthStatusInsteadOfShortcutFooter(t *testing.T) {
+	m := New(context.Background(), nil)
+	m.Loading = false
+	m.Session = screenSession()
+	m.Session.ID = "fixture"
+	m.Width, m.Height, m.Focus = 120, 12, paneDiff
+
+	view := ansi.Strip(m.View().Content)
+	if !strings.Contains(view, "0/2 read") || !strings.Contains(view, "Inventory complete") || !strings.Contains(view, "?: Health & help") {
+		t.Fatalf("review lacks compact health status:\n%s", view)
+	}
+	if strings.Contains(view, "ctrl+h/ctrl+l: focus list/diff") {
+		t.Fatalf("review retained the verbose shortcut footer:\n%s", view)
+	}
+}
+
+func TestNarrowReviewHealthStatusKeepsProgressAndAttention(t *testing.T) {
+	m := New(context.Background(), nil)
+	m.Loading = false
+	m.Session = screenSession()
+	m.Session.ID = "fixture"
+	m.Session.Inventory.Complete = false
+	m.Width, m.Height, m.Focus = 60, 10, paneDiff
+
+	view := ansi.Strip(m.View().Content)
+	if !strings.Contains(view, "0/2 read") || !strings.Contains(view, "Inventory incomplete") || !strings.Contains(view, "?: Health & help") {
+		t.Fatalf("narrow health status hid progress or the highest-severity signal:\n%s", view)
+	}
+}
+
+func TestHealthHelpGroupsEveryBinding(t *testing.T) {
+	m := New(context.Background(), nil)
+	m.Loading = false
+	m.Session = screenSession()
+	m.Width, m.Height = 160, 60
+	key(m, '?')
+
+	view := ansi.Strip(m.View().Content)
+	for _, heading := range []string{"Navigate", "Review", "Views", "Diagnostics", "App"} {
+		if !strings.Contains(view, heading) {
+			t.Fatalf("Health & help is missing %q:\n%s", heading, view)
+		}
+	}
+	for _, b := range bindings {
+		line := b.keys + ": " + b.desc
+		if count := strings.Count(view, line); count != 1 {
+			t.Fatalf("binding %q appears %d times in Health & help:\n%s", line, count, view)
+		}
+	}
+}
+
 func TestRawReviewMockedEndToEnd(t *testing.T) {
 	r := testutil.NewRepo(t)
 	r.Write("a", "old\n")
@@ -216,12 +279,12 @@ func TestRawReviewMockedEndToEnd(t *testing.T) {
 		t.Fatal("resize lost reading position")
 	}
 	key(m, 'i')
-	if !strings.Contains(m.View().Content, "Full inventory") {
+	if !strings.Contains(m.View().Content, "INVENTORY") {
 		t.Fatal("inventory unavailable")
 	}
 	key(m, 'i')
 	key(m, '?')
-	if !strings.Contains(m.View().Content, "Keyboard") {
+	if !strings.Contains(m.View().Content, "Health & help") {
 		t.Fatal("help unavailable")
 	}
 	// Pages leave only through esc; '?' no longer toggles help closed.
@@ -234,7 +297,7 @@ func TestRawReviewMockedEndToEnd(t *testing.T) {
 		t.Fatal("status missing")
 	}
 	m.Update(tea.WindowSizeMsg{Width: 120, Height: 24})
-	if !strings.Contains(ansi.Strip(m.View().Content), "guides: unavailable (analysis not requested)") {
+	if !strings.Contains(ansi.Strip(m.View().Content), "Guides unavailable") {
 		t.Fatal("terminal status hides the analysis decision")
 	}
 	hunk := -1

@@ -578,11 +578,7 @@ func (m *Model) setOffset(offset int) {
 }
 
 func (m *Model) bodyHeight() int {
-	n := m.Height - 4
-	if m.Session != nil && m.Session.ID != "" {
-		n = m.Height - 5
-	}
-	return max(1, n)
+	return max(1, m.Height-3)
 }
 
 func (m *Model) pageStep() int { return max(1, m.bodyHeight()-1) }
@@ -604,7 +600,7 @@ func (m *Model) View() tea.View {
 		case pageEdit, pageReorder:
 			text = m.editView()
 		case pageHelp:
-			text = "Keyboard\n" + renderBindings(groupHelp) + "\nControls and invalid bytes escaped. No mouse capture.\nReading progress is local, not GitHub approval.\nGuides interpret the diff; the raw inventory remains the complete source view.\nMarking any portion of a file marks its whole slice, under every guide.\nEvidence is pinned, bounded, and omissions are reported. Analysis is optional and consent-bound."
+			text = "Health & help\n" + renderHealth() + "\n\nControls and invalid bytes escaped. No mouse capture.\nReading progress is local, not GitHub approval.\nGuides interpret the diff; the raw inventory remains the complete source view.\nMarking any portion of a file marks its whole slice, under every guide.\nEvidence is pinned, bounded, and omissions are reported. Analysis is optional and consent-bound."
 			if m.store != nil {
 				text += "\nStorage: " + Escape(m.store.Path()) + "\nSession: " + m.Session.ID
 			}
@@ -642,16 +638,13 @@ func (m *Model) guideConsentView() string {
 func (m *Model) reviewView() string {
 	s := m.Session
 	identity := s.Inventory.Comparison.Metadata.Identity
-	active := fmt.Sprintf("review · %s#%d · ctrl+p (or p): switch PR", Escape(identity.Repository), identity.Number)
+	active := fmt.Sprintf("review · %s#%d", Escape(identity.Repository), identity.Number)
 	if guide, ok := m.activeGuide(); ok {
 		active += fmt.Sprintf(" · guide %d/%d", guide+1, len(s.Guides.Items))
 	}
-	title := styleLine(classTitle, active) + "\n" + styleLine(statusClass(s), status(s))
-	if s.ID != "" {
-		title += "\n" + styleLine(progressClass(s), progress(s))
-	}
+	title := styleLine(classTitle, appHeader(active, "ctrl+p: switch PR"))
 	if len(s.Inventory.Units) == 0 {
-		return title + "\nEmpty comparison: no net tree changes.\n" + m.styledFooter()
+		return title + "\nEmpty comparison: no net tree changes.\n" + m.reviewStatus()
 	}
 	kind := s.Inventory.Units[m.Selected].Kind
 	focus := "files"
@@ -666,11 +659,7 @@ func (m *Model) reviewView() string {
 	if rows != nil {
 		label = "Guides"
 	}
-	plan := s.CurrentPlan()
-	unassigned, unavailable := 0, 0
-	if plan != nil {
-		unassigned = len(plan.UnassignedUnitIDs)
-	}
+	unavailable := 0
 	for _, u := range s.Inventory.Units {
 		if u.Kind == "unavailable" {
 			unavailable++
@@ -680,13 +669,16 @@ func (m *Model) reviewView() string {
 	if unavailable > 0 {
 		headerClass = classWarning
 	}
-	text := fmt.Sprintf("%s | focus: %s | unit %d/%d [%s] | unassigned %d | unavailable %d", label, focus, m.Selected+1, len(s.Inventory.Units), kind, unassigned, unavailable)
+	text := fmt.Sprintf("%s %d · %s [%s] · focus: %s", strings.ToUpper(label), len(s.Inventory.Files), pathLabel(s.Inventory.Files[s.UnitFiles[m.Selected]]), kind, focus)
+	if m.Inventory {
+		text = fmt.Sprintf("%s %d · unit %d/%d [%s] · focus: %s", strings.ToUpper(label), len(s.Inventory.Units), m.Selected+1, len(s.Inventory.Units), kind, focus)
+	}
 	if rows != nil {
 		// The hierarchy interprets the change; progress does not follow it, and
 		// saying so here keeps a section from looking independently completable.
-		text += " | m marks the whole file slice"
+		text += " · marking: whole files · guide detail"
 		guide, _ := m.activeGuide()
-		text += fmt.Sprintf(" | guide %d/%d", guide+1, len(s.Guides.Items))
+		text += fmt.Sprintf(" %d/%d", guide+1, len(s.Guides.Items))
 	}
 	header := styleLine(headerClass, text)
 	bodyHeight := m.bodyHeight()
@@ -699,13 +691,7 @@ func (m *Model) reviewView() string {
 	if m.Inventory {
 		selectedRow = m.Selected
 		for i, u := range s.Inventory.Units {
-			marker := "  "
-			if i == m.Selected {
-				marker = "· "
-				if m.Focus == paneList {
-					marker = "> "
-				}
-			}
+			marker := selectionMarker(i == m.Selected)
 			list = append(list, listLine{row: i, text: marker + pathLabel(s.Inventory.Files[s.UnitFiles[i]]) + " [" + string(u.Kind) + "]"})
 		}
 	} else if rows != nil {
@@ -714,13 +700,7 @@ func (m *Model) reviewView() string {
 	} else {
 		selectedRow = s.UnitFiles[m.Selected]
 		for i, f := range s.Inventory.Files {
-			marker := "  "
-			if i == selectedRow {
-				marker = "· "
-				if m.Focus == paneList {
-					marker = "> "
-				}
-			}
+			marker := selectionMarker(i == selectedRow)
 			list = append(list, listLine{row: i, text: marker + readMarker(s, f.ID) + pathLabel(f)})
 		}
 	}
@@ -741,12 +721,7 @@ func (m *Model) reviewView() string {
 		if row < len(list) {
 			left = list[row].text
 			if list[row].row == selectedRow {
-				// The focused pane's selection gets the stronger cue; the text
-				// markers "> " and "· " already distinguish the two states.
-				leftClass = classSelection
-				if m.Focus == paneList {
-					leftClass = classSelectionFocused
-				}
+				leftClass = selectedClass(m.Focus == paneList)
 			}
 		}
 		if row < len(detail) {
@@ -766,7 +741,7 @@ func (m *Model) reviewView() string {
 			body = append(body, styleLine(leftClass, left)+padding+" | "+styleLine(class, clip(right, m.Width-leftWidth-3)))
 		}
 	}
-	return title + "\n" + header + "\n" + strings.Join(body, "\n") + "\n" + m.styledFooter()
+	return title + "\n" + header + "\n" + strings.Join(body, "\n") + "\n" + m.reviewStatus()
 }
 
 // styledFooter paints the footer as chrome, or as a warning when the last

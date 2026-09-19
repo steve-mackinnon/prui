@@ -255,7 +255,7 @@ func TestGuideMarking(t *testing.T) {
 	view := ansi.Strip(m.View().Content)
 	// The footer is clipped to the terminal, so the binding text is checked at
 	// its source; the header caveat has to survive in the rendered view.
-	if !strings.Contains(view, "m marks the whole file slice") || !strings.Contains(m.footer(), "including its units under other guides") {
+	if !strings.Contains(view, "marking: whole files") || !strings.Contains(m.footer(), "including its units under other guides") {
 		t.Fatal("marking caveat absent; a section looks independently completable")
 	}
 	if !strings.Contains(view, "1/3 read") {

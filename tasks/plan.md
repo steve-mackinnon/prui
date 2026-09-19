@@ -1,5 +1,75 @@
 # TUI reliability and automated verification
 
+# Implementation Plan: Calm Review Workspace Layout
+
+## Overview
+
+Implement the approved review-layout specification as four small rendering
+slices. The work reuses a few explicit TUI chrome helpers instead of creating a
+generic component system: the helpers will represent the header, section
+header, selected-row styling, and compact status/footer shared by interactive
+surfaces. Existing model state, keys, source lifecycle, and plain output remain
+unchanged.
+
+## Architecture Decisions
+
+- Keep layout state inside the existing `Model`; this is a presentation change,
+  not a new navigation or persistence model.
+- Extract only shared primitives with at least two consumers: app/section
+  headers, selection style, and compact status/footer rendering.
+- Use textual symbols and priority ordering as the source of truth for status;
+  terminal styling reinforces rather than encodes state.
+- Preserve the existing `?` page and binding registry, changing its wording and
+  grouping rather than adding a second menu/page state.
+- Keep the existing 100-column breakpoint and test a single-active-pane narrow
+  fallback rather than inventing responsive terminal behavior.
+
+## Dependency Graph
+
+```text
+shared chrome + selection semantics
+        |
+        +-- review header/section/status layout
+        |       |
+        |       +-- Health & help grouping and documentation
+        |
+        +-- picker/switcher chrome reuse
+                |
+                +-- final snapshots and full verification
+```
+
+## Task List
+
+The detailed checklist is appended to `tasks/todo.md` under **Calm Review
+Workspace Layout**. Tasks are intentionally sequential because they share the
+same render paths and golden baselines.
+
+1. Add and test shared chrome/selection primitives.
+2. Apply them to review wide/narrow layout and compact health status.
+3. Move secondary controls into grouped Health & help and document the changed
+   persistent affordance.
+4. Apply shared chrome to picker/switcher surfaces and complete snapshots.
+
+## Verification Checkpoints
+
+- After tasks 1–2: focused TUI tests and inspected wide/narrow review output.
+- After tasks 3–4: complete `internal/tui` suite, command package tests,
+  `./scripts/verify.sh`, and `git diff --check`.
+
+## Risks and Mitigations
+
+| Risk | Impact | Mitigation |
+| --- | --- | --- |
+| Compact status clips important warnings | High | Establish and unit-test severity-first ordering before layout changes. |
+| Styling changes alter colorless output | High | Extend the existing palette-removal/color-profile tests. |
+| Shared helpers become an abstraction layer | Medium | Limit helpers to concrete common chrome with two consumers. |
+| Golden snapshots obscure behavior regressions | Medium | Add focused state assertions before updating baselines. |
+
+## Open Questions
+
+None. The approved specification keeps `ctrl+p` persistent and moves all
+remaining shortcut detail to Health & help.
+
 The architecture review found three reproducible TUI failures despite a passing
 race-enabled suite: browser startup calls an unset loader, picker back-navigation
 reuses another screen's cursor, and long picker lists hide the selected row.

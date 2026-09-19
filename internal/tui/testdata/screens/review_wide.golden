@@ -1,7 +1,6 @@
-review · example/review#42 · ctrl+p (or p): switch PR
-PR #42 | head aaaaaaaaaaaa | inventory complete | analysis: file fallback
-File slices | focus: diff | unit 1/2 [text_hunk] | unassigned 0 | unavailable 0
-· main.go                            | main.go [text_hunk]
+review · example/review#42 · ctrl+p: switch PR
+FILE SLICES 2 · main.go [text_hunk] · focus: diff
+› main.go                            | main.go [text_hunk]
   README.md                          | @@ -1 +1 @@
                                      | -old greeting
                                      | +hello world
@@ -9,4 +8,5 @@ File slices | focus: diff | unit 1/2 [text_hunk] | unassigned 0 | unavailable 0
                                      |
                                      |
                                      |
-ctrl+p / p: open the pull-request switcher  ctrl+h/ctrl+l: focus list/diff  esc: back  n: next guide row, or unit withou
+                                     |
+0/2 read · ✓ Inventory complete · ? Guides unavailable · ? Freshness unknown · ?: Health & help

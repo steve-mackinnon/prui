@@ -266,32 +266,32 @@ def main():
         "XDG_CONFIG_HOME": str(root), "GH_CONFIG_DIR": str(root), "LC_ALL": "C",
     }
     with Terminal(binary, ["prs", "--store", store], environment) as terminal:
-        terminal.wait_for("Remembered repositories")
-        terminal.key(b"\x1b[B", "> owner/beta")
-        terminal.key(b"\x1b[A", "> owner/alpha")
+        terminal.wait_for("Repositories")
+        terminal.key(b"\x1b[B", "› owner/beta")
+        terminal.key(b"\x1b[A", "› owner/alpha")
         terminal.quit(b"q")
     print("PASS browser startup, arrow keys, q, terminal restoration")
 
     resume = ["resume", session_id, "--store", store, "--offline"]
     with Terminal(binary, resume, environment) as terminal:
-        terminal.wait_for("0/2 read (local)")
+        terminal.wait_for("0/2 read")
         terminal.key(b"\x10", "Switch pull requests")
-        terminal.key(b"\x1b", "0/2 read (local)")
-        terminal.key(b"\x1b[B", "unit 2/2")
-        terminal.key(b"m", "1/2 read (local)")
+        terminal.key(b"\x1b", "0/2 read")
+        terminal.key(b"\x1b[B", "› [ ] b.go")
+        terminal.key(b"m", "1/2 read")
         # Resizing across the split-pane breakpoint must cause a real repaint.
         start = len(terminal.output)
         terminal.resize(70, 12)
-        terminal.wait_until(lambda screen: "> [x] b.go" in screen and
+        terminal.wait_until(lambda screen: "› [x] b.go" in screen and
                             all(" | " not in row for row in screen.splitlines()[4:11]),
                             "narrow file pane after resize", start)
-        terminal.key(b"?", "Keyboard")
-        terminal.key(b"\x1b", "1/2 read (local)")
+        terminal.key(b"?", "Health & help")
+        terminal.key(b"\x1b", "1/2 read")
         terminal.quit(b"\x03")
     print("PASS resume, keyboard marking, resize, help/back, Ctrl+C, restoration")
 
     with Terminal(binary, resume, environment) as terminal:
-        terminal.wait_for("1/2 read (local)")
+        terminal.wait_for("1/2 read")
         terminal.wait_for("[x] b.go")
         terminal.quit(b"q")
     if gh_called.exists():

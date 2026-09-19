@@ -81,10 +81,11 @@ func (m *Model) loadRepositories() tea.Cmd {
 
 func (m *Model) pickerScreen(p *pickerState, header, rows []string, empty, footer string) string {
 	if m.Busy {
-		footer = Escape(m.notice) + " | esc: cancel | q: quit"
+		footer = Escape(m.notice) + " · esc: cancel"
 	} else if m.ActionError != nil {
-		footer = "Action failed: " + Escape(m.ActionError.Error())
+		footer = "! Action failed: " + Escape(m.ActionError.Error())
 	}
+	footer = clip(footer+" · ?: Health & help", m.Width)
 	// The workspace tab strip owns the first terminal row. Preserve at least
 	// one picker content row in the remaining space, even in a tiny terminal.
 	height := max(1, m.Height-1)
@@ -106,11 +107,11 @@ func (m *Model) pickerScreen(p *pickerState, header, rows []string, empty, foote
 		selected := max(0, min(p.Index, len(rows)-1))
 		start := max(0, selected-capacity+1)
 		for i := start; i < min(len(rows), start+capacity); i++ {
-			marker := "  "
+			line := selectionMarker(i == selected) + rows[i]
 			if i == selected {
-				marker = "> "
+				line = styleLine(selectedClass(true), line)
 			}
-			lines = append(lines, marker+rows[i])
+			lines = append(lines, line)
 		}
 	}
 	if footerRows > 0 {

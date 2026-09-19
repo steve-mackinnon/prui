@@ -1,5 +1,72 @@
 # TUI reliability and testing tasks
 
+# Calm Review Workspace Layout tasks
+
+## 1. Shared chrome and selection semantics
+
+- [x] Add concrete shared app/section header, compact status/footer, and
+      selected-row presentation helpers for interactive TUI surfaces.
+- [x] Selection has a textual `›` marker and distinguishable focused/unfocused
+      treatment without relying on color.
+- Acceptance: helper tests prove clipping, status priority, and palette removal
+      preserve every visible marker and label.
+- Verify: write focused failing tests, then run
+      `go test ./internal/tui -run 'Test(Chrome|Selection|Color)' -count=1`.
+- Depends on: approved `SPEC-tui-review-layout.md`.
+- Files: `internal/tui/{style,render}_test.go`, `internal/tui/{style,render}.go`.
+
+## 2. Review workspace layout
+
+- [x] Replace verbose review chrome with the shared app header, section header,
+      selected rail, and one-line health status bar.
+- [x] Preserve guide/file/inventory navigation and retain a one-pane narrow
+      fallback with the highest-severity state visible.
+- Acceptance: wide review contains no shortcut dump; narrow review retains the
+      current selection, progress, and health signal; guide and raw modes work.
+- Verify: write focused failing tests, then run
+      `go test ./internal/tui -run 'Test(Review|Guide|Raw|Snapshot)' -count=1`.
+- Depends on: task 1.
+- Files: `internal/tui/{model,render}_test.go`, `internal/tui/model.go`,
+      `internal/tui/testdata/screens/{review_wide,review_narrow,guides}.golden`.
+
+## Checkpoint: review surface
+
+- [x] Focused TUI tests pass and wide/narrow text baselines are inspected.
+
+## 3. Health & help
+
+- [x] Group every existing binding under Navigate, Review, Views, Diagnostics,
+      or App in the existing `?` page.
+- [x] Keep only PR switching discoverable in persistent review chrome and
+      update README keyboard/layout wording.
+- Acceptance: every binding appears once in Health & help; help and README
+      agree; no key routing changes.
+- Verify: write focused failing tests, then run
+      `go test ./internal/tui -run 'Test.*Help' -count=1`.
+- Depends on: task 2.
+- Files: `internal/tui/{bindings,model}_test.go`, `internal/tui/{bindings,model}.go`,
+      `README.md`.
+
+## 4. Picker and switcher consistency
+
+- [x] Reuse shared chrome and selected-row treatment in PR switcher and picker
+      screens without changing their filtering, error, empty, or cancel flows.
+- [x] Update deterministic picker/switcher baselines.
+- Acceptance: all interactive picker surfaces use the same header/status and
+      visible selected-row language; existing picker behavior regressions pass.
+- Verify: write focused failing tests, then run
+      `go test ./internal/tui -run 'Test(Picker|CommandSwitcher|ScreenSnapshots)' -count=1`.
+- Depends on: tasks 1–3.
+- Files: `internal/tui/{picker,lifecycle,snapshot}_test.go`,
+      `internal/tui/{picker,lifecycle}.go`, `internal/tui/testdata/screens/*.golden`.
+
+## Completion checkpoint
+
+- [x] `go test ./internal/tui -count=1`, `go test ./cmd/pr-review -count=1`,
+      `./scripts/verify.sh`, and `git diff --check` pass.
+- [x] The final diff only changes the approved layout, shared chrome, tests,
+      snapshots, and reviewer documentation.
+
 ## 1. Safe PR browser startup
 - [x] Share model initialization and make browser `Init` safe without a loader.
 - [x] Regression test starts the browser through its actual initialization path.

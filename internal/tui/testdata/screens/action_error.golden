@@ -1,10 +1,10 @@
-review · example/review#42 · ctrl+p (or p): switch PR
-PR #42 | head aaaaaaaaaaaa | inventory complete | analysis: file fallback
-File slices | focus: files | unit 1/2 [text_hunk] | unassigned 0 | unavailable 0
-> main.go                         | main.go [text_hunk]
+review · example/review#42 · ctrl+p: switch PR
+FILE SLICES 2 · main.go [text_hunk] · focus: files
+› main.go                         | main.go [text_hunk]
   README.md                       | @@ -1 +1 @@
                                   | -old greeting
                                   | +hello world
                                   |
                                   |
-Action failed; snapshot retained: synthetic save failure
+                                  |
+! Action failed: synthetic save failure · ?: Health & help
