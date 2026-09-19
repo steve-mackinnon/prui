@@ -1,6 +1,6 @@
 
 # Riptide artifacts (cloud-synced)
-.humanlayer/tasks/
+.humanlayer/
 /pr-review
 .env
 .env.local
