@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 	"pr-review/internal/guide"
 	"pr-review/internal/review"
 	"pr-review/internal/session"
@@ -18,9 +19,7 @@ import (
 func action(t *testing.T, m *Model, k rune) {
 	t.Helper()
 	_, cmd := m.Update(tea.KeyPressMsg{Code: k, Text: string(k)})
-	if cmd != nil {
-		m.Update(cmd())
-	}
+	completeAction(t, m, cmd)
 }
 
 func TestLifecycleProgressRefreshPickerAndFreshFailure(t *testing.T) {
@@ -50,7 +49,7 @@ func TestLifecycleProgressRefreshPickerAndFreshFailure(t *testing.T) {
 	m.SetLifecycle(store, fakeGitHub{changed}, func(context.Context, *review.Session, func(string)) (*review.Session, error) {
 		return nil, errors.New("new comparison unavailable")
 	})
-	m.Update(m.Init()())
+	completeAction(t, m, m.Init())
 	action(t, m, 'm')
 	if len(m.Session.ReviewedSliceIDs) != 1 || !strings.Contains(m.View().Content, "1/1 read") {
 		t.Fatal("progress missing")
@@ -68,9 +67,7 @@ func TestLifecycleProgressRefreshPickerAndFreshFailure(t *testing.T) {
 		t.Fatal("picker missing")
 	}
 	_, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
-	if cmd != nil {
-		m.Update(cmd())
-	}
+	completeAction(t, m, cmd)
 	if m.top() != pageReview || m.Session.ID != saved.ID {
 		t.Fatal("picker did not resume")
 	}
@@ -97,8 +94,12 @@ func TestLifecycleProgressRefreshPickerAndFreshFailure(t *testing.T) {
 	}
 	for _, width := range []int{40, 99, 100, 140} {
 		m.Update(tea.WindowSizeMsg{Width: width, Height: 20})
-		if !strings.Contains(m.View().Content, "freshness: unchecked") {
-			t.Fatal("narrow layout hid freshness")
+		view := ansi.Strip(m.View().Content)
+		if width >= 100 && !strings.Contains(view, "Freshness unknown") {
+			t.Fatalf("wide layout hid freshness: %q", view)
+		}
+		if width < 100 && (!strings.Contains(view, "0/1 read") || !strings.Contains(view, "Guides unavailable")) {
+			t.Fatalf("narrow layout lost compact health status: %q", view)
 		}
 	}
 	if err := store.Close(); err != nil {

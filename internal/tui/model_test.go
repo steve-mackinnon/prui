@@ -30,6 +30,19 @@ func key(m *Model, k rune)                                 { m.Update(tea.KeyPre
 func namedKey(m *Model, k rune)                            { m.Update(tea.KeyPressMsg{Code: k}) }
 func ctrlKey(m *Model, k rune)                             { m.Update(tea.KeyPressMsg{Code: k, Mod: tea.ModCtrl}) }
 
+// completeAction follows the loading command chain exactly as Bubble Tea does.
+// A single command invocation may only return a loading tick when the action
+// takes longer than its animation interval.
+func completeAction(t *testing.T, m *Model, cmd tea.Cmd) {
+	t.Helper()
+	for m.Busy && cmd != nil {
+		_, cmd = m.Update(cmd())
+	}
+	if m.Busy {
+		t.Fatal("action ended without clearing busy state")
+	}
+}
+
 func TestCommandSwitcherOpensOverReviewAndListsOpenTabsFirst(t *testing.T) {
 	m := New(context.Background(), nil)
 	first := largeSession(1, 1)
@@ -272,7 +285,7 @@ func TestRawReviewMockedEndToEnd(t *testing.T) {
 	if !strings.Contains(m.View().Content, "Loading") {
 		t.Fatal("loading absent")
 	}
-	m.Update(m.Init()())
+	completeAction(t, m, m.Init())
 	if m.Session == nil || m.Err != nil {
 		t.Fatal("load failed", m.Err)
 	}
@@ -353,7 +366,7 @@ func TestFullDiffDoesNotScrollPastViewport(t *testing.T) {
 	m := New(context.Background(), func(c context.Context, n func(string)) (*review.Session, error) {
 		return review.Open(c, r.Dir, meta.Identity, fakeGitHub{meta}, source.NewRunner(), source.Defaults(), n)
 	})
-	m.Update(m.Init()())
+	completeAction(t, m, m.Init())
 	m.Update(tea.WindowSizeMsg{Width: 120, Height: 100})
 	for i := range m.Session.Inventory.Units {
 		if strings.Contains(unitText(m.Session, i), "long line") {
@@ -472,12 +485,12 @@ func TestBindingsRenderHelpAndFooter(t *testing.T) {
 			t.Fatalf("updated help wording missing %q", wording)
 		}
 	}
-	for _, key := range []string{"ctrl+p / p", "j/k", "J/K", "h/l, ctrl+h/ctrl+l", "esc", "q/ctrl+c"} {
+	for _, key := range []string{"ctrl+p", "j/k", "J/K", "h/l, ctrl+h/ctrl+l", "esc", "q/ctrl+c"} {
 		if !strings.Contains(help, key) {
 			t.Fatalf("binding %q missing from help", key)
 		}
 	}
-	for _, key := range []string{"ctrl+p / p", "h/l, ctrl+h/ctrl+l", "esc", "q/ctrl+c", "m", "N"} {
+	for _, key := range []string{"ctrl+p", "h/l, ctrl+h/ctrl+l", "esc", "q/ctrl+c", "m", "N"} {
 		if !strings.Contains(footer, key) {
 			t.Fatalf("binding %q missing from footer", key)
 		}

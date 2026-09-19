@@ -63,7 +63,7 @@ func loaded(t *testing.T, s *review.Session, width, height int) *Model {
 	t.Helper()
 	m := New(context.Background(), func(context.Context, func(string)) (*review.Session, error) { return s, nil })
 	t.Cleanup(m.Close)
-	m.Update(m.Init()())
+	completeAction(t, m, m.Init())
 	m.Update(tea.WindowSizeMsg{Width: width, Height: height})
 	return m
 }

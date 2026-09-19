@@ -22,8 +22,18 @@ func modelKey(m *tui.Model, code rune) {
 		msg.Text = string(code)
 	}
 	_, cmd := m.Update(msg)
-	if cmd != nil {
-		m.Update(cmd())
+	for m.Busy && cmd != nil {
+		_, cmd = m.Update(cmd())
+	}
+}
+
+func completeModelAction(t *testing.T, m *tui.Model, cmd tea.Cmd) {
+	t.Helper()
+	for m.Busy && cmd != nil {
+		_, cmd = m.Update(cmd())
+	}
+	if m.Busy {
+		t.Fatal("action ended without clearing busy state")
 	}
 }
 
@@ -39,7 +49,7 @@ func TestEntryPointsShareReviewOperations(t *testing.T) {
 			o := options{Command: command, SessionID: original.ID, Identity: original.Inventory.Comparison.Metadata.Identity, Repository: original.Inventory.Comparison.Metadata.Identity.Repository, Checkout: string(original.Checkout)}
 			m := app.model(context.Background(), o)
 			defer m.Close()
-			m.Update(m.Init()())
+			completeModelAction(t, m, m.Init())
 			if command == "prs" || command == "current" {
 				modelKey(m, tea.KeyEnter)
 				modelKey(m, tea.KeyEnter)
@@ -111,7 +121,7 @@ func TestOfflineModelKeepsSavedSessionsUsable(t *testing.T) {
 	app.newAnalyzer = func() (guide.Analyzer, error) { panic("offline analyzer factory") }
 	m := app.model(context.Background(), options{Command: "resume", SessionID: original.ID, Offline: true})
 	defer m.Close()
-	m.Update(m.Init()())
+	completeModelAction(t, m, m.Init())
 	if m.Err != nil || m.Session.RevisionStatus != session.Unchecked {
 		t.Fatal("offline resume failed", m.Err)
 	}

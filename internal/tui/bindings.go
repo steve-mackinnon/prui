@@ -18,7 +18,7 @@ type binding struct {
 }
 
 var bindings = []binding{
-	{keys: "ctrl+p / p", desc: "open the pull-request switcher", groups: groupFooter | groupHelp, section: "App"},
+	{keys: "ctrl+p", desc: "open the pull-request switcher", groups: groupFooter | groupHelp, section: "App"},
 	{keys: "j/k, up/down", desc: "move selection or scroll diff", groups: groupNav | groupHelp, section: "Navigate"},
 	{keys: "J/K", desc: "scroll diff by 5", groups: groupNav | groupHelp, section: "Navigate"},
 	{keys: "h/l, ctrl+h/ctrl+l", desc: "focus list/diff", groups: groupNav | groupFooter | groupHelp, section: "Navigate"},
