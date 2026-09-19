@@ -20,7 +20,6 @@ import (
 	reviewcontext "pr-review/internal/context"
 	"pr-review/internal/guide"
 	"pr-review/internal/inventory"
-	"pr-review/internal/plan"
 	"pr-review/internal/source"
 )
 
@@ -42,13 +41,11 @@ type Slice struct {
 }
 
 type Snapshot struct {
-	Checkout     []byte
-	Inventory    inventory.Inventory
-	PlanVersion  string
-	Slices       []Slice
-	UnitFiles    []int
-	Context      reviewcontext.ContextBundle
-	AnalysisPlan *plan.ValidatedPlan
+	Checkout  []byte
+	Inventory inventory.Inventory
+	Slices    []Slice
+	UnitFiles []int
+	Context   reviewcontext.ContextBundle
 	// Guides is a pointer so a session created before guide analysis existed
 	// re-marshals to identical bytes and keeps its snapshot reference valid.
 	Guides *guide.Bundle `json:"guides,omitempty"`
@@ -57,77 +54,24 @@ type Snapshot struct {
 }
 
 type State struct {
-	SchemaVersion     int                 `json:"schema_version"`
-	ID                string              `json:"session_id"`
-	SnapshotReference string              `json:"snapshot_reference"`
-	ReviewedSliceIDs  []string            `json:"reviewed_slice_ids"`
-	RevisionStatus    RevisionStatus      `json:"revision_status"`
-	UpdatedAt         time.Time           `json:"updated_at"`
-	Generation        uint64              `json:"generation"`
-	AcceptedPlan      *plan.ValidatedPlan `json:"accepted_plan,omitempty"`
-	PreviousPlan      *plan.ValidatedPlan `json:"previous_plan,omitempty"`
+	SchemaVersion     int            `json:"schema_version"`
+	ID                string         `json:"session_id"`
+	SnapshotReference string         `json:"snapshot_reference"`
+	ReviewedSliceIDs  []string       `json:"reviewed_slice_ids"`
+	RevisionStatus    RevisionStatus `json:"revision_status"`
+	UpdatedAt         time.Time      `json:"updated_at"`
+	Generation        uint64         `json:"generation"`
 }
 
-// CurrentPlan returns the most recently accepted editable plan.
-func (r *Record) CurrentPlan() *plan.ValidatedPlan {
-	if r.AcceptedPlan != nil {
-		return r.AcceptedPlan
-	}
-	return r.AnalysisPlan
-}
-
-// ApplyPlan persists a validated replacement and conservatively clears progress.
-// The immutable inventory and original snapshot remain untouched.
-func (s *Store) ApplyPlan(r *Record, replacement plan.ValidatedPlan) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if err := s.writable(); err != nil {
-		return err
-	}
-	unitIDs, evidenceIDs := map[string]bool{}, map[string]bool{}
-	for _, u := range r.Inventory.Units {
-		unitIDs[u.ID] = true
-	}
-	for _, e := range r.Context.Evidence {
-		evidenceIDs[e.EvidenceID] = true
-	}
-	proposal := plan.Proposal{InventoryID: replacement.InventoryID, Slices: replacement.Slices}
-	validated, err := plan.Validate(proposal, r.Inventory.Comparison.InventoryID, unitIDs, evidenceIDs)
-	if err != nil {
-		return err
-	}
-	validated.Version = replacement.Version
-	validated.AnalysisStatus = replacement.AnalysisStatus
-	validated.Warnings = append([]string(nil), replacement.Warnings...)
-	validated.Provenance = replacement.Provenance
-	old, err := s.load(r.ID)
-	if err != nil {
-		return err
-	}
-	if r.Generation != old.Generation {
-		return errors.New("outdated writer; reload or create a new session")
-	}
-	next := r.State
-	previous := old.CurrentPlan()
-	if previous == nil {
-		fallback := plan.FileFallback(old.Inventory)
-		previous = &fallback
-	}
-	previousCopy := *previous
-	next.PreviousPlan = &previousCopy
-	next.AcceptedPlan = &validated
-	next.ReviewedSliceIDs = []string{}
-	next.Generation++
-	next.UpdatedAt = time.Now().UTC()
-	if err := validate(&Record{Snapshot: old.Snapshot, State: next}); err != nil {
-		return err
-	}
-	b, _ := json.Marshal(next)
-	if err := atomicWrite(filepath.Join(s.path, r.ID), "state.json", b); err != nil {
-		return err
-	}
-	r.State = next
-	return nil
+// legacyPlanState is read only to discard completion markers for the retired
+// editable-plan feature when opening an older session. File-slice markers are
+// retained; plan-only markers have no equivalent in the streamlined review.
+type legacyPlanState struct {
+	AcceptedPlan *struct {
+		Slices []struct {
+			SliceID string `json:"slice_id"`
+		} `json:"slices"`
+	} `json:"accepted_plan"`
 }
 
 type Record struct {
@@ -748,7 +692,8 @@ func (s *Store) load(id string) (*Record, error) {
 		return nil, err
 	}
 	r := &Record{}
-	if _, err = readJSON(filepath.Join(dir, "state.json"), &r.State); err != nil {
+	state, err := readJSON(filepath.Join(dir, "state.json"), &r.State)
+	if err != nil {
 		return nil, err
 	}
 	if r.SchemaVersion != SchemaVersion {
@@ -763,6 +708,20 @@ func (s *Store) load(id string) (*Record, error) {
 	}
 	if digest(b) != r.SnapshotReference {
 		return nil, errors.New("snapshot checksum mismatch; original retained")
+	}
+	var legacy legacyPlanState
+	if json.Unmarshal(state, &legacy) == nil && legacy.AcceptedPlan != nil {
+		files := make(map[string]bool, len(r.Slices))
+		for _, slice := range r.Slices {
+			files[slice.FileID] = true
+		}
+		kept := r.ReviewedSliceIDs[:0]
+		for _, id := range r.ReviewedSliceIDs {
+			if files[id] {
+				kept = append(kept, id)
+			}
+		}
+		r.ReviewedSliceIDs = kept
 	}
 	if err := validate(r); err != nil {
 		return nil, err
@@ -843,7 +802,7 @@ func (s *Store) Delete(id string) error {
 
 func validate(r *Record) error {
 	bad := errors.New("invalid session references or progress; original retained")
-	if r.SchemaVersion != SchemaVersion || r.PlanVersion == "" || r.Inventory.Comparison.InventoryID == "" || r.Generation == 0 {
+	if r.SchemaVersion != SchemaVersion || r.Inventory.Comparison.InventoryID == "" || r.Generation == 0 {
 		return bad
 	}
 	switch r.RevisionStatus {
@@ -890,31 +849,12 @@ func validate(r *Record) error {
 			}
 		}
 	}
-	planSliceIDs := map[string]bool{}
-	if current := r.CurrentPlan(); current != nil {
-		for _, slice := range current.Slices {
-			planSliceIDs[slice.SliceID] = true
-		}
-	}
 	seen := map[string]bool{}
 	for _, id := range r.ReviewedSliceIDs {
-		if (!files[id] && !planSliceIDs[id]) || seen[id] {
+		if !files[id] || seen[id] {
 			return bad
 		}
 		seen[id] = true
-	}
-	if current := r.CurrentPlan(); current != nil {
-		unitIDs, evidenceIDs := map[string]bool{}, map[string]bool{}
-		for _, u := range r.Inventory.Units {
-			unitIDs[u.ID] = true
-		}
-		for _, e := range r.Context.Evidence {
-			evidenceIDs[e.EvidenceID] = true
-		}
-		proposal := plan.Proposal{InventoryID: current.InventoryID, Slices: current.Slices}
-		if _, err := plan.Validate(proposal, r.Inventory.Comparison.InventoryID, unitIDs, evidenceIDs); err != nil {
-			return bad
-		}
 	}
 	if r.Guides != nil && guide.Validate(*r.Guides, r.Inventory) != nil {
 		return bad

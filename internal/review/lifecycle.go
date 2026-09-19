@@ -6,51 +6,9 @@ import (
 	"slices"
 	"strings"
 
-	"pr-review/internal/plan"
 	"pr-review/internal/session"
 	"pr-review/internal/source"
 )
-
-func editablePlan(s *Session) plan.ValidatedPlan {
-	if p := s.CurrentPlan(); p != nil {
-		return *p
-	}
-	return plan.FileFallback(s.Inventory)
-}
-
-// MoveUnit updates ownership without changing source truth or retaining progress.
-func MoveUnit(store *session.Store, s *Session, unitID, destination string) error {
-	p, err := plan.MoveUnit(editablePlan(s), unitID, destination)
-	if err != nil {
-		return err
-	}
-	if err = store.ApplyPlan(s, p); err != nil {
-		return err
-	}
-	next, err := store.Load(s.ID)
-	if err != nil {
-		return err
-	}
-	s.State = next.State
-	return nil
-}
-
-// ReorderSlices updates advisory order and preserves dependency labels.
-func ReorderSlices(store *session.Store, s *Session, order []string) error {
-	p, err := plan.ReorderSlices(editablePlan(s), order)
-	if err != nil {
-		return err
-	}
-	if err = store.ApplyPlan(s, p); err != nil {
-		return err
-	}
-	next, err := store.Load(s.ID)
-	if err != nil {
-		return err
-	}
-	s.State = next.State
-	return nil
-}
 
 type MetadataReader interface {
 	Metadata(context.Context, source.Identity) (source.Metadata, error)

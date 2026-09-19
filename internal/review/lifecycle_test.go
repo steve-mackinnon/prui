@@ -81,9 +81,7 @@ func TestLifecycleResumeAfterRepositoryDeletion(t *testing.T) {
 			}
 		})
 	}
-	newPlan := resumed.Snapshot
-	newPlan.PlanVersion = "file-v2"
-	fresh, err := store.Create(newPlan)
+	fresh, err := store.Create(resumed.Snapshot)
 	if err != nil {
 		t.Fatal(err)
 	}

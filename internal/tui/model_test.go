@@ -97,6 +97,21 @@ func TestWorkspaceReviewsStartEmptyAndActivateLoadedReview(t *testing.T) {
 	}
 }
 
+func TestReviewControlsExcludeLegacyPlanActions(t *testing.T) {
+	m := New(context.Background(), nil)
+	m.openReviewTab(largeSession(1, 1))
+
+	for _, control := range []rune{'a', 'v', 'o'} {
+		key(m, control)
+		if m.top() != pageReview {
+			t.Fatalf("legacy plan control %q opened page %v", control, m.top())
+		}
+	}
+	if help := renderHealth(); strings.Contains(help, "accepted plan") || strings.Contains(help, "move selected unit") || strings.Contains(help, "reorder slices") {
+		t.Fatalf("legacy plan controls remain in help:\n%s", help)
+	}
+}
+
 func TestCommandSwitcherDoesNotTakeOverGuideTab(t *testing.T) {
 	m := New(context.Background(), nil)
 	first := largeSession(1, 1)
@@ -134,7 +149,7 @@ func TestWorkspaceTabsRestoreIndependentReviewState(t *testing.T) {
 	m.collapsed.guides[0] = true
 	m.Scroll, m.GuideScroll = map[int]int{1: 9}, map[int]int{0: 4}
 	m.Horizontal, m.Inventory, m.Focus = 12, true, paneDiff
-	m.Stack, m.EditIndex = []page{pageReview, pageAnalysis}, 1
+	m.Stack = []page{pageReview, pageHelp}
 	m.Err, m.Loading, m.Busy, m.ActionError, m.notice = firstErr, true, true, firstErr, "first notice"
 
 	m.openReviewTab(second)
@@ -142,19 +157,19 @@ func TestWorkspaceTabsRestoreIndependentReviewState(t *testing.T) {
 	m.Selected, m.Row, m.Files = 0, 1, false
 	m.Scroll, m.GuideScroll = map[int]int{0: 2}, map[int]int{1: 7}
 	m.Horizontal, m.Inventory, m.Focus = 3, false, paneList
-	m.Stack, m.EditIndex = []page{pageReview, pageEvidence}, 0
+	m.Stack = []page{pageReview, pageEvidence}
 	m.Err, m.Loading, m.Busy, m.ActionError, m.notice = secondErr, false, false, secondErr, "second notice"
 
 	m.activateTab(0)
-	if m.Session != first || m.Selected != 1 || m.Row != 3 || !m.Files || !m.collapsed.guides[0] || m.Scroll[1] != 9 || m.GuideScroll[0] != 4 || m.Horizontal != 12 || !m.Inventory || m.Focus != paneDiff || m.EditIndex != 1 || m.Err != firstErr || !m.Loading || !m.Busy || m.ActionError != firstErr || m.notice != "first notice" {
+	if m.Session != first || m.Selected != 1 || m.Row != 3 || !m.Files || !m.collapsed.guides[0] || m.Scroll[1] != 9 || m.GuideScroll[0] != 4 || m.Horizontal != 12 || !m.Inventory || m.Focus != paneDiff || m.Err != firstErr || !m.Loading || !m.Busy || m.ActionError != firstErr || m.notice != "first notice" {
 		t.Fatalf("tab 2 did not restore first review state: %#v", m)
 	}
-	if len(m.Stack) != 2 || m.Stack[1] != pageAnalysis {
-		t.Fatalf("first review stack = %#v, want analysis page", m.Stack)
+	if len(m.Stack) != 2 || m.Stack[1] != pageHelp {
+		t.Fatalf("first review stack = %#v, want help page", m.Stack)
 	}
 
 	m.activateTab(1)
-	if m.Session != second || m.Selected != 0 || m.Row != 1 || m.Files || m.Scroll[0] != 2 || m.GuideScroll[1] != 7 || m.Horizontal != 3 || m.Inventory || m.Focus != paneList || m.EditIndex != 0 || m.Err != secondErr || m.Loading || m.Busy || m.ActionError != secondErr || m.notice != "second notice" {
+	if m.Session != second || m.Selected != 0 || m.Row != 1 || m.Files || m.Scroll[0] != 2 || m.GuideScroll[1] != 7 || m.Horizontal != 3 || m.Inventory || m.Focus != paneList || m.Err != secondErr || m.Loading || m.Busy || m.ActionError != secondErr || m.notice != "second notice" {
 		t.Fatalf("tab 3 did not restore second review state: %#v", m)
 	}
 	if len(m.Stack) != 2 || m.Stack[1] != pageEvidence {
@@ -537,7 +552,7 @@ func TestStrippedViewMatchesUnstyledRender(t *testing.T) {
 	}
 }
 
-func TestRawReviewAnalysisStatus(t *testing.T) {
+func TestRawReviewReportsGuideStatusWithoutLegacyPlanStatus(t *testing.T) {
 	r := testutil.NewRepo(t)
 	r.Write("a", "old\n")
 	base := r.Commit()
@@ -552,10 +567,10 @@ func TestRawReviewAnalysisStatus(t *testing.T) {
 		t.Fatal("session carries no analysis decision")
 	}
 	s.Guides = nil
-	// A session stored before guides existed reports the plan's own status and
-	// claims nothing about guides at all.
-	if pre := Plain(s); !strings.Contains(pre, "analysis: file fallback") || strings.Contains(pre, "guides:") {
-		t.Fatal("pre-guide session claims a guide decision")
+	// A session stored before guides existed reports no guide decision and no
+	// obsolete provider-plan status.
+	if pre := Plain(s); strings.Contains(pre, "analysis:") || strings.Contains(pre, "guides:") {
+		t.Fatal("pre-guide session reports obsolete analysis state")
 	}
 	hostile := guide.Bundle{Status: guide.Generated, Provider: "openai", Model: "m\x1b]52;c;attack\a", Items: []guide.Item{{Title: "Authentication flow"}}}
 	s.Guides = &hostile

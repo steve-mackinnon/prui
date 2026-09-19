@@ -27,6 +27,9 @@ const (
 
 const diffStep = 5
 
+// The switcher keeps a bounded set of concurrently open reviews.
+const maxTabs = 9
+
 type workspaceTab struct {
 	identity source.Identity
 	review   *reviewTabState
@@ -49,7 +52,6 @@ type reviewTabState struct {
 	Stack        []page
 	Loading      bool
 	Busy         bool
-	EditIndex    int
 	ActionError  error
 	notice       string
 	loadingFrame int
@@ -60,14 +62,11 @@ type page int
 const (
 	pageReview page = iota
 	pageEvidence
-	pageAnalysis
 	pageHelp
 	pageURL
 	pagePicker
 	pageRepositoryPicker
 	pagePullRequestPicker
-	pageEdit
-	pageReorder
 	pageGuideConsent
 )
 
@@ -86,7 +85,6 @@ type Model struct {
 	Stack                     []page
 	Loading                   bool
 	Busy                      bool
-	EditIndex                 int
 	SessionPicker             pickerState
 	RepositoryPicker          pickerState
 	PullRequestPicker         pickerState
@@ -95,12 +93,12 @@ type Model struct {
 	PullRequests              []source.PullRequest
 	SwitcherQuery             string
 	ActionError               error
-	loadingFrame              int
 	store                     *session.Store
 	reader                    review.MetadataReader
 	fresh                     FreshLoader
 	worker                    <-chan struct{}
 	notice                    string
+	loadingFrame              int
 	ctx                       context.Context
 	cancel                    context.CancelFunc
 	load                      Loader
@@ -293,13 +291,6 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "e":
 			m.push(pageEvidence)
 			m.Inventory, m.Focus = false, paneList
-		case "a":
-			m.push(pageAnalysis)
-			m.Inventory, m.Focus = false, paneList
-		case "v":
-			m.beginMove()
-		case "o":
-			m.beginReorder()
 		case "esc":
 			m.back()
 		case "h", "ctrl+h":
@@ -436,7 +427,7 @@ func (m *Model) saveActiveReview() {
 		Session: m.Session, Err: m.Err, Selected: m.Selected, Row: m.Row, Files: m.Files,
 		collapsed: m.collapsed, Scroll: m.Scroll, GuideScroll: m.GuideScroll,
 		Horizontal: m.Horizontal, Inventory: m.Inventory, Focus: m.Focus,
-		Stack: m.Stack, Loading: m.Loading, Busy: m.Busy, EditIndex: m.EditIndex,
+		Stack: m.Stack, Loading: m.Loading, Busy: m.Busy,
 		ActionError: m.ActionError, notice: m.notice, loadingFrame: m.loadingFrame,
 	}
 }
@@ -449,7 +440,7 @@ func (m *Model) restoreReviewTab(state *reviewTabState) {
 	m.Selected, m.Row, m.Files = state.Selected, state.Row, state.Files
 	m.collapsed, m.Scroll, m.GuideScroll = state.collapsed, state.Scroll, state.GuideScroll
 	m.Horizontal, m.Inventory, m.Focus = state.Horizontal, state.Inventory, state.Focus
-	m.Stack, m.Loading, m.Busy, m.EditIndex = state.Stack, state.Loading, state.Busy, state.EditIndex
+	m.Stack, m.Loading, m.Busy = state.Stack, state.Loading, state.Busy
 	m.ActionError, m.notice, m.loadingFrame = state.ActionError, state.notice, state.loadingFrame
 }
 
@@ -478,11 +469,9 @@ func (m *Model) pageKey(p page, k string) tea.Cmd {
 		return m.repositoryPickerKey(k)
 	case pagePullRequestPicker:
 		return m.pullRequestPickerKey(k)
-	case pageEdit, pageReorder:
-		return m.editKey(k)
 	case pageGuideConsent:
 		return m.guideConsentKey(k)
-	case pageHelp, pageURL, pageEvidence, pageAnalysis:
+	case pageHelp, pageURL, pageEvidence:
 		if k == "esc" {
 			m.pop()
 		}
@@ -608,8 +597,6 @@ func (m *Model) View() tea.View {
 			text = m.repositoryPickerView()
 		case pagePullRequestPicker:
 			text = m.pullRequestPickerView()
-		case pageEdit, pageReorder:
-			text = m.editView()
 		case pageHelp:
 			text = "Health & help\n" + renderHealth() + "\n\nControls and invalid bytes escaped. No mouse capture.\nReading progress is local, not GitHub approval.\nGuides interpret the diff; the raw inventory remains the complete source view.\nMarking any portion of a file marks its whole slice, under every guide.\nEvidence is pinned, bounded, and omissions are reported. Analysis is optional and consent-bound."
 			if m.store != nil {
@@ -617,8 +604,6 @@ func (m *Model) View() tea.View {
 			}
 		case pageURL:
 			text = m.Session.Inventory.Comparison.Metadata.Identity.URL() + "\nOpen this URL in your browser for GitHub review actions.\nesc: back | q: quit"
-		case pageAnalysis:
-			text = m.analysisView()
 		case pageGuideConsent:
 			text = m.guideConsentView()
 		case pageEvidence:

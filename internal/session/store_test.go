@@ -14,7 +14,6 @@ import (
 	reviewcontext "pr-review/internal/context"
 	"pr-review/internal/guide"
 	"pr-review/internal/inventory"
-	"pr-review/internal/plan"
 	"pr-review/internal/source"
 )
 
@@ -23,7 +22,7 @@ func fixture() Snapshot {
 	ref := fmt.Sprintf("%x", sha256.Sum256(patch))
 	i := inventory.Inventory{Complete: true, Files: []inventory.FileChange{{ID: "file", NewPath: []byte{'a', 0xff}}}, Units: []inventory.ReviewUnit{{ID: "unit", InventoryID: "inventory", FileChangeID: "file", Kind: inventory.TextHunk, PatchReference: ref}}, Patches: map[string][]byte{ref: patch}}
 	i.Comparison = source.PinnedComparison{Metadata: source.Metadata{Identity: source.Identity{Repository: "owner/repo", Number: 7}, BaseSHA: strings.Repeat("a", 40), HeadSHA: strings.Repeat("b", 40)}, InventoryID: "inventory"}
-	return Snapshot{Inventory: i, PlanVersion: "file-v1", Slices: []Slice{{FileID: "file", Units: []int{0}}}, UnitFiles: []int{0}, Context: reviewcontext.ContextBundle{ComparisonID: "inventory", Evidence: []reviewcontext.Evidence{{EvidenceID: "evidence", CommitSHA: "commit", Path: []byte("README.md"), Excerpt: []byte("docs")}}, OmittedPaths: []reviewcontext.Omitted{{Path: []byte(".env"), Reason: "credential-like filename"}}}}
+	return Snapshot{Inventory: i, Slices: []Slice{{FileID: "file", Units: []int{0}}}, UnitFiles: []int{0}, Context: reviewcontext.ContextBundle{ComparisonID: "inventory", Evidence: []reviewcontext.Evidence{{EvidenceID: "evidence", CommitSHA: "commit", Path: []byte("README.md"), Excerpt: []byte("docs")}}, OmittedPaths: []reviewcontext.Omitted{{Path: []byte(".env"), Reason: "credential-like filename"}}}}
 }
 
 func guideCacheKey() GuideCacheKey {
@@ -259,7 +258,7 @@ func TestStoreLockImmutabilityAndDeletion(t *testing.T) {
 	if err := s.Save(old); err == nil {
 		t.Fatal("outdated writer accepted")
 	}
-	r.PlanVersion = "changed"
+	r.Slices[0].FileID = "changed"
 	if err := s.Save(r); err == nil {
 		t.Fatal("snapshot mutated")
 	}
@@ -314,42 +313,13 @@ func TestStoreCorruptionRetained(t *testing.T) {
 	}
 }
 
-func TestEditApplyPlanResetsCompletionAndRetainsPrevious(t *testing.T) {
-	s, err := Open(filepath.Join(t.TempDir(), "sessions"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer s.Close()
-	r, err := s.Create(fixture())
-	if err != nil {
-		t.Fatal(err)
-	}
-	r.ReviewedSliceIDs = []string{"file"}
-	if err := s.Save(r); err != nil {
-		t.Fatal(err)
-	}
-	p := plan.ValidatedPlan{Version: "edited", InventoryID: "inventory", AnalysisStatus: "valid", Slices: []plan.Slice{{SliceID: "edited", Title: "Edited", UnitIDs: []string{"unit"}}}}
-	if err := s.ApplyPlan(r, p); err != nil {
-		t.Fatal(err)
-	}
-	got, err := s.Load(r.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(got.ReviewedSliceIDs) != 0 || got.CurrentPlan() == nil || got.CurrentPlan().Version != "edited" || got.PreviousPlan == nil {
-		t.Fatalf("plan edit state=%+v", got.State)
-	}
-}
-
 // preGuideSnapshot is the snapshot shape stored before guide analysis existed.
 type preGuideSnapshot struct {
-	Checkout     []byte
-	Inventory    inventory.Inventory
-	PlanVersion  string
-	Slices       []Slice
-	UnitFiles    []int
-	Context      reviewcontext.ContextBundle
-	AnalysisPlan *plan.ValidatedPlan
+	Checkout  []byte
+	Inventory inventory.Inventory
+	Slices    []Slice
+	UnitFiles []int
+	Context   reviewcontext.ContextBundle
 }
 
 func TestStoreGuideBundleRoundTrip(t *testing.T) {
@@ -430,7 +400,8 @@ func TestStoreDerivedSnapshotRetainsOriginalAndStartsUnread(t *testing.T) {
 		t.Fatal("invalid derived source accepted")
 	}
 	derived.DerivedFrom = original.ID
-	derived.PlanVersion = "altered"
+	derived.Context.Evidence = append([]reviewcontext.Evidence(nil), original.Context.Evidence...)
+	derived.Context.Evidence[0].Excerpt = []byte("changed")
 	if _, err := s.Create(derived); err == nil {
 		t.Fatal("derived session changed source evidence")
 	}
@@ -445,7 +416,7 @@ func TestStorePreGuideBytesUnchanged(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	before, err := json.Marshal(preGuideSnapshot{Checkout: snapshot.Checkout, Inventory: snapshot.Inventory, PlanVersion: snapshot.PlanVersion, Slices: snapshot.Slices, UnitFiles: snapshot.UnitFiles, Context: snapshot.Context, AnalysisPlan: snapshot.AnalysisPlan})
+	before, err := json.Marshal(preGuideSnapshot{Checkout: snapshot.Checkout, Inventory: snapshot.Inventory, Slices: snapshot.Slices, UnitFiles: snapshot.UnitFiles, Context: snapshot.Context})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -140,7 +140,6 @@ func programStore(t *testing.T) (*session.Store, *review.Session) {
 	}
 	t.Cleanup(func() { store.Close() })
 	s := largeSession(2, 2)
-	s.PlanVersion = "file-v1"
 	saved, err := store.Create(s.Snapshot)
 	if err != nil {
 		t.Fatal(err)

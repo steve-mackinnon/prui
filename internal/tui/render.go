@@ -2,7 +2,6 @@ package tui
 
 import (
 	"fmt"
-	"slices"
 	"strconv"
 	"strings"
 
@@ -32,11 +31,7 @@ func status(s *review.Session) string {
 		completeness = "INCOMPLETE - unavailable content"
 	}
 	m := s.Inventory.Comparison.Metadata
-	analysis := "file fallback"
-	if s.CurrentPlan() != nil {
-		analysis = s.CurrentPlan().AnalysisStatus
-	}
-	line := fmt.Sprintf("PR #%d | head %.12s | inventory %s | analysis: %s", m.Identity.Number, m.HeadSHA, completeness, analysis)
+	line := fmt.Sprintf("PR #%d | head %.12s | inventory %s", m.Identity.Number, m.HeadSHA, completeness)
 	// The guide bundle is a separate claim from the plan's analysis status, so
 	// it is reported separately and only when this session actually stored one.
 	if s.Guides != nil {
@@ -202,7 +197,7 @@ func Plain(s *review.Session) string {
 	b.WriteString(status(s) + "\n" + s.Inventory.Comparison.Metadata.Identity.URL() + "\n")
 	b.WriteString(fmt.Sprintf("%d files; %d units. Reading is not GitHub approval.\n", len(s.Inventory.Files), len(s.Inventory.Units)))
 	if s.ID != "" {
-		b.WriteString("Session: " + s.ID + " | plan: " + Escape(s.PlanVersion) + "\n" + progress(s) + "\n")
+		b.WriteString("Session: " + s.ID + "\n" + progress(s) + "\n")
 		b.WriteString("Optional full source context not retained; frozen patches and metadata available.\n")
 	}
 	b.WriteString(guidesText(s))
@@ -238,75 +233,6 @@ func (m *Model) evidenceView() string {
 	return strings.Join(lines, "\n")
 }
 
-func (m *Model) analysisView() string {
-	s := m.Session
-	if s.CurrentPlan() == nil {
-		return styleLine(statusClass(s), status(s)) + "\nNo accepted provider plan. Raw file slices remain the fallback.\nesc: back | analysis requires separate disclosure and consent"
-	}
-	p := s.CurrentPlan()
-	if p == nil {
-		return styleLine(statusClass(s), status(s)) + "\nNo accepted provider plan. Raw file slices remain the fallback.\nesc: back | analysis requires separate disclosure and consent"
-	}
-	lines := []string{styleLine(statusClass(s), status(s)), styleLine(classTitle, fmt.Sprintf("Plan %s | %d slices | %d unassigned", Escape(p.Version), len(p.Slices), len(p.UnassignedUnitIDs)))}
-	for _, w := range p.Warnings {
-		lines = append(lines, styleLine(classWarning, "WARNING: "+Escape(w)))
-	}
-	for i, sl := range p.Slices {
-		marker := "[ ] "
-		if slices.Contains(s.ReviewedSliceIDs, sl.SliceID) {
-			marker = "[x] "
-		}
-		lines = append(lines, marker+fmt.Sprintf("%d. ", i+1)+Escape(sl.Title)+" ("+fmt.Sprintf("%d units", len(sl.UnitIDs))+")")
-		if sl.OrderingRationale != "" {
-			lines = append(lines, "  order: "+Escape(sl.OrderingRationale))
-		}
-		for _, c := range sl.Claims {
-			label := "cited"
-			if c.Hypothesis {
-				label = "HYPOTHESIS"
-			}
-			lines = append(lines, "  "+label+": "+Escape(c.Text)+" ["+strings.Join(c.EvidenceID, ", ")+"]")
-		}
-	}
-	if len(p.UnassignedUnitIDs) > 0 {
-		lines = append(lines, "Unassigned units: "+strings.Join(p.UnassignedUnitIDs, ", "))
-	}
-	lines = append(lines, "esc: back | claims are advisory")
-	return strings.Join(lines, "\n")
-}
-
-func (m *Model) editView() string {
-	s := m.Session
-	p := s.CurrentPlan()
-	if p == nil {
-		return "No editable plan available"
-	}
-	if m.top() == pageReorder {
-		lines := []string{"Reorder slices (preview; enter confirms, esc cancels)"}
-		for i, sl := range p.Slices {
-			marker := "  "
-			if i == m.EditIndex {
-				marker = "> "
-			}
-			lines = append(lines, marker+fmt.Sprintf("%d. %s", i+1, Escape(sl.Title)))
-		}
-		return strings.Join(lines, "\n")
-	}
-	lines := []string{"Move selected unit (preview; enter confirms, esc cancels)", "unit: " + Escape(s.Inventory.Units[m.Selected].ID)}
-	for i, sl := range p.Slices {
-		marker := "  "
-		if i == m.EditIndex {
-			marker = "> "
-		}
-		lines = append(lines, marker+"slice: "+Escape(sl.Title))
-	}
-	marker := "  "
-	if m.EditIndex == len(p.Slices) {
-		marker = "> "
-	}
-	lines = append(lines, marker+"unassigned")
-	return strings.Join(lines, "\n")
-}
 func visibleWidth(s string) int { return lipgloss.Width(s) }
 func clip(s string, w int) string {
 	if w <= 0 {
