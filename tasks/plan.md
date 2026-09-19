@@ -235,3 +235,78 @@ checklists. Work is sequential because all slices share `tui.Model`.
 ## Open Questions
 
 None. Close/reorder/pin/restore tabs and background PR refresh remain out of scope.
+
+# Implementation Plan: Guide Path Overflow
+
+## Overview
+
+Implement the approved guide-list overflow behavior in two sequential vertical
+slices: width-safe static middle truncation first, then an animation state
+machine that reveals the selected overflowing path. The change stays entirely
+inside the interactive TUI and does not alter guide data, persisted sessions,
+plain output, or existing detail-pane horizontal scrolling.
+
+## Architecture Decisions
+
+- Construct guide file rows from stable chrome (selection marker, indentation,
+  read marker, and unit suffix) plus a separately measured path region. Only
+  that path region may truncate or animate.
+- Use terminal display-width operations, preserving existing escaping and
+  ANSI-safe final clipping. Do not use byte or raw-rune offsets as horizontal
+  positions.
+- Keep auto-scroll state scoped to `Model` as transient presentation state; it
+  is neither persisted nor folded into `Model.Horizontal`, which remains the
+  detail pane's user-controlled scroll position.
+- Schedule at most one conditional Bubble Tea tick while the selected guide
+  portion is overflowing and the list pane is focused. State changes invalidate
+  the current path offset and prevent future ticks from changing a stale row.
+- Preserve current key bindings. The feature needs no user-facing settings or
+  new dependency.
+
+## Dependency Graph
+
+```text
+display-width-safe guide path rendering
+        |
+        +-- static middle truncation for non-selected rows
+                |
+                +-- selected-path scroll state + conditional tick
+                        |
+                        +-- focused regression, snapshot, and full verification
+```
+
+## Task List
+
+The detailed checklist is appended to `tasks/todo.md` under **Guide Path
+Overflow**. Tasks are sequential because the scroll slice uses the path-region
+measurement established by truncation.
+
+1. Add a pure guide-path label helper and static middle-truncation tests.
+2. Add transient selected-path scroll state and an invalidatable conditional
+   timer, with state-machine tests.
+3. Integrate both render paths, review relevant fixed-width output, and run the
+   full verification gate.
+
+## Verification Checkpoints
+
+- After task 1: targeted guide rendering tests cover short, long, renamed,
+  escaped, and Unicode paths without line overflow.
+- After task 2: model tests prove movement, endpoint behavior, reset, and stop
+  conditions without relying on wall-clock sleeps.
+- After task 3: focused TUI tests, any affected screen baseline comparison,
+  `./scripts/verify.sh`, and `git diff --check` pass.
+
+## Risks and Mitigations
+
+| Risk | Impact | Mitigation |
+| --- | --- | --- |
+| Splitting at rune/byte offsets breaks wide Unicode paths | High | Use display-width-aware windowing and explicit wide-character boundary tests. |
+| A stale scheduled tick moves a newly selected path | High | Include a generation/context identity in tick handling and test selection/resize/view changes. |
+| Animation causes background work in an inactive pane | Medium | Schedule ticks only while the focused guides-list overflow predicate is true. |
+| Unit suffix or selection marker disappears | Medium | Reserve immutable chrome before allocating the path region; test exact suffix/marker retention. |
+| Rendering changes leak into diff scrolling | Medium | Keep list state separate from `Model.Horizontal` and regression-test left/right behavior. |
+
+## Open Questions
+
+None. Tick cadence and endpoint pause are implementation constants; their
+behavioral state transitions, rather than elapsed real time, will be tested.

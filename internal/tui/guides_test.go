@@ -244,7 +244,7 @@ func TestGuideMarking(t *testing.T) {
 	}
 	rows := m.rows()
 	marked := 0
-	for _, line := range guideList(m.Session, rows, m.Row, 36, true) {
+	for _, line := range guideList(m.Session, rows, m.Row, 36, true, 0) {
 		if strings.Contains(line.text, "[x] a.go") {
 			marked++
 		}
@@ -447,7 +447,7 @@ func TestGuideContextWrapsAndKeepsRowsNavigable(t *testing.T) {
 	s.Guides.Items[0].Description = "One two three four five six seven eight nine ten."
 	m := loaded(t, s, 100, 24)
 	rows := m.rows()
-	lines := guideList(s, rows, m.Row, 33, true)
+	lines := guideList(s, rows, m.Row, 33, true, 0)
 	for _, line := range lines {
 		if line.row == -1 && visibleWidth(line.text) > 33 {
 			t.Fatalf("context line exceeds pane width: %q", line.text)
@@ -467,6 +467,71 @@ func TestGuideContextWrapsAndKeepsRowsNavigable(t *testing.T) {
 	key(m, 'j')
 	if m.Row != 1 || m.rows()[m.Row].kind != sectionRow {
 		t.Fatalf("j landed on row %d, want next selectable section row", m.Row)
+	}
+}
+
+func TestGuidePathMiddleTruncationPreservesBothEndsAndDisplayWidth(t *testing.T) {
+	const path = `internal/非常に長いディレクトリ/feature/guide-overflow_test.go`
+	got := middleTruncate(path, 30)
+	if got == path {
+		t.Fatal("long guide path was not truncated")
+	}
+	if !strings.Contains(got, "…") || !strings.HasPrefix(got, "internal/") || !strings.HasSuffix(got, "overflow_test.go") {
+		t.Fatalf("middle truncation = %q, want both path ends and an ellipsis", got)
+	}
+	if visibleWidth(got) > 30 {
+		t.Fatalf("middle truncation width = %d, want <= 30: %q", visibleWidth(got), got)
+	}
+}
+
+func TestGuideListMiddleTruncatesUnselectedFilePathsWithoutDroppingSuffix(t *testing.T) {
+	s, _, _ := guidedSession(t, splitAnalyzer{})
+	file := fileIndex(s, "a.go")
+	s.Inventory.Files[file].NewPath = []byte("internal/very/long/guide/path/overflow_test.go")
+	rows := rowsFor(s, newExpansion())
+	lines := guideList(s, rows, 0, 45, true, 0)
+	for _, line := range lines {
+		if line.row < 0 || rows[line.row].kind != portionRow || rows[line.row].file != file {
+			continue
+		}
+		if !strings.Contains(line.text, "…") || !strings.HasSuffix(line.text, " [text_hunk]") {
+			t.Fatalf("guide file row = %q, want middle-truncated path with suffix", line.text)
+		}
+		if visibleWidth(line.text) > 45 {
+			t.Fatalf("guide file row width = %d, want <= 45: %q", visibleWidth(line.text), line.text)
+		}
+		return
+	}
+	t.Fatal("long guide file row not found")
+}
+
+func TestSelectedOverflowingGuidePathAdvancesOnlyWhileListFocused(t *testing.T) {
+	s, _, _ := guidedSession(t, splitAnalyzer{})
+	file := fileIndex(s, "a.go")
+	s.Inventory.Files[file].NewPath = []byte("internal/very/long/guide/path/that/must/scroll/overflow_test.go")
+	m := loaded(t, s, 120, 24)
+	for m.rows()[m.Row].kind != portionRow || m.rows()[m.Row].file != file {
+		key(m, 'j')
+	}
+	if !m.guidePathScrollEligible() {
+		t.Fatal("selected overflowing guide path is not eligible to scroll")
+	}
+	_, cmd := m.Update(guidePathTick{generation: m.guidePathGeneration})
+	if m.guidePathOffset != 0 || cmd == nil {
+		t.Fatalf("first guide path tick offset/command = %d/%v, want 0/non-nil", m.guidePathOffset, cmd)
+	}
+	_, cmd = m.Update(guidePathTick{generation: m.guidePathGeneration})
+	if m.guidePathOffset != 0 || cmd == nil {
+		t.Fatalf("second guide path tick offset/command = %d/%v, want 0/non-nil", m.guidePathOffset, cmd)
+	}
+	_, cmd = m.Update(guidePathTick{generation: m.guidePathGeneration})
+	if m.guidePathOffset != 1 || cmd == nil {
+		t.Fatalf("guide path tick offset/command = %d/%v, want 1/non-nil", m.guidePathOffset, cmd)
+	}
+	m.Focus = paneDiff
+	_, cmd = m.Update(guidePathTick{generation: m.guidePathGeneration})
+	if cmd != nil || m.guidePathOffset != 1 {
+		t.Fatalf("unfocused guide path tick offset/command = %d/%v, want 1/nil", m.guidePathOffset, cmd)
 	}
 }
 
@@ -493,7 +558,7 @@ func TestGuideContextWindowingAndUngroupedDescription(t *testing.T) {
 	}
 	s.Guides.Items[m.rows()[ungrouped].guide].Description = "synthetic guide description"
 	m.Row = ungrouped
-	for _, line := range guideList(s, m.rows(), m.Row, 36, true) {
+	for _, line := range guideList(s, m.rows(), m.Row, 36, true, 0) {
 		if strings.Contains(line.text, "synthetic guide description") {
 			t.Fatal("ungrouped guide rendered a synthesized description")
 		}

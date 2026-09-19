@@ -3,7 +3,10 @@ package tui
 import (
 	"fmt"
 	"strings"
+	"time"
 
+	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 	"pr-review/internal/guide"
 	"pr-review/internal/review"
 )
@@ -122,6 +125,26 @@ func portionLabel(s *review.Session, file int, units []int) string {
 	return label + fmt.Sprintf(" [%d units]", len(units))
 }
 
+// middleTruncate keeps enough of each end of a long path to identify both its
+// repository context and filename. ANSI helpers measure terminal cells and
+// keep grapheme clusters intact.
+func middleTruncate(text string, width int) string {
+	if width <= 0 {
+		return ""
+	}
+	if visibleWidth(text) <= width {
+		return text
+	}
+	const ellipsis = "…"
+	if width <= visibleWidth(ellipsis) {
+		return ellipsis
+	}
+	remaining := width - visibleWidth(ellipsis)
+	left := remaining / 3
+	right := remaining - left
+	return ansi.Truncate(text, left, "") + ellipsis + ansi.TruncateLeft(text, visibleWidth(text)-right, "")
+}
+
 func mark(collapsed bool) string {
 	if collapsed {
 		return "+ "
@@ -212,10 +235,18 @@ type listLine struct {
 	text string
 }
 
+type guidePathTick struct{ generation int }
+
+func nextGuidePathTick(generation int) tea.Cmd {
+	return tea.Tick(120*time.Millisecond, func(time.Time) tea.Msg {
+		return guidePathTick{generation: generation}
+	})
+}
+
 // guideList renders selectable hierarchy rows and non-selectable context for
 // the guide under the cursor. Context lines retain their row identity so
 // windowing and selection styling remain correct after descriptions wrap.
-func guideList(s *review.Session, rows []row, selected, width int, focused bool) []listLine {
+func guideList(s *review.Session, rows []row, selected, width int, focused bool, pathOffset int) []listLine {
 	out := make([]listLine, 0, len(rows))
 	selectedGuide := -1
 	if selected >= 0 && selected < len(rows) {
@@ -225,9 +256,12 @@ func guideList(s *review.Session, rows []row, selected, width int, focused bool)
 		marker := selectionMarker(i == selected)
 		line := marker + strings.Repeat("  ", r.depth)
 		if r.kind == portionRow {
-			line += readMarker(s, s.Inventory.Files[r.file].ID)
+			prefix := line + readMarker(s, s.Inventory.Files[r.file].ID)
+			line = guidePortionText(s, r, prefix, width, i == selected && focused, pathOffset)
+		} else {
+			line += r.label
 		}
-		out = append(out, listLine{row: i, text: line + r.label})
+		out = append(out, listLine{row: i, text: line})
 		if r.guide != selectedGuide {
 			continue
 		}
@@ -242,6 +276,23 @@ func guideList(s *review.Session, rows []row, selected, width int, focused bool)
 		}
 	}
 	return out
+}
+
+func guidePortionText(s *review.Session, r row, prefix string, width int, scroll bool, offset int) string {
+	path := pathLabel(s.Inventory.Files[r.file])
+	suffix := guidePortionSuffix(s, r)
+	pathWidth := width - visibleWidth(prefix) - visibleWidth(suffix)
+	if scroll && visibleWidth(path) > pathWidth {
+		return prefix + ansi.Cut(path, offset, offset+max(0, pathWidth)) + suffix
+	}
+	return prefix + middleTruncate(path, pathWidth) + suffix
+}
+
+func guidePortionSuffix(s *review.Session, r row) string {
+	if len(r.units) == 1 {
+		return " [" + string(s.Inventory.Units[r.units[0]].Kind) + "]"
+	}
+	return fmt.Sprintf(" [%d units]", len(r.units))
 }
 
 func appendDescription(lines []listLine, depth int, text string, width int) []listLine {

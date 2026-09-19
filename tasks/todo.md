@@ -273,3 +273,63 @@
 
 - [x] All tab spec success criteria pass through synthetic tests and the full
       verification command; existing dirty changes remain separately visible.
+
+# Guide Path Overflow tasks
+
+## 1. Display-width-safe guide path truncation
+
+- [x] Introduce a pure helper that separates guide-file row chrome from its
+      path region and middle-truncates only overflowing unselected paths.
+- [x] Preserve selection/read markers and unit suffixes; test short paths,
+      tight widths, renamed paths, escaped content, and wide Unicode paths.
+- Acceptance: each rendered guide-list row fits its available width and an
+      overflowing unselected file path retains both a useful prefix/suffix when
+      space permits.
+- Verify: write failing focused tests, then run
+      `go test -race ./internal/tui -run 'TestGuide.*Path|Test.*Truncat' -count=1`.
+- Depends on: approved `SPEC-guide-path-overflow.md`.
+- Files: `internal/tui/guides.go`, `internal/tui/guides_test.go`.
+- Estimated scope: Small (2 files).
+
+## 2. Selected guide-path scroll state machine
+
+- [x] Add transient list-scroll state and a conditional Bubble Tea tick that
+      advances only an overflowing selected guide portion while the list is
+      focused.
+- [x] Reset or stop on selection, focus, view, width, or path changes without
+      changing `Model.Horizontal` or existing `left`/`right` behavior.
+- Acceptance: deterministic message-driven tests prove advance, endpoint
+      pause/restart, reset, and all stop conditions without timing sleeps.
+- Verify: write failing focused tests, then run
+      `go test -race ./internal/tui -run 'TestGuide.*Scroll|Test.*Path.*Scroll' -count=1`.
+- Depends on: task 1.
+- Files: `internal/tui/model.go`, `internal/tui/model_test.go`,
+      `internal/tui/guides.go`, `internal/tui/guides_test.go`.
+- Estimated scope: Medium (4 files).
+
+## Checkpoint: guide-list overflow behavior
+
+- [x] Focused guide/model tests pass with the race detector.
+- [x] Inspect wide and narrow render output to confirm fixed chrome, suffixes,
+      and no overflow.
+
+## 3. Integration verification and baselines
+
+- [x] Integrate static and selected render paths in the guides list without
+      changing file/inventory/plain views or detail-pane scrolling.
+- [x] Update a fixed screen baseline only if the approved static label output
+      changes it; review the textual baseline diff manually.
+- Acceptance: every success criterion in `SPEC-guide-path-overflow.md` is
+      covered by focused tests; no unrelated dirty worktree changes are
+      modified.
+- Verify: `go test -race ./internal/tui -count=1`,
+      `go test ./internal/tui -run '^TestScreenSnapshots$' -count=1`,
+      `./scripts/verify.sh`, and `git diff --check`.
+- Depends on: tasks 1–2.
+- Files: `internal/tui/{guides,model}_test.go`, optional
+      `internal/tui/testdata/screens/*.golden`.
+- Estimated scope: Small (2–3 files).
+
+## Completion checkpoint
+
+- [x] All Guide Path Overflow success criteria are met and verified.

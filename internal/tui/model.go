@@ -38,23 +38,24 @@ type workspaceTab struct {
 // reviewTabState is the reviewer-visible state that must travel with an open
 // review. Window dimensions and services remain shared by the workspace.
 type reviewTabState struct {
-	Session      *review.Session
-	Err          error
-	Selected     int
-	Row          int
-	Files        bool
-	collapsed    expansion
-	Scroll       map[int]int
-	GuideScroll  map[int]int
-	Horizontal   int
-	Inventory    bool
-	Focus        pane
-	Stack        []page
-	Loading      bool
-	Busy         bool
-	ActionError  error
-	notice       string
-	loadingFrame int
+	Session                                              *review.Session
+	Err                                                  error
+	Selected                                             int
+	Row                                                  int
+	Files                                                bool
+	collapsed                                            expansion
+	Scroll                                               map[int]int
+	GuideScroll                                          map[int]int
+	Horizontal                                           int
+	guidePathOffset, guidePathPause, guidePathGeneration int
+	Inventory                                            bool
+	Focus                                                pane
+	Stack                                                []page
+	Loading                                              bool
+	Busy                                                 bool
+	ActionError                                          error
+	notice                                               string
+	loadingFrame                                         int
 }
 
 type page int
@@ -71,49 +72,50 @@ const (
 )
 
 type Model struct {
-	Session                   *review.Session
-	Err                       error
-	Selected                  int
-	Row                       int  // selected guide hierarchy row
-	Files                     bool // G: navigate the deterministic file plan instead of guides
-	collapsed                 expansion
-	Scroll                    map[int]int
-	GuideScroll               map[int]int
-	Width, Height, Horizontal int
-	Inventory                 bool
-	Focus                     pane
-	Stack                     []page
-	Loading                   bool
-	Busy                      bool
-	SessionPicker             pickerState
-	RepositoryPicker          pickerState
-	PullRequestPicker         pickerState
-	Entries                   []session.Entry
-	Repositories              []session.Repository
-	PullRequests              []source.PullRequest
-	SwitcherQuery             string
-	ActionError               error
-	store                     *session.Store
-	reader                    review.MetadataReader
-	fresh                     FreshLoader
-	worker                    <-chan struct{}
-	notice                    string
-	loadingFrame              int
-	ctx                       context.Context
-	cancel                    context.CancelFunc
-	load                      Loader
-	notify                    func(string)
-	listPullRequests          PullRequestLoader
-	openPullRequest           PullRequestOpener
-	generateGuide             GuideLoader
-	cancelAction              context.CancelFunc
-	actionCtx                 context.Context
-	listSessions              func() ([]session.Entry, error)
-	listRepositories          func() ([]session.Repository, error)
-	currentRepository         string
-	currentCheckout           string
-	tabs                      []workspaceTab
-	activeTab                 int
+	Session                                              *review.Session
+	Err                                                  error
+	Selected                                             int
+	Row                                                  int  // selected guide hierarchy row
+	Files                                                bool // G: navigate the deterministic file plan instead of guides
+	collapsed                                            expansion
+	Scroll                                               map[int]int
+	GuideScroll                                          map[int]int
+	Width, Height, Horizontal                            int
+	guidePathOffset, guidePathPause, guidePathGeneration int
+	Inventory                                            bool
+	Focus                                                pane
+	Stack                                                []page
+	Loading                                              bool
+	Busy                                                 bool
+	SessionPicker                                        pickerState
+	RepositoryPicker                                     pickerState
+	PullRequestPicker                                    pickerState
+	Entries                                              []session.Entry
+	Repositories                                         []session.Repository
+	PullRequests                                         []source.PullRequest
+	SwitcherQuery                                        string
+	ActionError                                          error
+	store                                                *session.Store
+	reader                                               review.MetadataReader
+	fresh                                                FreshLoader
+	worker                                               <-chan struct{}
+	notice                                               string
+	loadingFrame                                         int
+	ctx                                                  context.Context
+	cancel                                               context.CancelFunc
+	load                                                 Loader
+	notify                                               func(string)
+	listPullRequests                                     PullRequestLoader
+	openPullRequest                                      PullRequestOpener
+	generateGuide                                        GuideLoader
+	cancelAction                                         context.CancelFunc
+	actionCtx                                            context.Context
+	listSessions                                         func() ([]session.Entry, error)
+	listRepositories                                     func() ([]session.Repository, error)
+	currentRepository                                    string
+	currentCheckout                                      string
+	tabs                                                 []workspaceTab
+	activeTab                                            int
 }
 
 type PullRequestLoader func(context.Context, string) ([]source.PullRequest, error)
@@ -175,6 +177,26 @@ func (m *Model) Init() tea.Cmd {
 }
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch v := msg.(type) {
+	case guidePathTick:
+		if v.generation != m.guidePathGeneration || !m.guidePathScrollEligible() {
+			return m, nil
+		}
+		if m.guidePathPause > 0 {
+			m.guidePathPause--
+			return m, nextGuidePathTick(v.generation)
+		}
+		_, _, pathWidth, path := m.guidePathScrollTarget()
+		last := max(0, visibleWidth(path)-pathWidth)
+		if m.guidePathOffset >= last {
+			m.guidePathOffset = 0
+			m.guidePathPause = 2
+			return m, nextGuidePathTick(v.generation)
+		}
+		m.guidePathOffset++
+		if m.guidePathOffset >= last {
+			m.guidePathPause = 2
+		}
+		return m, nextGuidePathTick(v.generation)
 	case loadingTick:
 		if !m.loadingModal().active {
 			return m, nil
@@ -252,6 +274,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.Width = max(1, v.Width)
 		m.Height = max(1, v.Height)
+		return m, m.restartGuidePathScroll()
 	case tea.KeyPressMsg:
 		if m.Busy && v.String() == "esc" && m.cancelAction != nil {
 			m.cancelCurrentAction()
@@ -355,6 +378,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.setOffset(0)
 			m.Horizontal = 0
 		}
+		return m, m.restartGuidePathScroll()
 	}
 	return m, nil
 }
@@ -431,6 +455,7 @@ func (m *Model) saveActiveReview() {
 		Session: m.Session, Err: m.Err, Selected: m.Selected, Row: m.Row, Files: m.Files,
 		collapsed: m.collapsed, Scroll: m.Scroll, GuideScroll: m.GuideScroll,
 		Horizontal: m.Horizontal, Inventory: m.Inventory, Focus: m.Focus,
+		guidePathOffset: m.guidePathOffset, guidePathPause: m.guidePathPause, guidePathGeneration: m.guidePathGeneration,
 		Stack: m.Stack, Loading: m.Loading, Busy: m.Busy,
 		ActionError: m.ActionError, notice: m.notice, loadingFrame: m.loadingFrame,
 	}
@@ -444,6 +469,7 @@ func (m *Model) restoreReviewTab(state *reviewTabState) {
 	m.Selected, m.Row, m.Files = state.Selected, state.Row, state.Files
 	m.collapsed, m.Scroll, m.GuideScroll = state.collapsed, state.Scroll, state.GuideScroll
 	m.Horizontal, m.Inventory, m.Focus = state.Horizontal, state.Inventory, state.Focus
+	m.guidePathOffset, m.guidePathPause, m.guidePathGeneration = state.guidePathOffset, state.guidePathPause, state.guidePathGeneration
 	m.Stack, m.Loading, m.Busy = state.Stack, state.Loading, state.Busy
 	m.ActionError, m.notice, m.loadingFrame = state.ActionError, state.notice, state.loadingFrame
 }
@@ -509,6 +535,41 @@ func (m *Model) move(delta int) {
 		m.Selected = max(0, min(len(m.Session.Inventory.Units)-1, m.Selected+delta))
 		m.Horizontal = 0
 	}
+}
+
+func (m *Model) restartGuidePathScroll() tea.Cmd {
+	m.guidePathOffset, m.guidePathPause = 0, 2
+	m.guidePathGeneration++
+	if m.guidePathScrollEligible() {
+		return nextGuidePathTick(m.guidePathGeneration)
+	}
+	return nil
+}
+
+func (m *Model) guidePathScrollEligible() bool {
+	_, _, pathWidth, path := m.guidePathScrollTarget()
+	return pathWidth > 0 && visibleWidth(path) > pathWidth
+}
+
+func (m *Model) guidePathScrollTarget() (row, string, int, string) {
+	if m.top() != pageReview || m.Session == nil || m.Files || m.Inventory || m.Focus != paneList {
+		return row{}, "", 0, ""
+	}
+	rows := m.rows()
+	if m.Row < 0 || m.Row >= len(rows) || rows[m.Row].kind != portionRow {
+		return row{}, "", 0, ""
+	}
+	r := rows[m.Row]
+	prefix := selectionMarker(true) + strings.Repeat("  ", r.depth) + readMarker(m.Session, m.Session.Inventory.Files[r.file].ID)
+	pathWidth := m.listWidth() - visibleWidth(prefix) - visibleWidth(guidePortionSuffix(m.Session, r))
+	return r, prefix, pathWidth, pathLabel(m.Session.Inventory.Files[r.file])
+}
+
+func (m *Model) listWidth() int {
+	if m.Width >= 100 {
+		return min(36, m.Width/3)
+	}
+	return m.Width
 }
 func (m *Model) file(delta int) {
 	if rows := m.navigable(); rows != nil {
@@ -703,10 +764,7 @@ func (m *Model) reviewView() string {
 	}
 	header := styleLine(headerClass, text)
 	bodyHeight := m.bodyHeight()
-	leftWidth := m.Width
-	if m.Width >= 100 {
-		leftWidth = min(36, m.Width/3)
-	}
+	leftWidth := m.listWidth()
 	list := []listLine{}
 	var selectedRow int
 	switch {
@@ -718,7 +776,7 @@ func (m *Model) reviewView() string {
 		}
 	case rows != nil:
 		selectedRow = max(0, min(len(rows)-1, m.Row))
-		list = guideList(s, rows, selectedRow, leftWidth, m.Focus == paneList)
+		list = guideList(s, rows, selectedRow, leftWidth, m.Focus == paneList, m.guidePathOffset)
 	default:
 		selectedRow = s.UnitFiles[m.Selected]
 		for i, f := range s.Inventory.Files {
