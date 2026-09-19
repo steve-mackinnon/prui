@@ -103,6 +103,7 @@ func NewView(ctx context.Context, checkout string, r Runner, l Limits) (v *View,
 		if strings.HasSuffix(rel, ".promisor") || strings.HasSuffix(rel, ".bitmap") || strings.HasSuffix(rel, ".keep") {
 			return nil
 		}
+		//nolint:gosec // The caller owns the checkout; this operation only hard-links Git objects into a new private view.
 		return os.Link(path, filepath.Join(dir, "borrowed", rel))
 	})
 	if err != nil {
@@ -160,6 +161,7 @@ func readSmall(path string) ([]byte, error) {
 	if st.Size() > 4096 {
 		return nil, errors.New("oversized repository pointer")
 	}
+	//nolint:gosec // objectDirectory derives this bounded Git pointer path from the caller-owned checkout.
 	return os.ReadFile(path)
 }
 

@@ -167,6 +167,7 @@ func Open(path string) (*Store, error) {
 	if err := privatePath(lockPath, false); err != nil && !os.IsNotExist(err) {
 		return nil, err
 	}
+	//nolint:gosec // Open has verified this private, app-owned storage root and uses O_NOFOLLOW.
 	lock, err := os.OpenFile(filepath.Join(path, ".lock"), os.O_CREATE|os.O_RDWR|syscall.O_NOFOLLOW, 0600)
 	if err != nil {
 		return nil, err
@@ -448,6 +449,7 @@ func (s *Store) LoadGeneratedGuide(key GuideCacheKey, inv inventory.Inventory) (
 }
 
 func privatePath(path string, directory bool) error {
+	//nolint:gosec // callers derive paths from the private store root or a validated session ID.
 	info, err := os.Lstat(path)
 	if err != nil {
 		return err
@@ -474,6 +476,7 @@ func readJSON(path string, value any) ([]byte, error) {
 	if err := privatePath(path, false); err != nil {
 		return nil, err
 	}
+	//nolint:gosec // privatePath validated a private regular file in the app-owned store.
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, err
@@ -505,6 +508,7 @@ func atomicWrite(dir, name string, b []byte) error {
 	if err != nil {
 		return err
 	}
+	//nolint:gosec // f is the local temporary file created immediately above.
 	defer func() { _ = os.Remove(f.Name()) }()
 	defer func() { _ = f.Close() }()
 	if _, err = f.Write(b); err != nil {
@@ -516,6 +520,7 @@ func atomicWrite(dir, name string, b []byte) error {
 	if err = f.Close(); err != nil {
 		return err
 	}
+	//nolint:gosec // all callers use a private Store directory and a validated fixed artifact filename.
 	if err = os.Rename(f.Name(), filepath.Join(dir, name)); err != nil {
 		return err
 	}
@@ -523,6 +528,7 @@ func atomicWrite(dir, name string, b []byte) error {
 }
 
 func syncDir(dir string) error {
+	//nolint:gosec // dir is a private, app-owned session directory created by Store.
 	f, err := os.Open(dir)
 	if err != nil {
 		return err
@@ -552,6 +558,7 @@ func (s *Store) Create(snapshot Snapshot) (*Record, error) {
 	if err != nil {
 		return nil, err
 	}
+	//nolint:gosec // directory validates the session ID and derives dir beneath the private store root.
 	if err = os.Mkdir(dir, 0700); err != nil {
 		return nil, err
 	}

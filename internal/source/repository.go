@@ -142,6 +142,7 @@ func readRegularSmall(path string, limit int64) ([]byte, error) {
 	if st.Mode()&os.ModeSymlink != 0 || !st.Mode().IsRegular() || st.Size() > limit {
 		return nil, errors.New("unsupported git config file")
 	}
+	//nolint:gosec // RepositoryFromCheckout supplies a bounded regular .git/config path after rejecting symlinks.
 	return os.ReadFile(path)
 }
 

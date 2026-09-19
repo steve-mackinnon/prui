@@ -201,6 +201,7 @@ func runOpenWithTiming(ctx context.Context, config JourneyConfig) ([]byte, OpenT
 	}
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
+	//nolint:gosec // RunJourney validates the local executable and receives its fixed argument layout from the CLI.
 	cmd := exec.CommandContext(ctx, config.Executable, "open", config.PRURL, "--store", config.StoreDir, "--plain")
 	cmd.Dir = config.Checkout
 	cmd.Env = openTimingEnvironment(config.Environment)
@@ -238,6 +239,7 @@ func runHarness(ctx context.Context, config JourneyConfig, harness, sessionID st
 	}
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
+	//nolint:gosec // RunJourney validates the Python executable; the generated harness and remaining arguments are local.
 	cmd := exec.CommandContext(ctx, config.Python, harness, config.Executable, config.StoreDir, sessionID, fmt.Sprintf("%.3f", timeout.Seconds()))
 	if config.Environment != nil {
 		cmd.Env = config.Environment

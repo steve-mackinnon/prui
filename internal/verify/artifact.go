@@ -106,6 +106,7 @@ func (w *ArtifactWriter) write(relative string, data []byte) error {
 	if err != nil || contained == ".." || len(contained) >= 3 && contained[:3] == ".."+string(filepath.Separator) {
 		return errUnsafeArtifactPath
 	}
+	//nolint:gosec // relative is validated and path is confirmed beneath the new artifact directory.
 	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
 	if err != nil {
 		return err

@@ -71,6 +71,7 @@ func (processRunner) Run(parent context.Context, r Request) ([]byte, error) {
 	defer stop()
 	ctx, cancel := context.WithCancel(deadline)
 	defer cancel()
+	//nolint:gosec // Request values are constructed by this package for trusted Git/GitHub CLI invocations.
 	cmd := exec.CommandContext(ctx, r.Program, r.Args...)
 	cmd.Dir = r.Dir
 	cmd.Env = r.Env

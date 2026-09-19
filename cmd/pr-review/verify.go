@@ -71,6 +71,7 @@ func writeVerifyReport(dir string, report *verify.Report) error {
 		return err
 	}
 	path := filepath.Join(dir, report.Artifacts.Report)
+	//nolint:gosec // path is a new, validated filename below the caller's artifact directory.
 	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
 	if err != nil {
 		return err

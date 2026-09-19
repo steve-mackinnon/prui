@@ -10,6 +10,7 @@ linters:
   enable:
     - errcheck
     - gocritic
+    - gosec
     - govet
     - ineffassign
     - staticcheck
@@ -22,9 +23,14 @@ linters:
       - path: _test\.go
         linters:
           - errcheck
+          - gosec
           # This rule mistakes the intentional prefix-direction assertion used
           # by ANSI clipping tests for an argument-order error.
           - gocritic
+      # This package exists only to construct disposable, synthetic Git fixtures.
+      - path: internal/testutil/
+        linters:
+          - gosec
       # usage is printed verbatim to the terminal, so it deliberately contains
       # punctuation and newlines rather than being a conventional error string.
       - path: cmd/pr-review/options\.go
