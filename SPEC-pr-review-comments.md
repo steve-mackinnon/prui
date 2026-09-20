@@ -226,9 +226,12 @@ remain unchanged.
    right than its parent and retains the parent stable ID and exact frozen
    anchor. It does not place draft text in the action-menu status line.
 2. A successful canonical reply is rendered as a separate indented box beneath
-   its parent comment. Replies retain their original anchor and are never
-   inferred from presentation text. Escape discards an active reply draft
-   without a write; failed submissions retain that editor and draft.
+   its parent comment. GitHub only accepts replies to top-level review
+   comments: choosing reply on an existing reply resolves and submits to that
+   thread root, then renders the canonical response beneath the root. Replies
+   retain their original anchor and are never inferred from presentation text.
+   Escape discards an active reply draft without a write; failed submissions
+   retain that editor and draft.
 3. Choosing `a` shows the eight documented reaction values in stable numbered
    order: `1 +1`, `2 -1`, `3 laugh`, `4 confused`, `5 heart`, `6 hooray`,
    `7 rocket`, `8 eyes`. Pressing a matching digit selects exactly that value;

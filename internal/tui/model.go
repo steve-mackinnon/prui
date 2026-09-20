@@ -95,6 +95,7 @@ type commentComposer struct {
 
 type commentActionMenu struct {
 	CommentID  int64
+	ReplyToID  int64 // GitHub permits replies only to the thread's root comment.
 	Target     source.ReviewCommentTarget
 	Author     string
 	mode       commentActionMode
@@ -695,12 +696,29 @@ func (m *Model) openCommentActionMenu() bool {
 	}
 	for _, comment := range m.Comments {
 		if comment.ID == line.commentID {
-			m.CommentMenu = &commentActionMenu{CommentID: comment.ID, Target: comment.Target, Author: comment.Author}
+			m.CommentMenu = &commentActionMenu{CommentID: comment.ID, ReplyToID: m.topLevelCommentID(comment.ID), Target: comment.Target, Author: comment.Author}
 			m.ensureCursorVisible()
 			return true
 		}
 	}
 	return false
+}
+
+func (m *Model) topLevelCommentID(commentID int64) int64 {
+	seen := map[int64]bool{}
+	for commentID > 0 && !seen[commentID] {
+		seen[commentID] = true
+		for _, comment := range m.Comments {
+			if comment.ID == commentID {
+				if comment.ParentID == 0 {
+					return comment.ID
+				}
+				commentID = comment.ParentID
+				break
+			}
+		}
+	}
+	return 0
 }
 
 // navigable returns the guide rows when they are the active hierarchy. The

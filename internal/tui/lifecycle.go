@@ -345,7 +345,11 @@ func (m *Model) commentActionKey(key tea.KeyPressMsg) tea.Cmd {
 	}
 	menu.generation++
 	generation, target, submit := menu.generation, m.activeTab, m.submitCommentAction
-	action := CommentAction{Metadata: m.Session.Inventory.Comparison.Metadata, Comment: source.ReviewComment{ID: menu.CommentID, Author: menu.Author, Target: menu.Target}, Body: menu.Draft, Reaction: menu.Reaction, Delete: menu.mode == commentActionDeleteConfirm}
+	commentID := menu.CommentID
+	if menu.mode == commentActionReply && menu.ReplyToID > 0 {
+		commentID = menu.ReplyToID
+	}
+	action := CommentAction{Metadata: m.Session.Inventory.Comparison.Metadata, Comment: source.ReviewComment{ID: commentID, Author: menu.Author, Target: menu.Target}, Body: menu.Draft, Reaction: menu.Reaction, Delete: menu.mode == commentActionDeleteConfirm}
 	m.notice = "Submitting review comment action..."
 	ctx := m.beginAction()
 	return m.start(func() tea.Msg {

@@ -775,3 +775,9 @@ verify reply/delete/reaction journeys without persisting remote data.
 ## Completion checkpoint
 
 - [x] Full required verification passes and PR #9 is updated.
+
+## Follow-up: Reply-to-reply fallback
+
+- [x] Resolve a selected reply to its top-level thread comment before explicit
+  reply submission; keep reaction/delete scoped to the selected comment.
+- [x] Regression test proves the canonical response remains in the root thread.
