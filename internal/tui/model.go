@@ -779,18 +779,18 @@ func (m *Model) detail() []diffLine {
 func (m *Model) reviewCommentLines(comment source.ReviewComment) []diffLine {
 	inner := max(8, min(68, m.Width-8))
 	border := "  +" + strings.Repeat("-", inner+2) + "+"
-	line := func(text string) diffLine {
+	line := func(class lineClass, text string) diffLine {
 		text = clip(text, inner)
 		text += strings.Repeat(" ", max(0, inner-visibleWidth(text)))
-		return diffLine{styledLine: styledLine{Class: classMetadata, Text: "  | " + text + " |"}}
+		return diffLine{styledLine: styledLine{Class: class, Text: "  | " + text + " |"}}
 	}
 	author := Escape(comment.Author)
 	if author == "" {
 		author = "unknown"
 	}
-	lines := []diffLine{{styledLine: styledLine{Class: classMetadata, Text: border}}, line(author)}
+	lines := []diffLine{{styledLine: styledLine{Class: classMetadata, Text: border}}, line(classMetadata, "@"+author)}
 	for _, body := range strings.Split(comment.Body, "\n") {
-		lines = append(lines, line(Escape(body)))
+		lines = append(lines, line(classPlain, Escape(body)))
 	}
 	return append(lines, diffLine{styledLine: styledLine{Class: classMetadata, Text: border}})
 }

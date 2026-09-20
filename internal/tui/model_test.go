@@ -626,8 +626,15 @@ func TestInlineCommentsRenderOnlyAtExactFrozenTargets(t *testing.T) {
 		{ID: 1, Author: "reviewer\x1b[31m", Target: target, Body: "exact\x1b[2J"},
 		{ID: 2, Author: "stale", Target: source.ReviewCommentTarget{Identity: target.Identity, CommitID: "0000000000000000000000000000000000000000", Path: target.Path, Side: target.Side, Line: target.Line}, Body: "wrong"},
 	}
+	boxed := m.reviewCommentLines(m.Comments[0])
+	if got := boxed[1]; got.Class != classMetadata || !strings.Contains(got.Text, "@reviewer\\x1b[31m") {
+		t.Fatalf("author line = %#v, want escaped @author in metadata color", got)
+	}
+	if got := boxed[2]; got.Class != classPlain || !strings.Contains(got.Text, "exact\\x1b[2J") {
+		t.Fatalf("body line = %#v, want escaped plain/white text", got)
+	}
 	view := ansi.Strip(m.reviewView())
-	for _, want := range []string{"+---", "| reviewer\\x1b[31m", "| exact\\x1b[2J"} {
+	for _, want := range []string{"+---", "| @reviewer\\x1b[31m", "| exact\\x1b[2J"} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("inline overlay missing bordered comment part %q:\n%s", want, view)
 		}
