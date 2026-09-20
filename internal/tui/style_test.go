@@ -188,7 +188,7 @@ func TestUnitCardClassesPerKind(t *testing.T) {
 			for _, l := range lines[1:] {
 				classes[l.Class] = true
 			}
-			for _, c := range []lineClass{classFileHeader, classHunk, classAdded, classRemoved, classContext} {
+			for _, c := range []lineClass{classHunk, classAdded, classRemoved, classContext} {
 				if !classes[c] {
 					t.Fatalf("text hunk missing class %d", c)
 				}
@@ -216,6 +216,28 @@ func TestUnitLinesWordingMatchesUnitText(t *testing.T) {
 		if got := ansi.Strip(b.String()); got != unitText(s, i) {
 			t.Fatalf("%s styled wording changed:\n%q\n%q", u.Kind, got, unitText(s, i))
 		}
+	}
+}
+
+func TestTextHunkReplacesGitPreambleWithFileDivider(t *testing.T) {
+	s := kindsSession()
+	lines := unitLines(s, 1)
+
+	if got, want := lines[0].Text, "── text ──"; got != want {
+		t.Fatalf("file divider = %q, want %q", got, want)
+	}
+	if lines[0].Class != classTitle {
+		t.Fatalf("file divider class = %d, want title", lines[0].Class)
+	}
+	for _, line := range lines {
+		for _, preamble := range []string{"diff --git ", "index ", "--- a/", "+++ b/"} {
+			if strings.HasPrefix(line.Text, preamble) {
+				t.Fatalf("Git preamble leaked into rendered hunk: %q", line.Text)
+			}
+		}
+	}
+	if got := unitText(s, 1); !strings.Contains(got, "@@ -1,2 +1,2 @@\n context\n-old\n+new\n") {
+		t.Fatalf("rendered hunk lost review content: %q", got)
 	}
 }
 

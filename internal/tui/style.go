@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"bytes"
 	"image/color"
 	"strings"
 
@@ -105,6 +106,18 @@ func cardClass(k inventory.Kind) lineClass {
 // than its content. They are checked before "+"/"-" so "+++"/"---" never read
 // as added or removed content lines.
 var fileHeaders = []string{"diff --git ", "index ", "--- ", "+++ ", "old mode ", "new mode ", "new file mode ", "deleted file mode ", "similarity index ", "dissimilarity index ", "rename from ", "rename to ", "copy from ", "copy to "}
+
+// isGitFilePreamble recognizes structural metadata that identifies Git blobs
+// rather than a reviewable source line. The renderer uses the inventory's
+// authoritative file label in its place.
+func isGitFilePreamble(raw []byte) bool {
+	for _, p := range fileHeaders {
+		if bytes.HasPrefix(raw, []byte(p)) {
+			return true
+		}
+	}
+	return false
+}
 
 // classifyPatch reads Git diff grammar from an already-escaped line. Escaping
 // turns control bytes into visible backslash sequences, so hostile content can

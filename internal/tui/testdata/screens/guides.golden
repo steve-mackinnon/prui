@@ -1,7 +1,7 @@
 review · example/review#42 · guide 1/1 · ctrl+p: switch PR
 GUIDES 2 · main.go [text_hunk] · focus: files · marking: whole files · guide detail 1/1
 › - 1. Greeting                      | main.go
-    Update the greeting and its      | main.go [text_hunk]
+    Update the greeting and its      | ── main.go ──
     documentation.                   | @@ -1 +1 @@
     - 1.1 Implementation             | -old greeting
       main.go [text_hunk]            | +hello world

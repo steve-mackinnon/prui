@@ -85,12 +85,19 @@ func body(c lineClass, text string) []diffLine {
 func unitLines(s *review.Session, i int) []diffLine {
 	u := s.Inventory.Units[i]
 	f := s.Inventory.Files[s.UnitFiles[i]]
-	lines := []diffLine{{styledLine: styledLine{classTitle, fmt.Sprintf("%s [%s]", pathLabel(f), u.Kind)}}}
+	title := fmt.Sprintf("%s [%s]", pathLabel(f), u.Kind)
+	if u.Kind == inventory.TextHunk {
+		title = "── " + pathLabel(f) + " ──"
+	}
+	lines := []diffLine{{styledLine: styledLine{classTitle, title}}}
 	switch u.Kind {
 	case inventory.TextHunk:
 		oldLine, newLine, inHunk := u.OldRange.Start, u.NewRange.Start, false
 		// The patch keeps its trailing newline, so the final empty element is a real display line.
 		for _, raw := range bytes.Split(s.Inventory.Patches[u.PatchReference], []byte{'\n'}) {
+			if isGitFilePreamble(raw) {
+				continue
+			}
 			if oldStart, newStart, ok := hunkStarts(raw); ok {
 				oldLine, newLine, inHunk = oldStart, newStart, true
 			}
