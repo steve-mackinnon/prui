@@ -1,4 +1,4 @@
-review · example/review#42 · ctrl+p: switch PR
+review · example/review#42 · [Changes] | Description | Commits · ctrl+p: switch PR
 FILE SLICES 2 · main.go [text_hunk] · focus: diff
 ┌────────────────────────────────────┐ ┌───────────────────────────────────────────────────────────────────────────────┐
 │› main.go                           │ │  ━━━ FILE · main.go ━━━                                                       │

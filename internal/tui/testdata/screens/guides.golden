@@ -1,4 +1,4 @@
-review · example/review#42 · guide 1/1 · ctrl+p: switch PR
+review · example/review#42 · guide 1/1 · [Changes] | Description | Commits · ctrl+p: switch PR
 GUIDES 2 · main.go [text_hunk] · focus: files · marking: whole files · guide detail 1/1
 ┌────────────────────────────────────┐ ┌───────────────────────────────────────────────────────────────────────────────┐
 │› - 1. Greeting                     │ │━━━ FILE · main.go ━━━                                                         │

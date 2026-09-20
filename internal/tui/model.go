@@ -29,6 +29,16 @@ const (
 
 const diffStep = 5
 
+// reviewView is deliberately UI-local: frozen sessions record source review
+// content, while an open workspace tab owns which surface the reviewer sees.
+type reviewView uint8
+
+const (
+	viewChanges reviewView = iota
+	viewDescription
+	viewCommits
+)
+
 // The switcher keeps a bounded set of concurrently open reviews.
 const maxTabs = 9
 
@@ -41,6 +51,7 @@ type workspaceTab struct {
 // review. Window dimensions and services remain shared by the workspace.
 type reviewTabState struct {
 	Session                                              *review.Session
+	ContextView                                          reviewView
 	Err                                                  error
 	Selected                                             int
 	Row                                                  int
@@ -117,6 +128,7 @@ const (
 
 type Model struct {
 	Session                                              *review.Session
+	ContextView                                          reviewView
 	Err                                                  error
 	Selected                                             int
 	Row                                                  int  // selected guide hierarchy row
@@ -421,6 +433,17 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if v.String() == "ctrl+p" {
 				return m, m.openSwitcher()
 			}
+			if v.String() == "v" {
+				m.cycleReviewView(1)
+				return m, nil
+			}
+			if v.String() == "V" {
+				m.cycleReviewView(-1)
+				return m, nil
+			}
+			if m.selectedReviewView() != viewChanges && v.String() != "?" && v.String() != "esc" {
+				return m, nil
+			}
 			if cmd, handled := m.lifecycleKey(v.String()); handled {
 				return m, cmd
 			}
@@ -589,7 +612,7 @@ func (m *Model) activateTab(index int) bool {
 func newReviewTabState(s *review.Session) *reviewTabState {
 	return &reviewTabState{
 		Session: s, Scroll: map[int]int{}, GuideScroll: map[int]int{}, Cursor: map[int]int{}, GuideCursor: map[int]int{},
-		collapsed: newExpansion(), Stack: []page{pageReview}, Focus: paneList,
+		ContextView: viewChanges, collapsed: newExpansion(), Stack: []page{pageReview}, Focus: paneList,
 	}
 }
 
@@ -598,7 +621,7 @@ func (m *Model) saveActiveReview() {
 		return
 	}
 	m.tabs[m.activeTab].review = &reviewTabState{
-		Session: m.Session, Err: m.Err, Selected: m.Selected, Row: m.Row, Files: m.Files,
+		Session: m.Session, ContextView: m.ContextView, Err: m.Err, Selected: m.Selected, Row: m.Row, Files: m.Files,
 		collapsed: m.collapsed, Scroll: m.Scroll, GuideScroll: m.GuideScroll, Cursor: m.Cursor, GuideCursor: m.GuideCursor,
 		Horizontal: m.Horizontal, Inventory: m.Inventory, Focus: m.Focus, cursorActive: m.cursorActive,
 		guidePathOffset: m.guidePathOffset, guidePathPause: m.guidePathPause, guidePathGeneration: m.guidePathGeneration,
@@ -613,7 +636,7 @@ func (m *Model) restoreReviewTab(state *reviewTabState) {
 	if state == nil {
 		return
 	}
-	m.Session, m.Err = state.Session, state.Err
+	m.Session, m.ContextView, m.Err = state.Session, state.ContextView, state.Err
 	m.Selected, m.Row, m.Files = state.Selected, state.Row, state.Files
 	m.collapsed, m.Scroll, m.GuideScroll, m.Cursor, m.GuideCursor = state.collapsed, state.Scroll, state.GuideScroll, state.Cursor, state.GuideCursor
 	m.Horizontal, m.Inventory, m.Focus = state.Horizontal, state.Inventory, state.Focus
@@ -623,6 +646,20 @@ func (m *Model) restoreReviewTab(state *reviewTabState) {
 	m.ActionError, m.notice, m.loadingFrame = state.ActionError, state.notice, state.loadingFrame
 	m.Composer, m.CommentMenu, m.Comments, m.CommentReactions, m.Viewer, m.commentGeneration = state.Composer, state.CommentMenu, state.Comments, state.CommentReactions, state.Viewer, state.commentGeneration
 	m.editorCursorVisible, m.editorCursorGeneration = state.editorCursorVisible, state.editorCursorGeneration
+}
+
+func (m *Model) selectedReviewView() reviewView {
+	if m.activeTab < 0 || m.activeTab >= len(m.tabs) {
+		return viewChanges
+	}
+	return m.ContextView
+}
+
+func (m *Model) cycleReviewView(delta int) {
+	if m.activeTab < 0 || m.activeTab >= len(m.tabs) {
+		return
+	}
+	m.ContextView = reviewView((int(m.selectedReviewView()) + delta + 3) % 3)
 }
 
 func (m *Model) push(p page) {
@@ -1233,7 +1270,10 @@ func (m *Model) reviewView() string {
 	if guide, ok := m.activeGuide(); ok {
 		active += fmt.Sprintf(" · guide %d/%d", guide+1, len(s.Guides.Items))
 	}
-	title := styleLine(classTitle, appHeader(active, "ctrl+p: switch PR"))
+	title := styleLine(classTitle, appHeader(active, m.contextViewTabs()+" · ctrl+p: switch PR"))
+	if m.selectedReviewView() != viewChanges {
+		return title + "\n" + m.contextViewPlaceholder() + "\n" + m.reviewStatus()
+	}
 	if len(s.Inventory.Units) == 0 {
 		return title + "\nEmpty comparison: no net tree changes.\n" + m.reviewStatus()
 	}
@@ -1366,6 +1406,32 @@ func (m *Model) reviewView() string {
 		)
 	}
 	return title + "\n" + header + "\n" + strings.Join(body, "\n") + "\n" + m.reviewStatus()
+}
+
+func (m *Model) contextViewTabs() string {
+	if m.Width < 100 {
+		labels := []string{"Changes", "Description", "Commits"}
+		return "View: [" + labels[m.selectedReviewView()] + "]"
+	}
+	labels := []string{"Changes", "Description", "Commits"}
+	active := int(m.selectedReviewView())
+	for i, label := range labels {
+		if i == active {
+			labels[i] = "[" + label + "]"
+		}
+	}
+	return styleLine(classTitle, strings.Join(labels, " | "))
+}
+
+func (m *Model) contextViewPlaceholder() string {
+	switch m.selectedReviewView() {
+	case viewDescription:
+		return "Description is not available in this review yet."
+	case viewCommits:
+		return "Commits are not available in this review yet."
+	default:
+		return ""
+	}
 }
 
 // styledFooter paints the footer as chrome, or as a warning when the last
