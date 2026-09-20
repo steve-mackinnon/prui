@@ -54,9 +54,9 @@ func (g *fixtureGH) ListPullRequests(context.Context, string) ([]source.PullRequ
 	return g.prs, g.err
 }
 
-func (g *fixtureGH) CreateReviewComment(_ context.Context, comment source.ReviewComment) error {
+func (g *fixtureGH) CreateReviewComment(_ context.Context, comment source.ReviewComment) (source.ReviewComment, error) {
 	g.comments = append(g.comments, comment)
-	return g.commentErr
+	return comment, g.commentErr
 }
 
 func TestSubmitReviewCommentRequiresExactFrozenMetadata(t *testing.T) {
