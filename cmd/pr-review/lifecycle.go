@@ -113,7 +113,7 @@ func validSHA(sha string) bool {
 		return false
 	}
 	return strings.IndexFunc(sha, func(r rune) bool {
-		return !(r >= '0' && r <= '9' || r >= 'a' && r <= 'f')
+		return r < '0' || r > '9' && (r < 'a' || r > 'f')
 	}) == -1
 }
 

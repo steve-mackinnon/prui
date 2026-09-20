@@ -470,12 +470,12 @@ func TestDiffCursorTracksScrollingAndTabStateWithoutChangingReviewSelection(t *t
 	m.openReviewTab(first)
 	m.Width, m.Height, m.Selected, m.Focus, m.Horizontal = 120, 5, 1, paneDiff, 8
 	key(m, 'j')
-	wantCursor, wantSelected := m.cursor(), m.Selected
+	wantSelected := m.Selected
 	key(m, 'J')
 	if got := m.cursor(); got < m.offset() || got >= m.offset()+m.bodyHeight() {
 		t.Fatalf("scroll left cursor %d outside visible detail [%d,%d)", got, m.offset(), m.offset()+m.bodyHeight())
 	}
-	wantCursor = m.cursor()
+	wantCursor := m.cursor()
 	if m.Selected != wantSelected || m.Horizontal != 8 {
 		t.Fatalf("diff scrolling changed selection or horizontal position: selected=%d horizontal=%d", m.Selected, m.Horizontal)
 	}
