@@ -242,21 +242,21 @@ func TestProgramCommentComposerSubmitErrorAndCancellation(t *testing.T) {
 	openAndType := func(h *programDriver) {
 		h.p.Send(tea.KeyPressMsg{Code: tea.KeyEnter})
 		h.expect("comment composer", func(f programFrame) bool {
-			return f.page == pageCommentComposer && strings.Contains(f.text, "Leave line comment")
+			return f.page == pageReview && strings.Contains(f.text, "+---")
 		})
 		h.key('o')
 		h.key('k')
 	}
 	submit := func(h *programDriver) {
-		h.p.Send(tea.KeyPressMsg{Code: tea.KeyEnter, Mod: tea.ModCtrl})
+		h.p.Send(tea.KeyPressMsg{Code: tea.KeyEnter})
 	}
 
 	t.Run("success", func(t *testing.T) {
-		h := newCommentProgram(t, func(_ context.Context, submission CommentSubmission) error {
+		h := newCommentProgram(t, func(_ context.Context, submission CommentSubmission) (source.ReviewComment, error) {
 			if submission.Comment.Body != "ok" {
 				t.Errorf("submitted draft = %q, want %q", submission.Comment.Body, "ok")
 			}
-			return nil
+			return source.ReviewComment{ID: 1, Target: submission.Comment.Target, Body: submission.Comment.Body}, nil
 		})
 		h.expect("review", func(f programFrame) bool { return f.page == pageReview && !f.busy })
 		openAndType(h)
@@ -268,24 +268,24 @@ func TestProgramCommentComposerSubmitErrorAndCancellation(t *testing.T) {
 	})
 
 	t.Run("error retains draft", func(t *testing.T) {
-		h := newCommentProgram(t, func(context.Context, CommentSubmission) error {
-			return errors.New("synthetic comment rejection")
+		h := newCommentProgram(t, func(context.Context, CommentSubmission) (source.ReviewComment, error) {
+			return source.ReviewComment{}, errors.New("synthetic comment rejection")
 		})
 		h.expect("review", func(f programFrame) bool { return f.page == pageReview && !f.busy })
 		openAndType(h)
 		submit(h)
 		h.expect("failed comment submission", func(f programFrame) bool {
-			return f.page == pageCommentComposer && !f.busy && f.failure == "synthetic comment rejection" && strings.Contains(f.text, "Submission failed: synthetic comment rejection")
+			return f.page == pageReview && !f.busy && f.failure == "synthetic comment rejection" && strings.Contains(f.text, "synthetic comment rejection")
 		})
 		h.quit()
 	})
 
 	t.Run("cancellation retains draft", func(t *testing.T) {
 		started := make(chan struct{})
-		h := newCommentProgram(t, func(ctx context.Context, _ CommentSubmission) error {
+		h := newCommentProgram(t, func(ctx context.Context, _ CommentSubmission) (source.ReviewComment, error) {
 			close(started)
 			<-ctx.Done()
-			return ctx.Err()
+			return source.ReviewComment{}, ctx.Err()
 		})
 		h.expect("review", func(f programFrame) bool { return f.page == pageReview && !f.busy })
 		openAndType(h)
@@ -298,7 +298,7 @@ func TestProgramCommentComposerSubmitErrorAndCancellation(t *testing.T) {
 		h.expect("pending comment submission", func(f programFrame) bool { return f.busy })
 		h.p.Send(tea.KeyPressMsg{Code: tea.KeyEscape})
 		h.expect("canceled comment submission", func(f programFrame) bool {
-			return f.page == pageCommentComposer && !f.busy && f.failure == context.Canceled.Error()
+			return f.page == pageReview && !f.busy && f.failure == context.Canceled.Error()
 		})
 		h.quit()
 	})

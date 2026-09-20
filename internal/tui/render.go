@@ -319,38 +319,6 @@ func (m *Model) evidenceView() string {
 	return strings.Join(lines, "\n")
 }
 
-// commentComposerView is deliberately a transient page: it renders the
-// target copied when the composer opened and the in-memory draft, but does not
-// add either to session state or any persisted review artifact.
-func (m *Model) commentComposerView() string {
-	composer := m.Composer
-	if composer == nil {
-		return "Comment composer is unavailable. esc: back"
-	}
-	lines := []string{
-		"Leave line comment",
-		fmt.Sprintf("path: %s | side: %s | line: %d", Escape(composer.Target.Path), Escape(composer.Target.Side), composer.Target.Line),
-		"",
-		"Draft (Markdown):",
-	}
-	draft := strings.Split(composer.Draft, "\n")
-	// Reserve the page title, frozen target, draft label, controls, and an
-	// optional error. This keeps submit/cancel discoverable while composing a
-	// long multiline comment.
-	capacity := max(1, m.Height-6)
-	for _, line := range draft[:min(len(draft), capacity)] {
-		lines = append(lines, "  "+Escape(line))
-	}
-	if omitted := len(draft) - capacity; omitted > 0 {
-		lines = append(lines, fmt.Sprintf("  … %d more draft lines", omitted))
-	}
-	if m.ActionError != nil {
-		lines = append(lines, "! Submission failed: "+Escape(m.ActionError.Error()))
-	}
-	lines = append(lines, "enter: newline | ctrl+enter: submit | esc: discard")
-	return strings.Join(lines, "\n")
-}
-
 func visibleWidth(s string) int { return lipgloss.Width(s) }
 func clip(s string, w int) string {
 	if w <= 0 {

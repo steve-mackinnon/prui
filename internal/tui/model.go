@@ -59,6 +59,10 @@ type reviewTabState struct {
 	Busy                                                 bool
 	ActionError                                          error
 	Composer                                             *commentComposer
+	Comments                                             []source.ReviewComment
+	commentGeneration                                    uint64
+	editorCursorVisible                                  bool
+	editorCursorGeneration                               uint64
 	notice                                               string
 	loadingFrame                                         int
 }
@@ -74,7 +78,6 @@ const (
 	pageRepositoryPicker
 	pagePullRequestPicker
 	pageGuideConsent
-	pageCommentComposer
 )
 
 // commentComposer is deliberately tab-owned. Its target is copied from the
@@ -83,6 +86,7 @@ const (
 type commentComposer struct {
 	Target     source.ReviewCommentTarget
 	Draft      string
+	Cursor     int // rune offset, never a byte offset
 	generation uint64
 }
 
@@ -114,6 +118,10 @@ type Model struct {
 	SwitcherQuery                                        string
 	ActionError                                          error
 	Composer                                             *commentComposer
+	Comments                                             []source.ReviewComment
+	commentGeneration                                    uint64
+	editorCursorVisible                                  bool
+	editorCursorGeneration                               uint64
 	store                                                *session.Store
 	reader                                               review.MetadataReader
 	fresh                                                FreshLoader
@@ -128,6 +136,7 @@ type Model struct {
 	openPullRequest                                      PullRequestOpener
 	generateGuide                                        GuideLoader
 	submitComment                                        CommentSubmitter
+	readComments                                         CommentReader
 	cancelAction                                         context.CancelFunc
 	actionCtx                                            context.Context
 	listSessions                                         func() ([]session.Entry, error)
@@ -226,6 +235,12 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, waitForLoading(v.result)
 		}
 		return m, nextLoadingTick()
+	case editorCursorTick:
+		if m.Composer == nil || v.generation != m.editorCursorGeneration {
+			return m, nil
+		}
+		m.editorCursorVisible = !m.editorCursorVisible
+		return m, nextEditorCursorTick(v.generation)
 	case Loaded:
 		m.Err = m.finishAction(v.Err)
 		m.Loading = false
@@ -235,6 +250,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.Session = v.Session
 		}
 		m.begin()
+		if v.Err == nil && v.Session != nil {
+			return m, m.refreshComments()
+		}
 	case ActionResult:
 		v.Err = m.finishAction(v.Err)
 		if v.Err == nil && v.Session != nil {
@@ -260,6 +278,30 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if active != v.Target {
 			m.Busy, m.ActionError, m.notice = busy, actionErr, notice
 		}
+	case CommentListResult:
+		active := m.activeTab
+		busy, actionErr, notice := m.Busy, m.ActionError, m.notice
+		v.Err = m.finishAction(v.Err)
+		apply := func(state *reviewTabState) {
+			if state == nil || state.commentGeneration != v.Generation {
+				return
+			}
+			if v.Err != nil {
+				state.ActionError = v.Err
+				return
+			}
+			state.Comments = commentOverlay(v.Comments, state.Session)
+		}
+		if v.Target == active {
+			state := &reviewTabState{Session: m.Session, Comments: m.Comments, commentGeneration: m.commentGeneration, ActionError: m.ActionError}
+			apply(state)
+			m.Comments, m.ActionError = state.Comments, state.ActionError
+		} else if v.Target >= 0 && v.Target < len(m.tabs) {
+			apply(m.tabs[v.Target].review)
+		}
+		if active != v.Target {
+			m.Busy, m.ActionError, m.notice = busy, actionErr, notice
+		}
 	case PullRequestOpenResult:
 		// Opening always starts in the fixed browser. If the reviewer changes
 		// tabs while it runs, finish the worker without touching that review's
@@ -272,6 +314,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.pop()
 			}
 			m.registerReviewTab(v.Session, active == v.Target)
+			if active == v.Target {
+				return m, m.refreshComments()
+			}
 		}
 		if active != v.Target {
 			m.Busy, m.ActionError, m.notice = busy, actionErr, notice
@@ -316,6 +361,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.Busy && (m.top() != pagePullRequestPicker || m.Session == nil) {
 				return m, nil
 			}
+			if m.Composer != nil {
+				return m, m.commentComposerKey(v)
+			}
 			if p := m.top(); p != pageReview {
 				return m, m.pageKey(p, v)
 			}
@@ -354,7 +402,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.focusDetail(m.navigable())
 		case "enter":
 			if m.Focus == paneDiff {
-				m.openCommentComposer()
+				return m, tea.Batch(m.openCommentComposer(), m.restartGuidePathScroll())
 			} else {
 				m.focusDetail(m.navigable())
 			}
@@ -499,7 +547,8 @@ func (m *Model) saveActiveReview() {
 		guidePathOffset: m.guidePathOffset, guidePathPause: m.guidePathPause, guidePathGeneration: m.guidePathGeneration,
 		Stack: m.Stack, Loading: m.Loading, Busy: m.Busy,
 		ActionError: m.ActionError, notice: m.notice, loadingFrame: m.loadingFrame,
-		Composer: m.Composer,
+		Composer: m.Composer, Comments: m.Comments, commentGeneration: m.commentGeneration,
+		editorCursorVisible: m.editorCursorVisible, editorCursorGeneration: m.editorCursorGeneration,
 	}
 }
 
@@ -515,7 +564,8 @@ func (m *Model) restoreReviewTab(state *reviewTabState) {
 	m.guidePathOffset, m.guidePathPause, m.guidePathGeneration = state.guidePathOffset, state.guidePathPause, state.guidePathGeneration
 	m.Stack, m.Loading, m.Busy = state.Stack, state.Loading, state.Busy
 	m.ActionError, m.notice, m.loadingFrame = state.ActionError, state.notice, state.loadingFrame
-	m.Composer = state.Composer
+	m.Composer, m.Comments, m.commentGeneration = state.Composer, state.Comments, state.commentGeneration
+	m.editorCursorVisible, m.editorCursorGeneration = state.editorCursorVisible, state.editorCursorGeneration
 }
 
 func (m *Model) push(p page) {
@@ -550,8 +600,6 @@ func (m *Model) pageKey(p page, key tea.KeyPressMsg) tea.Cmd {
 		return m.pullRequestPickerKey(k)
 	case pageGuideConsent:
 		return m.guideConsentKey(k)
-	case pageCommentComposer:
-		return m.commentComposerKey(key)
 	case pageHelp, pageURL, pageEvidence:
 		if k == "esc" {
 			m.pop()
@@ -560,20 +608,23 @@ func (m *Model) pageKey(p page, key tea.KeyPressMsg) tea.Cmd {
 	return nil
 }
 
-func (m *Model) openCommentComposer() {
+func (m *Model) openCommentComposer() tea.Cmd {
 	if m.Focus != paneDiff || m.Composer != nil {
-		return
+		return nil
 	}
 	cursor := m.cursor()
 	if cursor < 0 {
-		return
+		return nil
 	}
 	target := m.detail()[cursor].target
 	if target == nil || target.Path == "" || !utf8.ValidString(target.Path) {
-		return
+		return nil
 	}
 	m.Composer = &commentComposer{Target: *target}
-	m.push(pageCommentComposer)
+	m.editorCursorVisible = true
+	m.editorCursorGeneration++
+	m.ensureCursorVisible()
+	return nextEditorCursorTick(m.editorCursorGeneration)
 }
 
 // navigable returns the guide rows when they are the active hierarchy. The
@@ -690,7 +741,7 @@ func (m *Model) activeGuide() (int, bool) {
 	return rows[max(0, min(len(rows)-1, m.Row))].guide, true
 }
 
-func (m *Model) detail() []diffLine {
+func (m *Model) baseDetail() []diffLine {
 	if guide, ok := m.activeGuide(); ok {
 		return detailFor(m.Session, guide).lines
 	}
@@ -698,6 +749,87 @@ func (m *Model) detail() []diffLine {
 		return nil
 	}
 	return unitLines(m.Session, m.Selected)
+}
+
+// detail expands immutable diff targets into ephemeral overlay/editor rows.
+// Only the original target rows retain target metadata, so navigation cannot
+// accidentally select remote text or the draft editor.
+func (m *Model) detail() []diffLine {
+	base := m.baseDetail()
+	lines := make([]diffLine, 0, len(base)+len(m.Comments)+2)
+	for _, line := range base {
+		lines = append(lines, line)
+		if line.target == nil {
+			continue
+		}
+		for _, comment := range m.Comments {
+			if comment.Target == *line.target {
+				lines = append(lines, m.reviewCommentLines(comment)...)
+			}
+		}
+		if m.Composer != nil && m.Composer.Target == *line.target {
+			lines = append(lines, m.inlineEditorLines()...)
+		}
+	}
+	return lines
+}
+
+// reviewCommentLines keeps each untrusted remote comment visually attached to
+// its anchor while making it clear that it is read-only overlay content.
+func (m *Model) reviewCommentLines(comment source.ReviewComment) []diffLine {
+	inner := max(8, min(68, m.Width-8))
+	border := "  +" + strings.Repeat("-", inner+2) + "+"
+	line := func(class lineClass, text string) diffLine {
+		text = clip(text, inner)
+		text += strings.Repeat(" ", max(0, inner-visibleWidth(text)))
+		return diffLine{styledLine: styledLine{Class: class, Text: "  | " + text + " |"}}
+	}
+	author := Escape(comment.Author)
+	if author == "" {
+		author = "unknown"
+	}
+	lines := []diffLine{{styledLine: styledLine{Class: classMetadata, Text: border}}, line(classMetadata, "@"+author)}
+	for _, body := range strings.Split(comment.Body, "\n") {
+		lines = append(lines, line(classPlain, Escape(body)))
+	}
+	return append(lines, diffLine{styledLine: styledLine{Class: classMetadata, Text: border}})
+}
+
+func (m *Model) inlineEditorLines() []diffLine {
+	c := m.Composer
+	if c == nil {
+		return nil
+	}
+	// A simple terminal-native box makes the editor a distinct input surface
+	// without borrowing a target label or a footer from the surrounding diff.
+	inner := max(8, min(68, m.Width-8))
+	border := "  +" + strings.Repeat("-", inner+2) + "+"
+	lines := []diffLine{{styledLine: styledLine{Class: classWarning, Text: border}}}
+	runes := []rune(c.Draft)
+	cursor := max(0, min(len(runes), c.Cursor))
+	before, after := string(runes[:cursor]), string(runes[cursor:])
+	cursorLine := strings.Count(before, "\n")
+	beforeLine := before[strings.LastIndex(before, "\n")+1:]
+	afterLine := after
+	if i := strings.IndexByte(afterLine, '\n'); i >= 0 {
+		afterLine = afterLine[:i]
+	}
+	for i, text := range strings.Split(c.Draft, "\n") {
+		content := Escape(text)
+		if i == cursorLine && m.editorCursorVisible {
+			content = Escape(beforeLine) + "▏" + Escape(afterLine)
+		}
+		content = clip(content, inner)
+		content += strings.Repeat(" ", max(0, inner-visibleWidth(content)))
+		lines = append(lines, diffLine{styledLine: styledLine{Class: classWarning, Text: "  | " + content + " |"}})
+	}
+	if m.ActionError != nil {
+		content := clip("! "+Escape(m.ActionError.Error()), inner)
+		content += strings.Repeat(" ", max(0, inner-visibleWidth(content)))
+		lines = append(lines, diffLine{styledLine: styledLine{Class: classWarning, Text: "  | " + content + " |"}})
+	}
+	lines = append(lines, diffLine{styledLine: styledLine{Class: classWarning, Text: border}})
+	return lines
 }
 
 func (m *Model) offset() int {
@@ -859,8 +991,6 @@ func (m *Model) View() tea.View {
 			text = m.Session.Inventory.Comparison.Metadata.Identity.URL() + "\nOpen this URL in your browser for GitHub review actions.\nesc: back | q: quit"
 		case pageGuideConsent:
 			text = m.guideConsentView()
-		case pageCommentComposer:
-			text = m.commentComposerView()
 		case pageEvidence:
 			text = m.evidenceView()
 		default:

@@ -132,14 +132,40 @@ func TestGitHubCreateReviewCommentUsesJSONStdin(t *testing.T) {
 		if !reflect.DeepEqual(payload, wantPayload) {
 			t.Fatalf("stdin payload = %#v, want %#v", payload, wantPayload)
 		}
-		return nil, nil
+		return []byte(`{"id":7,"user":{"login":"reviewer"},"body":"Please handle the edge case.\n\nThanks!","commit_id":"0123456789abcdef0123456789abcdef01234567","path":"internal/source/github.go","side":"RIGHT","line":17}`), nil
 	})}
 	comment := ReviewComment{Target: ReviewCommentTarget{
 		Identity: Identity{Repository: "owner/repo", Number: 42}, CommitID: "0123456789abcdef0123456789abcdef01234567",
 		Path: "internal/source/github.go", Side: "RIGHT", Line: 17,
 	}, Body: body}
-	if err := g.CreateReviewComment(context.Background(), comment); err != nil || calls != 1 {
-		t.Fatal(err, calls)
+	created, err := g.CreateReviewComment(context.Background(), comment)
+	if err != nil || calls != 1 || created.ID != 7 || created.Author != "reviewer" || created.Target != comment.Target || created.Body != comment.Body {
+		t.Fatal(created, err, calls)
+	}
+}
+
+func TestGitHubListReviewCommentsUsesBoundedEndpointAndRejectsMalformedAnchors(t *testing.T) {
+	id := Identity{Repository: "owner/repo", Number: 42}
+	g := GH{Executable: "trusted-gh", Dir: t.TempDir(), Limits: Defaults(), Runner: listRunner(func(_ context.Context, request Request) ([]byte, error) {
+		want := []string{"api", "--hostname", "github.com", "--method", "GET", "repos/owner/repo/pulls/42/comments?per_page=100&page=1"}
+		if !reflect.DeepEqual(request.Args, want) || request.Stdin != nil {
+			t.Fatalf("request = %#v", request)
+		}
+		return []byte(`[{"id":7,"user":{"login":"reviewer"},"body":"body","commit_id":"0123456789abcdef0123456789abcdef01234567","path":"a.go","side":"RIGHT","line":2}]`), nil
+	})}
+	comments, err := g.ListReviewComments(context.Background(), id)
+	if err != nil || len(comments) != 1 || comments[0].ID != 7 || comments[0].Author != "reviewer" || comments[0].Target.Path != "a.go" {
+		t.Fatal(comments, err)
+	}
+	for _, raw := range []string{
+		`[{"id":0,"user":{"login":"x"},"body":"x","commit_id":"0123456789abcdef0123456789abcdef01234567","path":"a","side":"RIGHT","line":1}]`,
+		`[{"id":1,"user":{"login":"x"},"body":"x","commit_id":"bad","path":"a","side":"RIGHT","line":1}]`,
+		`[{"id":1,"user":{"login":"x"},"body":"x","commit_id":"0123456789abcdef0123456789abcdef01234567","path":"a","side":"BOTH","line":1}]`,
+	} {
+		g.Runner = listRunner(func(context.Context, Request) ([]byte, error) { return []byte(raw), nil })
+		if _, err := g.ListReviewComments(context.Background(), id); err == nil {
+			t.Fatal("accepted malformed review comment", raw)
+		}
 	}
 }
 
@@ -166,7 +192,7 @@ func TestGitHubCreateReviewCommentRejectsInvalidRequestBeforeCallingGH(t *testin
 				called = true
 				return nil, nil
 			})}
-			if err := g.CreateReviewComment(context.Background(), comment); err == nil {
+			if _, err := g.CreateReviewComment(context.Background(), comment); err == nil {
 				t.Fatal("accepted invalid comment")
 			}
 			if called {
@@ -181,7 +207,7 @@ func TestGitHubCreateReviewCommentDoesNotExposeBodyInErrors(t *testing.T) {
 	g := GH{Executable: "trusted-gh", Dir: t.TempDir(), Limits: Defaults(), Runner: listRunner(func(context.Context, Request) ([]byte, error) {
 		return nil, errors.New(body)
 	})}
-	err := g.CreateReviewComment(context.Background(), ReviewComment{Target: ReviewCommentTarget{
+	_, err := g.CreateReviewComment(context.Background(), ReviewComment{Target: ReviewCommentTarget{
 		Identity: Identity{Repository: "owner/repo", Number: 42}, CommitID: "0123456789abcdef0123456789abcdef01234567",
 		Path: "internal/source/github.go", Side: "LEFT", Line: 17,
 	}, Body: body})

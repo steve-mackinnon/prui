@@ -505,7 +505,7 @@ func TestDiffEnterOpensACommentComposerOnlyForTheCursorTarget(t *testing.T) {
 		t.Fatalf("list enter did not retain its focus-diff meaning: focus=%v page=%v", m.Focus, m.top())
 	}
 	namedKey(m, tea.KeyEnter)
-	if m.top() != pageCommentComposer || m.Composer == nil || m.Composer.Target.Line != 1 || m.Composer.Target.Side != "RIGHT" {
+	if m.top() != pageReview || m.Composer == nil || m.Composer.Target.Line != 1 || m.Composer.Target.Side != "RIGHT" {
 		t.Fatalf("diff enter did not open composer for cursor target: page=%v composer=%#v", m.top(), m.Composer)
 	}
 
@@ -539,28 +539,108 @@ func TestDiffEnterRejectsCommentTargetsWithUnsafePaths(t *testing.T) {
 	}
 }
 
-func TestCommentComposerEditsNewlinesAndEscapeDiscardsWithoutSubmitting(t *testing.T) {
+func TestCommentComposerSubmitsOnEnterAndShiftEnterAddsNewline(t *testing.T) {
 	m := New(context.Background(), nil)
 	m.Loading = false
 	m.Session, m.Selected, m.Focus = kindsSession(), 1, paneDiff
 	submissions := 0
-	m.SetCommentSubmitter(func(context.Context, CommentSubmission) error {
+	m.SetCommentSubmitter(func(context.Context, CommentSubmission) (source.ReviewComment, error) {
 		submissions++
-		return nil
+		return source.ReviewComment{}, nil
 	})
 	namedKey(m, tea.KeyEnter)
 	if m.Composer == nil {
 		t.Fatal("composer did not open")
 	}
 	key(m, 'a')
-	namedKey(m, tea.KeyEnter)
+	_, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter, Mod: tea.ModShift})
 	key(m, 'b')
 	if got, want := m.Composer.Draft, "a\nb"; got != want {
 		t.Fatalf("composer draft = %q, want %q", got, want)
 	}
+	_, submit := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	completeAction(t, m, submit)
+	if submissions != 1 || m.Composer != nil {
+		t.Fatalf("enter did not submit: submissions=%d composer=%#v", submissions, m.Composer)
+	}
+	// Reopen to prove Escape still discards a draft without a write.
+	namedKey(m, tea.KeyEnter)
+	key(m, 'x')
 	namedKey(m, tea.KeyEscape)
-	if submissions != 0 || m.Composer != nil || m.top() != pageReview {
+	if submissions != 1 || m.Composer != nil || m.top() != pageReview {
 		t.Fatalf("escape did not discard composer: page=%v composer=%#v", m.top(), m.Composer)
+	}
+}
+
+func TestInlineCommentEditorDeletesRunesOnBothSidesOfCursor(t *testing.T) {
+	m := New(context.Background(), nil)
+	m.Loading = false
+	m.Session, m.Selected, m.Focus = kindsSession(), 1, paneDiff
+	namedKey(m, tea.KeyEnter)
+	for _, r := range "a界🙂b" {
+		key(m, r)
+	}
+	// a界🙂b; remove the preceding emoji, then the following b.
+	namedKey(m, tea.KeyLeft)
+	namedKey(m, tea.KeyBackspace)
+	namedKey(m, tea.KeyDelete)
+	if got, want := m.Composer.Draft, "a界"; got != want || m.Composer.Cursor != 2 {
+		t.Fatalf("draft/cursor = %q/%d, want %q/2", got, m.Composer.Cursor, want)
+	}
+}
+
+func TestInlineCommentEditorBlinkTickTogglesCaretOnlyForActiveEditor(t *testing.T) {
+	m := New(context.Background(), nil)
+	m.Loading = false
+	m.Session, m.Selected, m.Focus = kindsSession(), 1, paneDiff
+	namedKey(m, tea.KeyEnter)
+	if !m.editorCursorVisible || m.editorCursorGeneration == 0 {
+		t.Fatalf("editor cursor was not initialized: visible=%v generation=%d", m.editorCursorVisible, m.editorCursorGeneration)
+	}
+	generation := m.editorCursorGeneration
+	m.Update(editorCursorTick{generation: generation})
+	if m.editorCursorVisible {
+		t.Fatal("blink tick did not hide caret")
+	}
+	m.Update(editorCursorTick{generation: generation - 1})
+	if m.editorCursorVisible {
+		t.Fatal("stale blink tick changed caret")
+	}
+}
+
+func TestInlineCommentsRenderOnlyAtExactFrozenTargets(t *testing.T) {
+	m := New(context.Background(), nil)
+	m.Loading = false
+	m.Session, m.Selected, m.Focus = kindsSession(), 1, paneDiff
+	var target source.ReviewCommentTarget
+	for _, line := range m.baseDetail() {
+		if line.target != nil {
+			target = *line.target
+			break
+		}
+	}
+	if target.Path == "" {
+		t.Fatal("fixture has no comment target")
+	}
+	m.Comments = []source.ReviewComment{
+		{ID: 1, Author: "reviewer\x1b[31m", Target: target, Body: "exact\x1b[2J"},
+		{ID: 2, Author: "stale", Target: source.ReviewCommentTarget{Identity: target.Identity, CommitID: "0000000000000000000000000000000000000000", Path: target.Path, Side: target.Side, Line: target.Line}, Body: "wrong"},
+	}
+	boxed := m.reviewCommentLines(m.Comments[0])
+	if got := boxed[1]; got.Class != classMetadata || !strings.Contains(got.Text, "@reviewer\\x1b[31m") {
+		t.Fatalf("author line = %#v, want escaped @author in metadata color", got)
+	}
+	if got := boxed[2]; got.Class != classPlain || !strings.Contains(got.Text, "exact\\x1b[2J") {
+		t.Fatalf("body line = %#v, want escaped plain/white text", got)
+	}
+	view := ansi.Strip(m.reviewView())
+	for _, want := range []string{"+---", "| @reviewer\\x1b[31m", "| exact\\x1b[2J"} {
+		if !strings.Contains(view, want) {
+			t.Fatalf("inline overlay missing bordered comment part %q:\n%s", want, view)
+		}
+	}
+	if strings.Contains(view, "wrong") {
+		t.Fatalf("inline overlay did not exactly/securely render:\n%s", view)
 	}
 }
 
@@ -632,7 +712,7 @@ func TestModalPagesOwnInputAndBack(t *testing.T) {
 func TestBindingsRenderHelpAndFooter(t *testing.T) {
 	help := renderBindings(groupHelp)
 	footer := renderBindings(groupFooter)
-	for _, wording := range []string{"focus the diff; on a commentable line, open a comment composer", "reset selected guide scroll, or selected unit's without guides"} {
+	for _, wording := range []string{"focus the diff; on a commentable line, open an inline comment editor", "reset selected guide scroll, or selected unit's without guides"} {
 		if !strings.Contains(help, wording) {
 			t.Fatalf("updated help wording missing %q", wording)
 		}

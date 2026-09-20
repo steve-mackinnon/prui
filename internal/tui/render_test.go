@@ -16,19 +16,29 @@ func TestCommentComposerViewRendersFrozenTargetEscapedMultilineDraftAndControls(
 	m.Composer = &commentComposer{
 		Target: source.ReviewCommentTarget{Path: "dir/unsafe\x1b[file.go", Side: "RIGHT", Line: 42},
 		Draft:  "first line\nsecond\x1b[31m line",
+		Cursor: len([]rune("first ")),
 	}
-	m.Stack = []page{pageReview, pageCommentComposer}
-
-	view := ansi.Strip(m.View().Content)
+	m.editorCursorVisible = true
+	view := ansi.Strip(strings.Join(func() []string {
+		lines := m.inlineEditorLines()
+		out := make([]string, len(lines))
+		for i := range lines {
+			out[i] = lines[i].Text
+		}
+		return out
+	}(), "\n"))
 	for _, want := range []string{
-		"Leave line comment",
-		"path: dir/unsafe\\x1b[file.go | side: RIGHT | line: 42",
-		"first line",
+		"+",
+		"first ▏line",
 		"second\\x1b[31m line",
-		"enter: newline | ctrl+enter: submit | esc: discard",
 	} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("composer view missing %q:\n%s", want, view)
+		}
+	}
+	for _, unwanted := range []string{"[comment", "ctrl+enter", "esc: discard"} {
+		if strings.Contains(view, unwanted) {
+			t.Fatalf("editor chrome unexpectedly contains %q:\n%s", unwanted, view)
 		}
 	}
 }
@@ -36,10 +46,11 @@ func TestCommentComposerViewRendersFrozenTargetEscapedMultilineDraftAndControls(
 func TestCommentBindingsAdvertiseComposerEntryAndControls(t *testing.T) {
 	help := renderHealth()
 	for _, want := range []string{
-		"enter: focus the diff; on a commentable line, open a comment composer",
-		"enter: newline in comment composer",
-		"ctrl+enter: submit comment composer",
-		"esc: discard comment composer",
+		"enter: focus the diff; on a commentable line, open an inline comment editor",
+		"enter: submit inline comment editor",
+		"shift+enter: newline in inline comment editor",
+		"backspace/delete: delete previous/following rune in comment editor",
+		"c: refresh ephemeral inline review comments",
 	} {
 		if !strings.Contains(help, want) {
 			t.Fatalf("help missing %q:\n%s", want, help)

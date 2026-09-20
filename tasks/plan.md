@@ -419,3 +419,53 @@ The ordered agent-sized tasks and verification checkpoints are appended under
 **Inline Review Comment UX Extension** in `tasks/todo.md`. The first four
 tasks touch shared source/model/rendering code and therefore run sequentially;
 the documentation and acceptance task follows their integration.
+
+# Implementation Plan: Inline Review Comment Actions
+
+## Overview
+
+Extend the read-only inline comment overlay with an explicit action path for
+replying, deleting a viewer-owned comment, and adding a reaction. Diff
+navigation will be able to select anchored comment boxes as well as diff
+targets; pressing `enter` on a selected comment opens a local action menu.
+Every mutation remains intentional, fresh-targeted where applicable, and
+memory-only outside GitHub.
+
+## Architecture Decisions
+
+- Keep comment-box selection distinct from line-target selection. A selected
+  comment carries its stable GitHub comment ID and frozen anchor; it never
+  becomes a draft target by inference.
+- Add narrow source interfaces for reply, delete, reaction, and authenticated
+  viewer identity. All writes use JSON stdin, bounded response parsing, and
+  safe errors; no comment/action content reaches process arguments or sessions.
+- The action menu is local TUI state. `enter` opens it only after an explicitly
+  selected comment; choosing a mutation performs one request, while escape
+  cancels without a write.
+- Delete is offered only when the loaded author equals the authenticated viewer.
+  GitHub remains the authority: authorization failures leave the overlay intact
+  and report an escaped, actionable error.
+- Reactions use an explicit, finite picker. Replies and successful reactions
+  update the ephemeral overlay immediately from canonical responses; successful
+  deletion removes only that matching comment box from its originating tab.
+
+## Dependency Graph
+
+```text
+viewer + bounded action source contracts
+                 |
+comment-row selection and action menu
+                 |
+reply / delete / reaction lifecycle with tab isolation
+                 |
+docs, snapshots, synthetic + manual acceptance
+```
+
+## Risks and Mitigations
+
+| Risk | Impact | Mitigation |
+| --- | --- | --- |
+| A comment selection is mistaken for a diff target | High | Use separate selection value types and regression-test every enter path. |
+| Delete appears for another reviewer | High | Compare to bounded authenticated viewer identity before enabling it; retain GitHub authorization as the final boundary. |
+| Action results land in a different tab | High | Attach each action to tab ID, comment ID, and generation; ignore stale results. |
+| Reactions/replies leak into persisted state | High | Keep all action state and canonical responses tab-local and exclude them from sessions/plain output. |

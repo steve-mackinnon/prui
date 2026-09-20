@@ -163,11 +163,11 @@ func TestCommentSubmissionSuccessClearsAndFailureRetainsTheTabDraft(t *testing.T
 	key(m, 'k')
 
 	var submitted CommentSubmission
-	m.SetCommentSubmitter(func(_ context.Context, submission CommentSubmission) error {
+	m.SetCommentSubmitter(func(_ context.Context, submission CommentSubmission) (source.ReviewComment, error) {
 		submitted = submission
-		return nil
+		return source.ReviewComment{ID: 1, Author: "reviewer", Target: submission.Comment.Target, Body: submission.Comment.Body}, nil
 	})
-	_, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter, Mod: tea.ModCtrl})
+	_, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	completeAction(t, m, cmd)
 	if submitted.Comment.Body != "ok" || submitted.Comment.Target.Side != "RIGHT" || m.Composer != nil || m.top() != pageReview {
 		t.Fatalf("successful comment was not submitted and cleared: submitted=%#v page=%v composer=%#v", submitted, m.top(), m.Composer)
@@ -176,10 +176,12 @@ func TestCommentSubmissionSuccessClearsAndFailureRetainsTheTabDraft(t *testing.T
 	namedKey(m, tea.KeyEnter)
 	key(m, 'x')
 	failure := errors.New("comment rejected")
-	m.SetCommentSubmitter(func(context.Context, CommentSubmission) error { return failure })
-	_, cmd = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter, Mod: tea.ModCtrl})
+	m.SetCommentSubmitter(func(context.Context, CommentSubmission) (source.ReviewComment, error) {
+		return source.ReviewComment{}, failure
+	})
+	_, cmd = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	completeAction(t, m, cmd)
-	if m.Composer == nil || m.Composer.Draft != "x" || !errors.Is(m.ActionError, failure) || m.top() != pageCommentComposer {
+	if m.Composer == nil || m.Composer.Draft != "x" || !errors.Is(m.ActionError, failure) || m.top() != pageReview {
 		t.Fatalf("failed comment did not retain draft and target: composer=%#v error=%v page=%v", m.Composer, m.ActionError, m.top())
 	}
 }
@@ -194,11 +196,11 @@ func TestCommentSubmissionCopiesFrozenMetadataBeforeAsyncWork(t *testing.T) {
 	key(m, 'k')
 
 	var submitted CommentSubmission
-	m.SetCommentSubmitter(func(_ context.Context, submission CommentSubmission) error {
+	m.SetCommentSubmitter(func(_ context.Context, submission CommentSubmission) (source.ReviewComment, error) {
 		submitted = submission
-		return nil
+		return source.ReviewComment{ID: 1, Target: submission.Comment.Target, Body: submission.Comment.Body}, nil
 	})
-	_, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter, Mod: tea.ModCtrl})
+	_, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	// The active session may change after submission starts. The request must
 	// already carry the comparison from the originating tab.
 	m.Session.Inventory.Comparison.Metadata.HeadSHA = "0000000000000000000000000000000000000000"
@@ -226,7 +228,7 @@ func TestLateCommentResultOnlyChangesItsOriginatingTab(t *testing.T) {
 	secondComposer := m.Composer
 
 	m.Update(CommentResult{Target: 0, Generation: 1})
-	if m.Composer != secondComposer || m.Composer.Draft != "second draft" || m.top() != pageCommentComposer {
+	if m.Composer != secondComposer || m.Composer.Draft != "second draft" || m.top() != pageReview {
 		t.Fatalf("late first-tab result changed active second tab: composer=%#v page=%v", m.Composer, m.top())
 	}
 	if got := m.tabs[0].review.Composer; got != nil {
