@@ -501,12 +501,12 @@ returns one validated canonical comment, and add a bounded read-only listing
 operation for pull-request review comments.
 
 **Acceptance criteria:**
-- [ ] `ReviewCommentReader` lists a documented, bounded number of comments and
+- [x] `ReviewCommentReader` lists a documented, bounded number of comments and
   rejects malformed anchors before they reach TUI state.
-- [ ] `CreateReviewComment` returns the validated GitHub response needed for
+- [x] `CreateReviewComment` returns the validated GitHub response needed for
   immediate rendering; no typed text is exposed in arguments, logs, sessions,
   or unsanitized errors.
-- [ ] Listing and POST parsing enforce output bounds, cancellation, valid UTF-8,
+- [x] Listing and POST parsing enforce output bounds, cancellation, valid UTF-8,
   allowed sides, positive lines, and an exact target shape.
 
 **Verification:**
@@ -527,11 +527,11 @@ operation for pull-request review comments.
 zero-or-more read-only comment rows and one inline-editor row after a target.
 
 **Acceptance criteria:**
-- [ ] Raw and guide views display comment/editor rows directly below their
+- [x] Raw and guide views display comment/editor rows directly below their
   exact target without changing source text, hunk mapping, or plain output.
-- [ ] Cursor and scroll logic select only target-bearing diff rows, skip
+- [x] Cursor and scroll logic select only target-bearing diff rows, skip
   inserted rows, and retain target identity across tabs/panes/view changes.
-- [ ] Escaped remote body/login/path data cannot inject terminal controls.
+- [x] Escaped remote body/login/path data cannot inject terminal controls.
 
 **Verification:**
 - [ ] Start with failing render/model tests for row order, target-only
@@ -551,12 +551,12 @@ relevant `*_test.go` files.
 inline target-owned editor, with predictable Unicode-aware cursor semantics.
 
 **Acceptance criteria:**
-- [ ] Diff-pane `Enter` opens the inline editor; list-pane `Enter` remains
+- [x] Diff-pane `Enter` opens the inline editor; list-pane `Enter` remains
   unchanged; non-commentable lines still refuse composition.
-- [ ] `Backspace` and `Delete` work independently at boundaries and in
+- [x] `Backspace` and `Delete` work independently at boundaries and in
   multibyte text; left/right/Home/End/Enter/Ctrl+Enter/Esc have documented
   editor semantics.
-- [ ] Submitting or discarding restores normal navigation without moving the
+- [x] Submitting or discarding restores normal navigation without moving the
   selected target; failed posts retain the exact draft and cursor state.
 
 **Verification:**
@@ -578,12 +578,12 @@ them against the frozen snapshot, and add the canonical POST result immediately
 after success.
 
 **Acceptance criteria:**
-- [ ] Online open loads an ephemeral per-tab overlay; `c` refresh replaces only
+- [x] Online open loads an ephemeral per-tab overlay; `c` refresh replaces only
   its originating tab; offline mode does neither.
-- [ ] Only entries exactly matching frozen head SHA/path/side/line render; a
+- [x] Only entries exactly matching frozen head SHA/path/side/line render; a
   list failure is bounded, escaped, non-blocking, and cannot erase a just-posted
   successful local item.
-- [ ] Async read/post results cannot leak into another tab or review, and a
+- [x] Async read/post results cannot leak into another tab or review, and a
   stale response cannot overwrite a newer refresh generation.
 
 **Verification:**
@@ -604,7 +604,7 @@ after success.
 synthetic and real-PR validation of inline compose and visible read-back.
 
 **Acceptance criteria:**
-- [ ] README, constraints, help, and screen coverage describe inline editing,
+- [x] README, constraints, help, and screen coverage describe inline editing,
   explicit `c` refresh, ephemeral remote comments, and offline behavior.
 - [ ] Existing read-only, plain-output, pinning, guide, and terminal-escaping
   behavior remain unchanged outside the interactive overlay.
