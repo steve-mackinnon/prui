@@ -59,32 +59,45 @@ func (a *application) Metadata(ctx context.Context, id source.Identity) (source.
 // submitReviewComment is the application's narrow write boundary. It checks
 // that the complete immutable comparison still matches GitHub immediately
 // before a single comment request; it never retargets or retries a write.
-func (a *application) submitReviewComment(ctx context.Context, submission tui.CommentSubmission) error {
+func (a *application) submitReviewComment(ctx context.Context, submission tui.CommentSubmission) (source.ReviewComment, error) {
 	if err := a.online(ctx); err != nil {
-		return err
+		return source.ReviewComment{}, err
 	}
 	if err := validReviewCommentSubmission(submission); err != nil {
-		return err
+		return source.ReviewComment{}, err
 	}
 	if a.setupError != nil {
-		return a.setupError
+		return source.ReviewComment{}, a.setupError
 	}
 	if a.gh == nil {
-		return errors.New("GitHub CLI unavailable")
+		return source.ReviewComment{}, errors.New("GitHub CLI unavailable")
 	}
 	commenter, ok := a.gh.(source.ReviewCommenter)
 	if !ok {
-		return errors.New("GitHub review comment submission unavailable")
+		return source.ReviewComment{}, errors.New("GitHub review comment submission unavailable")
 	}
 	current, err := a.Metadata(ctx, submission.Metadata.Identity)
 	if err != nil {
-		return err
+		return source.ReviewComment{}, err
 	}
 	if current != submission.Metadata {
-		return errors.New("pull request changed; open a new comparison before posting a comment")
+		return source.ReviewComment{}, errors.New("pull request changed; open a new comparison before posting a comment")
 	}
-	_, err = commenter.CreateReviewComment(ctx, submission.Comment)
-	return err
+	return commenter.CreateReviewComment(ctx, submission.Comment)
+}
+
+func (a *application) listReviewComments(ctx context.Context, metadata source.Metadata) ([]source.ReviewComment, error) {
+	if err := a.online(ctx); err != nil {
+		return nil, err
+	}
+	if a.setupError != nil {
+		return nil, a.setupError
+	}
+	reader, ok := a.gh.(source.ReviewCommentReader)
+	if !ok {
+		return nil, errors.New("GitHub review comment refresh unavailable")
+	}
+	return reader.ListReviewComments(ctx, metadata.Identity)
 }
 
 func validReviewCommentSubmission(submission tui.CommentSubmission) error {

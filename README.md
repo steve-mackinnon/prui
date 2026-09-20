@@ -72,7 +72,8 @@ primary workspace action.
 | `tab` | Expand / collapse the selected guide or section |
 | `ctrl+h` / `ctrl+l` | Focus list / diff |
 | `enter` / `esc` | In the list, focus the selected diff / go back; in a focused diff, open a composer for the selected commentable line / discard its draft |
-| `ctrl+enter` | Submit the open line-comment draft; plain `enter` in the composer inserts a newline |
+| `ctrl+enter` | Submit the inline line-comment draft; plain `enter` inserts a newline |
+| `c` | Refresh ephemeral inline review comments (online reviews only) |
 | Up / down, `j` / `k` | Navigate list or scroll focused diff |
 | `J` / `K` | Scroll diff by 5 lines |
 | `d` / `u`, Page Down / Page Up | Page through actual diff |
@@ -95,7 +96,9 @@ Selection, expansion, and per-unit vertical offsets survive resizing; navigation
 
 The interactive diff pane marks one selected display line. Press `enter` while that pane is focused to open a Markdown composer only when the line is commentable: added and context lines target the new-file `RIGHT` side, and deleted lines target the old-file `LEFT` side. Headers, hunk markers, binary/metadata/unavailable content, and paths that cannot be sent as valid JSON are not commentable. `j`/`k` move the line cursor through commentable lines; scrolling and the cursor are separate.
 
-The composer displays the frozen path, side, and line. Type Markdown normally; `enter` adds a newline, `ctrl+enter` submits one comment, and `esc` discards the draft. Drafts are memory-only: they are never saved in a session, logged, or passed on a command line. A failed submission keeps the draft and target for an intentional retry.
+Press `enter` on a selected commentable diff line to open an inline editor immediately beneath it. The editor displays the frozen path, side, and line. Type Markdown normally; `enter` adds a newline, `backspace` and `delete` remove the preceding/following rune, `ctrl+enter` submits one comment, and `esc` discards the draft. Drafts are memory-only: they are never saved in a session, logged, or passed on a command line. A failed submission keeps the draft and target for an intentional retry.
+
+Online reviews load a bounded, read-only overlay of review comments and `c` refreshes it. Comments render only when their frozen head SHA, path, side, and line exactly match a diff target; remote author and body text are escaped. A successful post is inserted immediately from GitHub’s canonical response. Remote comments are never stored in sessions or plain output; offline reviews neither fetch nor post them.
 
 Immediately before posting, pr-review re-reads GitHub metadata and requires the repository identities plus base and head SHAs to equal the frozen comparison. If they differ, it makes no write and asks you to open a new comparison. A successful request uses the frozen head SHA, path, side, and line; GitHub can still mark the comment outdated if the pull request advances after that preflight. Comments are unavailable in `--plain` and `resume --offline`, and no open, resume, refresh, guide action, or background task can post one.
 

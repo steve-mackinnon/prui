@@ -68,7 +68,7 @@ func TestSubmitReviewCommentRequiresExactFrozenMetadata(t *testing.T) {
 	}, Body: "Please consider this."}
 
 	submission := tui.CommentSubmission{Comment: comment, Metadata: frozen}
-	if err := app.submitReviewComment(context.Background(), submission); err != nil {
+	if _, err := app.submitReviewComment(context.Background(), submission); err != nil {
 		t.Fatal("matching metadata rejected", err)
 	}
 	if len(gh.comments) != 1 || gh.comments[0] != comment {
@@ -84,7 +84,7 @@ func TestSubmitReviewCommentRequiresExactFrozenMetadata(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			gh.value = current
 			before := len(gh.comments)
-			if err := app.submitReviewComment(context.Background(), submission); err == nil || !strings.Contains(err.Error(), "new comparison") {
+			if _, err := app.submitReviewComment(context.Background(), submission); err == nil || !strings.Contains(err.Error(), "new comparison") {
 				t.Fatal("mismatched metadata was allowed", err)
 			}
 			if len(gh.comments) != before {
@@ -108,7 +108,7 @@ func TestSubmitReviewCommentRejectsBeforeCommenter(t *testing.T) {
 			app.offline, app.gh, valid = false, gh, source.ReviewComment{Target: source.ReviewCommentTarget{Identity: frozen.Identity, CommitID: frozen.HeadSHA, Path: "a", Side: "RIGHT", Line: 1}, Body: "body"}
 			mutate()
 			before := len(gh.comments)
-			if err := app.submitReviewComment(context.Background(), tui.CommentSubmission{Comment: valid, Metadata: frozen}); err == nil {
+			if _, err := app.submitReviewComment(context.Background(), tui.CommentSubmission{Comment: valid, Metadata: frozen}); err == nil {
 				t.Fatal("invalid delivery was allowed")
 			}
 			if len(gh.comments) != before {
@@ -131,7 +131,7 @@ func TestSubmitReviewCommentDoesNotRetryUnknownDelivery(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			gh.comments, gh.commentErr = nil, deliveryErr
-			err := app.submitReviewComment(context.Background(), submission)
+			_, err := app.submitReviewComment(context.Background(), submission)
 			if !errors.Is(err, deliveryErr) || len(gh.comments) != 1 {
 				t.Fatalf("delivery error = %v, calls = %d; want propagated error and one call", err, len(gh.comments))
 			}
