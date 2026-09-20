@@ -274,17 +274,18 @@ func (m *Model) commentActionKey(key tea.KeyPressMsg) tea.Cmd {
 		}
 		return nil
 	}
-	if menu.mode == commentActionReact {
+	switch menu.mode {
+	case commentActionReact:
 		if !source.IsReviewCommentReaction(key.String()) {
 			return nil
 		}
 		menu.Reaction, menu.Draft = key.String(), ""
-	} else if menu.mode == commentActionDeleteConfirm {
+	case commentActionDeleteConfirm:
 		if key.String() != "enter" {
 			return nil
 		}
 		menu.Draft = ""
-	} else {
+	default:
 		switch key.String() {
 		case "enter":
 			if menu.Draft == "" {
@@ -354,16 +355,17 @@ func (m *Model) applyCommentActionResult(result CommentActionResult) {
 		if result.Err != nil {
 			return
 		}
-		if result.Delete {
+		switch {
+		case result.Delete:
 			for i, comment := range state.Comments {
 				if comment.ID == result.CommentID {
 					state.Comments = append(state.Comments[:i], state.Comments[i+1:]...)
 					break
 				}
 			}
-		} else if result.Reply.ID > 0 {
+		case result.Reply.ID > 0:
 			state.Comments = append(state.Comments, result.Reply)
-		} else if result.Reaction.ID > 0 {
+		case result.Reaction.ID > 0:
 			if state.CommentReactions == nil {
 				state.CommentReactions = map[int64][]source.ReviewCommentReaction{}
 			}
