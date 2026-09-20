@@ -83,7 +83,8 @@ func (a *application) submitReviewComment(ctx context.Context, submission tui.Co
 	if current != submission.Metadata {
 		return errors.New("pull request changed; open a new comparison before posting a comment")
 	}
-	return commenter.CreateReviewComment(ctx, submission.Comment)
+	_, err = commenter.CreateReviewComment(ctx, submission.Comment)
+	return err
 }
 
 func validReviewCommentSubmission(submission tui.CommentSubmission) error {

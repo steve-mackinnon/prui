@@ -68,6 +68,8 @@ type GitHub interface {
 // review comment. It is intentionally separate from GitHub, whose operations
 // are otherwise read-only.
 type ReviewComment struct {
+	ID     int64
+	Author string
 	Target ReviewCommentTarget
 	Body   string
 }
@@ -83,7 +85,13 @@ type ReviewCommentTarget struct {
 }
 
 type ReviewCommenter interface {
-	CreateReviewComment(context.Context, ReviewComment) error
+	CreateReviewComment(context.Context, ReviewComment) (ReviewComment, error)
+}
+
+// ReviewCommentReader is the narrow, read-only overlay boundary. Results are
+// deliberately ephemeral: callers must not put them in review sessions.
+type ReviewCommentReader interface {
+	ListReviewComments(context.Context, Identity) ([]ReviewComment, error)
 }
 
 type GH struct {
@@ -115,9 +123,9 @@ func validateReviewComment(comment ReviewComment) error {
 	return nil
 }
 
-func (g *GH) CreateReviewComment(ctx context.Context, comment ReviewComment) error {
+func (g *GH) CreateReviewComment(ctx context.Context, comment ReviewComment) (ReviewComment, error) {
 	if err := validateReviewComment(comment); err != nil {
-		return err
+		return ReviewComment{}, err
 	}
 	payload, err := json.Marshal(struct {
 		Body     string `json:"body"`
@@ -130,13 +138,68 @@ func (g *GH) CreateReviewComment(ctx context.Context, comment ReviewComment) err
 		Line: comment.Target.Line, Side: comment.Target.Side,
 	})
 	if err != nil {
-		return errors.New("could not prepare review comment")
+		return ReviewComment{}, errors.New("could not prepare review comment")
 	}
-	_, err = g.callWithStdin(ctx, payload, "api", "--hostname", "github.com", "--method", "POST", "--input", "-", fmt.Sprintf("repos/%s/pulls/%d/comments", comment.Target.Identity.Repository, comment.Target.Identity.Number))
+	data, err := g.callWithStdin(ctx, payload, "api", "--hostname", "github.com", "--method", "POST", "--input", "-", fmt.Sprintf("repos/%s/pulls/%d/comments", comment.Target.Identity.Repository, comment.Target.Identity.Number))
 	if err != nil {
-		return safeReviewCommentError(err)
+		return ReviewComment{}, safeReviewCommentError(err)
 	}
-	return nil
+	created, err := parseReviewComment(data, comment.Target.Identity)
+	if err != nil || created.Target != comment.Target || created.Body != comment.Body {
+		return ReviewComment{}, errors.New("invalid created review comment")
+	}
+	return created, nil
+}
+
+const maxReviewComments = 100
+
+// ListReviewComments reads exactly one explicitly bounded page. The API may
+// have more history, but an overlay never needs unbounded remote data.
+func (g *GH) ListReviewComments(ctx context.Context, id Identity) ([]ReviewComment, error) {
+	if _, err := ParseIdentity(strconv.Itoa(id.Number), id.Repository); err != nil {
+		return nil, err
+	}
+	data, err := g.call(ctx, "api", "--hostname", "github.com", "--method", "GET", fmt.Sprintf("repos/%s/pulls/%d/comments?per_page=%d&page=1", id.Repository, id.Number, maxReviewComments))
+	if err != nil {
+		return nil, safeReviewCommentError(err)
+	}
+	var raw []json.RawMessage
+	if json.Unmarshal(data, &raw) != nil || len(raw) > maxReviewComments {
+		return nil, errors.New("invalid review comment list")
+	}
+	comments := make([]ReviewComment, 0, len(raw))
+	seen := map[int64]bool{}
+	for _, item := range raw {
+		comment, err := parseReviewComment(item, id)
+		if err != nil || seen[comment.ID] {
+			return nil, errors.New("invalid review comment list")
+		}
+		seen[comment.ID] = true
+		comments = append(comments, comment)
+	}
+	return comments, nil
+}
+
+func parseReviewComment(data []byte, identity Identity) (ReviewComment, error) {
+	var raw struct {
+		ID       int64  `json:"id"`
+		Body     string `json:"body"`
+		CommitID string `json:"commit_id"`
+		Path     string `json:"path"`
+		Side     string `json:"side"`
+		Line     int    `json:"line"`
+		User     *struct {
+			Login string `json:"login"`
+		} `json:"user"`
+	}
+	if json.Unmarshal(data, &raw) != nil || raw.ID <= 0 || raw.User == nil || raw.User.Login == "" || !utf8.ValidString(raw.User.Login) {
+		return ReviewComment{}, errors.New("invalid review comment")
+	}
+	comment := ReviewComment{ID: raw.ID, Author: raw.User.Login, Body: raw.Body, Target: ReviewCommentTarget{Identity: identity, CommitID: raw.CommitID, Path: raw.Path, Side: raw.Side, Line: raw.Line}}
+	if err := validateReviewComment(comment); err != nil {
+		return ReviewComment{}, err
+	}
+	return comment, nil
 }
 
 func safeReviewCommentError(err error) error {
