@@ -743,3 +743,35 @@ verify reply/delete/reaction journeys without persisting remote data.
   reactions have focused synthetic coverage and pass the full verification gate.
 - [ ] Authorized manual acceptance proves each action is explicit, exact, and
   never persisted to a session or plain output.
+
+# Threaded Inline Reply and Reaction Rendering
+
+## 1. Threaded reply editor and canonical reply box
+
+**Acceptance criteria:**
+- [x] Reply opens a bordered rune-aware editor beneath, and visibly indented
+  from, its selected parent comment rather than in the action-menu status.
+- [x] Canonical replies render beneath their parent with the same indentation;
+  cancel and failure retain no remote state and preserve the local draft.
+- [x] Anchoring, escaping, scrolling, and tab/generation isolation remain exact.
+
+**Verification:**
+- [x] Start with focused failing TUI lifecycle/render tests.
+- [x] Run `go test -race ./internal/tui -run 'Test.*(Reply|Comment)' -count=1`.
+
+## 2. Numbered reaction picker and bottom-border count chips
+
+**Acceptance criteria:**
+- [x] The reaction picker presents documented values numbered `1`–`8`, and a
+  digit is consumed only while that picker is active.
+- [x] The bottom border renders one escaped chip per reaction value with an
+  ephemeral count, bounded to the comment box width.
+- [x] Reactions remain tab-local and are omitted from sessions and plain output.
+
+**Verification:**
+- [x] Start with focused failing TUI render/lifecycle tests and inspect snapshots.
+- [x] Run `go test -race ./internal/tui -run 'Test.*(Reaction|Comment)' -count=1`.
+
+## Completion checkpoint
+
+- [x] Full required verification passes and PR #9 is updated.

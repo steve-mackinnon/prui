@@ -235,7 +235,7 @@ func TestGitHubReviewCommentActionsUseBoundedJSONContracts(t *testing.T) {
 			if string(request.Stdin) != `{"body":"private reply"}` {
 				t.Fatal(string(request.Stdin))
 			}
-			return []byte(`{"id":8,"user":{"login":"reviewer"},"body":"private reply","commit_id":"0123456789abcdef0123456789abcdef01234567","path":"a.go","side":"RIGHT","line":2}`), nil
+			return []byte(`{"id":8,"in_reply_to_id":7,"user":{"login":"reviewer"},"body":"private reply","commit_id":"0123456789abcdef0123456789abcdef01234567","path":"a.go","side":"RIGHT","line":2}`), nil
 		case 3:
 			if !reflect.DeepEqual(request.Args, []string{"api", "--hostname", "github.com", "--method", "POST", "--input", "-", "repos/owner/repo/pulls/comments/7/reactions"}) || string(request.Stdin) != `{"content":"+1"}` {
 				t.Fatal(request)

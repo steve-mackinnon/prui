@@ -690,6 +690,50 @@ func TestCommentActionResultOnlyChangesOriginatingTabAndPreservesFailureDraft(t 
 	}
 }
 
+func TestReplyEditorAndCanonicalReplyRenderAsIndentedThread(t *testing.T) {
+	m := New(context.Background(), nil)
+	m.Loading = false
+	m.Session, m.Selected, m.Focus = kindsSession(), 1, paneDiff
+	var target source.ReviewCommentTarget
+	for _, line := range m.baseDetail() {
+		if line.target != nil {
+			target = *line.target
+			break
+		}
+	}
+	m.Comments = []source.ReviewComment{{ID: 7, Target: target, Body: "parent"}, {ID: 8, Target: target, ParentID: 7, Body: "reply"}}
+	m.CommentMenu = &commentActionMenu{CommentID: 7, Target: target, mode: commentActionReply, Draft: "draft"}
+	view := ansi.Strip(m.reviewView())
+	for _, want := range []string{"  | parent", "      | reply", "      | draft"} {
+		if !strings.Contains(view, want) {
+			t.Fatalf("threaded reply missing %q:\n%s", want, view)
+		}
+	}
+	if strings.Contains(m.reviewStatus(), "draft") {
+		t.Fatalf("reply draft leaked into status: %s", m.reviewStatus())
+	}
+}
+
+func TestReactionPickerDigitsAndBottomBorderCounts(t *testing.T) {
+	m := New(context.Background(), nil)
+	m.Loading = false
+	m.Session = kindsSession()
+	m.CommentMenu = &commentActionMenu{CommentID: 7, mode: commentActionReact}
+	key(m, '5')
+	if m.CommentMenu == nil || m.CommentMenu.Reaction != "heart" {
+		t.Fatalf("5 selected %#v, want heart", m.CommentMenu)
+	}
+	m.CommentReactions = map[int64][]source.ReviewCommentReaction{7: {{Content: "heart"}, {Content: "heart"}, {Content: "+1"}}}
+	parts := []string{}
+	for _, line := range m.reviewCommentLines(source.ReviewComment{ID: 7, Body: "body"}) {
+		parts = append(parts, line.Text)
+	}
+	box := strings.Join(parts, "\n")
+	if !strings.Contains(box, "[+1 1] [heart 2]") {
+		t.Fatalf("bottom border lacks reaction counts:\n%s", box)
+	}
+}
+
 func TestRawReviewCancelAndFailure(t *testing.T) {
 	canceled := make(chan struct{})
 	m := New(context.Background(), func(c context.Context, _ func(string)) (*review.Session, error) {

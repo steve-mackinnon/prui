@@ -68,10 +68,11 @@ type GitHub interface {
 // review comment. It is intentionally separate from GitHub, whose operations
 // are otherwise read-only.
 type ReviewComment struct {
-	ID     int64
-	Author string
-	Target ReviewCommentTarget
-	Body   string
+	ID       int64
+	ParentID int64
+	Author   string
+	Target   ReviewCommentTarget
+	Body     string
 }
 
 // ReviewCommentTarget identifies the frozen pull request diff line to comment
@@ -123,6 +124,12 @@ type ReviewCommentReaction struct {
 var reviewCommentReactions = map[string]bool{"+1": true, "-1": true, "laugh": true, "confused": true, "heart": true, "hooray": true, "rocket": true, "eyes": true}
 
 func IsReviewCommentReaction(content string) bool { return reviewCommentReactions[content] }
+
+// ReviewCommentReactions returns the documented picker order. The caller gets
+// a copy so transient UI code cannot mutate the source contract.
+func ReviewCommentReactions() []string {
+	return []string{"+1", "-1", "laugh", "confused", "heart", "hooray", "rocket", "eyes"}
+}
 
 type GH struct {
 	Runner     Runner
@@ -215,7 +222,7 @@ func (g *GH) ReplyToReviewComment(ctx context.Context, id Identity, commentID in
 		return ReviewComment{}, safeReviewCommentError(err)
 	}
 	comment, err := parseReviewComment(data, id)
-	if err != nil || comment.Body != body {
+	if err != nil || comment.Body != body || comment.ParentID != commentID {
 		return ReviewComment{}, errors.New("invalid created review comment reply")
 	}
 	return comment, nil
@@ -295,6 +302,7 @@ func parseReviewComment(data []byte, identity Identity) (ReviewComment, error) {
 		Path     string `json:"path"`
 		Side     string `json:"side"`
 		Line     int    `json:"line"`
+		ParentID int64  `json:"in_reply_to_id"`
 		User     *struct {
 			Login string `json:"login"`
 		} `json:"user"`
@@ -302,7 +310,10 @@ func parseReviewComment(data []byte, identity Identity) (ReviewComment, error) {
 	if json.Unmarshal(data, &raw) != nil || raw.ID <= 0 || raw.User == nil || raw.User.Login == "" || !utf8.ValidString(raw.User.Login) {
 		return ReviewComment{}, errors.New("invalid review comment")
 	}
-	comment := ReviewComment{ID: raw.ID, Author: raw.User.Login, Body: raw.Body, Target: ReviewCommentTarget{Identity: identity, CommitID: raw.CommitID, Path: raw.Path, Side: raw.Side, Line: raw.Line}}
+	if raw.ParentID < 0 || raw.ParentID == raw.ID {
+		return ReviewComment{}, errors.New("invalid review comment")
+	}
+	comment := ReviewComment{ID: raw.ID, ParentID: raw.ParentID, Author: raw.User.Login, Body: raw.Body, Target: ReviewCommentTarget{Identity: identity, CommitID: raw.CommitID, Path: raw.Path, Side: raw.Side, Line: raw.Line}}
 	if err := validateReviewComment(comment); err != nil {
 		return ReviewComment{}, err
 	}

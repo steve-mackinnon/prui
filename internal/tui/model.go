@@ -839,8 +839,8 @@ func (m *Model) detail() []diffLine {
 			continue
 		}
 		for _, comment := range m.Comments {
-			if comment.Target == *line.target {
-				lines = append(lines, m.reviewCommentLines(comment)...)
+			if comment.Target == *line.target && comment.ParentID == 0 {
+				lines = append(lines, m.reviewCommentThread(comment, 0)...)
 			}
 		}
 		if m.Composer != nil && m.Composer.Target == *line.target {
@@ -850,15 +850,33 @@ func (m *Model) detail() []diffLine {
 	return lines
 }
 
+func (m *Model) reviewCommentThread(comment source.ReviewComment, indent int) []diffLine {
+	lines := m.reviewCommentLinesAt(comment, indent)
+	for _, reply := range m.Comments {
+		if reply.ParentID == comment.ID && reply.Target == comment.Target {
+			lines = append(lines, m.reviewCommentThread(reply, indent+4)...)
+		}
+	}
+	if menu := m.CommentMenu; menu != nil && menu.CommentID == comment.ID && menu.mode == commentActionReply {
+		lines = append(lines, m.inlineReplyEditorLines(indent+4)...)
+	}
+	return lines
+}
+
 // reviewCommentLines keeps each untrusted remote comment visually attached to
 // its anchor while making it clear that it is read-only overlay content.
 func (m *Model) reviewCommentLines(comment source.ReviewComment) []diffLine {
+	return m.reviewCommentLinesAt(comment, 0)
+}
+
+func (m *Model) reviewCommentLinesAt(comment source.ReviewComment, indent int) []diffLine {
 	inner := max(8, min(68, m.Width-8))
-	border := "  +" + strings.Repeat("-", inner+2) + "+"
+	prefix := strings.Repeat(" ", 2+indent)
+	border := prefix + "+" + strings.Repeat("-", inner+2) + "+"
 	line := func(class lineClass, text string) diffLine {
 		text = clip(text, inner)
 		text += strings.Repeat(" ", max(0, inner-visibleWidth(text)))
-		return diffLine{styledLine: styledLine{Class: class, Text: "  | " + text + " |"}, commentID: comment.ID}
+		return diffLine{styledLine: styledLine{Class: class, Text: prefix + "| " + text + " |"}, commentID: comment.ID}
 	}
 	author := Escape(comment.Author)
 	if author == "" {
@@ -868,14 +886,44 @@ func (m *Model) reviewCommentLines(comment source.ReviewComment) []diffLine {
 	for _, body := range strings.Split(comment.Body, "\n") {
 		lines = append(lines, line(classPlain, Escape(body)))
 	}
-	if reactions := m.CommentReactions[comment.ID]; len(reactions) > 0 {
-		contents := make([]string, 0, len(reactions))
-		for _, reaction := range reactions {
-			contents = append(contents, Escape(reaction.Content))
-		}
-		lines = append(lines, line(classMetadata, "reactions: "+strings.Join(contents, " ")))
+	return append(lines, diffLine{styledLine: styledLine{Class: classMetadata, Text: m.commentBottomBorder(prefix, inner, comment.ID)}, commentID: comment.ID})
+}
+
+func (m *Model) commentBottomBorder(prefix string, inner int, commentID int64) string {
+	counts := map[string]int{}
+	for _, reaction := range m.CommentReactions[commentID] {
+		counts[reaction.Content]++
 	}
-	return append(lines, diffLine{styledLine: styledLine{Class: classMetadata, Text: border}, commentID: comment.ID})
+	chips := []string{}
+	for _, content := range source.ReviewCommentReactions() {
+		if counts[content] > 0 {
+			chips = append(chips, "["+Escape(content)+" "+fmt.Sprint(counts[content])+"]")
+		}
+	}
+	inside := strings.Repeat("-", inner+2)
+	if len(chips) > 0 {
+		chipText := strings.Join(chips, " ")
+		chipText = clip(chipText, inner+2)
+		inside = chipText + strings.Repeat("-", max(0, inner+2-visibleWidth(chipText)))
+	}
+	return prefix + "+" + inside + "+"
+}
+
+func (m *Model) inlineReplyEditorLines(indent int) []diffLine {
+	menu := m.CommentMenu
+	if menu == nil {
+		return nil
+	}
+	inner := max(8, min(68, m.Width-8))
+	prefix := strings.Repeat(" ", 2+indent)
+	border := prefix + "+" + strings.Repeat("-", inner+2) + "+"
+	lines := []diffLine{{styledLine: styledLine{Class: classWarning, Text: border}}}
+	for _, text := range strings.Split(menu.Draft, "\n") {
+		content := clip(Escape(text), inner)
+		content += strings.Repeat(" ", max(0, inner-visibleWidth(content)))
+		lines = append(lines, diffLine{styledLine: styledLine{Class: classWarning, Text: prefix + "| " + content + " |"}})
+	}
+	return append(lines, diffLine{styledLine: styledLine{Class: classWarning, Text: border}})
 }
 
 func (m *Model) inlineEditorLines() []diffLine {

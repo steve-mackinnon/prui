@@ -276,10 +276,12 @@ func (m *Model) commentActionKey(key tea.KeyPressMsg) tea.Cmd {
 	}
 	switch menu.mode {
 	case commentActionReact:
-		if !source.IsReviewCommentReaction(key.String()) {
+		reactions := source.ReviewCommentReactions()
+		picked := key.String()
+		if len(picked) != 1 || picked[0] < '1' || int(picked[0]-'1') >= len(reactions) {
 			return nil
 		}
-		menu.Reaction, menu.Draft = key.String(), ""
+		menu.Reaction, menu.Draft = reactions[int(picked[0]-'1')], ""
 	case commentActionDeleteConfirm:
 		if key.String() != "enter" {
 			return nil
@@ -292,11 +294,29 @@ func (m *Model) commentActionKey(key tea.KeyPressMsg) tea.Cmd {
 				m.ActionError = errors.New("review comment reply body is required")
 				return nil
 			}
+		case "left":
+			menu.Cursor = max(0, menu.Cursor-1)
+			return nil
+		case "right":
+			menu.Cursor = min(len([]rune(menu.Draft)), menu.Cursor+1)
+			return nil
+		case "home":
+			menu.Cursor = 0
+			return nil
+		case "end":
+			menu.Cursor = len([]rune(menu.Draft))
+			return nil
 		case "backspace":
 			r := []rune(menu.Draft)
 			if menu.Cursor > 0 {
 				menu.Draft = string(append(r[:menu.Cursor-1], r[menu.Cursor:]...))
 				menu.Cursor--
+			}
+			return nil
+		case "delete":
+			r := []rune(menu.Draft)
+			if menu.Cursor < len(r) {
+				menu.Draft = string(append(r[:menu.Cursor], r[menu.Cursor+1:]...))
 			}
 			return nil
 		default:

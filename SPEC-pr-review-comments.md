@@ -209,6 +209,62 @@ The inline-overlay extension intentionally excludes timeline comments, replies,
 batch reviews, multi-line ranges, editing/deleting remote comments, and
 persisted comment history.
 
+## UX Amendment: Threaded Replies and Reaction Chips
+
+### Objective
+
+Make reply composition and read-back visually communicate a GitHub-style
+thread, while making the finite reaction picker fast to operate from a
+keyboard. This changes only ephemeral interactive rendering and local action
+state; GitHub request contracts, frozen anchoring, and persistence boundaries
+remain unchanged.
+
+### Interaction Contract
+
+1. Choosing `r` in a selected comment's action menu opens a separate,
+   rune-aware reply editor beneath that comment box. It is indented farther
+   right than its parent and retains the parent stable ID and exact frozen
+   anchor. It does not place draft text in the action-menu status line.
+2. A successful canonical reply is rendered as a separate indented box beneath
+   its parent comment. Replies retain their original anchor and are never
+   inferred from presentation text. Escape discards an active reply draft
+   without a write; failed submissions retain that editor and draft.
+3. Choosing `a` shows the eight documented reaction values in stable numbered
+   order: `1 +1`, `2 -1`, `3 laugh`, `4 confused`, `5 heart`, `6 hooray`,
+   `7 rocket`, `8 eyes`. Pressing a matching digit selects exactly that value;
+   other input and Escape are write-free.
+4. Reactions render as compact escaped chips embedded in the bottom border of
+   the affected comment box: each distinct value appears once with its current
+   ephemeral count. A successful canonical reaction increments only the
+   originating tab's matching comment chip. A refresh replaces overlay state.
+
+### Testing Strategy
+
+Use focused TUI tests before implementation for separate reply-editor layout,
+rune editing/cancel/failure retention, numbered reaction mapping, and
+deterministic bottom-border counts. Snapshot the representative threaded box
+only after inspecting its unstyled text. Keep source and application request
+tests unchanged except for lifecycle regressions that prove origin-tab
+isolation.
+
+### Boundaries
+
+- Always: preserve escaped rendering, exact anchors, tab/generation isolation,
+  offline refusal, JSON-stdin writes, and memory-only draft/reaction state.
+- Ask first: changing GitHub endpoints, adding reaction persistence, or adding
+  a mouse interaction.
+- Never: put reply body text in a menu/status line, infer threads from body
+  text, let a digit write outside the reaction picker, or alter plain output.
+
+### Success Criteria
+
+- A reply editor and a successful reply are visibly indented relative to the
+  selected parent box; the editor remains a distinct text input surface.
+- Each picker digit maps to exactly one documented reaction; labels and counts
+  remain meaningful with terminal color disabled.
+- The bottom border shows deterministic reaction chips and counts without
+  exceeding the comment-box width or leaking state across tabs.
+
 ## UX Extension: Inline Composer and Comment Overlay
 
 ### Why

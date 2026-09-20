@@ -95,9 +95,9 @@ func (m *Model) reviewStatus() string {
 		text := "Comment actions: r reply · a react · esc cancel"
 		switch menu.mode {
 		case commentActionReply:
-			text = "Reply draft: " + Escape(menu.Draft) + " · enter submit · esc cancel"
+			text = "Reply editor open · enter submit · esc cancel"
 		case commentActionReact:
-			text = "React: +1, -1, laugh, confused, heart, hooray, rocket, eyes · esc cancel"
+			text = "React: 1 +1 · 2 -1 · 3 laugh · 4 confused · 5 heart · 6 hooray · 7 rocket · 8 eyes · esc cancel"
 		case commentActionDeleteConfirm:
 			text = "Delete this comment? enter confirm · esc cancel"
 		default:
