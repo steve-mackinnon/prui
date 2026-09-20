@@ -7,6 +7,7 @@ import (
 	"unicode/utf8"
 
 	tea "charm.land/bubbletea/v2"
+	"pr-review/internal/inventory"
 	"pr-review/internal/review"
 	"pr-review/internal/session"
 	"pr-review/internal/source"
@@ -843,7 +844,12 @@ func (m *Model) baseDetail() []diffLine {
 	if m.Session == nil || m.Selected < 0 || m.Selected >= len(m.Session.Inventory.Units) {
 		return nil
 	}
-	return unitLines(m.Session, m.Selected)
+	lines := unitLines(m.Session, m.Selected)
+	if m.Session.Inventory.Units[m.Selected].Kind == inventory.TextHunk {
+		file := m.Session.Inventory.Files[m.Session.UnitFiles[m.Selected]]
+		return append([]diffLine{{styledLine: styledLine{classFileHeader, fileDivider(file)}}}, lines...)
+	}
+	return lines
 }
 
 // detail expands immutable diff targets into ephemeral overlay/editor rows.

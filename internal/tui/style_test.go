@@ -180,12 +180,18 @@ func TestUnitCardClassesPerKind(t *testing.T) {
 	}
 	for i, u := range s.Inventory.Units {
 		lines := unitLines(s, i)
-		if len(lines) < 2 || lines[0].Class != classTitle {
+		if u.Kind == inventory.FileMetadata {
+			if len(lines) != 1 || lines[0].Class != classFileHeader {
+				t.Fatalf("file metadata = %#v, want one file header", lines)
+			}
+			continue
+		}
+		if u.Kind != inventory.TextHunk && (len(lines) < 2 || lines[0].Class != classTitle) {
 			t.Fatalf("unit %s missing styled title: %+v", u.Kind, lines)
 		}
 		if u.Kind == inventory.TextHunk {
 			classes := map[lineClass]bool{}
-			for _, l := range lines[1:] {
+			for _, l := range lines {
 				classes[l.Class] = true
 			}
 			for _, c := range []lineClass{classHunk, classAdded, classRemoved, classContext} {
@@ -213,21 +219,21 @@ func TestUnitLinesWordingMatchesUnitText(t *testing.T) {
 			}
 			b.WriteString(styleLine(l.Class, l.Text) + "\n")
 		}
+		if u.Kind == inventory.FileMetadata || u.Kind == inventory.TextHunk {
+			continue
+		}
 		if got := ansi.Strip(b.String()); got != unitText(s, i) {
 			t.Fatalf("%s styled wording changed:\n%q\n%q", u.Kind, got, unitText(s, i))
 		}
 	}
 }
 
-func TestTextHunkReplacesGitPreambleWithFileDivider(t *testing.T) {
+func TestTextHunkOmitsGitPreamble(t *testing.T) {
 	s := kindsSession()
 	lines := unitLines(s, 1)
 
-	if got, want := lines[0].Text, "── text ──"; got != want {
-		t.Fatalf("file divider = %q, want %q", got, want)
-	}
-	if lines[0].Class != classTitle {
-		t.Fatalf("file divider class = %d, want title", lines[0].Class)
+	if lines[0].Text != "@@ -1,2 +1,2 @@" || lines[0].Class != classHunk {
+		t.Fatalf("text hunk begins with review content, got %#v", lines[0])
 	}
 	for _, line := range lines {
 		for _, preamble := range []string{"diff --git ", "index ", "--- a/", "+++ b/"} {
@@ -238,6 +244,26 @@ func TestTextHunkReplacesGitPreambleWithFileDivider(t *testing.T) {
 	}
 	if got := unitText(s, 1); !strings.Contains(got, "@@ -1,2 +1,2 @@\n context\n-old\n+new\n") {
 		t.Fatalf("rendered hunk lost review content: %q", got)
+	}
+}
+
+func TestFileMetadataRendersOnlyAStrongFileDivider(t *testing.T) {
+	s := kindsSession()
+	lines := unitLines(s, 0)
+
+	if got, want := len(lines), 1; got != want {
+		t.Fatalf("file metadata rendered %d lines, want only a file divider: %#v", got, lines)
+	}
+	if got, want := lines[0].Text, "━━━ FILE · text ━━━"; got != want {
+		t.Fatalf("file divider = %q, want %q", got, want)
+	}
+	if lines[0].Class != classFileHeader {
+		t.Fatalf("file divider class = %d, want file header", lines[0].Class)
+	}
+	for _, noisy := range []string{"status", "mode", "object", "1111111", "2222222"} {
+		if strings.Contains(lines[0].Text, noisy) {
+			t.Fatalf("file divider leaks %q: %q", noisy, lines[0].Text)
+		}
 	}
 }
 
@@ -289,7 +315,7 @@ func TestUnitLinesPreserveDeletionTargetAndInvalidPath(t *testing.T) {
 	s.Inventory.Units[1].NewRange = inventory.Range{Start: 0, Count: 0}
 	s.Inventory.Patches["p"] = []byte("@@ -7 +0,0 @@\n-gone\n")
 	lines := unitLines(s, 1)
-	if got := lines[2].target; got == nil || got.Path != "deleted.go" || got.Side != "LEFT" || got.Line != 7 {
+	if got := lines[1].target; got == nil || got.Path != "deleted.go" || got.Side != "LEFT" || got.Line != 7 {
 		t.Fatalf("deleted line target = %#v", got)
 	}
 
@@ -298,7 +324,7 @@ func TestUnitLinesPreserveDeletionTargetAndInvalidPath(t *testing.T) {
 	s.Inventory.Units[1].NewRange = inventory.Range{Start: 2, Count: 1}
 	s.Inventory.Patches["p"] = []byte("@@ -0,0 +2 @@\n+added\n")
 	lines = unitLines(s, 1)
-	if got := lines[2].target; got == nil || got.Path != string([]byte("bad\xff")) || got.Side != "RIGHT" || got.Line != 2 {
+	if got := lines[1].target; got == nil || got.Path != string([]byte("bad\xff")) || got.Side != "RIGHT" || got.Line != 2 {
 		t.Fatalf("invalid-path addition target = %#v", got)
 	}
 }

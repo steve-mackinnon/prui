@@ -27,6 +27,12 @@ func pathLabel(f inventory.FileChange) string {
 	}
 	return Escape(string(f.NewPath))
 }
+
+// fileDivider makes file boundaries easy to scan without exposing Git object
+// identifiers or extended-header bookkeeping in the interactive diff pane.
+func fileDivider(f inventory.FileChange) string {
+	return "━━━ FILE · " + pathLabel(f) + " ━━━"
+}
 func status(s *review.Session) string {
 	completeness := "complete"
 	if !s.Inventory.Complete {
@@ -86,12 +92,10 @@ func unitLines(s *review.Session, i int) []diffLine {
 	u := s.Inventory.Units[i]
 	f := s.Inventory.Files[s.UnitFiles[i]]
 	title := fmt.Sprintf("%s [%s]", pathLabel(f), u.Kind)
-	if u.Kind == inventory.TextHunk {
-		title = "── " + pathLabel(f) + " ──"
-	}
 	lines := []diffLine{{styledLine: styledLine{classTitle, title}}}
 	switch u.Kind {
 	case inventory.TextHunk:
+		lines = nil
 		oldLine, newLine, inHunk := u.OldRange.Start, u.NewRange.Start, false
 		// The patch keeps its trailing newline, so the final empty element is a real display line.
 		for _, raw := range bytes.Split(s.Inventory.Patches[u.PatchReference], []byte{'\n'}) {
@@ -109,7 +113,7 @@ func unitLines(s *review.Session, i int) []diffLine {
 			lines = append(lines, line)
 		}
 	case inventory.FileMetadata:
-		lines = append(lines, body(cardClass(u.Kind), fmt.Sprintf("status %s | mode %s -> %s\nold path: %s\nnew path: %s\nold object: %s\nnew object: %s\n", f.Status, f.OldMode, f.NewMode, Escape(string(f.OldPath)), Escape(string(f.NewPath)), f.OldOID, f.NewOID))...)
+		return []diffLine{{styledLine: styledLine{classFileHeader, fileDivider(f)}}}
 	case inventory.Binary:
 		lines = append(lines, body(cardClass(u.Kind), "Binary content changed; no text patch. Object IDs in file metadata.\n")...)
 	case inventory.Gitlink:
@@ -189,7 +193,17 @@ func patchTarget(s *review.Session, f inventory.FileChange, raw []byte, oldLine,
 	}
 }
 func unitText(s *review.Session, i int) string {
+	u := s.Inventory.Units[i]
+	f := s.Inventory.Files[s.UnitFiles[i]]
+	// Plain output retains its diagnostic metadata contract. The interactive
+	// renderer intentionally condenses it into fileDivider instead.
+	if u.Kind == inventory.FileMetadata {
+		return fmt.Sprintf("%s [%s]\nstatus %s | mode %s -> %s\nold path: %s\nnew path: %s\nold object: %s\nnew object: %s\n", pathLabel(f), u.Kind, f.Status, f.OldMode, f.NewMode, Escape(string(f.OldPath)), Escape(string(f.NewPath)), f.OldOID, f.NewOID)
+	}
 	var b strings.Builder
+	if u.Kind == inventory.TextHunk {
+		b.WriteString("── " + pathLabel(f) + " ──\n")
+	}
 	for _, l := range unitLines(s, i) {
 		b.WriteString(l.Text)
 		b.WriteByte('\n')

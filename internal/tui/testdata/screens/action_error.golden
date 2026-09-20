@@ -1,6 +1,6 @@
 review · example/review#42 · ctrl+p: switch PR
 FILE SLICES 2 · main.go [text_hunk] · focus: files
-› main.go                         | ── main.go ──
+› main.go                         | ━━━ FILE · main.go ━━━
   README.md                       | @@ -1 +1 @@
                                   | -old greeting
                                   | +hello world

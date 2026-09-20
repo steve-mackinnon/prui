@@ -947,7 +947,24 @@ func TestReviewStyledUnitKindsKeepWording(t *testing.T) {
 		if strings.Contains(stripped, "\x1b") {
 			t.Fatalf("%s leaked raw escapes", u.Kind)
 		}
+		if u.Kind == inventory.FileMetadata {
+			if !strings.Contains(stripped, fileDivider(s.Inventory.Files[s.UnitFiles[i]])) {
+				t.Fatalf("%s omitted its file divider", u.Kind)
+			}
+			for _, noisy := range []string{"old object:", "new object:", "status "} {
+				if strings.Contains(stripped, noisy) {
+					t.Fatalf("%s leaked metadata %q", u.Kind, noisy)
+				}
+			}
+			continue
+		}
 		for _, line := range strings.Split(strings.TrimSuffix(unitText(s, i), "\n"), "\n") {
+			if u.Kind == inventory.TextHunk && strings.HasPrefix(line, "── ") {
+				if !strings.Contains(stripped, fileDivider(s.Inventory.Files[s.UnitFiles[i]])) {
+					t.Fatalf("%s omitted its file divider", u.Kind)
+				}
+				continue
+			}
 			if line != "" && !strings.Contains(stripped, line) {
 				t.Fatalf("%s reworded line %q", u.Kind, line)
 			}

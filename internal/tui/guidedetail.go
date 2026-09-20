@@ -1,6 +1,9 @@
 package tui
 
-import "pr-review/internal/review"
+import (
+	"pr-review/internal/inventory"
+	"pr-review/internal/review"
+)
 
 // guideDetail is the selected guide's diff assembled from its ordered section
 // unit IDs. Lines carry the same optional review targets as unitLines emits.
@@ -48,11 +51,14 @@ func detailFor(s *review.Session, guide int) guideDetail {
 				continue
 			}
 			file := s.UnitFiles[unit]
-			if file != previous {
+			if file != previous && s.Inventory.Units[unit].Kind != inventory.FileMetadata {
 				detail.files = append(detail.files, fileAnchor{section: si, file: file, offset: len(detail.lines)})
-				detail.lines = append(detail.lines, diffLine{styledLine: styledLine{Class: classFileHeader, Text: pathLabel(s.Inventory.Files[file])}})
-				previous = file
+				detail.lines = append(detail.lines, diffLine{styledLine: styledLine{Class: classFileHeader, Text: fileDivider(s.Inventory.Files[file])}})
 			}
+			if file != previous && s.Inventory.Units[unit].Kind == inventory.FileMetadata {
+				detail.files = append(detail.files, fileAnchor{section: si, file: file, offset: len(detail.lines)})
+			}
+			previous = file
 			detail.lines = append(detail.lines, unitLines(s, unit)...)
 		}
 	}

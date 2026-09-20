@@ -384,8 +384,8 @@ func TestGuideDetailFileJumps(t *testing.T) {
 		t.Fatalf("Enter focus/offset = %v/%d, want diff/%d", m.Focus, m.GuideScroll[b.guide], want)
 	}
 	view := strings.Split(ansi.Strip(m.View().Content), "\n")
-	if len(view) < 3 || view[2] != "b.go" {
-		t.Fatalf("jumped diff body = %q, want b.go header", view)
+	if len(view) < 3 || view[2] != fileDivider(s.Inventory.Files[b.file]) {
+		t.Fatalf("jumped diff body = %q, want b.go file divider", view)
 	}
 
 	m.Focus = paneList
@@ -435,8 +435,9 @@ func TestGuideDetailJumpsRepeatedFileOccurrence(t *testing.T) {
 	}
 	m.Row, m.Selected = secondRow, rows[secondRow].units[0]
 	namedKey(m, tea.KeyEnter)
-	if m.GuideScroll[0] != second {
-		t.Fatalf("second a.go jump = %d, want %d", m.GuideScroll[0], second)
+	wantScroll := min(second, max(0, len(m.detail())-m.bodyHeight()))
+	if m.GuideScroll[0] != wantScroll {
+		t.Fatalf("second a.go jump = %d, want %d", m.GuideScroll[0], wantScroll)
 	}
 }
 
