@@ -220,6 +220,28 @@ func TestReviewSelectionUsesPersistentChevronOutsideFocusedPane(t *testing.T) {
 	}
 }
 
+func TestWideReviewFramesBothPanesAndHighlightsTheFocusedPane(t *testing.T) {
+	m := New(context.Background(), nil)
+	m.Loading = false
+	m.Session = screenSession()
+	m.Width, m.Height, m.Focus = 120, 12, paneList
+
+	view := m.View().Content
+	lines := strings.Split(ansi.Strip(view), "\n")
+	if !strings.HasPrefix(lines[2], "┌") || !strings.Contains(lines[2], "┐ ┌") || !strings.HasSuffix(lines[2], "┐") {
+		t.Fatalf("wide review lacks pane top borders:\n%s", strings.Join(lines, "\n"))
+	}
+	if !strings.HasPrefix(lines[3], "│› main.go") || !strings.Contains(lines[3], "│ │") || !strings.HasSuffix(lines[3], "│") {
+		t.Fatalf("wide review content is not enclosed by both pane borders:\n%s", strings.Join(lines, "\n"))
+	}
+	if !strings.Contains(view, styleLine(paneBorderClass(true), "│")) {
+		t.Fatalf("focused list pane border was not styled:\n%q", view)
+	}
+	if !strings.Contains(view, styleLine(paneBorderClass(false), "│")) {
+		t.Fatalf("unfocused diff pane border was not styled:\n%q", view)
+	}
+}
+
 func TestReviewWorkspaceUsesCompactHealthStatusInsteadOfShortcutFooter(t *testing.T) {
 	m := New(context.Background(), nil)
 	m.Loading = false

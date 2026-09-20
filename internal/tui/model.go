@@ -904,7 +904,7 @@ func (m *Model) reviewCommentLines(comment source.ReviewComment) []diffLine {
 }
 
 func (m *Model) reviewCommentLinesAt(comment source.ReviewComment, indent int) []diffLine {
-	inner := max(8, min(68, m.Width-8))
+	inner := m.overlayInnerWidth(indent)
 	prefix := strings.Repeat(" ", 2+indent)
 	border := prefix + "+" + strings.Repeat("-", inner+2) + "+"
 	line := func(class lineClass, text string) diffLine {
@@ -964,7 +964,7 @@ func (m *Model) inlineEditorLines() []diffLine {
 func (m *Model) inlineEditorLinesFor(draft string, editorCursor, indent int) []diffLine {
 	// A simple terminal-native box makes the editor a distinct input surface
 	// without borrowing a target label or a footer from the surrounding diff.
-	inner := max(8, min(68, m.Width-8))
+	inner := m.overlayInnerWidth(indent)
 	prefix := strings.Repeat(" ", 2+indent)
 	border := prefix + "+" + strings.Repeat("-", inner+2) + "+"
 	lines := []diffLine{{styledLine: styledLine{Class: classWarning, Text: border}}}
@@ -993,6 +993,27 @@ func (m *Model) inlineEditorLinesFor(draft string, editorCursor, indent int) []d
 	}
 	lines = append(lines, diffLine{styledLine: styledLine{Class: classWarning, Text: border}})
 	return lines
+}
+
+// overlayInnerWidth leaves room for the detail cursor gutter, an overlay's
+// indent and its own border. Framed wide panes have two fewer detail columns,
+// so this prevents deeply nested comments from losing their closing border.
+func (m *Model) overlayInnerWidth(indent int) int {
+	reserved := 6 // cursor gutter plus the overlay's own border
+	if m.reviewUsesPaneFrames() {
+		reserved++ // keep nested overlay borders visually clear of the pane edge
+	}
+	return max(8, min(68, m.detailWidth()-(2+indent)-reserved))
+}
+
+func (m *Model) detailWidth() int {
+	if m.Width < 100 {
+		return m.Width
+	}
+	if m.reviewUsesPaneFrames() {
+		return m.Width - m.listWidth() - 5
+	}
+	return m.Width - m.listWidth() - 3
 }
 
 func (m *Model) offset() int {
@@ -1126,7 +1147,16 @@ func (m *Model) ensureCursorVisible() {
 }
 
 func (m *Model) bodyHeight() int {
+	if m.reviewUsesPaneFrames() {
+		return max(1, m.Height-5)
+	}
 	return max(1, m.Height-3)
+}
+
+// reviewUsesPaneFrames keeps the established narrow one-pane layout intact.
+// Wide terminals get a complete outline around each workspace pane.
+func (m *Model) reviewUsesPaneFrames() bool {
+	return m.Width >= 100 && m.Height >= 6
 }
 
 func (m *Model) pageStep() int { return max(1, m.bodyHeight()-1) }
@@ -1281,6 +1311,16 @@ func (m *Model) reviewView() string {
 		}
 	}
 	body := []string{}
+	framed := m.reviewUsesPaneFrames()
+	leftBorder, rightBorder := paneBorderClass(m.Focus == paneList), paneBorderClass(m.Focus == paneDiff)
+	if framed {
+		leftOuterWidth := leftWidth + 2
+		rightOuterWidth := m.Width - leftOuterWidth - 1
+		body = append(body,
+			styleLine(leftBorder, "┌"+strings.Repeat("─", leftOuterWidth-2)+"┐")+" "+
+				styleLine(rightBorder, "┌"+strings.Repeat("─", rightOuterWidth-2)+"┐"),
+		)
+	}
 	for row := 0; row < bodyHeight; row++ {
 		left, right := "", ""
 		class, leftClass := classPlain, classPlain
@@ -1299,6 +1339,16 @@ func (m *Model) reviewView() string {
 			} else {
 				body = append(body, styleLine(leftClass, clip(left, m.Width)))
 			}
+		} else if framed {
+			left = clip(left, leftWidth)
+			leftPadding := strings.Repeat(" ", max(0, leftWidth-visibleWidth(left)))
+			rightWidth := m.Width - leftWidth - 5
+			right = clip(right, rightWidth)
+			rightPadding := strings.Repeat(" ", max(0, rightWidth-visibleWidth(right)))
+			body = append(body,
+				styleLine(leftBorder, "│")+styleLine(leftClass, left)+leftPadding+styleLine(leftBorder, "│")+" "+
+					styleLine(rightBorder, "│")+styleLine(class, right)+rightPadding+styleLine(rightBorder, "│"),
+			)
 		} else {
 			leftWidth := min(36, m.Width/3)
 			left = clip(left, leftWidth)
@@ -1306,6 +1356,14 @@ func (m *Model) reviewView() string {
 			padding := strings.Repeat(" ", max(0, leftWidth-visibleWidth(left)))
 			body = append(body, styleLine(leftClass, left)+padding+" | "+styleLine(class, clip(right, m.Width-leftWidth-3)))
 		}
+	}
+	if framed {
+		leftOuterWidth := leftWidth + 2
+		rightOuterWidth := m.Width - leftOuterWidth - 1
+		body = append(body,
+			styleLine(leftBorder, "└"+strings.Repeat("─", leftOuterWidth-2)+"┘")+" "+
+				styleLine(rightBorder, "└"+strings.Repeat("─", rightOuterWidth-2)+"┘"),
+		)
 	}
 	return title + "\n" + header + "\n" + strings.Join(body, "\n") + "\n" + m.reviewStatus()
 }

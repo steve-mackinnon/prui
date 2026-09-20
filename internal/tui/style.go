@@ -27,6 +27,8 @@ const (
 	classUnavailable
 	classSelection
 	classSelectionFocused
+	classPaneBorder
+	classPaneBorderFocused
 )
 
 // styledLine is one already-escaped display line plus its semantic class.
@@ -66,6 +68,11 @@ var palette = map[lineClass]lipgloss.Style{
 	// The selection in the focused pane adds reverse video, also colorless, so
 	// the two selection states differ without either depending on color.
 	classSelectionFocused: lipgloss.NewStyle().Bold(true).Reverse(true).TabWidth(lipgloss.NoTabConversion),
+	// Wide review panes keep a quiet outline until selected. The active pane
+	// uses the same warm accent as the review chrome, with bold retained as a
+	// color-independent focus cue.
+	classPaneBorder:        semantic(lipgloss.Color("240"), false),
+	classPaneBorderFocused: semantic(lipgloss.Color("208"), true),
 }
 
 // selectionMarker makes selection readable even when styles are unavailable.
@@ -92,6 +99,13 @@ func selectedClass(focused bool) lineClass {
 		return classSelectionFocused
 	}
 	return classSelection
+}
+
+func paneBorderClass(focused bool) lineClass {
+	if focused {
+		return classPaneBorderFocused
+	}
+	return classPaneBorder
 }
 
 // cardClass is the state style for a non-text unit body. Text hunks classify

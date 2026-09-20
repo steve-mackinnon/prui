@@ -1,14 +1,14 @@
 review · example/review#42 · guide 1/1 · ctrl+p: switch PR
 GUIDES 2 · main.go [text_hunk] · focus: files · marking: whole files · guide detail 1/1
-› - 1. Greeting                      | ━━━ FILE · main.go ━━━
-    Update the greeting and its      | @@ -1 +1 @@
-    documentation.                   | -old greeting
-    - 1.1 Implementation             | +hello world
-      main.go [text_hunk]            |
-    - 1.2 Documentation              | ━━━ FILE · README.md ━━━
-      README.md [file_metadata]      |
-                                     |
-                                     |
-                                     |
-                                     |
+┌────────────────────────────────────┐ ┌───────────────────────────────────────────────────────────────────────────────┐
+│› - 1. Greeting                     │ │━━━ FILE · main.go ━━━                                                         │
+│    Update the greeting and its     │ │@@ -1 +1 @@                                                                    │
+│    documentation.                  │ │-old greeting                                                                  │
+│    - 1.1 Implementation            │ │+hello world                                                                   │
+│      main.go [text_hunk]           │ │                                                                               │
+│    - 1.2 Documentation             │ │━━━ FILE · README.md ━━━                                                       │
+│      README.md [file_metadata]     │ │                                                                               │
+│                                    │ │                                                                               │
+│                                    │ │                                                                               │
+└────────────────────────────────────┘ └───────────────────────────────────────────────────────────────────────────────┘
 0/2 read · ✓ Inventory complete · ✓ Guides 1 · ? Freshness unknown · ?: Health & help
