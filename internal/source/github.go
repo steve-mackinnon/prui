@@ -15,6 +15,8 @@ import (
 var repositoryPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]*/[A-Za-z0-9][A-Za-z0-9_.-]*$`)
 var shaPattern = regexp.MustCompile(`^[0-9a-f]{40}$`)
 
+const descriptionMaxBytes = 1 << 20
+
 type Identity struct {
 	Repository string
 	Number     int
@@ -51,6 +53,7 @@ func ParseIdentity(input, repository string) (Identity, error) {
 type Metadata struct {
 	Identity                                         Identity
 	BaseRepository, HeadRepository, BaseSHA, HeadSHA string
+	Description                                      string
 }
 
 type PullRequest struct {
@@ -347,13 +350,21 @@ func (g *GH) Metadata(ctx context.Context, id Identity) (Metadata, error) {
 		} `json:"repo"`
 	}
 	var raw struct {
-		Number     int `json:"number"`
+		Number     int     `json:"number"`
+		Body       *string `json:"body"`
 		Base, Head side
 	}
-	if json.Unmarshal(data, &raw) != nil || raw.Number != id.Number || raw.Base.Repo == nil || raw.Head.Repo == nil {
+	if !utf8.Valid(data) || json.Unmarshal(data, &raw) != nil || raw.Number != id.Number || raw.Base.Repo == nil || raw.Head.Repo == nil {
 		return Metadata{}, errors.New("invalid metadata or deleted fork")
 	}
-	m := Metadata{id, raw.Base.Repo.FullName, raw.Head.Repo.FullName, raw.Base.SHA, raw.Head.SHA}
+	description := ""
+	if raw.Body != nil {
+		description = *raw.Body
+	}
+	if !utf8.ValidString(description) || len(description) > descriptionMaxBytes {
+		return Metadata{}, errors.New("invalid pull request description")
+	}
+	m := Metadata{Identity: id, BaseRepository: raw.Base.Repo.FullName, HeadRepository: raw.Head.Repo.FullName, BaseSHA: raw.Base.SHA, HeadSHA: raw.Head.SHA, Description: description}
 	if !repositoryPattern.MatchString(m.BaseRepository) || !repositoryPattern.MatchString(m.HeadRepository) || !strings.EqualFold(m.BaseRepository, id.Repository) || !shaPattern.MatchString(m.BaseSHA) || !shaPattern.MatchString(m.HeadSHA) {
 		return Metadata{}, errors.New("unsupported repository or revision metadata")
 	}

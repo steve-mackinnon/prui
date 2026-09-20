@@ -162,6 +162,9 @@ func TestComparisonSnapshotCacheMatchesOnlyExactPinnedRevisions(t *testing.T) {
 	snapshot := fixture()
 	snapshot.Inventory.Comparison.Metadata.BaseRepository = "owner/repo"
 	snapshot.Inventory.Comparison.Metadata.HeadRepository = "fork/repo"
+	description := "frozen description"
+	snapshot.PullRequestDescription = &description
+	snapshot.Inventory.Comparison.Metadata.Description = description
 	metadata := snapshot.Inventory.Comparison.Metadata
 	if _, err := s.Create(snapshot); err != nil {
 		t.Fatal(err)

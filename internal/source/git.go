@@ -274,6 +274,15 @@ type PinnedComparison struct {
 	MergeBaseSHA, DiffSettings, InventoryVersion, InventoryID string
 }
 
+// SamePinnedRevision compares only the repository identities and object IDs
+// that define source truth. Presentation-only PR fields may change while the
+// frozen source comparison remains valid.
+func SamePinnedRevision(a, b Metadata) bool {
+	return a.Identity == b.Identity &&
+		a.BaseRepository == b.BaseRepository && a.HeadRepository == b.HeadRepository &&
+		a.BaseSHA == b.BaseSHA && a.HeadSHA == b.HeadSHA
+}
+
 func Pin(ctx context.Context, checkout string, id Identity, gh GitHub, r Runner, l Limits, notify func(string)) (*View, PinnedComparison, error) {
 	return PinWithTiming(ctx, checkout, id, gh, r, l, notify, nil)
 }
@@ -322,7 +331,7 @@ func PinWithTiming(ctx context.Context, checkout string, id Identity, gh GitHub,
 			_ = v.Close()
 			return nil, PinnedComparison{}, readErr
 		}
-		if latest != m {
+		if !SamePinnedRevision(latest, m) {
 			_ = v.Close()
 			if attempt == 1 {
 				return nil, PinnedComparison{}, errors.New("PR revisions changed repeatedly during pin/fetch")

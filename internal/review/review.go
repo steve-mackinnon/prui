@@ -60,7 +60,8 @@ func OpenWithConfig(ctx context.Context, checkout string, id source.Identity, gh
 	// Analysis consumes only frozen material and runs before slicing, so it can
 	// interpret the change but never influence file ownership or progress.
 	b := guide.Analyze(ctx, cfg.Analyzer, inv, guide.InputFrom(inv, contextBundle, cfg.Policy, guide.Defaults))
-	s := &Session{Snapshot: session.Snapshot{Inventory: inv, Checkout: []byte(checkout), Slices: make([]Slice, len(inv.Files)), UnitFiles: make([]int, len(inv.Units))}}
+	description := p.Metadata.Description
+	s := &Session{Snapshot: session.Snapshot{Inventory: inv, Checkout: []byte(checkout), PullRequestDescription: &description, Slices: make([]Slice, len(inv.Files)), UnitFiles: make([]int, len(inv.Units))}}
 	s.Context = contextBundle
 	s.Guides = &b
 	index := map[string]int{}

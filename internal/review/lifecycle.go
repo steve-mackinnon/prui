@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"slices"
-	"strings"
 
 	"pr-review/internal/session"
 	"pr-review/internal/source"
@@ -42,7 +41,7 @@ func Refresh(ctx context.Context, store *session.Store, s *Session, gh MetadataR
 		m, err := gh.Metadata(ctx, old.Identity)
 		if err == nil {
 			next.RevisionStatus = session.Stale
-			if m.Identity == old.Identity && strings.EqualFold(m.BaseRepository, old.BaseRepository) && strings.EqualFold(m.HeadRepository, old.HeadRepository) && m.BaseSHA == old.BaseSHA && m.HeadSHA == old.HeadSHA {
+			if source.SamePinnedRevision(m, old) {
 				next.RevisionStatus = session.Current
 			}
 		}

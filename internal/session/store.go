@@ -16,6 +16,7 @@ import (
 	"sync"
 	"syscall"
 	"time"
+	"unicode/utf8"
 
 	reviewcontext "pr-review/internal/context"
 	"pr-review/internal/guide"
@@ -46,6 +47,9 @@ type Snapshot struct {
 	Slices    []Slice
 	UnitFiles []int
 	Context   reviewcontext.ContextBundle
+	// PullRequestDescription is nil for sessions created before description
+	// capture existed; a non-nil empty string is an explicitly captured body.
+	PullRequestDescription *string `json:"pull_request_description,omitempty"`
 	// Guides is a pointer so a session created before guide analysis existed
 	// re-marshals to identical bytes and keeps its snapshot reference valid.
 	Guides *guide.Bundle `json:"guides,omitempty"`
@@ -645,10 +649,10 @@ func (s *Store) HasComparisonSnapshot(id source.Identity) (bool, error) {
 	return false, nil
 }
 
-// LoadComparisonSnapshot returns a previously validated frozen snapshot for
-// the exact immutable comparison metadata, or nil when none is available. It is a
-// local source cache: callers must first obtain fresh PR metadata and match
-// both base and head revisions before using it.
+// LoadComparisonSnapshot returns a copy of previously validated frozen source
+// material for the same immutable comparison, or nil when none is available.
+// Fresh presentation data is installed on that copy so callers create a new
+// immutable session when a PR description changed without a source revision.
 //
 // Unreadable sessions are treated as cache misses and deliberately left in
 // place, matching guide-cache behavior. The returned snapshot is a value, so
@@ -677,7 +681,7 @@ func (s *Store) LoadComparisonSnapshot(metadata source.Metadata) (*Snapshot, err
 			continue
 		}
 		cached := r.Inventory.Comparison.Metadata
-		if !strings.EqualFold(cached.BaseRepository, metadata.BaseRepository) || !strings.EqualFold(cached.HeadRepository, metadata.HeadRepository) {
+		if !source.SamePinnedRevision(cached, metadata) {
 			continue
 		}
 		snapshot := r.Snapshot
@@ -685,6 +689,11 @@ func (s *Store) LoadComparisonSnapshot(metadata source.Metadata) (*Snapshot, err
 		// material. The caller resolves the guide cache separately.
 		snapshot.Guides = nil
 		snapshot.DerivedFrom = ""
+		if snapshot.PullRequestDescription == nil || *snapshot.PullRequestDescription != metadata.Description {
+			description := metadata.Description
+			snapshot.PullRequestDescription = &description
+			snapshot.Inventory.Comparison.Metadata = metadata
+		}
 		return &snapshot, nil
 	}
 	return nil, nil
@@ -810,6 +819,9 @@ func (s *Store) Delete(id string) error {
 func validate(r *Record) error {
 	bad := errors.New("invalid session references or progress; original retained")
 	if r.SchemaVersion != SchemaVersion || r.Inventory.Comparison.InventoryID == "" || r.Generation == 0 {
+		return bad
+	}
+	if r.PullRequestDescription != nil && (!utf8.ValidString(*r.PullRequestDescription) || len(*r.PullRequestDescription) > 1<<20) {
 		return bad
 	}
 	switch r.RevisionStatus {

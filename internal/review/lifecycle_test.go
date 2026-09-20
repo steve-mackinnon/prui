@@ -69,6 +69,7 @@ func TestLifecycleResumeAfterRepositoryDeletion(t *testing.T) {
 		want     session.RevisionStatus
 	}{
 		{"same", meta, session.Current},
+		{"description only", func() source.Metadata { changed := meta; changed.Description = "edited"; return changed }(), session.Current},
 		{"base only", source.Metadata{Identity: meta.Identity, BaseRepository: meta.BaseRepository, HeadRepository: meta.HeadRepository, BaseSHA: head, HeadSHA: head}, session.Stale},
 		{"head only", source.Metadata{Identity: meta.Identity, BaseRepository: meta.BaseRepository, HeadRepository: meta.HeadRepository, BaseSHA: base, HeadSHA: base}, session.Stale},
 	} {

@@ -31,7 +31,7 @@ func TestFileFallback(t *testing.T) {
 	r.Write("a", "after\n")
 	r.Write("b", "added\n")
 	head := r.Commit()
-	m := source.Metadata{Identity: source.Identity{Repository: "o/r", Number: 1}, BaseRepository: "o/r", HeadRepository: "o/r", BaseSHA: base, HeadSHA: head}
+	m := source.Metadata{Identity: source.Identity{Repository: "o/r", Number: 1}, BaseRepository: "o/r", HeadRepository: "o/r", BaseSHA: base, HeadSHA: head, Description: "Review the migration path."}
 	s, e := Open(context.Background(), r.Dir, m.Identity, FixtureGitHub{m}, source.NewRunner(), source.Defaults(), nil)
 	if e != nil {
 		t.Fatal(e)
@@ -56,6 +56,9 @@ func TestFileFallback(t *testing.T) {
 	}
 	if s.Guides == nil {
 		t.Fatal("session carries no guide bundle")
+	}
+	if s.PullRequestDescription == nil || *s.PullRequestDescription != m.Description {
+		t.Fatalf("session description = %#v, want %q", s.PullRequestDescription, m.Description)
 	}
 	if s.Guides.Status != guide.Unavailable || s.Guides.Reason == "" || len(s.Guides.Items) != 0 {
 		t.Fatal("unrequested analysis is not an explained fallback")
