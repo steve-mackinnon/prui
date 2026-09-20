@@ -6,7 +6,10 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strconv"
+	"strings"
 	"time"
+	"unicode/utf8"
 
 	"pr-review/internal/guide"
 	"pr-review/internal/review"
@@ -51,6 +54,67 @@ func (a *application) Metadata(ctx context.Context, id source.Identity) (source.
 		return source.Metadata{}, errors.New("GitHub CLI unavailable")
 	}
 	return a.gh.Metadata(ctx, id)
+}
+
+// submitReviewComment is the application's narrow write boundary. It checks
+// that the complete immutable comparison still matches GitHub immediately
+// before a single comment request; it never retargets or retries a write.
+func (a *application) submitReviewComment(ctx context.Context, submission tui.CommentSubmission) error {
+	if err := a.online(ctx); err != nil {
+		return err
+	}
+	if err := validReviewCommentSubmission(submission); err != nil {
+		return err
+	}
+	if a.setupError != nil {
+		return a.setupError
+	}
+	if a.gh == nil {
+		return errors.New("GitHub CLI unavailable")
+	}
+	commenter, ok := a.gh.(source.ReviewCommenter)
+	if !ok {
+		return errors.New("GitHub review comment submission unavailable")
+	}
+	current, err := a.Metadata(ctx, submission.Metadata.Identity)
+	if err != nil {
+		return err
+	}
+	if current != submission.Metadata {
+		return errors.New("pull request changed; open a new comparison before posting a comment")
+	}
+	return commenter.CreateReviewComment(ctx, submission.Comment)
+}
+
+func validReviewCommentSubmission(submission tui.CommentSubmission) error {
+	comment, frozen := submission.Comment, submission.Metadata
+	if !validIdentity(frozen.Identity) || !validIdentity(comment.Target.Identity) || frozen.Identity != comment.Target.Identity ||
+		!validSHA(frozen.BaseSHA) || !validSHA(frozen.HeadSHA) || !validRepository(frozen.BaseRepository) || !validRepository(frozen.HeadRepository) ||
+		comment.Target.CommitID != frozen.HeadSHA || !validSHA(comment.Target.CommitID) || comment.Target.Line <= 0 ||
+		(comment.Target.Side != "LEFT" && comment.Target.Side != "RIGHT") || comment.Target.Path == "" || !utf8.ValidString(comment.Target.Path) ||
+		comment.Body == "" || !utf8.ValidString(comment.Body) {
+		return errors.New("invalid review comment submission")
+	}
+	return nil
+}
+
+func validIdentity(id source.Identity) bool {
+	_, err := source.ParseIdentity(strconv.Itoa(id.Number), id.Repository)
+	return err == nil
+}
+
+func validRepository(repository string) bool {
+	_, err := source.ParseIdentity("1", repository)
+	return err == nil
+}
+
+func validSHA(sha string) bool {
+	if len(sha) != 40 {
+		return false
+	}
+	return strings.IndexFunc(sha, func(r rune) bool {
+		return r < '0' || r > '9' && (r < 'a' || r > 'f')
+	}) == -1
 }
 
 func (a *application) listPullRequests(ctx context.Context, repository string) ([]source.PullRequest, error) {

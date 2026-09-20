@@ -1,10 +1,10 @@
 # pr-review
 
-Read-only, pinned GitHub PR review in a local terminal. Deterministic file slices, bounded pinned repository evidence, durable local reading progress, and explicit revision checks. Selecting a PR from the interactive PR list or switcher automatically resolves OpenAI review guides; successful guides are reused locally for the same immutable comparison. No server, no telemetry, no stored credentials. Phases 1-4 implemented.
+Pinned GitHub PR review in a local terminal, with explicitly submitted line comments in the interactive TUI. Deterministic file slices, bounded pinned repository evidence, durable local reading progress, and explicit revision checks. Selecting a PR from the interactive PR list or switcher automatically resolves OpenAI review guides; successful guides are reused locally for the same immutable comparison. No server, no telemetry, no stored credentials. Source retrieval remains read-only; the only GitHub write is a reviewer-confirmed, line-anchored comment. Phases 1-4 implemented.
 
 ## Run
 
-Building requires Go 1.26.8+. Opening a new comparison requires Git and authenticated GitHub CLI (`gh`); resuming a frozen snapshot does not require Git or its checkout. Missing `gh`/authentication/connectivity leaves resume usable with unknown freshness. Dependencies are pinned in `go.mod`/`go.sum`: Bubble Tea v2.0.9 and Lip Gloss v2.0.2. macOS/Linux only initially.
+Building requires Go 1.26.8+. Opening a new comparison requires Git and authenticated GitHub CLI (`gh`); resuming a frozen snapshot does not require Git or its checkout. Missing `gh`/authentication/connectivity leaves resume usable with unknown freshness. Posting an inline comment additionally requires the authenticated GitHub credential to have Pull requests write permission for the repository. Dependencies are pinned in `go.mod`/`go.sum`: Bubble Tea v2.0.9 and Lip Gloss v2.0.2. macOS/Linux only initially.
 
 ```sh
 cd /path/to/checkout # open and verify must run at the repository root
@@ -34,7 +34,7 @@ the checkout has no supported `origin`, use `prs owner/repo` or `open` instead.
 
 `verify` is a manual acceptance utility for agents. Both `verify` and `open` must be launched from the root of the target local checkout; neither accepts a checkout path flag. It opens the requested PR through the production read-only source path, drives a fixed offline terminal journey (navigate, mark, quit, resume), and prints one JSON verdict. `--artifacts` must name a new directory outside the checkout; it receives `report.json`, the bounded terminal transcript, and fixed-size SVG screen captures that an agent can attach to chat. Opening allows 60 seconds by default; pass `--open-timeout DURATION` for a host that needs a different bound. On an open failure, the report includes the fixed `open` stage name and locally measured elapsed milliseconds without process output. The verifier creates a private temporary session store and never executes reviewed code or generates guides. Its timing report separately records GitHub metadata, pin-and-inventory work, and offline terminal startup. It requires Python 3 for the standard-library PTY harness and is deliberately excluded from CI.
 
-`--plain` emits escaped text without a pager, color, terminal control sequences, or interaction. It includes the guide block, its analysis scope, and the bounded evidence scope report. It is automatic for redirected stdin/stdout or `TERM=dumb`, and stays uncolored even when the terminal supports color or `CLICOLOR_FORCE` is set. Exit codes: 0 successful raw inventory, 1 invalid input/open/runtime failure, 2 unavailable review content, 130 canceled loading. Analysis being unavailable never changes the exit status. Exit 0 is not approval or evidence that you read the review.
+`--plain` emits escaped text without a pager, color, terminal control sequences, interaction, or GitHub comment capability. It includes the guide block, its analysis scope, and the bounded evidence scope report. It is automatic for redirected stdin/stdout or `TERM=dumb`, and stays uncolored even when the terminal supports color or `CLICOLOR_FORCE` is set. Exit codes: 0 successful raw inventory, 1 invalid input/open/runtime failure, 2 unavailable review content, 130 canceled loading. Analysis being unavailable never changes the exit status. Exit 0 is not approval or evidence that you read the review.
 
 ## Review Guides And Automatic PR-List Generation
 
@@ -71,7 +71,8 @@ primary workspace action.
 | `G` | Switch between the guide hierarchy and the deterministic file plan |
 | `tab` | Expand / collapse the selected guide or section |
 | `ctrl+h` / `ctrl+l` | Focus list / diff |
-| `enter` / `esc` | Open selected item / go back |
+| `enter` / `esc` | In the list, focus the selected diff / go back; in a focused diff, open a composer for the selected commentable line / discard its draft |
+| `ctrl+enter` | Submit the open line-comment draft; plain `enter` in the composer inserts a newline |
 | Up / down, `j` / `k` | Navigate list or scroll focused diff |
 | `J` / `K` | Scroll diff by 5 lines |
 | `d` / `u`, Page Down / Page Up | Page through actual diff |
@@ -89,6 +90,14 @@ primary workspace action.
 | `?`, `q`, Ctrl+C | Help, quit, cancel loading |
 
 Selection, expansion, and per-unit vertical offsets survive resizing; navigation positions and expansion state are not persisted across processes, and they are rebuilt from the immutable bundle so navigation cannot drift from the stored guides. No mouse capture, so terminal-native text selection remains available. Textual markers and labels are primary: the selected row is marked `› ` whether or not its pane is focused; a muted background reinforces it when unfocused and reverse video reinforces the focused row. The interactive view additionally colors diff structure — file headers, hunk locations, additions, removals — and unit states such as metadata, binary, gitlink, unavailable, and warning chrome. Color is presentation only: no wording, label, or ordering depends on it, and terminals without color show the same text. Extremely small terminals clip controls; enlarge or use plain output. The user approved Phase 1 terminal behavior; broad theme/platform/accessibility coverage is not established.
+
+## Inline Review Comments
+
+The interactive diff pane marks one selected display line. Press `enter` while that pane is focused to open a Markdown composer only when the line is commentable: added and context lines target the new-file `RIGHT` side, and deleted lines target the old-file `LEFT` side. Headers, hunk markers, binary/metadata/unavailable content, and paths that cannot be sent as valid JSON are not commentable. `j`/`k` move the line cursor through commentable lines; scrolling and the cursor are separate.
+
+The composer displays the frozen path, side, and line. Type Markdown normally; `enter` adds a newline, `ctrl+enter` submits one comment, and `esc` discards the draft. Drafts are memory-only: they are never saved in a session, logged, or passed on a command line. A failed submission keeps the draft and target for an intentional retry.
+
+Immediately before posting, pr-review re-reads GitHub metadata and requires the repository identities plus base and head SHAs to equal the frozen comparison. If they differ, it makes no write and asks you to open a new comparison. A successful request uses the frozen head SHA, path, side, and line; GitHub can still mark the comment outdated if the pull request advances after that preflight. Comments are unavailable in `--plain` and `resume --offline`, and no open, resume, refresh, guide action, or background task can post one.
 
 ## Color
 

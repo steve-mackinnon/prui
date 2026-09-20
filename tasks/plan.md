@@ -310,3 +310,112 @@ measurement established by truncation.
 
 None. Tick cadence and endpoint pause are implementation constants; their
 behavioral state transitions, rather than elapsed real time, will be tested.
+
+# Implementation Plan: Pull Request Line Comments
+
+## Overview
+
+Add one explicitly submitted, line-anchored GitHub review comment without
+weakening the frozen, read-only review path. Build the outbound contract first,
+then preserve source-line identity in the diff, then add the composer, and
+finally wire a mandatory current-revision preflight.
+
+## Architecture Decisions
+
+- Keep writing behind a new `source.ReviewCommenter` interface; do not add it
+  to the read-only `source.GitHub` metadata interface.
+- Preserve optional target metadata beside rendered diff lines. Never infer
+  GitHub lines from escaped terminal text or scroll offsets.
+- Send JSON through stdin to `gh api --input -`; user-written text never goes
+  in a process argument, session, log, or error.
+- Require application-level metadata equality immediately before every post;
+  mismatch stops before the GitHub write.
+- Make the composer transient, tab-owned UI state; each explicit submit creates
+  one immediate GitHub review comment, not a pending batch review.
+
+## Dependency Graph
+
+```text
+comment request contract + stdin runner
+          |
+          +-- diff-line target mapping + cursor
+          |             |
+          |             +-- composer + injected submit action
+          |                            |
+          +----------------------------+-- current-head preflight + docs + E2E
+```
+
+## Task List
+
+The detailed, agent-sized checklist is appended to `tasks/todo.md` under
+**Pull Request Line Comments**. Task 1 establishes the shared contract. Tasks
+2–6 then proceed in order because they either consume that contract or edit
+the shared `tui.Model` and its detail representation; Task 7 closes the
+feature.
+
+## Verification Checkpoints
+
+- Contract checkpoint: source package tests prove validation and no argument
+  exposure of the comment body.
+- TUI checkpoint: raw and guide line targeting plus cursor/composer scenarios
+  pass with no changed plain output.
+- Delivery checkpoint: preflight/no-write paths, program journey, documents,
+  full verification, and an authorized manual PR comment are complete.
+
+## Risks and Mitigations
+
+| Risk | Impact | Mitigation |
+| --- | --- | --- |
+| Wrong line/path is posted | High | Derive target during raw hunk parsing and unit-test every patch grammar case. |
+| A stale snapshot posts feedback to a moved PR | High | Require exact metadata equality immediately before POST; use frozen SHA. |
+| Comment text leaks through process inspection or persistence | High | JSON stdin only; memory-only composer; bounded/sanitized errors. |
+| Async action changes another open review | High | Attach target tab and transient composer state to action results; program-test tab switch behavior. |
+| `Enter` disrupts existing navigation | Medium | Preserve list-pane behavior; only diff-pane Enter opens a composer. |
+
+## Open Questions
+
+None. The approved first slice excludes replies, batch reviews, line ranges,
+and comment history.
+
+# Implementation Plan: Inline Review Comment UX Extension
+
+## Overview
+
+Replace the full-page line-comment composer with a local inline editor and add
+a read-only, per-tab comment overlay. The change preserves the existing
+explicit-write and freshness contract; it improves only the reviewer’s context
+before and after a post.
+
+## Dependency Graph
+
+```text
+bounded comment read + canonical POST response
+                     |
+detail row expansion + target-only cursor invariants
+                     |
+inline rune-aware editor (including Backspace/Delete)
+                     |
+per-tab overlay load/refresh + immediate post insertion
+                     |
+help, docs, synthetic paths, manual PR acceptance
+```
+
+## Decisions
+
+- Inline rows belong to the review view and never become selectable diff
+  targets.
+- The overlay is fetched on an online review start and through explicit `c`
+  refresh; it is never persisted or fetched offline.
+- Only exact frozen-head/path/side/line matches render. Omit ambiguity rather
+  than inventing an anchor.
+- A successful POST uses the returned canonical comment to render immediately;
+  a later refresh reconciles the tab.
+- The inline editor owns its own rune cursor, so `Backspace` and `Delete` are
+  deterministic for Unicode input.
+
+## Task List
+
+The ordered agent-sized tasks and verification checkpoints are appended under
+**Inline Review Comment UX Extension** in `tasks/todo.md`. The first four
+tasks touch shared source/model/rendering code and therefore run sequentially;
+the documentation and acceptance task follows their integration.

@@ -154,6 +154,86 @@ func TestLifecycleCancelRefreshKeepsSnapshot(t *testing.T) {
 	}
 }
 
+func TestCommentSubmissionSuccessClearsAndFailureRetainsTheTabDraft(t *testing.T) {
+	m := New(context.Background(), nil)
+	m.Loading = false
+	m.Session, m.Selected, m.Focus = kindsSession(), 1, paneDiff
+	namedKey(m, tea.KeyEnter)
+	key(m, 'o')
+	key(m, 'k')
+
+	var submitted CommentSubmission
+	m.SetCommentSubmitter(func(_ context.Context, submission CommentSubmission) error {
+		submitted = submission
+		return nil
+	})
+	_, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter, Mod: tea.ModCtrl})
+	completeAction(t, m, cmd)
+	if submitted.Comment.Body != "ok" || submitted.Comment.Target.Side != "RIGHT" || m.Composer != nil || m.top() != pageReview {
+		t.Fatalf("successful comment was not submitted and cleared: submitted=%#v page=%v composer=%#v", submitted, m.top(), m.Composer)
+	}
+
+	namedKey(m, tea.KeyEnter)
+	key(m, 'x')
+	failure := errors.New("comment rejected")
+	m.SetCommentSubmitter(func(context.Context, CommentSubmission) error { return failure })
+	_, cmd = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter, Mod: tea.ModCtrl})
+	completeAction(t, m, cmd)
+	if m.Composer == nil || m.Composer.Draft != "x" || !errors.Is(m.ActionError, failure) || m.top() != pageCommentComposer {
+		t.Fatalf("failed comment did not retain draft and target: composer=%#v error=%v page=%v", m.Composer, m.ActionError, m.top())
+	}
+}
+
+func TestCommentSubmissionCopiesFrozenMetadataBeforeAsyncWork(t *testing.T) {
+	m := New(context.Background(), nil)
+	m.Loading = false
+	m.Session, m.Selected, m.Focus = kindsSession(), 1, paneDiff
+	frozen := m.Session.Inventory.Comparison.Metadata
+	namedKey(m, tea.KeyEnter)
+	key(m, 'o')
+	key(m, 'k')
+
+	var submitted CommentSubmission
+	m.SetCommentSubmitter(func(_ context.Context, submission CommentSubmission) error {
+		submitted = submission
+		return nil
+	})
+	_, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter, Mod: tea.ModCtrl})
+	// The active session may change after submission starts. The request must
+	// already carry the comparison from the originating tab.
+	m.Session.Inventory.Comparison.Metadata.HeadSHA = "0000000000000000000000000000000000000000"
+	completeAction(t, m, cmd)
+	if submitted.Metadata != frozen {
+		t.Fatalf("submitted metadata = %#v, want frozen %#v", submitted.Metadata, frozen)
+	}
+}
+
+func TestLateCommentResultOnlyChangesItsOriginatingTab(t *testing.T) {
+	m := New(context.Background(), nil)
+	first, second := kindsSession(), kindsSession()
+	first.Inventory.Comparison.Metadata.Identity = source.Identity{Repository: "owner/repo", Number: 1}
+	second.Inventory.Comparison.Metadata.Identity = source.Identity{Repository: "owner/repo", Number: 2}
+	m.openReviewTab(first)
+	m.Selected, m.Focus = 1, paneDiff
+	namedKey(m, tea.KeyEnter)
+	m.Composer.Draft, m.Composer.generation = "first draft", 1
+	m.saveActiveReview()
+
+	m.openReviewTab(second)
+	m.Selected, m.Focus = 1, paneDiff
+	namedKey(m, tea.KeyEnter)
+	m.Composer.Draft, m.Composer.generation = "second draft", 9
+	secondComposer := m.Composer
+
+	m.Update(CommentResult{Target: 0, Generation: 1})
+	if m.Composer != secondComposer || m.Composer.Draft != "second draft" || m.top() != pageCommentComposer {
+		t.Fatalf("late first-tab result changed active second tab: composer=%#v page=%v", m.Composer, m.top())
+	}
+	if got := m.tabs[0].review.Composer; got != nil {
+		t.Fatalf("successful first-tab result did not clear its composer: %#v", got)
+	}
+}
+
 func TestPullRequestPickerListsAndOpens(t *testing.T) {
 	r := testutil.NewRepo(t)
 	base := r.Commit()

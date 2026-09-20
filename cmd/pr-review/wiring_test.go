@@ -104,6 +104,7 @@ func TestOfflineOperationsRejectBeforeDependencies(t *testing.T) {
 		"list":           func() error { _, err := a.listPullRequests(ctx, "owner/repo"); return err },
 		"open":           func() error { _, err := a.open(ctx, "", source.Identity{}, nil); return err },
 		"fresh":          func() error { _, err := a.fresh(ctx, nil, "", nil); return err },
+		"comment":        func() error { return a.submitReviewComment(ctx, tui.CommentSubmission{}) },
 		"guide consent":  func() error { _, err := a.requestGuide(ctx, nil, nil); return err },
 		"guide analysis": func() error { _, err := a.generateGuide(ctx, nil, nil); return err },
 	} {

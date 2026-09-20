@@ -229,3 +229,77 @@ func TestProgramQuitCancelsInitialLoad(t *testing.T) {
 		t.Fatal("quit left initial loader running")
 	}
 }
+
+func TestProgramCommentComposerSubmitErrorAndCancellation(t *testing.T) {
+	newCommentProgram := func(t *testing.T, submit CommentSubmitter) *programDriver {
+		t.Helper()
+		m := New(context.Background(), nil)
+		m.Loading = false
+		m.Session, m.Selected, m.Focus = kindsSession(), 1, paneDiff
+		m.SetCommentSubmitter(submit)
+		return runProgram(t, m)
+	}
+	openAndType := func(h *programDriver) {
+		h.p.Send(tea.KeyPressMsg{Code: tea.KeyEnter})
+		h.expect("comment composer", func(f programFrame) bool {
+			return f.page == pageCommentComposer && strings.Contains(f.text, "Leave line comment")
+		})
+		h.key('o')
+		h.key('k')
+	}
+	submit := func(h *programDriver) {
+		h.p.Send(tea.KeyPressMsg{Code: tea.KeyEnter, Mod: tea.ModCtrl})
+	}
+
+	t.Run("success", func(t *testing.T) {
+		h := newCommentProgram(t, func(_ context.Context, submission CommentSubmission) error {
+			if submission.Comment.Body != "ok" {
+				t.Errorf("submitted draft = %q, want %q", submission.Comment.Body, "ok")
+			}
+			return nil
+		})
+		h.expect("review", func(f programFrame) bool { return f.page == pageReview && !f.busy })
+		openAndType(h)
+		submit(h)
+		h.expect("successful comment submission", func(f programFrame) bool {
+			return f.page == pageReview && !f.busy && f.failure == ""
+		})
+		h.quit()
+	})
+
+	t.Run("error retains draft", func(t *testing.T) {
+		h := newCommentProgram(t, func(context.Context, CommentSubmission) error {
+			return errors.New("synthetic comment rejection")
+		})
+		h.expect("review", func(f programFrame) bool { return f.page == pageReview && !f.busy })
+		openAndType(h)
+		submit(h)
+		h.expect("failed comment submission", func(f programFrame) bool {
+			return f.page == pageCommentComposer && !f.busy && f.failure == "synthetic comment rejection" && strings.Contains(f.text, "Submission failed: synthetic comment rejection")
+		})
+		h.quit()
+	})
+
+	t.Run("cancellation retains draft", func(t *testing.T) {
+		started := make(chan struct{})
+		h := newCommentProgram(t, func(ctx context.Context, _ CommentSubmission) error {
+			close(started)
+			<-ctx.Done()
+			return ctx.Err()
+		})
+		h.expect("review", func(f programFrame) bool { return f.page == pageReview && !f.busy })
+		openAndType(h)
+		submit(h)
+		select {
+		case <-started:
+		case <-time.After(5 * time.Second):
+			t.Fatal("comment submitter did not start")
+		}
+		h.expect("pending comment submission", func(f programFrame) bool { return f.busy })
+		h.p.Send(tea.KeyPressMsg{Code: tea.KeyEscape})
+		h.expect("canceled comment submission", func(f programFrame) bool {
+			return f.page == pageCommentComposer && !f.busy && f.failure == context.Canceled.Error()
+		})
+		h.quit()
+	})
+}
