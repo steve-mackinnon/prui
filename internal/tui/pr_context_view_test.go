@@ -76,8 +76,8 @@ func TestPRContextViewRendersTextualTabStripAndContextPlaceholder(t *testing.T) 
 			if !strings.Contains(view, wantTab) {
 				t.Fatalf("context tab strip does not identify active Description:\n%s", view)
 			}
-			if !strings.Contains(view, "Description is not available in this review yet.") {
-				t.Fatalf("description placeholder missing:\n%s", view)
+			if !strings.Contains(view, "Description was not captured for this session.") {
+				t.Fatalf("legacy description state missing:\n%s", view)
 			}
 			if strings.Contains(view, "main.go") {
 				t.Fatalf("description retained a source file rail:\n%s", view)

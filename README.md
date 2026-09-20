@@ -69,6 +69,7 @@ primary workspace action.
 | `n` | Next guide row; next unit in the file plan and inventory |
 | `]` / `[` | Next / previous guide, or file slice without guides |
 | `G` | Switch between the guide hierarchy and the deterministic file plan |
+| `v` / `V` | Next / previous PR context view: Changes, Description, or Commits |
 | `tab` | Expand / collapse the selected guide or section |
 | `ctrl+h` / `ctrl+l` | Focus list / diff |
 | `enter` / `esc` | In the list, focus the selected diff / go back; in a focused diff, open a composer for a target or an action menu for a selected comment / discard local drafts and menus |
@@ -91,6 +92,8 @@ primary workspace action.
 | `?`, `q`, Ctrl+C | Help, quit, cancel loading |
 
 Selection, expansion, and per-unit vertical offsets survive resizing; navigation positions and expansion state are not persisted across processes, and they are rebuilt from the immutable bundle so navigation cannot drift from the stored guides. No mouse capture, so terminal-native text selection remains available. Textual markers and labels are primary: the selected row is marked `› ` whether or not its pane is focused; a muted background reinforces it when unfocused and reverse video reinforces the focused row. The interactive view additionally colors diff structure — file headers, hunk locations, additions, removals — and unit states such as metadata, binary, gitlink, unavailable, and warning chrome. Color is presentation only: no wording, label, or ordering depends on it, and terminals without color show the same text. Extremely small terminals clip controls; enlarge or use plain output. The user approved Phase 1 terminal behavior; broad theme/platform/accessibility coverage is not established.
+
+Every interactive PR has `Changes`, `Description`, and `Commits` context views. Description is escaped plain text frozen from GitHub when the session opened; it is available after an offline resume and does not refresh when selected. Empty captured descriptions and older sessions that did not capture one are labeled explicitly. Context views are not included in `--plain` output.
 
 ## Inline Review Comments
 

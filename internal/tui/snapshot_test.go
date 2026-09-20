@@ -42,8 +42,18 @@ func TestScreenSnapshots(t *testing.T) {
 	}{
 		{"review_wide", 120, 12, func(m *Model) { m.Focus = paneDiff }},
 		{"review_narrow", 60, 10, func(m *Model) { m.Focus = paneDiff }},
-		{"description_wide", 120, 12, func(m *Model) { m.openReviewTab(m.Session); key(m, 'v') }},
-		{"description_narrow", 60, 10, func(m *Model) { m.openReviewTab(m.Session); key(m, 'v') }},
+		{"description_wide", 120, 12, func(m *Model) {
+			description := "A frozen pull request description."
+			m.Session.PullRequestDescription = &description
+			m.openReviewTab(m.Session)
+			key(m, 'v')
+		}},
+		{"description_narrow", 60, 10, func(m *Model) {
+			description := "A frozen pull request description."
+			m.Session.PullRequestDescription = &description
+			m.openReviewTab(m.Session)
+			key(m, 'v')
+		}},
 		{"comment_thread", 120, 16, func(m *Model) {
 			m.Focus, m.cursorActive = paneDiff, true
 			var target source.ReviewCommentTarget

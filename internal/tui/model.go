@@ -52,6 +52,7 @@ type workspaceTab struct {
 type reviewTabState struct {
 	Session                                              *review.Session
 	ContextView                                          reviewView
+	DescriptionScroll                                    int
 	Err                                                  error
 	Selected                                             int
 	Row                                                  int
@@ -129,6 +130,7 @@ const (
 type Model struct {
 	Session                                              *review.Session
 	ContextView                                          reviewView
+	DescriptionScroll                                    int
 	Err                                                  error
 	Selected                                             int
 	Row                                                  int  // selected guide hierarchy row
@@ -441,6 +443,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.cycleReviewView(-1)
 				return m, nil
 			}
+			if m.selectedReviewView() == viewDescription && v.String() != "?" {
+				m.descriptionKey(v.String())
+				return m, nil
+			}
 			if m.selectedReviewView() != viewChanges && v.String() != "?" && v.String() != "esc" {
 				return m, nil
 			}
@@ -612,7 +618,7 @@ func (m *Model) activateTab(index int) bool {
 func newReviewTabState(s *review.Session) *reviewTabState {
 	return &reviewTabState{
 		Session: s, Scroll: map[int]int{}, GuideScroll: map[int]int{}, Cursor: map[int]int{}, GuideCursor: map[int]int{},
-		ContextView: viewChanges, collapsed: newExpansion(), Stack: []page{pageReview}, Focus: paneList,
+		ContextView: viewChanges, DescriptionScroll: 0, collapsed: newExpansion(), Stack: []page{pageReview}, Focus: paneList,
 	}
 }
 
@@ -621,7 +627,7 @@ func (m *Model) saveActiveReview() {
 		return
 	}
 	m.tabs[m.activeTab].review = &reviewTabState{
-		Session: m.Session, ContextView: m.ContextView, Err: m.Err, Selected: m.Selected, Row: m.Row, Files: m.Files,
+		Session: m.Session, ContextView: m.ContextView, DescriptionScroll: m.DescriptionScroll, Err: m.Err, Selected: m.Selected, Row: m.Row, Files: m.Files,
 		collapsed: m.collapsed, Scroll: m.Scroll, GuideScroll: m.GuideScroll, Cursor: m.Cursor, GuideCursor: m.GuideCursor,
 		Horizontal: m.Horizontal, Inventory: m.Inventory, Focus: m.Focus, cursorActive: m.cursorActive,
 		guidePathOffset: m.guidePathOffset, guidePathPause: m.guidePathPause, guidePathGeneration: m.guidePathGeneration,
@@ -636,7 +642,7 @@ func (m *Model) restoreReviewTab(state *reviewTabState) {
 	if state == nil {
 		return
 	}
-	m.Session, m.ContextView, m.Err = state.Session, state.ContextView, state.Err
+	m.Session, m.ContextView, m.DescriptionScroll, m.Err = state.Session, state.ContextView, state.DescriptionScroll, state.Err
 	m.Selected, m.Row, m.Files = state.Selected, state.Row, state.Files
 	m.collapsed, m.Scroll, m.GuideScroll, m.Cursor, m.GuideCursor = state.collapsed, state.Scroll, state.GuideScroll, state.Cursor, state.GuideCursor
 	m.Horizontal, m.Inventory, m.Focus = state.Horizontal, state.Inventory, state.Focus
@@ -1272,6 +1278,9 @@ func (m *Model) reviewView() string {
 	}
 	title := styleLine(classTitle, appHeader(active, m.contextViewTabs()+" · ctrl+p: switch PR"))
 	if m.selectedReviewView() != viewChanges {
+		if m.selectedReviewView() == viewDescription {
+			return title + "\n" + m.descriptionView() + "\n" + m.reviewStatus()
+		}
 		return title + "\n" + m.contextViewPlaceholder() + "\n" + m.reviewStatus()
 	}
 	if len(s.Inventory.Units) == 0 {
@@ -1432,6 +1441,60 @@ func (m *Model) contextViewPlaceholder() string {
 	default:
 		return ""
 	}
+}
+
+func (m *Model) descriptionView() string {
+	lines := m.descriptionLines()
+	height := m.descriptionBodyHeight()
+	m.DescriptionScroll = max(0, min(m.DescriptionScroll, max(0, len(lines)-height)))
+	end := min(len(lines), m.DescriptionScroll+height)
+	return styleLine(classTitle, "Description") + "\nFrozen from GitHub when this review opened.\n" + strings.Join(lines[m.DescriptionScroll:end], "\n")
+}
+
+func (m *Model) descriptionLines() []string {
+	if m.Session.PullRequestDescription == nil {
+		return []string{"Description was not captured for this session."}
+	}
+	if *m.Session.PullRequestDescription == "" {
+		return []string{"No description provided."}
+	}
+	width := max(1, m.Width)
+	lines := []string{}
+	for _, raw := range strings.Split(*m.Session.PullRequestDescription, "\n") {
+		escaped := Escape(raw)
+		if escaped == "" {
+			lines = append(lines, "")
+			continue
+		}
+		lines = append(lines, wrap(escaped, width)...)
+	}
+	return lines
+}
+
+func (m *Model) descriptionBodyHeight() int { return max(1, m.Height-4) }
+
+func (m *Model) descriptionKey(key string) {
+	delta := 0
+	switch key {
+	case "j", "down", "n":
+		delta = 1
+	case "k", "up", "p":
+		delta = -1
+	case "J":
+		delta = diffStep
+	case "K":
+		delta = -diffStep
+	case "d", "pgdown":
+		delta = m.descriptionBodyHeight()
+	case "u", "pgup":
+		delta = -m.descriptionBodyHeight()
+	case "home":
+		m.DescriptionScroll = 0
+		return
+	default:
+		return
+	}
+	m.DescriptionScroll = max(0, min(m.DescriptionScroll+delta, max(0, len(m.descriptionLines())-m.descriptionBodyHeight())))
 }
 
 // styledFooter paints the footer as chrome, or as a warning when the last
