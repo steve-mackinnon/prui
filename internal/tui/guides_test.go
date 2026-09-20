@@ -404,6 +404,28 @@ func TestGuideDetailFileJumps(t *testing.T) {
 	}
 }
 
+func TestLFromGuidePanePreservesGuideScroll(t *testing.T) {
+	s, _, _ := guidedSession(t, splitAnalyzer{})
+	m := loaded(t, s, 120, 5)
+	for i, row := range m.rows() {
+		if row.kind == portionRow {
+			m.Row = i
+			break
+		}
+	}
+	guide := m.rows()[m.Row].guide
+	m.GuideScroll[guide] = 1
+
+	key(m, 'l')
+
+	if m.Focus != paneDiff {
+		t.Fatal("l did not focus the guide diff")
+	}
+	if got := m.GuideScroll[guide]; got != 1 {
+		t.Fatalf("l reset guide scroll to %d, want 1", got)
+	}
+}
+
 func TestGuideDetailJumpsRepeatedFileOccurrence(t *testing.T) {
 	s, _, _ := guidedSession(t, splitAnalyzer{})
 	s.Guides.Items[0].Sections = append(s.Guides.Items[0].Sections, s.Guides.Items[1].Sections[0])

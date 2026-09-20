@@ -450,7 +450,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "h", "ctrl+h":
 			m.Focus = paneList
 		case "l", "ctrl+l":
-			m.focusDetail(m.navigable())
+			m.focusSavedDetail()
 		case "enter":
 			if m.Focus == paneDiff {
 				if m.openCommentActionMenu() {
@@ -822,6 +822,15 @@ func (m *Model) focusDetail(rows []row) {
 	}
 	m.Focus = paneDiff
 	m.cursorInViewport(1)
+	cursor := m.cursor()
+	m.cursorActive = cursor >= m.offset() && cursor < m.offset()+m.bodyHeight()
+}
+
+// focusSavedDetail changes panes without changing the current reading position.
+// Enter uses focusDetail because section and file rows deliberately jump to
+// their corresponding guide-detail occurrence; l only reveals the diff.
+func (m *Model) focusSavedDetail() {
+	m.Focus = paneDiff
 	cursor := m.cursor()
 	m.cursorActive = cursor >= m.offset() && cursor < m.offset()+m.bodyHeight()
 }
