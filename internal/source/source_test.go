@@ -215,3 +215,73 @@ func TestGitHubCreateReviewCommentDoesNotExposeBodyInErrors(t *testing.T) {
 		t.Fatalf("comment body leaked in error: %v", err)
 	}
 }
+
+func TestGitHubReviewCommentActionsUseBoundedJSONContracts(t *testing.T) {
+	id := Identity{Repository: "owner/repo", Number: 42}
+	const body = "private reply"
+	calls := 0
+	g := GH{Executable: "trusted-gh", Dir: t.TempDir(), Limits: Defaults(), Runner: listRunner(func(_ context.Context, request Request) ([]byte, error) {
+		calls++
+		switch calls {
+		case 1:
+			if !reflect.DeepEqual(request.Args, []string{"api", "--hostname", "github.com", "--method", "GET", "user"}) {
+				t.Fatal(request.Args)
+			}
+			return []byte(`{"login":"reviewer"}`), nil
+		case 2:
+			if !reflect.DeepEqual(request.Args, []string{"api", "--hostname", "github.com", "--method", "POST", "--input", "-", "repos/owner/repo/pulls/comments/7/replies"}) || strings.Contains(strings.Join(request.Args, "\x00"), body) {
+				t.Fatal(request)
+			}
+			if string(request.Stdin) != `{"body":"private reply"}` {
+				t.Fatal(string(request.Stdin))
+			}
+			return []byte(`{"id":8,"user":{"login":"reviewer"},"body":"private reply","commit_id":"0123456789abcdef0123456789abcdef01234567","path":"a.go","side":"RIGHT","line":2}`), nil
+		case 3:
+			if !reflect.DeepEqual(request.Args, []string{"api", "--hostname", "github.com", "--method", "POST", "--input", "-", "repos/owner/repo/pulls/comments/7/reactions"}) || string(request.Stdin) != `{"content":"+1"}` {
+				t.Fatal(request)
+			}
+			return []byte(`{"id":9,"content":"+1","user":{"login":"reviewer"}}`), nil
+		case 4:
+			if !reflect.DeepEqual(request.Args, []string{"api", "--hostname", "github.com", "--method", "DELETE", "repos/owner/repo/pulls/comments/7"}) || request.Stdin != nil {
+				t.Fatal(request)
+			}
+			return nil, nil
+		}
+		return nil, errors.New("unexpected")
+	})}
+	viewer, err := g.Viewer(context.Background())
+	if err != nil || viewer.Login != "reviewer" {
+		t.Fatal(viewer, err)
+	}
+	reply, err := g.ReplyToReviewComment(context.Background(), id, 7, body)
+	if err != nil || reply.ID != 8 || reply.Body != body {
+		t.Fatal(reply, err)
+	}
+	reaction, err := g.AddReviewCommentReaction(context.Background(), id, 7, "+1")
+	if err != nil || reaction.Content != "+1" || reaction.ID != 9 {
+		t.Fatal(reaction, err)
+	}
+	if err := g.DeleteReviewComment(context.Background(), id, 7); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestGitHubReviewCommentActionsRejectInvalidInputWithoutCallingGH(t *testing.T) {
+	g := GH{Executable: "trusted-gh", Dir: t.TempDir(), Limits: Defaults(), Runner: listRunner(func(context.Context, Request) ([]byte, error) { t.Fatal("called gh"); return nil, nil })}
+	id := Identity{Repository: "owner/repo", Number: 42}
+	for _, call := range []func() error{
+		func() error { _, err := g.ReplyToReviewComment(context.Background(), id, 0, "body"); return err },
+		func() error {
+			_, err := g.ReplyToReviewComment(context.Background(), id, 7, string([]byte{0xff}))
+			return err
+		},
+		func() error { _, err := g.AddReviewCommentReaction(context.Background(), id, 7, "shrug"); return err },
+		func() error {
+			return g.DeleteReviewComment(context.Background(), Identity{Repository: "bad/repo/extra", Number: 42}, 7)
+		},
+	} {
+		if call() == nil {
+			t.Fatal("accepted invalid comment action")
+		}
+	}
+}
