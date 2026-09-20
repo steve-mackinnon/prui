@@ -734,6 +734,47 @@ func TestReactionPickerDigitsAndBottomBorderCounts(t *testing.T) {
 	}
 }
 
+func TestReplyUsesSharedBlinkingEditorAndSubmits(t *testing.T) {
+	m := New(context.Background(), nil)
+	m.Loading = false
+	m.Session, m.Selected, m.Focus = kindsSession(), 1, paneDiff
+	var target source.ReviewCommentTarget
+	for _, line := range m.baseDetail() {
+		if line.target != nil {
+			target = *line.target
+			break
+		}
+	}
+	m.Comments = []source.ReviewComment{{ID: 7, Target: target, Body: "parent"}}
+	m.CommentMenu = &commentActionMenu{CommentID: 7, Target: target, mode: commentActionPick}
+	called := 0
+	m.SetCommentActionSubmitter(func(_ context.Context, action CommentAction) (source.ReviewComment, source.ReviewCommentReaction, error) {
+		called++
+		if action.Body != "reply" {
+			t.Fatalf("reply body = %q", action.Body)
+		}
+		return source.ReviewComment{ID: 8, ParentID: 7, Target: target, Body: action.Body}, source.ReviewCommentReaction{}, nil
+	})
+	key(m, 'r')
+	if !m.editorCursorVisible || m.editorCursorGeneration == 0 {
+		t.Fatalf("reply did not start shared blinking editor: visible=%v generation=%d", m.editorCursorVisible, m.editorCursorGeneration)
+	}
+	generation := m.editorCursorGeneration
+	m.Update(editorCursorTick{generation: generation})
+	if m.editorCursorVisible {
+		t.Fatal("reply editor tick did not blink the shared caret")
+	}
+	m.editorCursorVisible = true
+	for _, r := range "reply" {
+		key(m, r)
+	}
+	_, submit := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	completeAction(t, m, submit)
+	if called != 1 || m.CommentMenu != nil || len(m.Comments) != 2 {
+		t.Fatalf("reply submission = calls %d menu %#v comments %#v", called, m.CommentMenu, m.Comments)
+	}
+}
+
 func TestRawReviewCancelAndFailure(t *testing.T) {
 	canceled := make(chan struct{})
 	m := New(context.Background(), func(c context.Context, _ func(string)) (*review.Session, error) {

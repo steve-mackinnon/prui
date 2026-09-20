@@ -264,7 +264,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nextLoadingTick()
 	case editorCursorTick:
-		if m.Composer == nil || v.generation != m.editorCursorGeneration {
+		if (m.Composer == nil && (m.CommentMenu == nil || m.CommentMenu.mode != commentActionReply)) || v.generation != m.editorCursorGeneration {
 			return m, nil
 		}
 		m.editorCursorVisible = !m.editorCursorVisible
@@ -914,16 +914,7 @@ func (m *Model) inlineReplyEditorLines(indent int) []diffLine {
 	if menu == nil {
 		return nil
 	}
-	inner := max(8, min(68, m.Width-8))
-	prefix := strings.Repeat(" ", 2+indent)
-	border := prefix + "+" + strings.Repeat("-", inner+2) + "+"
-	lines := []diffLine{{styledLine: styledLine{Class: classWarning, Text: border}}}
-	for _, text := range strings.Split(menu.Draft, "\n") {
-		content := clip(Escape(text), inner)
-		content += strings.Repeat(" ", max(0, inner-visibleWidth(content)))
-		lines = append(lines, diffLine{styledLine: styledLine{Class: classWarning, Text: prefix + "| " + content + " |"}})
-	}
-	return append(lines, diffLine{styledLine: styledLine{Class: classWarning, Text: border}})
+	return m.inlineEditorLinesFor(menu.Draft, menu.Cursor, indent)
 }
 
 func (m *Model) inlineEditorLines() []diffLine {
@@ -931,13 +922,20 @@ func (m *Model) inlineEditorLines() []diffLine {
 	if c == nil {
 		return nil
 	}
+	return m.inlineEditorLinesFor(c.Draft, c.Cursor, 0)
+}
+
+// inlineEditorLinesFor is the one editor presentation shared by a new inline
+// comment and an indented reply. Its caller owns only the target/action state.
+func (m *Model) inlineEditorLinesFor(draft string, editorCursor, indent int) []diffLine {
 	// A simple terminal-native box makes the editor a distinct input surface
 	// without borrowing a target label or a footer from the surrounding diff.
 	inner := max(8, min(68, m.Width-8))
-	border := "  +" + strings.Repeat("-", inner+2) + "+"
+	prefix := strings.Repeat(" ", 2+indent)
+	border := prefix + "+" + strings.Repeat("-", inner+2) + "+"
 	lines := []diffLine{{styledLine: styledLine{Class: classWarning, Text: border}}}
-	runes := []rune(c.Draft)
-	cursor := max(0, min(len(runes), c.Cursor))
+	runes := []rune(draft)
+	cursor := max(0, min(len(runes), editorCursor))
 	before, after := string(runes[:cursor]), string(runes[cursor:])
 	cursorLine := strings.Count(before, "\n")
 	beforeLine := before[strings.LastIndex(before, "\n")+1:]
@@ -945,19 +943,19 @@ func (m *Model) inlineEditorLines() []diffLine {
 	if i := strings.IndexByte(afterLine, '\n'); i >= 0 {
 		afterLine = afterLine[:i]
 	}
-	for i, text := range strings.Split(c.Draft, "\n") {
+	for i, text := range strings.Split(draft, "\n") {
 		content := Escape(text)
 		if i == cursorLine && m.editorCursorVisible {
 			content = Escape(beforeLine) + "▏" + Escape(afterLine)
 		}
 		content = clip(content, inner)
 		content += strings.Repeat(" ", max(0, inner-visibleWidth(content)))
-		lines = append(lines, diffLine{styledLine: styledLine{Class: classWarning, Text: "  | " + content + " |"}})
+		lines = append(lines, diffLine{styledLine: styledLine{Class: classWarning, Text: prefix + "| " + content + " |"}})
 	}
 	if m.ActionError != nil {
 		content := clip("! "+Escape(m.ActionError.Error()), inner)
 		content += strings.Repeat(" ", max(0, inner-visibleWidth(content)))
-		lines = append(lines, diffLine{styledLine: styledLine{Class: classWarning, Text: "  | " + content + " |"}})
+		lines = append(lines, diffLine{styledLine: styledLine{Class: classWarning, Text: prefix + "| " + content + " |"}})
 	}
 	lines = append(lines, diffLine{styledLine: styledLine{Class: classWarning, Text: border}})
 	return lines

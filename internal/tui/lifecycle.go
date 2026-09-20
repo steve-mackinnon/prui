@@ -261,10 +261,16 @@ func (m *Model) commentActionKey(key tea.KeyPressMsg) tea.Cmd {
 		m.CommentMenu = nil
 		return nil
 	}
+	if menu.mode == commentActionReply {
+		m.editorCursorVisible = true
+	}
 	if menu.mode == commentActionPick {
 		switch key.String() {
 		case "r":
 			menu.mode = commentActionReply
+			m.editorCursorVisible = true
+			m.editorCursorGeneration++
+			return nextEditorCursorTick(m.editorCursorGeneration)
 		case "a":
 			menu.mode = commentActionReact
 		case "d":
@@ -312,6 +318,11 @@ func (m *Model) commentActionKey(key tea.KeyPressMsg) tea.Cmd {
 				menu.Draft = string(append(r[:menu.Cursor-1], r[menu.Cursor:]...))
 				menu.Cursor--
 			}
+			return nil
+		case "shift+enter":
+			r := []rune(menu.Draft)
+			menu.Draft = string(append(append(r[:menu.Cursor], '\n'), r[menu.Cursor:]...))
+			menu.Cursor++
 			return nil
 		case "delete":
 			r := []rune(menu.Draft)
