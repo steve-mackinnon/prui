@@ -100,6 +100,97 @@ func (a *application) listReviewComments(ctx context.Context, metadata source.Me
 	return reader.ListReviewComments(ctx, metadata.Identity)
 }
 
+func (a *application) viewer(ctx context.Context) (source.Viewer, error) {
+	if err := a.online(ctx); err != nil {
+		return source.Viewer{}, err
+	}
+	viewer, ok := a.gh.(source.ReviewCommentViewer)
+	if !ok {
+		return source.Viewer{}, errors.New("GitHub viewer unavailable")
+	}
+	return viewer.Viewer(ctx)
+}
+
+// submitReviewCommentAction keeps reply, delete, and reaction writes behind
+// the same online/freshness boundary as initial comments. The TUI has already
+// made the action explicit; this layer validates the frozen loaded comment.
+func (a *application) submitReviewCommentAction(ctx context.Context, action tui.CommentAction) (source.ReviewComment, source.ReviewCommentReaction, error) {
+	if err := a.online(ctx); err != nil {
+		return source.ReviewComment{}, source.ReviewCommentReaction{}, err
+	}
+	if err := validReviewCommentAction(action); err != nil {
+		return source.ReviewComment{}, source.ReviewCommentReaction{}, err
+	}
+	if a.setupError != nil {
+		return source.ReviewComment{}, source.ReviewCommentReaction{}, a.setupError
+	}
+	if a.gh == nil {
+		return source.ReviewComment{}, source.ReviewCommentReaction{}, errors.New("GitHub CLI unavailable")
+	}
+	current, err := a.Metadata(ctx, action.Metadata.Identity)
+	if err != nil {
+		return source.ReviewComment{}, source.ReviewCommentReaction{}, err
+	}
+	if current != action.Metadata {
+		return source.ReviewComment{}, source.ReviewCommentReaction{}, errors.New("pull request changed; open a new comparison before changing a comment")
+	}
+	if action.Delete {
+		viewer, ok := a.gh.(source.ReviewCommentViewer)
+		if !ok {
+			return source.ReviewComment{}, source.ReviewCommentReaction{}, errors.New("GitHub viewer unavailable")
+		}
+		identity, err := viewer.Viewer(ctx)
+		if err != nil {
+			return source.ReviewComment{}, source.ReviewCommentReaction{}, err
+		}
+		if identity.Login != action.Comment.Author {
+			return source.ReviewComment{}, source.ReviewCommentReaction{}, errors.New("only the comment author may delete it")
+		}
+		deleter, ok := a.gh.(source.ReviewCommentDeleter)
+		if !ok {
+			return source.ReviewComment{}, source.ReviewCommentReaction{}, errors.New("review comment deletion unavailable")
+		}
+		return source.ReviewComment{}, source.ReviewCommentReaction{}, deleter.DeleteReviewComment(ctx, action.Metadata.Identity, action.Comment.ID)
+	}
+	if action.Reaction != "" {
+		reacter, ok := a.gh.(source.ReviewCommentReactioner)
+		if !ok {
+			return source.ReviewComment{}, source.ReviewCommentReaction{}, errors.New("review comment reactions unavailable")
+		}
+		reaction, err := reacter.AddReviewCommentReaction(ctx, action.Metadata.Identity, action.Comment.ID, action.Reaction)
+		return source.ReviewComment{}, reaction, err
+	}
+	replier, ok := a.gh.(source.ReviewCommentReplier)
+	if !ok {
+		return source.ReviewComment{}, source.ReviewCommentReaction{}, errors.New("review comment replies unavailable")
+	}
+	reply, err := replier.ReplyToReviewComment(ctx, action.Metadata.Identity, action.Comment.ID, action.Body)
+	if err == nil && reply.Target != action.Comment.Target {
+		return source.ReviewComment{}, source.ReviewCommentReaction{}, errors.New("invalid review comment reply target")
+	}
+	return reply, source.ReviewCommentReaction{}, err
+}
+
+func validReviewCommentAction(action tui.CommentAction) error {
+	if !validIdentity(action.Metadata.Identity) || action.Comment.ID <= 0 || action.Comment.Target.Identity != action.Metadata.Identity || action.Comment.Target.CommitID != action.Metadata.HeadSHA || !validSHA(action.Metadata.HeadSHA) {
+		return errors.New("invalid review comment action")
+	}
+	count := 0
+	if action.Delete {
+		count++
+	}
+	if action.Reaction != "" {
+		count++
+	}
+	if action.Body != "" {
+		count++
+	}
+	if count != 1 || (action.Body != "" && !utf8.ValidString(action.Body)) || (action.Reaction != "" && !source.IsReviewCommentReaction(action.Reaction)) {
+		return errors.New("invalid review comment action")
+	}
+	return nil
+}
+
 func validReviewCommentSubmission(submission tui.CommentSubmission) error {
 	comment, frozen := submission.Comment, submission.Metadata
 	if !validIdentity(frozen.Identity) || !validIdentity(comment.Target.Identity) || frozen.Identity != comment.Target.Identity ||

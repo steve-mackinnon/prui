@@ -35,6 +35,18 @@ type CommentSubmission struct {
 // directly into a GitHub client.
 type CommentSubmitter func(context.Context, CommentSubmission) (source.ReviewComment, error)
 type CommentReader func(context.Context, source.Metadata) ([]source.ReviewComment, error)
+type ViewerReader func(context.Context) (source.Viewer, error)
+
+// CommentAction is deliberately small and tab-local. Body is used only for a
+// reply; Reaction is one of the finite GitHub values. Neither is persisted.
+type CommentAction struct {
+	Metadata source.Metadata
+	Comment  source.ReviewComment
+	Body     string
+	Reaction string
+	Delete   bool
+}
+type CommentActionSubmitter func(context.Context, CommentAction) (source.ReviewComment, source.ReviewCommentReaction, error)
 
 type CommentResult struct {
 	Target     int
@@ -48,6 +60,20 @@ type CommentListResult struct {
 	Generation uint64
 	Comments   []source.ReviewComment
 	Err        error
+}
+type CommentActionResult struct {
+	Target     int
+	CommentID  int64
+	Generation uint64
+	Reply      source.ReviewComment
+	Reaction   source.ReviewCommentReaction
+	Delete     bool
+	Err        error
+}
+type ViewerResult struct {
+	Target int
+	Viewer source.Viewer
+	Err    error
 }
 
 type editorCursorTick struct{ generation uint64 }
@@ -96,6 +122,10 @@ func (m *Model) SetGuideLifecycle(generate GuideLoader) { m.generateGuide = gene
 // It is intentionally separate from the read lifecycle dependencies.
 func (m *Model) SetCommentSubmitter(submit CommentSubmitter) { m.submitComment = submit }
 func (m *Model) SetCommentReader(read CommentReader)         { m.readComments = read }
+func (m *Model) SetViewerReader(read ViewerReader)           { m.readViewer = read }
+func (m *Model) SetCommentActionSubmitter(submit CommentActionSubmitter) {
+	m.submitCommentAction = submit
+}
 
 func (m *Model) refreshComments() tea.Cmd {
 	if m.readComments == nil || m.Session == nil {
@@ -109,6 +139,18 @@ func (m *Model) refreshComments() tea.Cmd {
 	return m.start(func() tea.Msg {
 		comments, err := read(ctx, metadata)
 		return CommentListResult{Target: target, Generation: generation, Comments: comments, Err: err}
+	})
+}
+
+func (m *Model) refreshViewer() tea.Cmd {
+	if m.readViewer == nil {
+		return nil
+	}
+	target, read := m.activeTab, m.readViewer
+	ctx := m.beginAction()
+	return m.start(func() tea.Msg {
+		viewer, err := read(ctx)
+		return ViewerResult{Target: target, Viewer: viewer, Err: err}
 	})
 }
 
@@ -210,6 +252,76 @@ func (m *Model) commentComposerKey(key tea.KeyPressMsg) tea.Cmd {
 	return nil
 }
 
+func (m *Model) commentActionKey(key tea.KeyPressMsg) tea.Cmd {
+	menu := m.CommentMenu
+	if menu == nil {
+		return nil
+	}
+	if key.String() == "esc" {
+		m.CommentMenu = nil
+		return nil
+	}
+	if menu.mode == commentActionPick {
+		switch key.String() {
+		case "r":
+			menu.mode = commentActionReply
+		case "a":
+			menu.mode = commentActionReact
+		case "d":
+			if menu.Author == m.Viewer && m.Viewer != "" {
+				menu.mode = commentActionDeleteConfirm
+			}
+		}
+		return nil
+	}
+	if menu.mode == commentActionReact {
+		if !source.IsReviewCommentReaction(key.String()) {
+			return nil
+		}
+		menu.Reaction, menu.Draft = key.String(), ""
+	} else if menu.mode == commentActionDeleteConfirm {
+		if key.String() != "enter" {
+			return nil
+		}
+		menu.Draft = ""
+	} else {
+		switch key.String() {
+		case "enter":
+			if menu.Draft == "" {
+				m.ActionError = errors.New("review comment reply body is required")
+				return nil
+			}
+		case "backspace":
+			r := []rune(menu.Draft)
+			if menu.Cursor > 0 {
+				menu.Draft = string(append(r[:menu.Cursor-1], r[menu.Cursor:]...))
+				menu.Cursor--
+			}
+			return nil
+		default:
+			if key.Text != "" && !key.Mod.Contains(tea.ModCtrl) && !key.Mod.Contains(tea.ModAlt) {
+				r, add := []rune(menu.Draft), []rune(key.Text)
+				menu.Draft = string(append(append(r[:menu.Cursor], add...), r[menu.Cursor:]...))
+				menu.Cursor += len(add)
+			}
+			return nil
+		}
+	}
+	if m.submitCommentAction == nil || m.Session == nil {
+		m.ActionError = errors.New("review comment action unavailable")
+		return nil
+	}
+	menu.generation++
+	generation, target, submit := menu.generation, m.activeTab, m.submitCommentAction
+	action := CommentAction{Metadata: m.Session.Inventory.Comparison.Metadata, Comment: source.ReviewComment{ID: menu.CommentID, Author: menu.Author, Target: menu.Target}, Body: menu.Draft, Reaction: menu.Reaction, Delete: menu.mode == commentActionDeleteConfirm}
+	m.notice = "Submitting review comment action..."
+	ctx := m.beginAction()
+	return m.start(func() tea.Msg {
+		reply, reaction, err := submit(ctx, action)
+		return CommentActionResult{Target: target, CommentID: menu.CommentID, Generation: generation, Reply: reply, Reaction: reaction, Delete: action.Delete, Err: err}
+	})
+}
+
 func (m *Model) applyCommentResult(result CommentResult) {
 	apply := func(state *reviewTabState) {
 		if state == nil || state.Composer == nil || state.Composer.generation != result.Generation {
@@ -226,6 +338,43 @@ func (m *Model) applyCommentResult(result CommentResult) {
 		state := &reviewTabState{Composer: m.Composer, Comments: m.Comments, Stack: m.Stack, Busy: m.Busy, ActionError: m.ActionError}
 		apply(state)
 		m.Composer, m.Comments, m.Stack, m.Busy, m.ActionError = state.Composer, state.Comments, state.Stack, state.Busy, state.ActionError
+		return
+	}
+	if result.Target >= 0 && result.Target < len(m.tabs) {
+		apply(m.tabs[result.Target].review)
+	}
+}
+
+func (m *Model) applyCommentActionResult(result CommentActionResult) {
+	apply := func(state *reviewTabState) {
+		if state == nil || state.CommentMenu == nil || state.CommentMenu.CommentID != result.CommentID || state.CommentMenu.generation != result.Generation {
+			return
+		}
+		state.Busy, state.ActionError = false, result.Err
+		if result.Err != nil {
+			return
+		}
+		if result.Delete {
+			for i, comment := range state.Comments {
+				if comment.ID == result.CommentID {
+					state.Comments = append(state.Comments[:i], state.Comments[i+1:]...)
+					break
+				}
+			}
+		} else if result.Reply.ID > 0 {
+			state.Comments = append(state.Comments, result.Reply)
+		} else if result.Reaction.ID > 0 {
+			if state.CommentReactions == nil {
+				state.CommentReactions = map[int64][]source.ReviewCommentReaction{}
+			}
+			state.CommentReactions[result.CommentID] = append(state.CommentReactions[result.CommentID], result.Reaction)
+		}
+		state.CommentMenu = nil
+	}
+	if result.Target == m.activeTab {
+		state := &reviewTabState{CommentMenu: m.CommentMenu, Comments: m.Comments, CommentReactions: m.CommentReactions, Busy: m.Busy, ActionError: m.ActionError}
+		apply(state)
+		m.CommentMenu, m.Comments, m.CommentReactions, m.Busy, m.ActionError = state.CommentMenu, state.Comments, state.CommentReactions, state.Busy, state.ActionError
 		return
 	}
 	if result.Target >= 0 && result.Target < len(m.tabs) {

@@ -71,7 +71,7 @@ primary workspace action.
 | `G` | Switch between the guide hierarchy and the deterministic file plan |
 | `tab` | Expand / collapse the selected guide or section |
 | `ctrl+h` / `ctrl+l` | Focus list / diff |
-| `enter` / `esc` | In the list, focus the selected diff / go back; in a focused diff, open a composer for the selected commentable line / discard its draft |
+| `enter` / `esc` | In the list, focus the selected diff / go back; in a focused diff, open a composer for a target or an action menu for a selected comment / discard local drafts and menus |
 | `enter` | Submit the inline line-comment draft; `shift+enter` inserts a newline |
 | `c` | Refresh ephemeral inline review comments (online reviews only) |
 | Up / down, `j` / `k` | Navigate list or scroll focused diff |
@@ -99,6 +99,8 @@ The interactive diff pane marks one selected display line. Press `enter` while t
 Press `enter` on a selected commentable diff line to open an inline editor immediately beneath it. The bordered editor keeps the draft visually separate from code and shows a blinking caret at the edit point. Type Markdown normally; `enter` submits one comment, `shift+enter` adds a newline, `backspace` and `delete` remove the preceding/following rune, and `esc` discards the draft. Drafts are memory-only: they are never saved in a session, logged, or passed on a command line. A failed submission keeps the draft and target for an intentional retry.
 
 Online reviews load a bounded, read-only overlay of review comments and `c` refreshes it. Comments render only when their frozen head SHA, path, side, and line exactly match a diff target; remote author and body text are escaped. A successful post is inserted immediately from GitHub’s canonical response. Remote comments are never stored in sessions or plain output; offline reviews neither fetch nor post them.
+
+Comment boxes participate in focused-diff `j`/`k` navigation, are visibly marked, and are kept in view. `enter` on one opens a local action menu: `r` starts a rune-aware reply draft, `a` opens the finite GitHub reaction picker, and `d` is shown only after the authenticated viewer identity matches the displayed comment author. Deletion requires a second `enter` confirmation. `esc` always closes the menu or draft without a write. Reply/reaction/deletion requests are preflighted against the frozen PR and update only that tab’s memory-only overlay from the canonical GitHub response; a failed reply retains its draft for retry.
 
 Immediately before posting, pr-review re-reads GitHub metadata and requires the repository identities plus base and head SHAs to equal the frozen comparison. If they differ, it makes no write and asks you to open a new comparison. A successful request uses the frozen head SHA, path, side, and line; GitHub can still mark the comment outdated if the pull request advances after that preflight. Comments are unavailable in `--plain` and `resume --offline`, and no open, resume, refresh, guide action, or background task can post one.
 

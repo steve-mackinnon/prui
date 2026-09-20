@@ -644,6 +644,52 @@ func TestInlineCommentsRenderOnlyAtExactFrozenTargets(t *testing.T) {
 	}
 }
 
+func TestCommentCursorOpensLocalActionMenuAndEscapeDoesNotWrite(t *testing.T) {
+	m := New(context.Background(), nil)
+	m.Loading = false
+	m.Session, m.Selected, m.Focus = kindsSession(), 1, paneDiff
+	var target source.ReviewCommentTarget
+	for _, line := range m.baseDetail() {
+		if line.target != nil {
+			target = *line.target
+			break
+		}
+	}
+	m.Comments = []source.ReviewComment{{ID: 7, Author: "other", Target: target, Body: "note"}}
+	m.cursorActive = true
+	for m.detail()[m.cursor()].commentID == 0 {
+		key(m, 'j')
+	}
+	namedKey(m, tea.KeyEnter)
+	if m.CommentMenu == nil || m.Composer != nil || m.CommentMenu.CommentID != 7 {
+		t.Fatalf("comment enter did not open local menu: %#v", m.CommentMenu)
+	}
+	namedKey(m, tea.KeyEscape)
+	if m.CommentMenu != nil {
+		t.Fatal("escape did not close local menu")
+	}
+}
+
+func TestCommentActionResultOnlyChangesOriginatingTabAndPreservesFailureDraft(t *testing.T) {
+	m := New(context.Background(), nil)
+	m.Loading = false
+	first, second := kindsSession(), kindsSession()
+	second.Inventory.Comparison.Metadata.Identity.Number = 2
+	m.openReviewTab(first)
+	m.openReviewTab(second)
+	m.activateTab(0)
+	m.CommentMenu = &commentActionMenu{CommentID: 7, generation: 1, Draft: "reply"}
+	m.Comments = []source.ReviewComment{{ID: 7}}
+	m.activateTab(1)
+	m.Update(CommentActionResult{Target: 0, CommentID: 7, Generation: 1, Reply: source.ReviewComment{ID: 8}, Err: errors.New("rejected")})
+	if m.CommentMenu != nil {
+		t.Fatal("stale first-tab failure leaked into active tab")
+	}
+	if got := m.tabs[0].review.CommentMenu; got == nil || got.Draft != "reply" {
+		t.Fatalf("failure did not retain first-tab draft: %#v", got)
+	}
+}
+
 func TestRawReviewCancelAndFailure(t *testing.T) {
 	canceled := make(chan struct{})
 	m := New(context.Background(), func(c context.Context, _ func(string)) (*review.Session, error) {
@@ -712,7 +758,7 @@ func TestModalPagesOwnInputAndBack(t *testing.T) {
 func TestBindingsRenderHelpAndFooter(t *testing.T) {
 	help := renderBindings(groupHelp)
 	footer := renderBindings(groupFooter)
-	for _, wording := range []string{"focus the diff; on a commentable line, open an inline comment editor", "reset selected guide scroll, or selected unit's without guides"} {
+	for _, wording := range []string{"focus the diff; open a line editor or selected-comment action menu", "reset selected guide scroll, or selected unit's without guides"} {
 		if !strings.Contains(help, wording) {
 			t.Fatalf("updated help wording missing %q", wording)
 		}

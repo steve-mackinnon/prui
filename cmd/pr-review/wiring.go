@@ -49,8 +49,12 @@ func (a *application) model(ctx context.Context, o options) *tui.Model {
 	m.SetPullRequestLifecycle(a.listPullRequests, a.openFromPullRequestList)
 	m.SetGuideLifecycle(a.requestGuide)
 	m.SetCommentSubmitter(a.submitReviewComment)
+	m.SetCommentActionSubmitter(a.submitReviewCommentAction)
 	if _, supported := a.gh.(source.ReviewCommentReader); !a.offline && supported {
 		m.SetCommentReader(a.listReviewComments)
+	}
+	if _, supported := a.gh.(source.ReviewCommentViewer); !a.offline && supported {
+		m.SetViewerReader(a.viewer)
 	}
 	return m
 }

@@ -640,11 +640,11 @@ identity, replying to a review comment, deleting a reviewer's own comment, and
 adding a selected reaction.
 
 **Acceptance criteria:**
-- [ ] Every action validates repository, PR, stable comment ID, UTF-8 body or
+- [x] Every action validates repository, PR, stable comment ID, UTF-8 body or
   finite reaction value, and uses stdin JSON rather than command arguments.
-- [ ] Viewer identity and canonical reply/reaction responses are bounded and
+- [x] Viewer identity and canonical reply/reaction responses are bounded and
   validated; delete has no assumed response body.
-- [ ] Error, cancellation, output-limit, malformed-response, and body-leakage
+- [x] Error, cancellation, output-limit, malformed-response, and body-leakage
   tests cover every endpoint.
 
 **Verification:**
@@ -663,11 +663,11 @@ without allowing a comment row to become a line-comment target; Enter on a
 selected comment opens a local action menu.
 
 **Acceptance criteria:**
-- [ ] Scrolling and `j`/`k` can select target rows and exact anchored comment
+- [x] Scrolling and `j`/`k` can select target rows and exact anchored comment
   boxes; selected boxes are clearly highlighted and stay visible.
-- [ ] Enter retains current semantics on a diff target and opens an action menu
+- [x] Enter retains current semantics on a diff target and opens an action menu
   only for a selected comment; Escape is write-free.
-- [ ] The menu offers reply/react for every loaded comment and delete only when
+- [x] The menu offers reply/react for every loaded comment and delete only when
   its escaped author matches the authenticated viewer.
 
 **Verification:**
@@ -686,11 +686,11 @@ TUI tests and snapshots.
 the canonical GitHub response in the same ephemeral anchored overlay.
 
 **Acceptance criteria:**
-- [ ] Reply draft is rune-aware, local-only, cancelable, and may only submit
+- [x] Reply draft is rune-aware, local-only, cancelable, and may only submit
   from an intentional action-menu choice.
-- [ ] Success adds the canonical reply to the originating tab; failure retains
+- [x] Success adds the canonical reply to the originating tab; failure retains
   its draft and selection for retry.
-- [ ] Offline mode, stale tab/action results, and invalid selected comments
+- [x] Offline mode, stale tab/action results, and invalid selected comments
   make no write.
 
 **Verification:**
@@ -706,11 +706,11 @@ the canonical GitHub response in the same ephemeral anchored overlay.
 authenticated viewer and a finite reaction picker for loaded comments.
 
 **Acceptance criteria:**
-- [ ] Delete is unavailable for another author, requires an explicit final
+- [x] Delete is unavailable for another author, requires an explicit final
   confirmation, and removes only the canonical matching box after success.
-- [ ] Reaction picker exposes only documented allowed values; success updates
+- [x] Reaction picker exposes only documented allowed values; success updates
   the ephemeral comment state without changing sessions/plain output.
-- [ ] Failures leave the overlay usable and do not erase comment boxes or
+- [x] Failures leave the overlay usable and do not erase comment boxes or
   selection; offline mode cannot reach either action.
 
 **Verification:**

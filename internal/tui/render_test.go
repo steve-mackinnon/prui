@@ -46,11 +46,12 @@ func TestCommentComposerViewRendersFrozenTargetEscapedMultilineDraftAndControls(
 func TestCommentBindingsAdvertiseComposerEntryAndControls(t *testing.T) {
 	help := renderHealth()
 	for _, want := range []string{
-		"enter: focus the diff; on a commentable line, open an inline comment editor",
+		"enter: focus the diff; open a line editor or selected-comment action menu",
 		"enter: submit inline comment editor",
 		"shift+enter: newline in inline comment editor",
 		"backspace/delete: delete previous/following rune in comment editor",
 		"c: refresh ephemeral inline review comments",
+		"r/a/d: reply, react, or delete a selected comment (delete requires ownership and confirmation)",
 	} {
 		if !strings.Contains(help, want) {
 			t.Fatalf("help missing %q:\n%s", want, help)

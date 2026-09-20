@@ -122,6 +122,8 @@ type ReviewCommentReaction struct {
 
 var reviewCommentReactions = map[string]bool{"+1": true, "-1": true, "laugh": true, "confused": true, "heart": true, "hooray": true, "rocket": true, "eyes": true}
 
+func IsReviewCommentReaction(content string) bool { return reviewCommentReactions[content] }
+
 type GH struct {
 	Runner     Runner
 	Executable string

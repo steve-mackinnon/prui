@@ -91,6 +91,22 @@ func healthStatus(width int, s *review.Session) string {
 }
 
 func (m *Model) reviewStatus() string {
+	if menu := m.CommentMenu; menu != nil {
+		text := "Comment actions: r reply · a react · esc cancel"
+		switch menu.mode {
+		case commentActionReply:
+			text = "Reply draft: " + Escape(menu.Draft) + " · enter submit · esc cancel"
+		case commentActionReact:
+			text = "React: +1, -1, laugh, confused, heart, hooray, rocket, eyes · esc cancel"
+		case commentActionDeleteConfirm:
+			text = "Delete this comment? enter confirm · esc cancel"
+		default:
+			if menu.Author == m.Viewer && m.Viewer != "" {
+				text += " · d delete"
+			}
+		}
+		return styleLine(classWarning, clip(text, m.Width))
+	}
 	if m.ActionError != nil {
 		progress, _ := reviewHealth(m.Session)
 		return styleLine(classWarning, clip(progress+" · ! Action failed: "+Escape(m.ActionError.Error())+" · ?: Health & help", m.Width))
