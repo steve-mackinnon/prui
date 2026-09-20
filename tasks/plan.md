@@ -485,8 +485,9 @@ appear as compact chips in a comment box's bottom border.
 - Store reply parentage in ephemeral overlay state keyed by canonical comment
   ID. Render a reply under its direct parent with one fixed indentation level.
 - Use a single ordered reaction table shared by picker rendering and digit
-  dispatch. Aggregate per-comment reaction values at render time so the map
-  stays memory-only and deterministic.
+  dispatch. Render its GitHub values with emoji labels in UTF-8 locales and
+  bounded token fallbacks in explicit non-UTF-8 locales. Aggregate per-comment
+  reaction values at render time so the map stays memory-only and deterministic.
 
 ## Dependency Graph
 

@@ -233,8 +233,10 @@ remain unchanged.
    Escape discards an active reply draft without a write; failed submissions
    retain that editor and draft.
 3. Choosing `a` shows the eight documented reaction values in stable numbered
-   order: `1 +1`, `2 -1`, `3 laugh`, `4 confused`, `5 heart`, `6 hooray`,
-   `7 rocket`, `8 eyes`. Pressing a matching digit selects exactly that value;
+   order with emoji-first labels: `1 👍`, `2 👎`, `3 😄`, `4 😕`, `5 ❤️`,
+   `6 🎉`, `7 🚀`, `8 👀`. An explicit non-UTF-8 locale instead shows the
+   bounded GitHub tokens (`+1`, `-1`, `laugh`, `confused`, `heart`, `hooray`,
+   `rocket`, `eyes`). Pressing a matching digit selects exactly that value;
    other input and Escape are write-free.
 4. Reactions render as compact escaped chips embedded in the bottom border of
    the affected comment box: each distinct value appears once with its current
@@ -264,7 +266,7 @@ isolation.
 - A reply editor and a successful reply are visibly indented relative to the
   selected parent box; the editor remains a distinct text input surface.
 - Each picker digit maps to exactly one documented reaction; labels and counts
-  remain meaningful with terminal color disabled.
+  remain meaningful with terminal color disabled and with an ASCII locale.
 - The bottom border shows deterministic reaction chips and counts without
   exceeding the comment-box width or leaking state across tabs.
 

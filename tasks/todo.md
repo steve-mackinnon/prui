@@ -781,3 +781,10 @@ verify reply/delete/reaction journeys without persisting remote data.
 - [x] Resolve a selected reply to its top-level thread comment before explicit
   reply submission; keep reaction/delete scoped to the selected comment.
 - [x] Regression test proves the canonical response remains in the root thread.
+
+## Follow-up: Emoji reaction labels
+
+- [x] Render all eight documented GitHub reactions as emoji in UTF-8 locales,
+  with bounded GitHub-token fallbacks for explicit non-UTF-8 locales.
+- [x] Cover picker labels, bottom-border chips, locale selection, and the
+  representative threaded-comment snapshot.

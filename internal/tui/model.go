@@ -147,6 +147,7 @@ type Model struct {
 	CommentReactions                                     map[int64][]source.ReviewCommentReaction
 	Viewer                                               string
 	commentGeneration                                    uint64
+	reactionEmoji                                        bool
 	editorCursorVisible                                  bool
 	editorCursorGeneration                               uint64
 	store                                                *session.Store
@@ -181,7 +182,7 @@ type PullRequestOpener func(context.Context, string, source.Identity, func(strin
 
 func newModel(parent context.Context) *Model {
 	ctx, cancel := context.WithCancel(parent)
-	return &Model{ctx: ctx, cancel: cancel, Scroll: map[int]int{}, GuideScroll: map[int]int{}, Cursor: map[int]int{}, GuideCursor: map[int]int{}, collapsed: newExpansion(), Stack: []page{pageReview}, Width: 100, Height: 24, activeTab: -1}
+	return &Model{ctx: ctx, cancel: cancel, Scroll: map[int]int{}, GuideScroll: map[int]int{}, Cursor: map[int]int{}, GuideCursor: map[int]int{}, collapsed: newExpansion(), Stack: []page{pageReview}, Width: 100, Height: 24, activeTab: -1, reactionEmoji: defaultEmojiSupport()}
 }
 
 func New(parent context.Context, load Loader) *Model {
@@ -915,7 +916,7 @@ func (m *Model) commentBottomBorder(prefix string, inner int, commentID int64) s
 	chips := []string{}
 	for _, content := range source.ReviewCommentReactions() {
 		if counts[content] > 0 {
-			chips = append(chips, "["+Escape(content)+" "+fmt.Sprint(counts[content])+"]")
+			chips = append(chips, "["+Escape(m.reactionLabel(content))+" "+fmt.Sprint(counts[content])+"]")
 		}
 	}
 	inside := strings.Repeat("-", inner+2)

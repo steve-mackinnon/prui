@@ -729,8 +729,37 @@ func TestReactionPickerDigitsAndBottomBorderCounts(t *testing.T) {
 		parts = append(parts, line.Text)
 	}
 	box := strings.Join(parts, "\n")
-	if !strings.Contains(box, "[+1 1] [heart 2]") {
+	if !strings.Contains(box, "[👍 1] [❤️ 2]") {
 		t.Fatalf("bottom border lacks reaction counts:\n%s", box)
+	}
+}
+
+func TestReactionEmojiDisplayFallsBackForASCII(t *testing.T) {
+	m := New(context.Background(), nil)
+	m.Loading = false
+	m.reactionEmoji = true
+	m.CommentReactions = map[int64][]source.ReviewCommentReaction{7: {
+		{Content: "+1"}, {Content: "-1"}, {Content: "laugh"}, {Content: "confused"},
+		{Content: "heart"}, {Content: "hooray"}, {Content: "rocket"}, {Content: "eyes"},
+	}}
+	emojiBox := m.commentBottomBorder("", 120, 7)
+	for _, want := range []string{"[👍 1]", "[👎 1]", "[😄 1]", "[😕 1]", "[❤️ 1]", "[🎉 1]", "[🚀 1]", "[👀 1]"} {
+		if !strings.Contains(emojiBox, want) {
+			t.Fatalf("emoji reaction chip %q missing from %q", want, emojiBox)
+		}
+	}
+	m.CommentMenu = &commentActionMenu{CommentID: 7, mode: commentActionReact}
+	if status := m.reviewStatus(); !strings.Contains(status, "1 👍") || !strings.Contains(status, "8 👀") {
+		t.Fatalf("emoji reaction picker = %q", status)
+	}
+
+	m.reactionEmoji = false
+	asciiBox := m.commentBottomBorder("", 120, 7)
+	if !strings.Contains(asciiBox, "[+1 1]") || !strings.Contains(asciiBox, "[eyes 1]") || strings.Contains(asciiBox, "👍") {
+		t.Fatalf("ASCII fallback reaction chips = %q", asciiBox)
+	}
+	if status := m.reviewStatus(); !strings.Contains(status, "1 +1") || !strings.Contains(status, "8 eyes") || strings.Contains(status, "👍") {
+		t.Fatalf("ASCII fallback reaction picker = %q", status)
 	}
 }
 

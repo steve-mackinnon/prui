@@ -7,6 +7,7 @@ import (
 	"pr-review/internal/guide"
 	"pr-review/internal/review"
 	"pr-review/internal/session"
+	"pr-review/internal/source"
 )
 
 type healthItem struct {
@@ -97,7 +98,11 @@ func (m *Model) reviewStatus() string {
 		case commentActionReply:
 			text = "Reply editor open · enter submit · esc cancel"
 		case commentActionReact:
-			text = "React: 1 +1 · 2 -1 · 3 laugh · 4 confused · 5 heart · 6 hooray · 7 rocket · 8 eyes · esc cancel"
+			choices := []string{}
+			for i, content := range source.ReviewCommentReactions() {
+				choices = append(choices, fmt.Sprintf("%d %s", i+1, m.reactionLabel(content)))
+			}
+			text = "React: " + strings.Join(choices, " · ") + " · esc cancel"
 		case commentActionDeleteConfirm:
 			text = "Delete this comment? enter confirm · esc cancel"
 		default:
