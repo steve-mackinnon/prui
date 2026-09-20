@@ -7,6 +7,7 @@ import (
 
 	"pr-review/internal/guide"
 	"pr-review/internal/review"
+	"pr-review/internal/source"
 	"pr-review/internal/tui"
 )
 
@@ -48,6 +49,9 @@ func (a *application) model(ctx context.Context, o options) *tui.Model {
 	m.SetPullRequestLifecycle(a.listPullRequests, a.openFromPullRequestList)
 	m.SetGuideLifecycle(a.requestGuide)
 	m.SetCommentSubmitter(a.submitReviewComment)
+	if _, supported := a.gh.(source.ReviewCommentReader); !a.offline && supported {
+		m.SetCommentReader(a.listReviewComments)
+	}
 	return m
 }
 

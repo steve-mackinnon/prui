@@ -59,6 +59,8 @@ type reviewTabState struct {
 	Busy                                                 bool
 	ActionError                                          error
 	Composer                                             *commentComposer
+	Comments                                             []source.ReviewComment
+	commentGeneration                                    uint64
 	notice                                               string
 	loadingFrame                                         int
 }
@@ -74,6 +76,8 @@ const (
 	pageRepositoryPicker
 	pagePullRequestPicker
 	pageGuideConsent
+	// Retained only so historical program-frame tests can identify the removed
+	// page value; the model never pushes it after the inline-editor migration.
 	pageCommentComposer
 )
 
@@ -83,6 +87,7 @@ const (
 type commentComposer struct {
 	Target     source.ReviewCommentTarget
 	Draft      string
+	Cursor     int // rune offset, never a byte offset
 	generation uint64
 }
 
@@ -114,6 +119,8 @@ type Model struct {
 	SwitcherQuery                                        string
 	ActionError                                          error
 	Composer                                             *commentComposer
+	Comments                                             []source.ReviewComment
+	commentGeneration                                    uint64
 	store                                                *session.Store
 	reader                                               review.MetadataReader
 	fresh                                                FreshLoader
@@ -128,6 +135,7 @@ type Model struct {
 	openPullRequest                                      PullRequestOpener
 	generateGuide                                        GuideLoader
 	submitComment                                        CommentSubmitter
+	readComments                                         CommentReader
 	cancelAction                                         context.CancelFunc
 	actionCtx                                            context.Context
 	listSessions                                         func() ([]session.Entry, error)
@@ -235,6 +243,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.Session = v.Session
 		}
 		m.begin()
+		if v.Err == nil && v.Session != nil {
+			return m, m.refreshComments()
+		}
 	case ActionResult:
 		v.Err = m.finishAction(v.Err)
 		if v.Err == nil && v.Session != nil {
@@ -260,6 +271,30 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if active != v.Target {
 			m.Busy, m.ActionError, m.notice = busy, actionErr, notice
 		}
+	case CommentListResult:
+		active := m.activeTab
+		busy, actionErr, notice := m.Busy, m.ActionError, m.notice
+		v.Err = m.finishAction(v.Err)
+		apply := func(state *reviewTabState) {
+			if state == nil || state.commentGeneration != v.Generation {
+				return
+			}
+			if v.Err != nil {
+				state.ActionError = v.Err
+				return
+			}
+			state.Comments = commentOverlay(v.Comments, state.Session)
+		}
+		if v.Target == active {
+			state := &reviewTabState{Session: m.Session, Comments: m.Comments, commentGeneration: m.commentGeneration, ActionError: m.ActionError}
+			apply(state)
+			m.Comments, m.ActionError = state.Comments, state.ActionError
+		} else if v.Target >= 0 && v.Target < len(m.tabs) {
+			apply(m.tabs[v.Target].review)
+		}
+		if active != v.Target {
+			m.Busy, m.ActionError, m.notice = busy, actionErr, notice
+		}
 	case PullRequestOpenResult:
 		// Opening always starts in the fixed browser. If the reviewer changes
 		// tabs while it runs, finish the worker without touching that review's
@@ -272,6 +307,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.pop()
 			}
 			m.registerReviewTab(v.Session, active == v.Target)
+			if active == v.Target {
+				return m, m.refreshComments()
+			}
 		}
 		if active != v.Target {
 			m.Busy, m.ActionError, m.notice = busy, actionErr, notice
@@ -315,6 +353,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if v.String() != "q" && v.String() != "ctrl+c" {
 			if m.Busy && (m.top() != pagePullRequestPicker || m.Session == nil) {
 				return m, nil
+			}
+			if m.Composer != nil {
+				return m, m.commentComposerKey(v)
 			}
 			if p := m.top(); p != pageReview {
 				return m, m.pageKey(p, v)
@@ -499,7 +540,7 @@ func (m *Model) saveActiveReview() {
 		guidePathOffset: m.guidePathOffset, guidePathPause: m.guidePathPause, guidePathGeneration: m.guidePathGeneration,
 		Stack: m.Stack, Loading: m.Loading, Busy: m.Busy,
 		ActionError: m.ActionError, notice: m.notice, loadingFrame: m.loadingFrame,
-		Composer: m.Composer,
+		Composer: m.Composer, Comments: m.Comments, commentGeneration: m.commentGeneration,
 	}
 }
 
@@ -515,7 +556,7 @@ func (m *Model) restoreReviewTab(state *reviewTabState) {
 	m.guidePathOffset, m.guidePathPause, m.guidePathGeneration = state.guidePathOffset, state.guidePathPause, state.guidePathGeneration
 	m.Stack, m.Loading, m.Busy = state.Stack, state.Loading, state.Busy
 	m.ActionError, m.notice, m.loadingFrame = state.ActionError, state.notice, state.loadingFrame
-	m.Composer = state.Composer
+	m.Composer, m.Comments, m.commentGeneration = state.Composer, state.Comments, state.commentGeneration
 }
 
 func (m *Model) push(p page) {
@@ -550,8 +591,6 @@ func (m *Model) pageKey(p page, key tea.KeyPressMsg) tea.Cmd {
 		return m.pullRequestPickerKey(k)
 	case pageGuideConsent:
 		return m.guideConsentKey(k)
-	case pageCommentComposer:
-		return m.commentComposerKey(key)
 	case pageHelp, pageURL, pageEvidence:
 		if k == "esc" {
 			m.pop()
@@ -573,7 +612,7 @@ func (m *Model) openCommentComposer() {
 		return
 	}
 	m.Composer = &commentComposer{Target: *target}
-	m.push(pageCommentComposer)
+	m.ensureCursorVisible()
 }
 
 // navigable returns the guide rows when they are the active hierarchy. The
@@ -690,7 +729,7 @@ func (m *Model) activeGuide() (int, bool) {
 	return rows[max(0, min(len(rows)-1, m.Row))].guide, true
 }
 
-func (m *Model) detail() []diffLine {
+func (m *Model) baseDetail() []diffLine {
 	if guide, ok := m.activeGuide(); ok {
 		return detailFor(m.Session, guide).lines
 	}
@@ -698,6 +737,56 @@ func (m *Model) detail() []diffLine {
 		return nil
 	}
 	return unitLines(m.Session, m.Selected)
+}
+
+// detail expands immutable diff targets into ephemeral overlay/editor rows.
+// Only the original target rows retain target metadata, so navigation cannot
+// accidentally select remote text or the draft editor.
+func (m *Model) detail() []diffLine {
+	base := m.baseDetail()
+	lines := make([]diffLine, 0, len(base)+len(m.Comments)+2)
+	for _, line := range base {
+		lines = append(lines, line)
+		if line.target == nil {
+			continue
+		}
+		for _, comment := range m.Comments {
+			if comment.Target == *line.target {
+				author := Escape(comment.Author)
+				if author == "" {
+					author = "unknown"
+				}
+				for _, body := range strings.Split(comment.Body, "\n") {
+					lines = append(lines, diffLine{styledLine: styledLine{Class: classMetadata, Text: "  " + author + ": " + Escape(body)}})
+				}
+			}
+		}
+		if m.Composer != nil && m.Composer.Target == *line.target {
+			lines = append(lines, m.inlineEditorLines()...)
+		}
+	}
+	return lines
+}
+
+func (m *Model) inlineEditorLines() []diffLine {
+	c := m.Composer
+	if c == nil {
+		return nil
+	}
+	label := fmt.Sprintf("  [comment %s %s:%d]", Escape(c.Target.Side), Escape(c.Target.Path), c.Target.Line)
+	lines := []diffLine{{styledLine: styledLine{Class: classWarning, Text: label}}}
+	for i, text := range strings.Split(c.Draft, "\n") {
+		prefix := "  │ "
+		if i == len(strings.Split(c.Draft, "\n"))-1 {
+			prefix = "  └ "
+		}
+		lines = append(lines, diffLine{styledLine: styledLine{Class: classWarning, Text: prefix + Escape(text)}})
+	}
+	if m.ActionError != nil {
+		lines = append(lines, diffLine{styledLine: styledLine{Class: classWarning, Text: "  ! " + Escape(m.ActionError.Error())}})
+	}
+	lines = append(lines, diffLine{styledLine: styledLine{Class: classWarning, Text: "  enter: newline · ctrl+enter: submit · esc: discard"}})
+	return lines
 }
 
 func (m *Model) offset() int {
@@ -859,8 +948,6 @@ func (m *Model) View() tea.View {
 			text = m.Session.Inventory.Comparison.Metadata.Identity.URL() + "\nOpen this URL in your browser for GitHub review actions.\nesc: back | q: quit"
 		case pageGuideConsent:
 			text = m.guideConsentView()
-		case pageCommentComposer:
-			text = m.commentComposerView()
 		case pageEvidence:
 			text = m.evidenceView()
 		default:

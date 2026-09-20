@@ -32,11 +32,20 @@ type CommentSubmission struct {
 // CommentSubmitter is the only TUI write seam. The command layer injects an
 // implementation after its explicit freshness check; the model never reaches
 // directly into a GitHub client.
-type CommentSubmitter func(context.Context, CommentSubmission) error
+type CommentSubmitter func(context.Context, CommentSubmission) (source.ReviewComment, error)
+type CommentReader func(context.Context, source.Metadata) ([]source.ReviewComment, error)
 
 type CommentResult struct {
 	Target     int
 	Generation uint64
+	Comment    source.ReviewComment
+	Err        error
+}
+
+type CommentListResult struct {
+	Target     int
+	Generation uint64
+	Comments   []source.ReviewComment
 	Err        error
 }
 
@@ -79,6 +88,44 @@ func (m *Model) SetGuideLifecycle(generate GuideLoader) { m.generateGuide = gene
 // SetCommentSubmitter installs the explicit write action used by the composer.
 // It is intentionally separate from the read lifecycle dependencies.
 func (m *Model) SetCommentSubmitter(submit CommentSubmitter) { m.submitComment = submit }
+func (m *Model) SetCommentReader(read CommentReader)         { m.readComments = read }
+
+func (m *Model) refreshComments() tea.Cmd {
+	if m.readComments == nil || m.Session == nil {
+		return nil
+	}
+	m.commentGeneration++
+	generation, target, read := m.commentGeneration, m.activeTab, m.readComments
+	metadata := m.Session.Inventory.Comparison.Metadata
+	m.notice = "Refreshing pull request comments..."
+	ctx := m.beginAction()
+	return m.start(func() tea.Msg {
+		comments, err := read(ctx, metadata)
+		return CommentListResult{Target: target, Generation: generation, Comments: comments, Err: err}
+	})
+}
+
+func commentOverlay(comments []source.ReviewComment, session *review.Session) []source.ReviewComment {
+	if session == nil {
+		return nil
+	}
+	metadata := session.Inventory.Comparison.Metadata
+	targets := map[source.ReviewCommentTarget]bool{}
+	for i := range session.Inventory.Units {
+		for _, line := range unitLines(session, i) {
+			if line.target != nil {
+				targets[*line.target] = true
+			}
+		}
+	}
+	out := make([]source.ReviewComment, 0, len(comments))
+	for _, comment := range comments {
+		if comment.Target.Identity == metadata.Identity && comment.Target.CommitID == metadata.HeadSHA && targets[comment.Target] {
+			out = append(out, comment)
+		}
+	}
+	return out
+}
 
 func (m *Model) commentComposerKey(key tea.KeyPressMsg) tea.Cmd {
 	composer := m.Composer
@@ -89,10 +136,36 @@ func (m *Model) commentComposerKey(key tea.KeyPressMsg) tea.Cmd {
 	switch key.String() {
 	case "esc":
 		m.Composer = nil
-		m.pop()
+		return nil
+	case "left":
+		composer.Cursor = max(0, composer.Cursor-1)
+		return nil
+	case "right":
+		composer.Cursor = min(len([]rune(composer.Draft)), composer.Cursor+1)
+		return nil
+	case "home":
+		composer.Cursor = 0
+		return nil
+	case "end":
+		composer.Cursor = len([]rune(composer.Draft))
+		return nil
+	case "backspace":
+		if composer.Cursor > 0 {
+			r := []rune(composer.Draft)
+			composer.Draft = string(append(r[:composer.Cursor-1], r[composer.Cursor:]...))
+			composer.Cursor--
+		}
+		return nil
+	case "delete":
+		r := []rune(composer.Draft)
+		if composer.Cursor < len(r) {
+			composer.Draft = string(append(r[:composer.Cursor], r[composer.Cursor+1:]...))
+		}
 		return nil
 	case "enter":
-		composer.Draft += "\n"
+		r := []rune(composer.Draft)
+		composer.Draft = string(append(append(r[:composer.Cursor], '\n'), r[composer.Cursor:]...))
+		composer.Cursor++
 		return nil
 	case "ctrl+enter":
 		if m.submitComment == nil {
@@ -116,11 +189,15 @@ func (m *Model) commentComposerKey(key tea.KeyPressMsg) tea.Cmd {
 		m.notice = "Submitting pull request comment..."
 		ctx := m.beginAction()
 		return m.start(func() tea.Msg {
-			return CommentResult{Target: target, Generation: generation, Err: submit(ctx, submission)}
+			comment, err := submit(ctx, submission)
+			return CommentResult{Target: target, Generation: generation, Comment: comment, Err: err}
 		})
 	}
 	if key.Text != "" && !key.Mod.Contains(tea.ModCtrl) && !key.Mod.Contains(tea.ModAlt) {
-		composer.Draft += key.Text
+		r := []rune(composer.Draft)
+		insert := []rune(key.Text)
+		composer.Draft = string(append(append(r[:composer.Cursor], insert...), r[composer.Cursor:]...))
+		composer.Cursor += len(insert)
 	}
 	return nil
 }
@@ -133,16 +210,14 @@ func (m *Model) applyCommentResult(result CommentResult) {
 		state.Busy = false
 		state.ActionError = result.Err
 		if result.Err == nil {
+			state.Comments = append(state.Comments, result.Comment)
 			state.Composer = nil
-			if len(state.Stack) > 1 && state.Stack[len(state.Stack)-1] == pageCommentComposer {
-				state.Stack = state.Stack[:len(state.Stack)-1]
-			}
 		}
 	}
 	if result.Target == m.activeTab {
-		state := &reviewTabState{Composer: m.Composer, Stack: m.Stack, Busy: m.Busy, ActionError: m.ActionError}
+		state := &reviewTabState{Composer: m.Composer, Comments: m.Comments, Stack: m.Stack, Busy: m.Busy, ActionError: m.ActionError}
 		apply(state)
-		m.Composer, m.Stack, m.Busy, m.ActionError = state.Composer, state.Stack, state.Busy, state.ActionError
+		m.Composer, m.Comments, m.Stack, m.Busy, m.ActionError = state.Composer, state.Comments, state.Stack, state.Busy, state.ActionError
 		return
 	}
 	if result.Target >= 0 && result.Target < len(m.tabs) {
@@ -196,6 +271,12 @@ func (m *Model) lifecycleKey(k string) (tea.Cmd, bool) {
 			err := review.Refresh(ctx, m.store, &s, m.reader)
 			return ActionResult{Session: &s, Err: err}
 		}), true
+	case "c":
+		if m.readComments == nil {
+			m.ActionError = errors.New("offline mode: comment refresh is unavailable")
+			return nil, true
+		}
+		return m.refreshComments(), true
 	case "N":
 		if m.fresh == nil {
 			return nil, true
