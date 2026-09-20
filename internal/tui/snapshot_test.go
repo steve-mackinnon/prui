@@ -42,6 +42,18 @@ func TestScreenSnapshots(t *testing.T) {
 	}{
 		{"review_wide", 120, 12, func(m *Model) { m.Focus = paneDiff }},
 		{"review_narrow", 60, 10, func(m *Model) { m.Focus = paneDiff }},
+		{"comment_thread", 120, 16, func(m *Model) {
+			m.Focus, m.cursorActive = paneDiff, true
+			var target source.ReviewCommentTarget
+			for _, line := range m.baseDetail() {
+				if line.target != nil {
+					target = *line.target
+					break
+				}
+			}
+			m.Comments = []source.ReviewComment{{ID: 7, Author: "reviewer", Target: target, Body: "parent message"}, {ID: 8, ParentID: 7, Author: "viewer", Target: target, Body: "threaded reply"}}
+			m.CommentReactions = map[int64][]source.ReviewCommentReaction{7: {{Content: "heart"}, {Content: "heart"}, {Content: "+1"}}}
+		}},
 		{"loading", 80, 8, func(m *Model) { m.Loading, m.cancelAction = true, func() {} }},
 		{"load_error", 80, 8, func(m *Model) { m.Err = errors.New("synthetic metadata failure") }},
 		{"guides", 120, 14, func(m *Model) {

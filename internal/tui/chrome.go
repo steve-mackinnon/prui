@@ -7,6 +7,7 @@ import (
 	"pr-review/internal/guide"
 	"pr-review/internal/review"
 	"pr-review/internal/session"
+	"pr-review/internal/source"
 )
 
 type healthItem struct {
@@ -91,6 +92,26 @@ func healthStatus(width int, s *review.Session) string {
 }
 
 func (m *Model) reviewStatus() string {
+	if menu := m.CommentMenu; menu != nil {
+		text := "Comment actions: r reply · a react · esc cancel"
+		switch menu.mode {
+		case commentActionReply:
+			text = "Reply editor open · enter submit · esc cancel"
+		case commentActionReact:
+			choices := []string{}
+			for i, content := range source.ReviewCommentReactions() {
+				choices = append(choices, fmt.Sprintf("%d %s", i+1, m.reactionLabel(content)))
+			}
+			text = "React: " + strings.Join(choices, " · ") + " · esc cancel"
+		case commentActionDeleteConfirm:
+			text = "Delete this comment? enter confirm · esc cancel"
+		default:
+			if menu.Author == m.Viewer && m.Viewer != "" {
+				text += " · d delete"
+			}
+		}
+		return styleLine(classWarning, clip(text, m.Width))
+	}
 	if m.ActionError != nil {
 		progress, _ := reviewHealth(m.Session)
 		return styleLine(classWarning, clip(progress+" · ! Action failed: "+Escape(m.ActionError.Error())+" · ?: Health & help", m.Width))

@@ -59,7 +59,10 @@ type reviewTabState struct {
 	Busy                                                 bool
 	ActionError                                          error
 	Composer                                             *commentComposer
+	CommentMenu                                          *commentActionMenu
 	Comments                                             []source.ReviewComment
+	CommentReactions                                     map[int64][]source.ReviewCommentReaction
+	Viewer                                               string
 	commentGeneration                                    uint64
 	editorCursorVisible                                  bool
 	editorCursorGeneration                               uint64
@@ -90,6 +93,27 @@ type commentComposer struct {
 	generation uint64
 }
 
+type commentActionMenu struct {
+	CommentID  int64
+	ReplyToID  int64 // GitHub permits replies only to the thread's root comment.
+	Target     source.ReviewCommentTarget
+	Author     string
+	mode       commentActionMode
+	Draft      string
+	Reaction   string
+	Cursor     int
+	generation uint64
+}
+
+type commentActionMode uint8
+
+const (
+	commentActionPick commentActionMode = iota
+	commentActionReply
+	commentActionReact
+	commentActionDeleteConfirm
+)
+
 type Model struct {
 	Session                                              *review.Session
 	Err                                                  error
@@ -118,8 +142,12 @@ type Model struct {
 	SwitcherQuery                                        string
 	ActionError                                          error
 	Composer                                             *commentComposer
+	CommentMenu                                          *commentActionMenu
 	Comments                                             []source.ReviewComment
+	CommentReactions                                     map[int64][]source.ReviewCommentReaction
+	Viewer                                               string
 	commentGeneration                                    uint64
+	reactionEmoji                                        bool
 	editorCursorVisible                                  bool
 	editorCursorGeneration                               uint64
 	store                                                *session.Store
@@ -137,6 +165,8 @@ type Model struct {
 	generateGuide                                        GuideLoader
 	submitComment                                        CommentSubmitter
 	readComments                                         CommentReader
+	readViewer                                           ViewerReader
+	submitCommentAction                                  CommentActionSubmitter
 	cancelAction                                         context.CancelFunc
 	actionCtx                                            context.Context
 	listSessions                                         func() ([]session.Entry, error)
@@ -152,7 +182,7 @@ type PullRequestOpener func(context.Context, string, source.Identity, func(strin
 
 func newModel(parent context.Context) *Model {
 	ctx, cancel := context.WithCancel(parent)
-	return &Model{ctx: ctx, cancel: cancel, Scroll: map[int]int{}, GuideScroll: map[int]int{}, Cursor: map[int]int{}, GuideCursor: map[int]int{}, collapsed: newExpansion(), Stack: []page{pageReview}, Width: 100, Height: 24, activeTab: -1}
+	return &Model{ctx: ctx, cancel: cancel, Scroll: map[int]int{}, GuideScroll: map[int]int{}, Cursor: map[int]int{}, GuideCursor: map[int]int{}, collapsed: newExpansion(), Stack: []page{pageReview}, Width: 100, Height: 24, activeTab: -1, reactionEmoji: defaultEmojiSupport()}
 }
 
 func New(parent context.Context, load Loader) *Model {
@@ -236,7 +266,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nextLoadingTick()
 	case editorCursorTick:
-		if m.Composer == nil || v.generation != m.editorCursorGeneration {
+		if (m.Composer == nil && (m.CommentMenu == nil || m.CommentMenu.mode != commentActionReply)) || v.generation != m.editorCursorGeneration {
 			return m, nil
 		}
 		m.editorCursorVisible = !m.editorCursorVisible
@@ -278,6 +308,14 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if active != v.Target {
 			m.Busy, m.ActionError, m.notice = busy, actionErr, notice
 		}
+	case CommentActionResult:
+		active := m.activeTab
+		busy, actionErr, notice := m.Busy, m.ActionError, m.notice
+		v.Err = m.finishAction(v.Err)
+		m.applyCommentActionResult(v)
+		if active != v.Target {
+			m.Busy, m.ActionError, m.notice = busy, actionErr, notice
+		}
 	case CommentListResult:
 		active := m.activeTab
 		busy, actionErr, notice := m.Busy, m.ActionError, m.notice
@@ -301,6 +339,15 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if active != v.Target {
 			m.Busy, m.ActionError, m.notice = busy, actionErr, notice
+		}
+	case ViewerResult:
+		v.Err = m.finishAction(v.Err)
+		if v.Target == m.activeTab {
+			if v.Err == nil {
+				m.Viewer = v.Viewer.Login
+			}
+		} else if v.Target >= 0 && v.Target < len(m.tabs) && v.Err == nil {
+			m.tabs[v.Target].review.Viewer = v.Viewer.Login
 		}
 	case PullRequestOpenResult:
 		// Opening always starts in the fixed browser. If the reviewer changes
@@ -364,6 +411,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.Composer != nil {
 				return m, m.commentComposerKey(v)
 			}
+			if m.CommentMenu != nil {
+				return m, m.commentActionKey(v)
+			}
 			if p := m.top(); p != pageReview {
 				return m, m.pageKey(p, v)
 			}
@@ -402,6 +452,12 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.focusDetail(m.navigable())
 		case "enter":
 			if m.Focus == paneDiff {
+				if m.openCommentActionMenu() {
+					if m.Viewer == "" {
+						return m, m.refreshViewer()
+					}
+					return m, nil
+				}
 				return m, tea.Batch(m.openCommentComposer(), m.restartGuidePathScroll())
 			} else {
 				m.focusDetail(m.navigable())
@@ -547,7 +603,7 @@ func (m *Model) saveActiveReview() {
 		guidePathOffset: m.guidePathOffset, guidePathPause: m.guidePathPause, guidePathGeneration: m.guidePathGeneration,
 		Stack: m.Stack, Loading: m.Loading, Busy: m.Busy,
 		ActionError: m.ActionError, notice: m.notice, loadingFrame: m.loadingFrame,
-		Composer: m.Composer, Comments: m.Comments, commentGeneration: m.commentGeneration,
+		Composer: m.Composer, CommentMenu: m.CommentMenu, Comments: m.Comments, CommentReactions: m.CommentReactions, Viewer: m.Viewer, commentGeneration: m.commentGeneration,
 		editorCursorVisible: m.editorCursorVisible, editorCursorGeneration: m.editorCursorGeneration,
 	}
 }
@@ -564,7 +620,7 @@ func (m *Model) restoreReviewTab(state *reviewTabState) {
 	m.guidePathOffset, m.guidePathPause, m.guidePathGeneration = state.guidePathOffset, state.guidePathPause, state.guidePathGeneration
 	m.Stack, m.Loading, m.Busy = state.Stack, state.Loading, state.Busy
 	m.ActionError, m.notice, m.loadingFrame = state.ActionError, state.notice, state.loadingFrame
-	m.Composer, m.Comments, m.commentGeneration = state.Composer, state.Comments, state.commentGeneration
+	m.Composer, m.CommentMenu, m.Comments, m.CommentReactions, m.Viewer, m.commentGeneration = state.Composer, state.CommentMenu, state.Comments, state.CommentReactions, state.Viewer, state.commentGeneration
 	m.editorCursorVisible, m.editorCursorGeneration = state.editorCursorVisible, state.editorCursorGeneration
 }
 
@@ -625,6 +681,45 @@ func (m *Model) openCommentComposer() tea.Cmd {
 	m.editorCursorGeneration++
 	m.ensureCursorVisible()
 	return nextEditorCursorTick(m.editorCursorGeneration)
+}
+
+func (m *Model) openCommentActionMenu() bool {
+	if m.Focus != paneDiff {
+		return false
+	}
+	cursor := m.cursor()
+	if cursor < 0 {
+		return false
+	}
+	line := m.detail()[cursor]
+	if line.commentID <= 0 {
+		return false
+	}
+	for _, comment := range m.Comments {
+		if comment.ID == line.commentID {
+			m.CommentMenu = &commentActionMenu{CommentID: comment.ID, ReplyToID: m.topLevelCommentID(comment.ID), Target: comment.Target, Author: comment.Author}
+			m.ensureCursorVisible()
+			return true
+		}
+	}
+	return false
+}
+
+func (m *Model) topLevelCommentID(commentID int64) int64 {
+	seen := map[int64]bool{}
+	for commentID > 0 && !seen[commentID] {
+		seen[commentID] = true
+		for _, comment := range m.Comments {
+			if comment.ID == commentID {
+				if comment.ParentID == 0 {
+					return comment.ID
+				}
+				commentID = comment.ParentID
+				break
+			}
+		}
+	}
+	return 0
 }
 
 // navigable returns the guide rows when they are the active hierarchy. The
@@ -763,8 +858,8 @@ func (m *Model) detail() []diffLine {
 			continue
 		}
 		for _, comment := range m.Comments {
-			if comment.Target == *line.target {
-				lines = append(lines, m.reviewCommentLines(comment)...)
+			if comment.Target == *line.target && comment.ParentID == 0 {
+				lines = append(lines, m.reviewCommentThread(comment, 0)...)
 			}
 		}
 		if m.Composer != nil && m.Composer.Target == *line.target {
@@ -774,25 +869,71 @@ func (m *Model) detail() []diffLine {
 	return lines
 }
 
+func (m *Model) reviewCommentThread(comment source.ReviewComment, indent int) []diffLine {
+	lines := m.reviewCommentLinesAt(comment, indent)
+	for _, reply := range m.Comments {
+		if reply.ParentID == comment.ID && reply.Target == comment.Target {
+			lines = append(lines, m.reviewCommentThread(reply, indent+4)...)
+		}
+	}
+	if menu := m.CommentMenu; menu != nil && menu.CommentID == comment.ID && menu.mode == commentActionReply {
+		lines = append(lines, m.inlineReplyEditorLines(indent+4)...)
+	}
+	return lines
+}
+
 // reviewCommentLines keeps each untrusted remote comment visually attached to
 // its anchor while making it clear that it is read-only overlay content.
 func (m *Model) reviewCommentLines(comment source.ReviewComment) []diffLine {
+	return m.reviewCommentLinesAt(comment, 0)
+}
+
+func (m *Model) reviewCommentLinesAt(comment source.ReviewComment, indent int) []diffLine {
 	inner := max(8, min(68, m.Width-8))
-	border := "  +" + strings.Repeat("-", inner+2) + "+"
+	prefix := strings.Repeat(" ", 2+indent)
+	border := prefix + "+" + strings.Repeat("-", inner+2) + "+"
 	line := func(class lineClass, text string) diffLine {
 		text = clip(text, inner)
 		text += strings.Repeat(" ", max(0, inner-visibleWidth(text)))
-		return diffLine{styledLine: styledLine{Class: class, Text: "  | " + text + " |"}}
+		return diffLine{styledLine: styledLine{Class: class, Text: prefix + "| " + text + " |"}, commentID: comment.ID}
 	}
 	author := Escape(comment.Author)
 	if author == "" {
 		author = "unknown"
 	}
-	lines := []diffLine{{styledLine: styledLine{Class: classMetadata, Text: border}}, line(classMetadata, "@"+author)}
+	lines := []diffLine{{styledLine: styledLine{Class: classMetadata, Text: border}, commentID: comment.ID}, line(classMetadata, "@"+author)}
 	for _, body := range strings.Split(comment.Body, "\n") {
 		lines = append(lines, line(classPlain, Escape(body)))
 	}
-	return append(lines, diffLine{styledLine: styledLine{Class: classMetadata, Text: border}})
+	return append(lines, diffLine{styledLine: styledLine{Class: classMetadata, Text: m.commentBottomBorder(prefix, inner, comment.ID)}, commentID: comment.ID})
+}
+
+func (m *Model) commentBottomBorder(prefix string, inner int, commentID int64) string {
+	counts := map[string]int{}
+	for _, reaction := range m.CommentReactions[commentID] {
+		counts[reaction.Content]++
+	}
+	chips := []string{}
+	for _, content := range source.ReviewCommentReactions() {
+		if counts[content] > 0 {
+			chips = append(chips, "["+Escape(m.reactionLabel(content))+" "+fmt.Sprint(counts[content])+"]")
+		}
+	}
+	inside := strings.Repeat("-", inner+2)
+	if len(chips) > 0 {
+		chipText := strings.Join(chips, " ")
+		chipText = clip(chipText, inner+2)
+		inside = chipText + strings.Repeat("-", max(0, inner+2-visibleWidth(chipText)))
+	}
+	return prefix + "+" + inside + "+"
+}
+
+func (m *Model) inlineReplyEditorLines(indent int) []diffLine {
+	menu := m.CommentMenu
+	if menu == nil {
+		return nil
+	}
+	return m.inlineEditorLinesFor(menu.Draft, menu.Cursor, indent)
 }
 
 func (m *Model) inlineEditorLines() []diffLine {
@@ -800,13 +941,20 @@ func (m *Model) inlineEditorLines() []diffLine {
 	if c == nil {
 		return nil
 	}
+	return m.inlineEditorLinesFor(c.Draft, c.Cursor, 0)
+}
+
+// inlineEditorLinesFor is the one editor presentation shared by a new inline
+// comment and an indented reply. Its caller owns only the target/action state.
+func (m *Model) inlineEditorLinesFor(draft string, editorCursor, indent int) []diffLine {
 	// A simple terminal-native box makes the editor a distinct input surface
 	// without borrowing a target label or a footer from the surrounding diff.
 	inner := max(8, min(68, m.Width-8))
-	border := "  +" + strings.Repeat("-", inner+2) + "+"
+	prefix := strings.Repeat(" ", 2+indent)
+	border := prefix + "+" + strings.Repeat("-", inner+2) + "+"
 	lines := []diffLine{{styledLine: styledLine{Class: classWarning, Text: border}}}
-	runes := []rune(c.Draft)
-	cursor := max(0, min(len(runes), c.Cursor))
+	runes := []rune(draft)
+	cursor := max(0, min(len(runes), editorCursor))
 	before, after := string(runes[:cursor]), string(runes[cursor:])
 	cursorLine := strings.Count(before, "\n")
 	beforeLine := before[strings.LastIndex(before, "\n")+1:]
@@ -814,19 +962,19 @@ func (m *Model) inlineEditorLines() []diffLine {
 	if i := strings.IndexByte(afterLine, '\n'); i >= 0 {
 		afterLine = afterLine[:i]
 	}
-	for i, text := range strings.Split(c.Draft, "\n") {
+	for i, text := range strings.Split(draft, "\n") {
 		content := Escape(text)
 		if i == cursorLine && m.editorCursorVisible {
 			content = Escape(beforeLine) + "▏" + Escape(afterLine)
 		}
 		content = clip(content, inner)
 		content += strings.Repeat(" ", max(0, inner-visibleWidth(content)))
-		lines = append(lines, diffLine{styledLine: styledLine{Class: classWarning, Text: "  | " + content + " |"}})
+		lines = append(lines, diffLine{styledLine: styledLine{Class: classWarning, Text: prefix + "| " + content + " |"}})
 	}
 	if m.ActionError != nil {
 		content := clip("! "+Escape(m.ActionError.Error()), inner)
 		content += strings.Repeat(" ", max(0, inner-visibleWidth(content)))
-		lines = append(lines, diffLine{styledLine: styledLine{Class: classWarning, Text: "  | " + content + " |"}})
+		lines = append(lines, diffLine{styledLine: styledLine{Class: classWarning, Text: prefix + "| " + content + " |"}})
 	}
 	lines = append(lines, diffLine{styledLine: styledLine{Class: classWarning, Text: border}})
 	return lines
@@ -856,11 +1004,11 @@ func (m *Model) cursor() int {
 		return -1
 	}
 	stored, ok := m.cursorValue()
-	if ok && stored >= 0 && stored < len(detail) && detail[stored].target != nil {
+	if ok && stored >= 0 && stored < len(detail) && (detail[stored].target != nil || detail[stored].commentID > 0) {
 		return stored
 	}
 	for i, line := range detail {
-		if line.target != nil {
+		if line.target != nil || line.commentID > 0 {
 			m.setCursor(i)
 			return i
 		}
@@ -907,7 +1055,7 @@ func (m *Model) moveCursor(delta int) {
 	}
 	targets := make([]int, 0, len(detail))
 	for i, line := range detail {
-		if line.target != nil {
+		if line.target != nil || line.commentID > 0 {
 			targets = append(targets, i)
 		}
 	}
@@ -932,7 +1080,7 @@ func (m *Model) cursorInViewport(delta int) {
 	detail := m.detail()
 	if delta < 0 {
 		for i := min(len(detail)-1, end-1); i >= start; i-- {
-			if detail[i].target != nil {
+			if detail[i].target != nil || detail[i].commentID > 0 {
 				m.setCursor(i)
 				return
 			}
@@ -940,7 +1088,7 @@ func (m *Model) cursorInViewport(delta int) {
 		return
 	}
 	for i := max(0, start); i < min(len(detail), end); i++ {
-		if detail[i].target != nil {
+		if detail[i].target != nil || detail[i].commentID > 0 {
 			m.setCursor(i)
 			return
 		}
@@ -1113,6 +1261,9 @@ func (m *Model) reviewView() string {
 			marker = cursorMarker(offset+i == m.cursor())
 		}
 		detail[i].Text = marker + string(runes[min(m.Horizontal, len(runes)):])
+		if line.commentID > 0 && offset+i == m.cursor() {
+			detail[i].Class = selectedClass(true)
+		}
 	}
 	body := []string{}
 	for row := 0; row < bodyHeight; row++ {

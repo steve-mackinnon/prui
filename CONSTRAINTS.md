@@ -40,3 +40,11 @@
 - Submission validates the repository, pull number, frozen 40-character head SHA, UTF-8 path/body, positive line, and `LEFT`/`RIGHT` side. It sends JSON only through `gh api --method POST --input -` stdin to GitHub's pull-request review-comment endpoint; the authenticated credential must have Pull requests write permission. Responses and raw command diagnostics are untrusted and are not stored or rendered.
 - `--plain`, redirected/non-interactive operation, and `resume --offline` never expose or invoke comment posting. Offline refusal occurs before GitHub client or credential access. Cancellation makes no claim about whether an in-flight GitHub write completed.
 - Synthetic tests prove target mapping, keyboard/composer behavior, exact stdin request construction without body arguments, validation, offline refusal, preflight mismatch without a commenter call, and success/error/cancel behavior. No test contacts GitHub or uses a live credential.
+
+# Phase 5a Inline Comment Action Contract
+
+- Anchored overlay comments are transient diff selections, distinct from line targets. `enter` on a target opens only a new-comment editor; `enter` on a comment opens only a local action menu. Escape never writes.
+- Viewer identity, replies, deletion, and reactions use narrow bounded GitHub interfaces. Reply bodies are UTF-8 and JSON stdin only; stable comment IDs, repository/PR identities, and a finite documented reaction set are validated before invoking `gh`.
+- Reaction rendering is emoji-first only for UTF-8 locales, with the bounded GitHub reaction tokens as the fallback for explicit non-UTF-8 locales. Emoji glyph/font support is not probed, and reaction meaning never depends on color.
+- Every action remains online-only and freshness-preflighted. Delete additionally fetches the authenticated viewer and is permitted only when that login exactly equals the loaded comment author, then requires explicit final confirmation.
+- Action results carry origin tab, stable comment ID, and generation. Stale results and results for another tab are ignored. Canonical replies and reactions, menus, drafts, viewer identity, and deletion state are overlay-only: never sessions, logs, or plain output.

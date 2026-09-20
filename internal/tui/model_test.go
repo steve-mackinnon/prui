@@ -644,6 +644,192 @@ func TestInlineCommentsRenderOnlyAtExactFrozenTargets(t *testing.T) {
 	}
 }
 
+func TestCommentCursorOpensLocalActionMenuAndEscapeDoesNotWrite(t *testing.T) {
+	m := New(context.Background(), nil)
+	m.Loading = false
+	m.Session, m.Selected, m.Focus = kindsSession(), 1, paneDiff
+	var target source.ReviewCommentTarget
+	for _, line := range m.baseDetail() {
+		if line.target != nil {
+			target = *line.target
+			break
+		}
+	}
+	m.Comments = []source.ReviewComment{{ID: 7, Author: "other", Target: target, Body: "note"}}
+	m.cursorActive = true
+	for m.detail()[m.cursor()].commentID == 0 {
+		key(m, 'j')
+	}
+	namedKey(m, tea.KeyEnter)
+	if m.CommentMenu == nil || m.Composer != nil || m.CommentMenu.CommentID != 7 {
+		t.Fatalf("comment enter did not open local menu: %#v", m.CommentMenu)
+	}
+	namedKey(m, tea.KeyEscape)
+	if m.CommentMenu != nil {
+		t.Fatal("escape did not close local menu")
+	}
+}
+
+func TestCommentActionResultOnlyChangesOriginatingTabAndPreservesFailureDraft(t *testing.T) {
+	m := New(context.Background(), nil)
+	m.Loading = false
+	first, second := kindsSession(), kindsSession()
+	second.Inventory.Comparison.Metadata.Identity.Number = 2
+	m.openReviewTab(first)
+	m.openReviewTab(second)
+	m.activateTab(0)
+	m.CommentMenu = &commentActionMenu{CommentID: 7, generation: 1, Draft: "reply"}
+	m.Comments = []source.ReviewComment{{ID: 7}}
+	m.activateTab(1)
+	m.Update(CommentActionResult{Target: 0, CommentID: 7, Generation: 1, Reply: source.ReviewComment{ID: 8}, Err: errors.New("rejected")})
+	if m.CommentMenu != nil {
+		t.Fatal("stale first-tab failure leaked into active tab")
+	}
+	if got := m.tabs[0].review.CommentMenu; got == nil || got.Draft != "reply" {
+		t.Fatalf("failure did not retain first-tab draft: %#v", got)
+	}
+}
+
+func TestReplyEditorAndCanonicalReplyRenderAsIndentedThread(t *testing.T) {
+	m := New(context.Background(), nil)
+	m.Loading = false
+	m.Session, m.Selected, m.Focus = kindsSession(), 1, paneDiff
+	var target source.ReviewCommentTarget
+	for _, line := range m.baseDetail() {
+		if line.target != nil {
+			target = *line.target
+			break
+		}
+	}
+	m.Comments = []source.ReviewComment{{ID: 7, Target: target, Body: "parent"}, {ID: 8, Target: target, ParentID: 7, Body: "reply"}}
+	m.CommentMenu = &commentActionMenu{CommentID: 7, Target: target, mode: commentActionReply, Draft: "draft"}
+	view := ansi.Strip(m.reviewView())
+	for _, want := range []string{"  | parent", "      | reply", "      | draft"} {
+		if !strings.Contains(view, want) {
+			t.Fatalf("threaded reply missing %q:\n%s", want, view)
+		}
+	}
+	if strings.Contains(m.reviewStatus(), "draft") {
+		t.Fatalf("reply draft leaked into status: %s", m.reviewStatus())
+	}
+}
+
+func TestReactionPickerDigitsAndBottomBorderCounts(t *testing.T) {
+	m := New(context.Background(), nil)
+	m.Loading = false
+	m.Session = kindsSession()
+	m.CommentMenu = &commentActionMenu{CommentID: 7, mode: commentActionReact}
+	key(m, '5')
+	if m.CommentMenu == nil || m.CommentMenu.Reaction != "heart" {
+		t.Fatalf("5 selected %#v, want heart", m.CommentMenu)
+	}
+	m.CommentReactions = map[int64][]source.ReviewCommentReaction{7: {{Content: "heart"}, {Content: "heart"}, {Content: "+1"}}}
+	parts := []string{}
+	for _, line := range m.reviewCommentLines(source.ReviewComment{ID: 7, Body: "body"}) {
+		parts = append(parts, line.Text)
+	}
+	box := strings.Join(parts, "\n")
+	if !strings.Contains(box, "[👍 1] [❤️ 2]") {
+		t.Fatalf("bottom border lacks reaction counts:\n%s", box)
+	}
+}
+
+func TestReactionEmojiDisplayFallsBackForASCII(t *testing.T) {
+	m := New(context.Background(), nil)
+	m.Loading = false
+	m.reactionEmoji = true
+	m.CommentReactions = map[int64][]source.ReviewCommentReaction{7: {
+		{Content: "+1"}, {Content: "-1"}, {Content: "laugh"}, {Content: "confused"},
+		{Content: "heart"}, {Content: "hooray"}, {Content: "rocket"}, {Content: "eyes"},
+	}}
+	emojiBox := m.commentBottomBorder("", 120, 7)
+	for _, want := range []string{"[👍 1]", "[👎 1]", "[😄 1]", "[😕 1]", "[❤️ 1]", "[🎉 1]", "[🚀 1]", "[👀 1]"} {
+		if !strings.Contains(emojiBox, want) {
+			t.Fatalf("emoji reaction chip %q missing from %q", want, emojiBox)
+		}
+	}
+	m.CommentMenu = &commentActionMenu{CommentID: 7, mode: commentActionReact}
+	if status := m.reviewStatus(); !strings.Contains(status, "1 👍") || !strings.Contains(status, "8 👀") {
+		t.Fatalf("emoji reaction picker = %q", status)
+	}
+
+	m.reactionEmoji = false
+	asciiBox := m.commentBottomBorder("", 120, 7)
+	if !strings.Contains(asciiBox, "[+1 1]") || !strings.Contains(asciiBox, "[eyes 1]") || strings.Contains(asciiBox, "👍") {
+		t.Fatalf("ASCII fallback reaction chips = %q", asciiBox)
+	}
+	if status := m.reviewStatus(); !strings.Contains(status, "1 +1") || !strings.Contains(status, "8 eyes") || strings.Contains(status, "👍") {
+		t.Fatalf("ASCII fallback reaction picker = %q", status)
+	}
+}
+
+func TestReplyUsesSharedBlinkingEditorAndSubmits(t *testing.T) {
+	m := New(context.Background(), nil)
+	m.Loading = false
+	m.Session, m.Selected, m.Focus = kindsSession(), 1, paneDiff
+	var target source.ReviewCommentTarget
+	for _, line := range m.baseDetail() {
+		if line.target != nil {
+			target = *line.target
+			break
+		}
+	}
+	m.Comments = []source.ReviewComment{{ID: 7, Target: target, Body: "parent"}}
+	m.CommentMenu = &commentActionMenu{CommentID: 7, Target: target, mode: commentActionPick}
+	called := 0
+	m.SetCommentActionSubmitter(func(_ context.Context, action CommentAction) (source.ReviewComment, source.ReviewCommentReaction, error) {
+		called++
+		if action.Body != "reply" {
+			t.Fatalf("reply body = %q", action.Body)
+		}
+		return source.ReviewComment{ID: 8, ParentID: 7, Target: target, Body: action.Body}, source.ReviewCommentReaction{}, nil
+	})
+	key(m, 'r')
+	if !m.editorCursorVisible || m.editorCursorGeneration == 0 {
+		t.Fatalf("reply did not start shared blinking editor: visible=%v generation=%d", m.editorCursorVisible, m.editorCursorGeneration)
+	}
+	generation := m.editorCursorGeneration
+	m.Update(editorCursorTick{generation: generation})
+	if m.editorCursorVisible {
+		t.Fatal("reply editor tick did not blink the shared caret")
+	}
+	m.editorCursorVisible = true
+	for _, r := range "reply" {
+		key(m, r)
+	}
+	_, submit := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	completeAction(t, m, submit)
+	if called != 1 || m.CommentMenu != nil || len(m.Comments) != 2 {
+		t.Fatalf("reply submission = calls %d menu %#v comments %#v", called, m.CommentMenu, m.Comments)
+	}
+}
+
+func TestReplyToReplyTargetsTopLevelComment(t *testing.T) {
+	m := New(context.Background(), nil)
+	m.Loading = false
+	m.Session, m.Selected, m.Focus = kindsSession(), 1, paneDiff
+	var target source.ReviewCommentTarget
+	for _, line := range m.baseDetail() {
+		if line.target != nil {
+			target = *line.target
+			break
+		}
+	}
+	m.Comments = []source.ReviewComment{{ID: 7, Target: target, Body: "parent"}, {ID: 8, ParentID: 7, Target: target, Body: "reply"}}
+	m.CommentMenu = &commentActionMenu{CommentID: 8, ReplyToID: 7, Target: target, mode: commentActionReply, Draft: "follow up", Cursor: len([]rune("follow up"))}
+	m.SetCommentActionSubmitter(func(_ context.Context, action CommentAction) (source.ReviewComment, source.ReviewCommentReaction, error) {
+		if action.Comment.ID != 7 {
+			t.Fatalf("reply target = %d, want top-level 7", action.Comment.ID)
+		}
+		return source.ReviewComment{ID: 9, ParentID: 7, Target: target, Body: action.Body}, source.ReviewCommentReaction{}, nil
+	})
+	_, submit := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	completeAction(t, m, submit)
+	if len(m.Comments) != 3 || m.Comments[2].ParentID != 7 {
+		t.Fatalf("reply was not added to top-level thread: %#v", m.Comments)
+	}
+}
+
 func TestRawReviewCancelAndFailure(t *testing.T) {
 	canceled := make(chan struct{})
 	m := New(context.Background(), func(c context.Context, _ func(string)) (*review.Session, error) {
@@ -712,7 +898,7 @@ func TestModalPagesOwnInputAndBack(t *testing.T) {
 func TestBindingsRenderHelpAndFooter(t *testing.T) {
 	help := renderBindings(groupHelp)
 	footer := renderBindings(groupFooter)
-	for _, wording := range []string{"focus the diff; on a commentable line, open an inline comment editor", "reset selected guide scroll, or selected unit's without guides"} {
+	for _, wording := range []string{"focus the diff; open a line editor or selected-comment action menu", "reset selected guide scroll, or selected unit's without guides"} {
 		if !strings.Contains(help, wording) {
 			t.Fatalf("updated help wording missing %q", wording)
 		}

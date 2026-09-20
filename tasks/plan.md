@@ -469,3 +469,40 @@ docs, snapshots, synthetic + manual acceptance
 | Delete appears for another reviewer | High | Compare to bounded authenticated viewer identity before enabling it; retain GitHub authorization as the final boundary. |
 | Action results land in a different tab | High | Attach each action to tab ID, comment ID, and generation; ignore stale results. |
 | Reactions/replies leak into persisted state | High | Keep all action state and canonical responses tab-local and exclude them from sessions/plain output. |
+
+# Implementation Plan: Threaded Inline Reply and Reaction Rendering
+
+## Overview
+
+Refine the inline comment-action overlay so reply drafting and replies read as
+one indented thread, reaction selection is digit-driven, and reaction totals
+appear as compact chips in a comment box's bottom border.
+
+## Architecture Decisions
+
+- Keep the existing `commentActionMenu` as the action controller, but represent
+  reply editing as a dedicated local editor state rather than status-line text.
+- Store reply parentage in ephemeral overlay state keyed by canonical comment
+  ID. Render a reply under its direct parent with one fixed indentation level.
+- Use a single ordered reaction table shared by picker rendering and digit
+  dispatch. Render its GitHub values with emoji labels in UTF-8 locales and
+  bounded token fallbacks in explicit non-UTF-8 locales. Aggregate per-comment
+  reaction values at render time so the map stays memory-only and deterministic.
+
+## Dependency Graph
+
+```text
+thread/reply local state + ordered reaction table
+                    |
+         threaded box and border-chip rendering
+                    |
+      keyboard dispatch, snapshots, documentation
+```
+
+## Risks and Mitigations
+
+| Risk | Impact | Mitigation |
+| --- | --- | --- |
+| Reply draft looks like status text | High | Render a bordered editor below the parent; test no draft in status. |
+| Reaction digit collides with workspace tabs | Medium | Consume digits only while the reaction picker is active. |
+| Border chips overflow narrow boxes | Medium | Clip the chip region within the existing inner width. |

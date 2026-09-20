@@ -1,0 +1,16 @@
+review · example/review#42 · ctrl+p: switch PR
+FILE SLICES 2 · main.go [text_hunk] · focus: diff
+› main.go                            |   ── main.go ──
+  README.md                          |   @@ -1 +1 @@
+                                     | › -old greeting
+                                     |     +----------------------------------------------------------------------+
+                                     |     | @reviewer                                                            |
+                                     |     | parent message                                                       |
+                                     |     +[👍 1] [❤️ 2]---------------------------------------------------------+
+                                     |         +----------------------------------------------------------------------+
+                                     |         | @viewer                                                              |
+                                     |         | threaded reply                                                       |
+                                     |         +----------------------------------------------------------------------+
+                                     |   +hello world
+                                     |
+0/2 read · ✓ Inventory complete · ? Guides unavailable · ? Freshness unknown · ?: Health & help

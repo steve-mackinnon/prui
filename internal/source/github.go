@@ -68,10 +68,11 @@ type GitHub interface {
 // review comment. It is intentionally separate from GitHub, whose operations
 // are otherwise read-only.
 type ReviewComment struct {
-	ID     int64
-	Author string
-	Target ReviewCommentTarget
-	Body   string
+	ID       int64
+	ParentID int64
+	Author   string
+	Target   ReviewCommentTarget
+	Body     string
 }
 
 // ReviewCommentTarget identifies the frozen pull request diff line to comment
@@ -92,6 +93,42 @@ type ReviewCommenter interface {
 // deliberately ephemeral: callers must not put them in review sessions.
 type ReviewCommentReader interface {
 	ListReviewComments(context.Context, Identity) ([]ReviewComment, error)
+}
+
+// Viewer is the bounded authenticated identity needed to decide whether a
+// destructive action can be offered locally. It is deliberately not a general
+// user profile contract.
+type Viewer struct{ Login string }
+
+type ReviewCommentViewer interface {
+	Viewer(context.Context) (Viewer, error)
+}
+type ReviewCommentReplier interface {
+	ReplyToReviewComment(context.Context, Identity, int64, string) (ReviewComment, error)
+}
+type ReviewCommentDeleter interface {
+	DeleteReviewComment(context.Context, Identity, int64) error
+}
+type ReviewCommentReactioner interface {
+	AddReviewCommentReaction(context.Context, Identity, int64, string) (ReviewCommentReaction, error)
+}
+
+// ReviewCommentReaction is a canonical, bounded response from GitHub. It is
+// overlay-only and must never be stored in a session or emitted in plain mode.
+type ReviewCommentReaction struct {
+	ID      int64
+	Content string
+	Author  string
+}
+
+var reviewCommentReactions = map[string]bool{"+1": true, "-1": true, "laugh": true, "confused": true, "heart": true, "hooray": true, "rocket": true, "eyes": true}
+
+func IsReviewCommentReaction(content string) bool { return reviewCommentReactions[content] }
+
+// ReviewCommentReactions returns the documented picker order. The caller gets
+// a copy so transient UI code cannot mutate the source contract.
+func ReviewCommentReactions() []string {
+	return []string{"+1", "-1", "laugh", "confused", "heart", "hooray", "rocket", "eyes"}
 }
 
 type GH struct {
@@ -151,6 +188,83 @@ func (g *GH) CreateReviewComment(ctx context.Context, comment ReviewComment) (Re
 	return created, nil
 }
 
+func validCommentAction(id Identity, commentID int64) bool {
+	_, err := ParseIdentity(strconv.Itoa(id.Number), id.Repository)
+	return err == nil && commentID > 0
+}
+
+func (g *GH) Viewer(ctx context.Context) (Viewer, error) {
+	data, err := g.call(ctx, "api", "--hostname", "github.com", "--method", "GET", "user")
+	if err != nil {
+		return Viewer{}, safeReviewCommentError(err)
+	}
+	var raw struct {
+		Login string `json:"login"`
+	}
+	if json.Unmarshal(data, &raw) != nil || raw.Login == "" || !utf8.ValidString(raw.Login) || len(raw.Login) > 256 {
+		return Viewer{}, errors.New("invalid GitHub viewer")
+	}
+	return Viewer{Login: raw.Login}, nil
+}
+
+func (g *GH) ReplyToReviewComment(ctx context.Context, id Identity, commentID int64, body string) (ReviewComment, error) {
+	if !validCommentAction(id, commentID) || body == "" || !utf8.ValidString(body) {
+		return ReviewComment{}, errors.New("invalid review comment reply")
+	}
+	payload, err := json.Marshal(struct {
+		Body string `json:"body"`
+	}{body})
+	if err != nil {
+		return ReviewComment{}, errors.New("could not prepare review comment reply")
+	}
+	data, err := g.callWithStdin(ctx, payload, "api", "--hostname", "github.com", "--method", "POST", "--input", "-", fmt.Sprintf("repos/%s/pulls/%d/comments/%d/replies", id.Repository, id.Number, commentID))
+	if err != nil {
+		return ReviewComment{}, safeReviewCommentError(err)
+	}
+	comment, err := parseReviewComment(data, id)
+	if err != nil || comment.Body != body || comment.ParentID != commentID {
+		return ReviewComment{}, errors.New("invalid created review comment reply")
+	}
+	return comment, nil
+}
+
+func (g *GH) DeleteReviewComment(ctx context.Context, id Identity, commentID int64) error {
+	if !validCommentAction(id, commentID) {
+		return errors.New("invalid review comment deletion")
+	}
+	if _, err := g.call(ctx, "api", "--hostname", "github.com", "--method", "DELETE", fmt.Sprintf("repos/%s/pulls/comments/%d", id.Repository, commentID)); err != nil {
+		return safeReviewCommentError(err)
+	}
+	return nil
+}
+
+func (g *GH) AddReviewCommentReaction(ctx context.Context, id Identity, commentID int64, content string) (ReviewCommentReaction, error) {
+	if !validCommentAction(id, commentID) || !reviewCommentReactions[content] {
+		return ReviewCommentReaction{}, errors.New("invalid review comment reaction")
+	}
+	payload, err := json.Marshal(struct {
+		Content string `json:"content"`
+	}{content})
+	if err != nil {
+		return ReviewCommentReaction{}, errors.New("could not prepare review comment reaction")
+	}
+	data, err := g.callWithStdin(ctx, payload, "api", "--hostname", "github.com", "--method", "POST", "--input", "-", fmt.Sprintf("repos/%s/pulls/comments/%d/reactions", id.Repository, commentID))
+	if err != nil {
+		return ReviewCommentReaction{}, safeReviewCommentError(err)
+	}
+	var raw struct {
+		ID      int64  `json:"id"`
+		Content string `json:"content"`
+		User    *struct {
+			Login string `json:"login"`
+		} `json:"user"`
+	}
+	if json.Unmarshal(data, &raw) != nil || raw.ID <= 0 || raw.User == nil || raw.User.Login == "" || !utf8.ValidString(raw.User.Login) || !reviewCommentReactions[raw.Content] {
+		return ReviewCommentReaction{}, errors.New("invalid review comment reaction")
+	}
+	return ReviewCommentReaction{ID: raw.ID, Content: raw.Content, Author: raw.User.Login}, nil
+}
+
 const maxReviewComments = 100
 
 // ListReviewComments reads exactly one explicitly bounded page. The API may
@@ -188,6 +302,7 @@ func parseReviewComment(data []byte, identity Identity) (ReviewComment, error) {
 		Path     string `json:"path"`
 		Side     string `json:"side"`
 		Line     int    `json:"line"`
+		ParentID int64  `json:"in_reply_to_id"`
 		User     *struct {
 			Login string `json:"login"`
 		} `json:"user"`
@@ -195,7 +310,10 @@ func parseReviewComment(data []byte, identity Identity) (ReviewComment, error) {
 	if json.Unmarshal(data, &raw) != nil || raw.ID <= 0 || raw.User == nil || raw.User.Login == "" || !utf8.ValidString(raw.User.Login) {
 		return ReviewComment{}, errors.New("invalid review comment")
 	}
-	comment := ReviewComment{ID: raw.ID, Author: raw.User.Login, Body: raw.Body, Target: ReviewCommentTarget{Identity: identity, CommitID: raw.CommitID, Path: raw.Path, Side: raw.Side, Line: raw.Line}}
+	if raw.ParentID < 0 || raw.ParentID == raw.ID {
+		return ReviewComment{}, errors.New("invalid review comment")
+	}
+	comment := ReviewComment{ID: raw.ID, ParentID: raw.ParentID, Author: raw.User.Login, Body: raw.Body, Target: ReviewCommentTarget{Identity: identity, CommitID: raw.CommitID, Path: raw.Path, Side: raw.Side, Line: raw.Line}}
 	if err := validateReviewComment(comment); err != nil {
 		return ReviewComment{}, err
 	}
