@@ -630,3 +630,116 @@ synthetic and real-PR validation of inline compose and visible read-back.
   covered by synthetic tests and full regression verification.
 - [ ] A manual PR comment is visibly rendered inline immediately after posting
   and after an explicit refresh.
+
+# Inline Review Comment Actions
+
+## 1. Bounded viewer and comment-action source contracts
+
+**Description:** Add narrow, explicit GitHub boundaries for authenticated viewer
+identity, replying to a review comment, deleting a reviewer's own comment, and
+adding a selected reaction.
+
+**Acceptance criteria:**
+- [ ] Every action validates repository, PR, stable comment ID, UTF-8 body or
+  finite reaction value, and uses stdin JSON rather than command arguments.
+- [ ] Viewer identity and canonical reply/reaction responses are bounded and
+  validated; delete has no assumed response body.
+- [ ] Error, cancellation, output-limit, malformed-response, and body-leakage
+  tests cover every endpoint.
+
+**Verification:**
+- [ ] Start with failing `internal/source` tests for methods, endpoints, stdin,
+  validation, bounds, cancellation, and safe errors.
+- [ ] Run `go test -race ./internal/source -count=1`.
+
+**Dependencies:** None.
+
+**Files likely touched:** `internal/source/{github,process}.go`, source tests.
+
+## 2. Comment-box cursor and local action menu
+
+**Description:** Extend diff navigation so it can visibly select comment boxes,
+without allowing a comment row to become a line-comment target; Enter on a
+selected comment opens a local action menu.
+
+**Acceptance criteria:**
+- [ ] Scrolling and `j`/`k` can select target rows and exact anchored comment
+  boxes; selected boxes are clearly highlighted and stay visible.
+- [ ] Enter retains current semantics on a diff target and opens an action menu
+  only for a selected comment; Escape is write-free.
+- [ ] The menu offers reply/react for every loaded comment and delete only when
+  its escaped author matches the authenticated viewer.
+
+**Verification:**
+- [ ] Start with failing TUI tests for cursor order, highlighting, target/menu
+  dispatch, unsafe author handling, tab isolation, and cancel behavior.
+- [ ] Run `go test -race ./internal/tui -run 'Test.*(Comment|Cursor|Action)' -count=1`.
+
+**Dependencies:** Task 1.
+
+**Files likely touched:** `internal/tui/{model,lifecycle,render,bindings}.go`,
+TUI tests and snapshots.
+
+## 3. Reply lifecycle and immediate overlay insertion
+
+**Description:** Submit an explicit reply to the selected comment and render
+the canonical GitHub response in the same ephemeral anchored overlay.
+
+**Acceptance criteria:**
+- [ ] Reply draft is rune-aware, local-only, cancelable, and may only submit
+  from an intentional action-menu choice.
+- [ ] Success adds the canonical reply to the originating tab; failure retains
+  its draft and selection for retry.
+- [ ] Offline mode, stale tab/action results, and invalid selected comments
+  make no write.
+
+**Verification:**
+- [ ] Start with failing lifecycle/application tests for success, failure,
+  cancellation, offline refusal, and tab isolation.
+- [ ] Run `go test -race ./internal/tui ./cmd/pr-review -count=1`.
+
+**Dependencies:** Tasks 1–2.
+
+## 4. Viewer-owned deletion and reactions
+
+**Description:** Add explicit delete confirmation for comments authored by the
+authenticated viewer and a finite reaction picker for loaded comments.
+
+**Acceptance criteria:**
+- [ ] Delete is unavailable for another author, requires an explicit final
+  confirmation, and removes only the canonical matching box after success.
+- [ ] Reaction picker exposes only documented allowed values; success updates
+  the ephemeral comment state without changing sessions/plain output.
+- [ ] Failures leave the overlay usable and do not erase comment boxes or
+  selection; offline mode cannot reach either action.
+
+**Verification:**
+- [ ] Start with failing source/TUI/application tests for authorization gating,
+  confirmation, picker values, success/failure/cancellation, and stale results.
+- [ ] Run `go test -race ./internal/source ./internal/tui ./cmd/pr-review -count=1`.
+
+**Dependencies:** Tasks 1–2.
+
+## 5. Documentation and acceptance
+
+**Description:** Document comment-box selection and explicit actions, then
+verify reply/delete/reaction journeys without persisting remote data.
+
+**Acceptance criteria:**
+- [ ] README, constraints, help, and snapshots describe action selection,
+  confirmation, viewer-owned deletion, reactions, and offline refusal.
+- [ ] Full regression verification is clean; manual acceptance confirms each
+  permitted action on an authorized test PR.
+
+**Verification:**
+- [ ] Run `go test -race -count=1 ./...`, `go build ./...`,
+  `./scripts/verify.sh`, `git diff --check`, and `golangci-lint run`.
+
+**Dependencies:** Tasks 1–4.
+
+## Completion checkpoint
+
+- [ ] Comment selection, action dispatch, reply, viewer-owned deletion, and
+  reactions have focused synthetic coverage and pass the full verification gate.
+- [ ] Authorized manual acceptance proves each action is explicit, exact, and
+  never persisted to a session or plain output.
