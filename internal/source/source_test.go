@@ -229,7 +229,7 @@ func TestGitHubReviewCommentActionsUseBoundedJSONContracts(t *testing.T) {
 			}
 			return []byte(`{"login":"reviewer"}`), nil
 		case 2:
-			if !reflect.DeepEqual(request.Args, []string{"api", "--hostname", "github.com", "--method", "POST", "--input", "-", "repos/owner/repo/pulls/comments/7/replies"}) || strings.Contains(strings.Join(request.Args, "\x00"), body) {
+			if !reflect.DeepEqual(request.Args, []string{"api", "--hostname", "github.com", "--method", "POST", "--input", "-", "repos/owner/repo/pulls/42/comments/7/replies"}) || strings.Contains(strings.Join(request.Args, "\x00"), body) {
 				t.Fatal(request)
 			}
 			if string(request.Stdin) != `{"body":"private reply"}` {

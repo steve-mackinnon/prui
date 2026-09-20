@@ -217,7 +217,7 @@ func (g *GH) ReplyToReviewComment(ctx context.Context, id Identity, commentID in
 	if err != nil {
 		return ReviewComment{}, errors.New("could not prepare review comment reply")
 	}
-	data, err := g.callWithStdin(ctx, payload, "api", "--hostname", "github.com", "--method", "POST", "--input", "-", fmt.Sprintf("repos/%s/pulls/comments/%d/replies", id.Repository, commentID))
+	data, err := g.callWithStdin(ctx, payload, "api", "--hostname", "github.com", "--method", "POST", "--input", "-", fmt.Sprintf("repos/%s/pulls/%d/comments/%d/replies", id.Repository, id.Number, commentID))
 	if err != nil {
 		return ReviewComment{}, safeReviewCommentError(err)
 	}
