@@ -648,9 +648,9 @@ adding a selected reaction.
   tests cover every endpoint.
 
 **Verification:**
-- [ ] Start with failing `internal/source` tests for methods, endpoints, stdin,
+- [x] Start with failing `internal/source` tests for methods, endpoints, stdin,
   validation, bounds, cancellation, and safe errors.
-- [ ] Run `go test -race ./internal/source -count=1`.
+- [x] Run `go test -race ./internal/source -count=1`.
 
 **Dependencies:** None.
 
@@ -671,9 +671,9 @@ selected comment opens a local action menu.
   its escaped author matches the authenticated viewer.
 
 **Verification:**
-- [ ] Start with failing TUI tests for cursor order, highlighting, target/menu
+- [x] Start with failing TUI tests for cursor order, highlighting, target/menu
   dispatch, unsafe author handling, tab isolation, and cancel behavior.
-- [ ] Run `go test -race ./internal/tui -run 'Test.*(Comment|Cursor|Action)' -count=1`.
+- [x] Run `go test -race ./internal/tui -run 'Test.*(Comment|Cursor|Action)' -count=1`.
 
 **Dependencies:** Task 1.
 
@@ -726,20 +726,20 @@ authenticated viewer and a finite reaction picker for loaded comments.
 verify reply/delete/reaction journeys without persisting remote data.
 
 **Acceptance criteria:**
-- [ ] README, constraints, help, and snapshots describe action selection,
+- [x] README, constraints, help, and snapshots describe action selection,
   confirmation, viewer-owned deletion, reactions, and offline refusal.
 - [ ] Full regression verification is clean; manual acceptance confirms each
   permitted action on an authorized test PR.
 
 **Verification:**
-- [ ] Run `go test -race -count=1 ./...`, `go build ./...`,
+- [x] Run `go test -race -count=1 ./...`, `go build ./...`,
   `./scripts/verify.sh`, `git diff --check`, and `golangci-lint run`.
 
 **Dependencies:** Tasks 1–4.
 
 ## Completion checkpoint
 
-- [ ] Comment selection, action dispatch, reply, viewer-owned deletion, and
+- [x] Comment selection, action dispatch, reply, viewer-owned deletion, and
   reactions have focused synthetic coverage and pass the full verification gate.
 - [ ] Authorized manual acceptance proves each action is explicit, exact, and
   never persisted to a session or plain output.
