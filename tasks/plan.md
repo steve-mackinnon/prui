@@ -506,3 +506,53 @@ thread/reply local state + ordered reaction table
 | Reply draft looks like status text | High | Render a bordered editor below the parent; test no draft in status. |
 | Reaction digit collides with workspace tabs | Medium | Consume digits only while the reaction picker is active. |
 | Border chips overflow narrow boxes | Medium | Clip the chip region within the existing inner width. |
+
+# Implementation Plan: PR Context Views
+
+## Overview
+
+Ship the approved `Changes | Description | Commits` PR-scoped views in thin
+slices. The tab shell and frozen Description flow come first; the commit list
+uses the same shell only after its separate capture contract is proven.
+
+## Architecture Decisions
+
+- Keep selected context view and context scroll state process-local in the
+  existing per-review-tab state; use `v`/`V` so workspace tab keys `1`–`9` keep
+  their current meaning.
+- Treat presentation data as immutable session content. Pin equality compares
+  source identity and SHAs only, not an edited PR description.
+- Preserve legacy snapshot readability with explicit absence states; context
+  tabs and offline resume must never cause network access.
+
+## Dependency Graph
+
+```text
+view enum + keyboard routing
+        |
+        +-- description capture, snapshot, cache semantics, render
+        |
+        +-- commit capture, snapshot, render
+```
+
+## Task List
+
+1. Context tab shell and process-local per-review view state.
+2. Frozen description source/session contract, including revision comparison.
+3. Description rendering, keyboard scrolling, snapshots, and documentation.
+4. Frozen commit source/session contract with bounded consistency checks.
+5. Commit-list rendering, keyboard behavior, snapshots, and documentation.
+
+## Risks and Mitigations
+
+| Risk | Impact | Mitigation |
+| --- | --- | --- |
+| Presentation edits perturb source pinning | High | Test `SamePinnedRevision` independently from source content. |
+| Remote text injects terminal controls | High | Validate at source boundary and escape before render. |
+| Context state leaks between open PRs | Medium | Persist it only in `reviewTabState` and add tab-isolation tests. |
+| Commit response races a changed head | High | Re-read metadata and discard/retry mismatched results. |
+
+## Open Questions
+
+None. The approved specs defer rich Markdown, pagination beyond 100 commits,
+commit-diff drill-in, and live context refresh.

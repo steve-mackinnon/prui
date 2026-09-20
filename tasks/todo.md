@@ -788,3 +788,91 @@ verify reply/delete/reaction journeys without persisting remote data.
   with bounded GitHub-token fallbacks for explicit non-UTF-8 locales.
 - [x] Cover picker labels, bottom-border chips, locale selection, and the
   representative threaded-comment snapshot.
+
+# PR Context Views
+
+## 1. Context tab shell
+
+**Acceptance criteria:**
+- [x] New and restored in-process review tabs default to Changes; `v`/`V`
+  cycle the three views without changing source review state.
+- [x] View selection is isolated across open PR tabs, not persisted, and
+  visible without terminal color at wide and narrow widths.
+
+**Verification:**
+- [x] Start with focused failing TUI model/render tests.
+- [x] Run `go test ./internal/tui -run 'Test(PRContextView|ReviewTab|Snapshot)' -count=1`.
+
+**Dependencies:** Approved `SPEC-pr-view-tabs.md`.
+
+**Files likely touched:** `internal/tui/{model,render,bindings}.go`, matching
+tests and screen baselines. **Estimated scope:** Medium.
+
+## 2. Frozen description contract
+
+**Acceptance criteria:**
+- [x] A validated GitHub body is stored with a new immutable session; legacy
+  sessions remain readable and require no network access.
+- [x] Description-only edits do not alter source pin equality or force fetches.
+
+**Verification:**
+- [x] Start with focused failing source/session/review tests.
+- [x] Run `go test ./internal/source ./internal/session ./internal/review -count=1`.
+
+**Dependencies:** Task 1. **Files likely touched:** `internal/source/{github,git}.go`,
+`internal/review/review.go`, `internal/session/store.go`, matching tests.
+**Estimated scope:** Medium.
+
+## 3. Description view
+
+**Acceptance criteria:**
+- [x] Description displays escaped frozen text plus clear empty and legacy
+  states; its tab-owned scroll is independent of Changes.
+- [x] Offline/resume, plain output, progress, and comment behavior are unchanged.
+
+**Verification:**
+- [x] Start with focused failing TUI tests and inspect wide/narrow baselines.
+- [x] Run `go test ./internal/tui ./cmd/pr-review -count=1`.
+
+**Dependencies:** Tasks 1–2. **Files likely touched:** `internal/tui/{model,render}.go`,
+tests, screens, `README.md`. **Estimated scope:** Medium.
+
+## Checkpoint: Description
+
+- [x] Focused source/session/review/TUI tests and `go build ./...` pass.
+- [ ] Manual terminal check confirms literal, safely escaped text and tab-local state.
+
+## 4. Frozen commit contract
+
+**Acceptance criteria:**
+- [ ] A bounded, validated commit list is stored only when a post-load metadata
+  check matches the frozen source revision.
+- [ ] A capped 100-item result and legacy absence are represented explicitly.
+
+**Verification:**
+- [ ] Start with focused failing source/session/review tests.
+- [ ] Run `go test ./internal/source ./internal/session ./internal/review -count=1`.
+
+**Dependencies:** Task 1. **Files likely touched:** `internal/source/github.go`,
+`internal/review/review.go`, `internal/session/store.go`, matching tests.
+**Estimated scope:** Medium.
+
+## 5. Commit list view
+
+**Acceptance criteria:**
+- [ ] Commits render a textual selection, independent scroll, and truthful
+  zero/truncated/legacy states without affecting diff progress or comments.
+- [ ] Documentation, wide/narrow screens, and help agree with the shipped views.
+
+**Verification:**
+- [ ] Start with focused failing TUI tests and inspect screen baselines.
+- [ ] Run `go test ./internal/tui ./cmd/pr-review -count=1`.
+
+**Dependencies:** Tasks 1 and 4. **Files likely touched:** `internal/tui/{model,render,bindings}.go`,
+tests, screens, `README.md`. **Estimated scope:** Medium.
+
+## Completion checkpoint
+
+- [ ] `./scripts/verify.sh` and `git diff --check` pass.
+- [ ] Review confirms source pinning, session immutability, offline behavior,
+and text-only selected-state contracts remain intact.
