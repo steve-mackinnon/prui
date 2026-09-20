@@ -167,7 +167,7 @@ func TestCommentSubmissionSuccessClearsAndFailureRetainsTheTabDraft(t *testing.T
 		submitted = submission
 		return source.ReviewComment{ID: 1, Author: "reviewer", Target: submission.Comment.Target, Body: submission.Comment.Body}, nil
 	})
-	_, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter, Mod: tea.ModCtrl})
+	_, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	completeAction(t, m, cmd)
 	if submitted.Comment.Body != "ok" || submitted.Comment.Target.Side != "RIGHT" || m.Composer != nil || m.top() != pageReview {
 		t.Fatalf("successful comment was not submitted and cleared: submitted=%#v page=%v composer=%#v", submitted, m.top(), m.Composer)
@@ -179,7 +179,7 @@ func TestCommentSubmissionSuccessClearsAndFailureRetainsTheTabDraft(t *testing.T
 	m.SetCommentSubmitter(func(context.Context, CommentSubmission) (source.ReviewComment, error) {
 		return source.ReviewComment{}, failure
 	})
-	_, cmd = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter, Mod: tea.ModCtrl})
+	_, cmd = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	completeAction(t, m, cmd)
 	if m.Composer == nil || m.Composer.Draft != "x" || !errors.Is(m.ActionError, failure) || m.top() != pageReview {
 		t.Fatalf("failed comment did not retain draft and target: composer=%#v error=%v page=%v", m.Composer, m.ActionError, m.top())
@@ -200,7 +200,7 @@ func TestCommentSubmissionCopiesFrozenMetadataBeforeAsyncWork(t *testing.T) {
 		submitted = submission
 		return source.ReviewComment{ID: 1, Target: submission.Comment.Target, Body: submission.Comment.Body}, nil
 	})
-	_, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter, Mod: tea.ModCtrl})
+	_, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	// The active session may change after submission starts. The request must
 	// already carry the comparison from the originating tab.
 	m.Session.Inventory.Comparison.Metadata.HeadSHA = "0000000000000000000000000000000000000000"

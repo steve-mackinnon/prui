@@ -61,6 +61,8 @@ type reviewTabState struct {
 	Composer                                             *commentComposer
 	Comments                                             []source.ReviewComment
 	commentGeneration                                    uint64
+	editorCursorVisible                                  bool
+	editorCursorGeneration                               uint64
 	notice                                               string
 	loadingFrame                                         int
 }
@@ -76,9 +78,6 @@ const (
 	pageRepositoryPicker
 	pagePullRequestPicker
 	pageGuideConsent
-	// Retained only so historical program-frame tests can identify the removed
-	// page value; the model never pushes it after the inline-editor migration.
-	pageCommentComposer
 )
 
 // commentComposer is deliberately tab-owned. Its target is copied from the
@@ -121,6 +120,8 @@ type Model struct {
 	Composer                                             *commentComposer
 	Comments                                             []source.ReviewComment
 	commentGeneration                                    uint64
+	editorCursorVisible                                  bool
+	editorCursorGeneration                               uint64
 	store                                                *session.Store
 	reader                                               review.MetadataReader
 	fresh                                                FreshLoader
@@ -234,6 +235,12 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, waitForLoading(v.result)
 		}
 		return m, nextLoadingTick()
+	case editorCursorTick:
+		if m.Composer == nil || v.generation != m.editorCursorGeneration {
+			return m, nil
+		}
+		m.editorCursorVisible = !m.editorCursorVisible
+		return m, nextEditorCursorTick(v.generation)
 	case Loaded:
 		m.Err = m.finishAction(v.Err)
 		m.Loading = false
@@ -395,7 +402,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.focusDetail(m.navigable())
 		case "enter":
 			if m.Focus == paneDiff {
-				m.openCommentComposer()
+				return m, tea.Batch(m.openCommentComposer(), m.restartGuidePathScroll())
 			} else {
 				m.focusDetail(m.navigable())
 			}
@@ -541,6 +548,7 @@ func (m *Model) saveActiveReview() {
 		Stack: m.Stack, Loading: m.Loading, Busy: m.Busy,
 		ActionError: m.ActionError, notice: m.notice, loadingFrame: m.loadingFrame,
 		Composer: m.Composer, Comments: m.Comments, commentGeneration: m.commentGeneration,
+		editorCursorVisible: m.editorCursorVisible, editorCursorGeneration: m.editorCursorGeneration,
 	}
 }
 
@@ -557,6 +565,7 @@ func (m *Model) restoreReviewTab(state *reviewTabState) {
 	m.Stack, m.Loading, m.Busy = state.Stack, state.Loading, state.Busy
 	m.ActionError, m.notice, m.loadingFrame = state.ActionError, state.notice, state.loadingFrame
 	m.Composer, m.Comments, m.commentGeneration = state.Composer, state.Comments, state.commentGeneration
+	m.editorCursorVisible, m.editorCursorGeneration = state.editorCursorVisible, state.editorCursorGeneration
 }
 
 func (m *Model) push(p page) {
@@ -599,20 +608,23 @@ func (m *Model) pageKey(p page, key tea.KeyPressMsg) tea.Cmd {
 	return nil
 }
 
-func (m *Model) openCommentComposer() {
+func (m *Model) openCommentComposer() tea.Cmd {
 	if m.Focus != paneDiff || m.Composer != nil {
-		return
+		return nil
 	}
 	cursor := m.cursor()
 	if cursor < 0 {
-		return
+		return nil
 	}
 	target := m.detail()[cursor].target
 	if target == nil || target.Path == "" || !utf8.ValidString(target.Path) {
-		return
+		return nil
 	}
 	m.Composer = &commentComposer{Target: *target}
+	m.editorCursorVisible = true
+	m.editorCursorGeneration++
 	m.ensureCursorVisible()
+	return nextEditorCursorTick(m.editorCursorGeneration)
 }
 
 // navigable returns the guide rows when they are the active hierarchy. The
@@ -773,19 +785,35 @@ func (m *Model) inlineEditorLines() []diffLine {
 	if c == nil {
 		return nil
 	}
-	label := fmt.Sprintf("  [comment %s %s:%d]", Escape(c.Target.Side), Escape(c.Target.Path), c.Target.Line)
-	lines := []diffLine{{styledLine: styledLine{Class: classWarning, Text: label}}}
+	// A simple terminal-native box makes the editor a distinct input surface
+	// without borrowing a target label or a footer from the surrounding diff.
+	inner := max(8, min(68, m.Width-8))
+	border := "  +" + strings.Repeat("-", inner+2) + "+"
+	lines := []diffLine{{styledLine: styledLine{Class: classWarning, Text: border}}}
+	runes := []rune(c.Draft)
+	cursor := max(0, min(len(runes), c.Cursor))
+	before, after := string(runes[:cursor]), string(runes[cursor:])
+	cursorLine := strings.Count(before, "\n")
+	beforeLine := before[strings.LastIndex(before, "\n")+1:]
+	afterLine := after
+	if i := strings.IndexByte(afterLine, '\n'); i >= 0 {
+		afterLine = afterLine[:i]
+	}
 	for i, text := range strings.Split(c.Draft, "\n") {
-		prefix := "  │ "
-		if i == len(strings.Split(c.Draft, "\n"))-1 {
-			prefix = "  └ "
+		content := Escape(text)
+		if i == cursorLine && m.editorCursorVisible {
+			content = Escape(beforeLine) + "▏" + Escape(afterLine)
 		}
-		lines = append(lines, diffLine{styledLine: styledLine{Class: classWarning, Text: prefix + Escape(text)}})
+		content = clip(content, inner)
+		content += strings.Repeat(" ", max(0, inner-visibleWidth(content)))
+		lines = append(lines, diffLine{styledLine: styledLine{Class: classWarning, Text: "  | " + content + " |"}})
 	}
 	if m.ActionError != nil {
-		lines = append(lines, diffLine{styledLine: styledLine{Class: classWarning, Text: "  ! " + Escape(m.ActionError.Error())}})
+		content := clip("! "+Escape(m.ActionError.Error()), inner)
+		content += strings.Repeat(" ", max(0, inner-visibleWidth(content)))
+		lines = append(lines, diffLine{styledLine: styledLine{Class: classWarning, Text: "  | " + content + " |"}})
 	}
-	lines = append(lines, diffLine{styledLine: styledLine{Class: classWarning, Text: "  enter: newline · ctrl+enter: submit · esc: discard"}})
+	lines = append(lines, diffLine{styledLine: styledLine{Class: classWarning, Text: border}})
 	return lines
 }
 

@@ -539,7 +539,7 @@ func TestDiffEnterRejectsCommentTargetsWithUnsafePaths(t *testing.T) {
 	}
 }
 
-func TestCommentComposerEditsNewlinesAndEscapeDiscardsWithoutSubmitting(t *testing.T) {
+func TestCommentComposerSubmitsOnEnterAndShiftEnterAddsNewline(t *testing.T) {
 	m := New(context.Background(), nil)
 	m.Loading = false
 	m.Session, m.Selected, m.Focus = kindsSession(), 1, paneDiff
@@ -553,13 +553,21 @@ func TestCommentComposerEditsNewlinesAndEscapeDiscardsWithoutSubmitting(t *testi
 		t.Fatal("composer did not open")
 	}
 	key(m, 'a')
-	namedKey(m, tea.KeyEnter)
+	_, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter, Mod: tea.ModShift})
 	key(m, 'b')
 	if got, want := m.Composer.Draft, "a\nb"; got != want {
 		t.Fatalf("composer draft = %q, want %q", got, want)
 	}
+	_, submit := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	completeAction(t, m, submit)
+	if submissions != 1 || m.Composer != nil {
+		t.Fatalf("enter did not submit: submissions=%d composer=%#v", submissions, m.Composer)
+	}
+	// Reopen to prove Escape still discards a draft without a write.
+	namedKey(m, tea.KeyEnter)
+	key(m, 'x')
 	namedKey(m, tea.KeyEscape)
-	if submissions != 0 || m.Composer != nil || m.top() != pageReview {
+	if submissions != 1 || m.Composer != nil || m.top() != pageReview {
 		t.Fatalf("escape did not discard composer: page=%v composer=%#v", m.top(), m.Composer)
 	}
 }
@@ -578,6 +586,25 @@ func TestInlineCommentEditorDeletesRunesOnBothSidesOfCursor(t *testing.T) {
 	namedKey(m, tea.KeyDelete)
 	if got, want := m.Composer.Draft, "a界"; got != want || m.Composer.Cursor != 2 {
 		t.Fatalf("draft/cursor = %q/%d, want %q/2", got, m.Composer.Cursor, want)
+	}
+}
+
+func TestInlineCommentEditorBlinkTickTogglesCaretOnlyForActiveEditor(t *testing.T) {
+	m := New(context.Background(), nil)
+	m.Loading = false
+	m.Session, m.Selected, m.Focus = kindsSession(), 1, paneDiff
+	namedKey(m, tea.KeyEnter)
+	if !m.editorCursorVisible || m.editorCursorGeneration == 0 {
+		t.Fatalf("editor cursor was not initialized: visible=%v generation=%d", m.editorCursorVisible, m.editorCursorGeneration)
+	}
+	generation := m.editorCursorGeneration
+	m.Update(editorCursorTick{generation: generation})
+	if m.editorCursorVisible {
+		t.Fatal("blink tick did not hide caret")
+	}
+	m.Update(editorCursorTick{generation: generation - 1})
+	if m.editorCursorVisible {
+		t.Fatal("stale blink tick changed caret")
 	}
 }
 

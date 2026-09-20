@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"pr-review/internal/review"
@@ -47,6 +48,12 @@ type CommentListResult struct {
 	Generation uint64
 	Comments   []source.ReviewComment
 	Err        error
+}
+
+type editorCursorTick struct{ generation uint64 }
+
+func nextEditorCursorTick(generation uint64) tea.Cmd {
+	return tea.Tick(500*time.Millisecond, func(time.Time) tea.Msg { return editorCursorTick{generation: generation} })
 }
 
 type PullRequestListResult struct {
@@ -133,6 +140,7 @@ func (m *Model) commentComposerKey(key tea.KeyPressMsg) tea.Cmd {
 		m.pop()
 		return nil
 	}
+	m.editorCursorVisible = true
 	switch key.String() {
 	case "esc":
 		m.Composer = nil
@@ -162,12 +170,12 @@ func (m *Model) commentComposerKey(key tea.KeyPressMsg) tea.Cmd {
 			composer.Draft = string(append(r[:composer.Cursor], r[composer.Cursor+1:]...))
 		}
 		return nil
-	case "enter":
+	case "shift+enter":
 		r := []rune(composer.Draft)
 		composer.Draft = string(append(append(r[:composer.Cursor], '\n'), r[composer.Cursor:]...))
 		composer.Cursor++
 		return nil
-	case "ctrl+enter":
+	case "enter":
 		if m.submitComment == nil {
 			m.ActionError = errors.New("review comment submission unavailable")
 			return nil

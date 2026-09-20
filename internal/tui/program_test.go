@@ -242,13 +242,13 @@ func TestProgramCommentComposerSubmitErrorAndCancellation(t *testing.T) {
 	openAndType := func(h *programDriver) {
 		h.p.Send(tea.KeyPressMsg{Code: tea.KeyEnter})
 		h.expect("comment composer", func(f programFrame) bool {
-			return f.page == pageReview && strings.Contains(f.text, "[comment")
+			return f.page == pageReview && strings.Contains(f.text, "+---")
 		})
 		h.key('o')
 		h.key('k')
 	}
 	submit := func(h *programDriver) {
-		h.p.Send(tea.KeyPressMsg{Code: tea.KeyEnter, Mod: tea.ModCtrl})
+		h.p.Send(tea.KeyPressMsg{Code: tea.KeyEnter})
 	}
 
 	t.Run("success", func(t *testing.T) {
