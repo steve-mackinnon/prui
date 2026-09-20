@@ -439,6 +439,9 @@ func (m *Model) lifecycleKey(k string) (tea.Cmd, bool) {
 	if m.store == nil || m.Session == nil {
 		return nil, false
 	}
+	if m.selectedReviewView() == viewDescription && (k == "m" || k == "c") {
+		return nil, true
+	}
 	s := *m.Session
 	switch k {
 	case "m":

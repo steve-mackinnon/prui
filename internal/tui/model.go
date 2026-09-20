@@ -443,11 +443,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.cycleReviewView(-1)
 				return m, nil
 			}
-			if m.selectedReviewView() == viewDescription && v.String() != "?" {
-				m.descriptionKey(v.String())
+			if m.selectedReviewView() == viewDescription && m.descriptionKey(v.String()) {
 				return m, nil
 			}
-			if m.selectedReviewView() != viewChanges && v.String() != "?" && v.String() != "esc" {
+			if m.selectedReviewView() != viewChanges && m.selectedReviewView() != viewDescription && v.String() != "?" && v.String() != "esc" {
 				return m, nil
 			}
 			if cmd, handled := m.lifecycleKey(v.String()); handled {
@@ -481,6 +480,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "l", "ctrl+l":
 			m.focusSavedDetail()
 		case "enter":
+			if m.selectedReviewView() == viewDescription {
+				return m, nil
+			}
 			if m.Focus == paneDiff {
 				if m.openCommentActionMenu() {
 					if m.Viewer == "" {
@@ -1473,9 +1475,11 @@ func (m *Model) descriptionLines() []string {
 
 func (m *Model) descriptionBodyHeight() int { return max(1, m.Height-4) }
 
-func (m *Model) descriptionKey(key string) {
+func (m *Model) descriptionKey(key string) bool {
 	delta := 0
 	switch key {
+	case "esc":
+		return true
 	case "j", "down", "n":
 		delta = 1
 	case "k", "up", "p":
@@ -1490,11 +1494,12 @@ func (m *Model) descriptionKey(key string) {
 		delta = -m.descriptionBodyHeight()
 	case "home":
 		m.DescriptionScroll = 0
-		return
+		return true
 	default:
-		return
+		return false
 	}
 	m.DescriptionScroll = max(0, min(m.DescriptionScroll+delta, max(0, len(m.descriptionLines())-m.descriptionBodyHeight())))
+	return true
 }
 
 // styledFooter paints the footer as chrome, or as a warning when the last

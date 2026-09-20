@@ -2,11 +2,13 @@ package tui
 
 import (
 	"context"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
+	"pr-review/internal/session"
 )
 
 func TestDescriptionViewRendersFrozenEscapedTextAndProvenance(t *testing.T) {
@@ -27,6 +29,48 @@ func TestDescriptionViewRendersFrozenEscapedTextAndProvenance(t *testing.T) {
 	}
 	if strings.Contains(view, "\x1b]") || strings.Contains(view, "main.go") {
 		t.Fatalf("description view leaked terminal controls or diff UI:\n%s", view)
+	}
+}
+
+func TestDescriptionViewKeepsGlobalActionsAndDisablesProgressCommentActions(t *testing.T) {
+	store, err := session.Open(filepath.Join(t.TempDir(), "sessions"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	s, metadata, _ := guidedSession(t, splitAnalyzer{})
+	description := "Frozen text"
+	s.PullRequestDescription = &description
+	saved, err := store.Create(s.Snapshot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := New(context.Background(), nil)
+	t.Cleanup(m.Close)
+	m.SetLifecycle(store, fakeGitHub{metadata}, nil)
+	m.openReviewTab(saved)
+	key(m, 'v')
+
+	key(m, 'e')
+	if m.top() != pageEvidence {
+		t.Fatalf("e did not open evidence from Description: %v", m.Stack)
+	}
+	namedKey(m, tea.KeyEscape)
+	key(m, 'U')
+	if m.top() != pageURL {
+		t.Fatalf("U did not open the GitHub URL from Description: %v", m.Stack)
+	}
+	namedKey(m, tea.KeyEscape)
+	_, cmd := m.Update(tea.KeyPressMsg{Code: 'r', Text: "r"})
+	if cmd == nil || !m.Busy {
+		t.Fatal("r did not start metadata refresh from Description")
+	}
+	completeAction(t, m, cmd)
+	before := len(m.Session.ReviewedSliceIDs)
+	key(m, 'm')
+	key(m, 'c')
+	if len(m.Session.ReviewedSliceIDs) != before || m.Busy {
+		t.Fatal("Description progress or comment action mutated review state")
 	}
 }
 
