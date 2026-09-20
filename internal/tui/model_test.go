@@ -627,7 +627,12 @@ func TestInlineCommentsRenderOnlyAtExactFrozenTargets(t *testing.T) {
 		{ID: 2, Author: "stale", Target: source.ReviewCommentTarget{Identity: target.Identity, CommitID: "0000000000000000000000000000000000000000", Path: target.Path, Side: target.Side, Line: target.Line}, Body: "wrong"},
 	}
 	view := ansi.Strip(m.reviewView())
-	if !strings.Contains(view, "reviewer\\x1b[31m: exact\\x1b[2J") || strings.Contains(view, "wrong") {
+	for _, want := range []string{"+---", "| reviewer\\x1b[31m", "| exact\\x1b[2J"} {
+		if !strings.Contains(view, want) {
+			t.Fatalf("inline overlay missing bordered comment part %q:\n%s", want, view)
+		}
+	}
+	if strings.Contains(view, "wrong") {
 		t.Fatalf("inline overlay did not exactly/securely render:\n%s", view)
 	}
 }

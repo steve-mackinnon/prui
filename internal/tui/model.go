@@ -764,13 +764,7 @@ func (m *Model) detail() []diffLine {
 		}
 		for _, comment := range m.Comments {
 			if comment.Target == *line.target {
-				author := Escape(comment.Author)
-				if author == "" {
-					author = "unknown"
-				}
-				for _, body := range strings.Split(comment.Body, "\n") {
-					lines = append(lines, diffLine{styledLine: styledLine{Class: classMetadata, Text: "  " + author + ": " + Escape(body)}})
-				}
+				lines = append(lines, m.reviewCommentLines(comment)...)
 			}
 		}
 		if m.Composer != nil && m.Composer.Target == *line.target {
@@ -778,6 +772,27 @@ func (m *Model) detail() []diffLine {
 		}
 	}
 	return lines
+}
+
+// reviewCommentLines keeps each untrusted remote comment visually attached to
+// its anchor while making it clear that it is read-only overlay content.
+func (m *Model) reviewCommentLines(comment source.ReviewComment) []diffLine {
+	inner := max(8, min(68, m.Width-8))
+	border := "  +" + strings.Repeat("-", inner+2) + "+"
+	line := func(text string) diffLine {
+		text = clip(text, inner)
+		text += strings.Repeat(" ", max(0, inner-visibleWidth(text)))
+		return diffLine{styledLine: styledLine{Class: classMetadata, Text: "  | " + text + " |"}}
+	}
+	author := Escape(comment.Author)
+	if author == "" {
+		author = "unknown"
+	}
+	lines := []diffLine{{styledLine: styledLine{Class: classMetadata, Text: border}}, line(author)}
+	for _, body := range strings.Split(comment.Body, "\n") {
+		lines = append(lines, line(Escape(body)))
+	}
+	return append(lines, diffLine{styledLine: styledLine{Class: classMetadata, Text: border}})
 }
 
 func (m *Model) inlineEditorLines() []diffLine {
