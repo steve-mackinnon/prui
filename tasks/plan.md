@@ -376,3 +376,46 @@ feature.
 
 None. The approved first slice excludes replies, batch reviews, line ranges,
 and comment history.
+
+# Implementation Plan: Inline Review Comment UX Extension
+
+## Overview
+
+Replace the full-page line-comment composer with a local inline editor and add
+a read-only, per-tab comment overlay. The change preserves the existing
+explicit-write and freshness contract; it improves only the reviewer’s context
+before and after a post.
+
+## Dependency Graph
+
+```text
+bounded comment read + canonical POST response
+                     |
+detail row expansion + target-only cursor invariants
+                     |
+inline rune-aware editor (including Backspace/Delete)
+                     |
+per-tab overlay load/refresh + immediate post insertion
+                     |
+help, docs, synthetic paths, manual PR acceptance
+```
+
+## Decisions
+
+- Inline rows belong to the review view and never become selectable diff
+  targets.
+- The overlay is fetched on an online review start and through explicit `c`
+  refresh; it is never persisted or fetched offline.
+- Only exact frozen-head/path/side/line matches render. Omit ambiguity rather
+  than inventing an anchor.
+- A successful POST uses the returned canonical comment to render immediately;
+  a later refresh reconciles the tab.
+- The inline editor owns its own rune cursor, so `Backspace` and `Delete` are
+  deterministic for Unicode input.
+
+## Task List
+
+The ordered agent-sized tasks and verification checkpoints are appended under
+**Inline Review Comment UX Extension** in `tasks/todo.md`. The first four
+tasks touch shared source/model/rendering code and therefore run sequentially;
+the documentation and acceptance task follows their integration.

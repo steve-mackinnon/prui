@@ -490,4 +490,143 @@ reference, and affected deterministic screens; run the full verification gate.
 ## Completion checkpoint
 
 - [x] All spec success criteria are verified with synthetic tests; no unrelated dirty worktree changes were modified.
-- [ ] An authorized manual real-PR comment succeeds and appears at the intended line.
+- [x] An authorized manual real-PR comment succeeds at the intended line.
+
+# Inline Review Comment UX Extension
+
+## 1. Canonical comment read/create source contract
+
+**Description:** Extend the narrow GitHub boundary so a successful create
+returns one validated canonical comment, and add a bounded read-only listing
+operation for pull-request review comments.
+
+**Acceptance criteria:**
+- [ ] `ReviewCommentReader` lists a documented, bounded number of comments and
+  rejects malformed anchors before they reach TUI state.
+- [ ] `CreateReviewComment` returns the validated GitHub response needed for
+  immediate rendering; no typed text is exposed in arguments, logs, sessions,
+  or unsanitized errors.
+- [ ] Listing and POST parsing enforce output bounds, cancellation, valid UTF-8,
+  allowed sides, positive lines, and an exact target shape.
+
+**Verification:**
+- [ ] Start with failing source tests for endpoint/query, response parsing,
+  malformed values, bounds, cancellation, and no body leakage.
+- [ ] Run `go test -race ./internal/source -count=1`.
+
+**Dependencies:** None.
+
+**Files likely touched:** `internal/source/{github,process}.go`,
+`internal/source/{source,process}_test.go`.
+
+**Estimated scope:** Medium (4 files).
+
+## 2. Expand detail rendering into anchored display rows
+
+**Description:** Preserve existing target-bearing diff rows while allowing
+zero-or-more read-only comment rows and one inline-editor row after a target.
+
+**Acceptance criteria:**
+- [ ] Raw and guide views display comment/editor rows directly below their
+  exact target without changing source text, hunk mapping, or plain output.
+- [ ] Cursor and scroll logic select only target-bearing diff rows, skip
+  inserted rows, and retain target identity across tabs/panes/view changes.
+- [ ] Escaped remote body/login/path data cannot inject terminal controls.
+
+**Verification:**
+- [ ] Start with failing render/model tests for row order, target-only
+  selection, wrapping, escape behavior, and scroll-anchor stability.
+- [ ] Run `go test -race ./internal/tui -run 'Test.*(Comment|Cursor|Detail|Guide)' -count=1`.
+
+**Dependencies:** Task 1 type contract.
+
+**Files likely touched:** `internal/tui/{model,render,guidedetail,style}.go`,
+relevant `*_test.go` files.
+
+**Estimated scope:** Large (5–7 files).
+
+## 3. Inline rune-aware composer and deletion keys
+
+**Description:** Remove the standalone composer page and route editing to the
+inline target-owned editor, with predictable Unicode-aware cursor semantics.
+
+**Acceptance criteria:**
+- [ ] Diff-pane `Enter` opens the inline editor; list-pane `Enter` remains
+  unchanged; non-commentable lines still refuse composition.
+- [ ] `Backspace` and `Delete` work independently at boundaries and in
+  multibyte text; left/right/Home/End/Enter/Ctrl+Enter/Esc have documented
+  editor semantics.
+- [ ] Submitting or discarding restores normal navigation without moving the
+  selected target; failed posts retain the exact draft and cursor state.
+
+**Verification:**
+- [ ] Start with failing table-driven editing tests, including actual Bubble Tea
+  delete/backspace messages and Unicode input.
+- [ ] Run `go test -race ./internal/tui -run 'Test.*(Inline|Composer|Comment|Delete|Backspace)' -count=1`.
+
+**Dependencies:** Task 2.
+
+**Files likely touched:** `internal/tui/{model,render,bindings,lifecycle}.go`,
+relevant `*_test.go` files.
+
+**Estimated scope:** Large (4–6 files).
+
+## 4. Per-tab overlay lifecycle and immediate read-back
+
+**Description:** Load and explicitly refresh comment overlays online, filter
+them against the frozen snapshot, and add the canonical POST result immediately
+after success.
+
+**Acceptance criteria:**
+- [ ] Online open loads an ephemeral per-tab overlay; `c` refresh replaces only
+  its originating tab; offline mode does neither.
+- [ ] Only entries exactly matching frozen head SHA/path/side/line render; a
+  list failure is bounded, escaped, non-blocking, and cannot erase a just-posted
+  successful local item.
+- [ ] Async read/post results cannot leak into another tab or review, and a
+  stale response cannot overwrite a newer refresh generation.
+
+**Verification:**
+- [ ] Start with failing lifecycle/application tests for initial load, refresh,
+  filtering, post insertion, failures, offline refusal, and tab isolation.
+- [ ] Run `go test -race ./internal/tui ./cmd/pr-review -count=1`.
+
+**Dependencies:** Tasks 1–3.
+
+**Files likely touched:** `internal/tui/{model,lifecycle,render}.go`,
+`cmd/pr-review/{lifecycle,wiring}.go`, relevant `*_test.go` files.
+
+**Estimated scope:** Large (6–8 files).
+
+## 5. Documentation, regression gate, and manual acceptance
+
+**Description:** Update the interaction reference and capture the full
+synthetic and real-PR validation of inline compose and visible read-back.
+
+**Acceptance criteria:**
+- [ ] README, constraints, help, and screen coverage describe inline editing,
+  explicit `c` refresh, ephemeral remote comments, and offline behavior.
+- [ ] Existing read-only, plain-output, pinning, guide, and terminal-escaping
+  behavior remain unchanged outside the interactive overlay.
+- [ ] A manual comment on PR #7 is visible inline after submission and after an
+  explicit refresh; both deletion keys work in the running TUI.
+
+**Verification:**
+- [ ] Run `go test -race -count=1 ./...`, `go build ./...`,
+  `./scripts/verify.sh`, and `git diff --check`.
+- [ ] Review changed snapshots and complete one authorized manual acceptance
+  pass against the pull request.
+
+**Dependencies:** Tasks 1–4.
+
+**Files likely touched:** `README.md`, `CONSTRAINTS.md`,
+`internal/tui/testdata/screens/*`, relevant tests.
+
+**Estimated scope:** Medium (3–6 files).
+
+## Completion checkpoint
+
+- [ ] Inline composition, both deletion keys, and exact anchored read-back are
+  covered by synthetic tests and full regression verification.
+- [ ] A manual PR comment is visibly rendered inline immediately after posting
+  and after an explicit refresh.

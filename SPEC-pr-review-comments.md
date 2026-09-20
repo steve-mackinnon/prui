@@ -54,20 +54,28 @@ tasks/                 implementation plan and ordered task checklist
 1. The diff pane has one visible selected display line. The cursor is separate
    from its scroll offset and survives ordinary pane navigation.
 2. `Enter` in the list pane retains its current behavior: focus the diff.
-   `Enter` in the diff pane opens the composer only for a commentable line.
+   `Enter` in the diff pane opens an inline composer immediately below the
+   selected commentable line.
    Headers, hunk markers, binary/metadata/unavailable content, and invalid
    paths are visibly non-commentable.
-3. The composer identifies the frozen target as `path`, side, and line.
-   Printable input and `Enter` build multiline Markdown; `Ctrl+Enter` submits;
-   `Esc` discards the draft. Drafts are process-local and are never persisted.
+3. The inline composer identifies the frozen target as `path`, side, and line.
+   Printable input and `Enter` build multiline Markdown; `Backspace` removes
+   the preceding rune; `Delete` removes the following rune; `Ctrl+Enter`
+   submits; `Esc` discards. Drafts are process-local and are never persisted.
 4. Submit first reads current PR metadata. It proceeds only when base repository,
    head repository, base SHA, and head SHA equal the frozen comparison.
 5. The request uses the frozen head SHA and never silently retargets a changed
    PR. A post-preflight race can still yield an outdated GitHub comment, which
    GitHub represents as such.
-6. On success the TUI reports that the comment was posted. A failure reports a
-   safe actionable error and retains the draft/target for an intentional retry.
-   A canceled operation leaves no claim that a comment was not created.
+6. On success the TUI reports that the comment was posted and immediately
+   renders it below its anchored diff line. A failure reports a safe actionable
+   error and retains the draft/target for an intentional retry. A canceled
+   operation leaves no claim that a comment was not created.
+7. When online, the TUI loads review comments as read-only, ephemeral overlay
+   data. It renders every comment anchored to the frozen head commit whose
+   `path`, `side`, and `line` match a visible target. `c` explicitly reloads
+   that overlay. Comments that cannot be matched exactly are omitted rather
+   than guessed at or rendered at an incorrect line.
 
 ## Comment Contract
 
@@ -100,9 +108,15 @@ serializes this structure with `encoding/json` and sends it via stdin to
 a process argument. `gh api` documents `--input -` as stdin request-body
 support. [GitHub CLI API manual](https://cli.github.com/manual/gh_api)
 
-The response is untrusted data. The initial contract only requires successful
-completion; no GitHub response body, comment body, token, or raw stderr is
-persisted or rendered.
+Read-only comment overlays use `GET /repos/{owner}/{repo}/pulls/{pull_number}/comments`
+with bounded pagination. The implementation retains only a bounded current-head
+set in memory and never serializes it into a review session. A successful POST
+returns its canonical GitHub comment so the overlay can update immediately;
+the same escaping rules apply to both fetched and newly created text.
+
+GitHub response data is untrusted. Comment body, login, path, and errors are
+escaped before rendering; comment text, tokens, and raw stderr are never
+persisted or logged.
 
 ## Diff-Line Targeting
 
@@ -125,7 +139,10 @@ cannot be submitted to the JSON GitHub endpoint.
 
 Keep target derivation pure and use a small, explicit value type. Rendering
 continues to escape source bytes before styling; target metadata never alters
-the visible patch content.
+the visible patch content. The review view expands a target into zero or more
+escaped, read-only comment rows and, when active, one editor row directly
+beneath it. Cursor navigation continues to select only target-bearing diff
+rows; overlay rows and editor rows cannot become targets.
 
 ```go
 type diffLine struct {
@@ -145,8 +162,11 @@ the existing lifecycle pattern.
   multiple hunks, renames, deletion-only files, and invalid-byte paths.
 - Test the GH request's exact method, endpoint, stdin JSON, validation, output
   limit, cancellation, and absence of a typed body in arguments.
-- Test TUI cursor visibility, non-commentable rejection, composer edit/cancel,
-  successful submit, failure draft retention, and pane/tab isolation.
+- Test TUI cursor visibility, non-commentable rejection, inline composer
+  edit/cancel, both deletion keys, successful submit, failure draft retention,
+  inline overlay placement, refresh, and pane/tab isolation.
+- Test source comment-list parsing, bounds, exact-target filtering, POST
+  response parsing, and terminal escaping of all remote comment fields.
 - Test application preflight mismatch and offline refusal prove no commenter
   call; use fakes only, never GitHub credentials or network.
 - Add a bounded Bubble Tea program path for compose → submit → success/failure
@@ -177,10 +197,78 @@ the existing lifecycle pattern.
    body, or failed preflight makes no external write.
 5. Existing review navigation, plain output, pinning, local progress, guide
    behavior, terminal escaping, and tab state remain intact.
-6. Focused tests, race-enabled suite, build, verifier script, and diff check
+6. Posted and fetched comments appear inline under the exact selected diff
+   line; unmatched, stale, malformed, or oversized remote data never shifts a
+   comment to another line or prevents review rendering.
+7. Focused tests, race-enabled suite, build, verifier script, and diff check
    pass; a real PR comment remains an authorized manual acceptance check.
 
 ## Open Questions
 
-None for the first release. Timeline comments, replies, comment listing,
-batch reviews, and multi-line ranges are intentionally deferred.
+The inline-overlay extension intentionally excludes timeline comments, replies,
+batch reviews, multi-line ranges, editing/deleting remote comments, and
+persisted comment history.
+
+## UX Extension: Inline Composer and Comment Overlay
+
+### Why
+
+Manual acceptance proved that the GitHub write succeeds. The full-page
+composer breaks the reviewer’s spatial connection to the line being discussed,
+and a success toast alone does not provide evidence that the comment landed at
+that line. This extension keeps composition and read-back in the diff itself.
+
+### Rendering and Navigation
+
+For the selected target, the view is ordered as follows:
+
+```text
+selected diff line
+  existing inline comments (zero or more)
+  inline composer (only while drafting)
+next diff line
+```
+
+Comment rows show an escaped author label (when provided) and escaped,
+wrapped Markdown source; they do not render Markdown or terminal control
+sequences. The editor is visually distinct, retains the selected target label,
+and scrolls with the line. Opening, cancelling, submitting, switching tabs,
+or scrolling must not change the selected target unexpectedly.
+
+The composer has a rune-aware edit cursor. `Backspace`, `Delete`, left/right,
+`Home`, `End`, `Enter`, `Ctrl+Enter`, and `Esc` apply to the draft while it is
+active; ordinary diff navigation is suspended until it is submitted or
+discarded. Empty drafts cannot be submitted.
+
+### Comment Overlay Data Contract
+
+Add a read-only `ReviewCommentReader` to `internal/source`. Its item type
+contains only data needed to render and match a single comment: stable ID,
+author login, body, commit ID, path, side, and line. `GH` lists comments using
+the documented pull-request review-comment endpoint with explicit request and
+response limits. It accepts only comments with a valid exact target; the TUI
+then filters them again against the frozen comparison’s head SHA and its own
+target map. This double boundary prevents an API response from visually
+attaching a comment to a guessed or stale line.
+
+`CreateReviewComment` evolves to return the canonical created comment, which
+the TUI appends only after the POST succeeds. A later `c` refresh replaces the
+overlay for that tab with the canonical read result. If a read fails, the
+review and newly posted local overlay remain usable and the UI shows a bounded,
+escaped notice; no read failure blocks a write that has already passed
+freshness preflight.
+
+Remote comments are TUI-only, per-tab state. They are never written to session
+files, plain output, logs, or error strings. Offline mode performs neither the
+initial fetch nor a refresh and shows no synthetic empty-history claim.
+
+### Incremental Delivery Phases
+
+1. Introduce the bounded read/create response contracts and their source tests.
+2. Refactor detail rendering into target, comment, and editor rows without
+   changing selection semantics.
+3. Replace the page composer with the inline rune-aware editor, including both
+   deletion keys.
+4. Load, refresh, filter, and render the per-tab comment overlay; apply the
+   returned POST item immediately.
+5. Update help/docs and run an interactive acceptance pass against this PR.
