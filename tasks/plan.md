@@ -556,3 +556,11 @@ view enum + keyboard routing
 
 None. The approved specs defer rich Markdown, pagination beyond 100 commits,
 commit-diff drill-in, and live context refresh.
+
+## Amendment: Single-review workspace
+
+The PR selector replaces, rather than supplements, the active review. Remove
+the in-memory review-tab workspace and its capacity, duplicate, numeric-key,
+and delayed-result routing. Preserve the active session while a selector open
+is pending; install the new session and reset transient state only on success.
+Disk-backed snapshots and the explicit session picker remain unchanged.

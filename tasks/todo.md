@@ -876,3 +876,19 @@ tests, screens, `README.md`. **Estimated scope:** Medium.
 - [ ] `./scripts/verify.sh` and `git diff --check` pass.
 - [ ] Review confirms source pinning, session immutability, offline behavior,
 and text-only selected-state contracts remain intact.
+
+## 6. Replace multi-PR workspace with selector replacement
+
+**Acceptance criteria:**
+- [ ] The model owns one active review; `ctrl+p` selects a replacement PR and
+  has no opened-review rows, numeric navigation, deduplication, or capacity.
+- [ ] Successful selection atomically resets transient UI state; cancel/error
+  retains the old review and disk-backed session behavior remains unchanged.
+
+**Verification:**
+- [ ] Start with focused failing selector/model/lifecycle tests.
+- [ ] Run `go test ./internal/tui ./cmd/pr-review -count=1` and the full gate.
+
+**Dependencies:** Tasks 1–3. **Files likely touched:** `internal/tui/{model,lifecycle,picker}.go`,
+matching tests/screens, `README.md`. **Estimated scope:** Large; split into
+state removal and selector lifecycle slices before implementation.

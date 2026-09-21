@@ -5,7 +5,7 @@ changing source review, progress, or comment semantics.
 
 | Module id | Responsibility | Depends on |
 |---|---|---|
-| pr-view-tabs | Stable interactive `Changes`, `Description`, and `Commits` view selection, including per-open-review state | — |
+| pr-view-tabs | Stable interactive `Diff`, `Description`, and `Commits` view selection in one active review | — |
 | pr-description | Safely capture, freeze, store, and render the PR description | pr-view-tabs |
 | pr-commits | Safely capture, freeze, store, and render the PR commit list | pr-view-tabs |
 

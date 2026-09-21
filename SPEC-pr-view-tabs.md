@@ -2,16 +2,16 @@
 
 ## Objective
 
-Give every open interactive PR review a stable, keyboard-accessible view
-switcher: **Changes**, **Description**, and **Commits**. Changes remains the
-default and retains today's guide/file/inventory workspace. Description and
-Commits are PR-level views rather than entries in the file rail, so long prose
-does not compete with source navigation and a future commit list has a natural
-home.
+Give the single active interactive PR review a stable, keyboard-accessible view
+switcher: **Diff**, **Description**, and **Commits**. Diff remains the default
+and retains today's guide/file/inventory workspace. Description and Commits are
+PR-level views rather than entries in the file rail, so long prose does not
+compete with source navigation and a future commit list has a natural home.
 
 Reviewers need to move between the PR's intent, its history, and its actual
-diff without losing reading place, progress, comments, or another open PR's
-state.
+diff without losing their place. Switching to another pull request happens
+through the PR selector, not through an in-memory multi-PR workspace; durable
+review material remains in the existing disk-backed sessions.
 
 ## Tech Stack
 
@@ -32,7 +32,7 @@ git diff --check
 ## Project Structure
 
 ```text
-internal/tui/model.go          per-open-review selected context view and key routing
+internal/tui/model.go          one active review, selected context view, and key routing
 internal/tui/render.go         header/tab strip and view-specific layout dispatch
 internal/tui/bindings.go       discoverable view bindings and Health & help copy
 internal/tui/*_test.go         model, keyboard, isolation, and render regressions
@@ -42,27 +42,35 @@ README.md                      reviewer-visible view and keyboard documentation
 
 ## Interaction Contract
 
-- The interactive review header renders `Changes | Description | Commits` in
-  that order at widths where the existing identity header is usable. The active
-  view has textual, non-color identification; narrow terminals may abbreviate
-  labels only if the active view remains explicit.
-- `Changes` is selected whenever a review is first opened. It preserves all
+- The first line of every interactive review is a dedicated, low-noise tab
+  strip: `› Diff [F1] · Description [F2] · Commits [F3]`. The `›` marks the
+  selected tab and must remain visible without color. It replaces the prior PR
+  identity, guide count, and persistent `ctrl+p` text; those details remain
+  available from the switcher and Health & help.
+- `Diff` is selected whenever a review is first opened. It preserves all
   current guide/file/inventory keys and renders the existing two-pane/one-pane
   responsive workspace unchanged.
 - `Description` and `Commits` replace the review body with one scrollable,
   read-only detail surface. They do not render a file rail, diff cursor,
   comment overlay, or source-progress control.
-- `v` cycles Changes → Description → Commits; `V` cycles in reverse. The
-  existing PR workspace owns numeric keys `1`–`9`, so context views must not
-  overload them. The bindings apply only while the top-level review is active
-  and are documented in Health & help.
+- `F1`, `F2`, and `F3` directly select Diff, Description, and Commits. `v` and
+  `V` retain their existing next/previous cycling behavior. The function keys
+  avoid the PR workspace's numeric-tab bindings; all context bindings apply
+  only while the top-level review is active and are documented in Health & help.
 - Switching views never performs I/O, changes the frozen snapshot, marks a
   slice, changes the current diff selection, dismisses a local comment draft,
   or changes freshness. Returning to Changes restores its exact tab-owned
   state.
-- Context-view selection belongs to `reviewTabState`; opening/switching among
-  PR workspace tabs restores each PR's own view. It is not stored in
-  `snapshot.json` or `state.json` and resets to Changes on process restart.
+- The model holds exactly one active review. Context-view selection and context
+  scroll are process-local and reset to Diff whenever the selector successfully
+  replaces that review; they are not stored in `snapshot.json` or `state.json`.
+- `ctrl+p` opens the active repository's PR selector over the current review.
+  It lists remote open PRs only—there is no opened-review section, numeric
+  review-tab navigation, capacity limit, or duplicate activation path. Enter
+  opens the selected PR; its completed session atomically replaces the current
+  review and resets transient review state. Cancellation, failure, and Escape
+  retain the current review unchanged. The existing `s` session picker remains
+  the explicit way to resume disk-backed historical snapshots.
 - `--plain` remains a source-review output and does not expose context tabs.
   Picker, help, evidence, URL, loading, and error pages retain their present
   behavior; `esc` continues to leave overlays before changing a view.
@@ -82,9 +90,8 @@ const (
     viewCommits
 )
 
-func (m *Model) reviewView() reviewView {
-    if m.activeTab < 0 { return viewChanges }
-    return m.tabs[m.activeTab].review.View
+func (m *Model) selectReviewView(view reviewView) {
+    m.ContextView = view
 }
 ```
 
@@ -117,14 +124,15 @@ defines which view is selected.
    in stable order.
 2. A reviewer can reach each view from the keyboard and identify the active one
    with color disabled.
-3. Changes preserves its selection, scroll, progress, comment state, and
+3. Diff preserves its selection, scroll, progress, comment state, and
    existing navigation after any context-view round trip.
-4. Two open PR reviews can select different context views without affecting one
-   another; restarting the app returns each to Changes.
+4. The PR selector replaces one active review only after the selected PR opens;
+   cancel/error keeps the old review, and neither the multi-review capacity nor
+   numeric review-tab behavior exists.
 5. Existing picker, plain-output, guide, and comment regressions pass along
    with focused wide/narrow TUI tests.
 
 ## Open Questions
 
-None. `v`/`V` are selected because the PR workspace already uses `1`–`9` for
-open-review tab activation.
+None. `F1`–`F3` provide direct tab selection; no numeric review-tab bindings
+remain.

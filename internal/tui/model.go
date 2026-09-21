@@ -435,6 +435,17 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if v.String() == "ctrl+p" {
 				return m, m.openSwitcher()
 			}
+			switch v.String() {
+			case "f1":
+				m.selectReviewView(viewChanges)
+				return m, nil
+			case "f2":
+				m.selectReviewView(viewDescription)
+				return m, nil
+			case "f3":
+				m.selectReviewView(viewCommits)
+				return m, nil
+			}
 			if v.String() == "v" {
 				m.cycleReviewView(1)
 				return m, nil
@@ -668,6 +679,13 @@ func (m *Model) cycleReviewView(delta int) {
 		return
 	}
 	m.ContextView = reviewView((int(m.selectedReviewView()) + delta + 3) % 3)
+}
+
+func (m *Model) selectReviewView(view reviewView) {
+	if m.activeTab < 0 || m.activeTab >= len(m.tabs) {
+		return
+	}
+	m.ContextView = view
 }
 
 func (m *Model) push(p page) {
@@ -1273,12 +1291,7 @@ func (m *Model) guideConsentView() string {
 }
 func (m *Model) reviewView() string {
 	s := m.Session
-	identity := s.Inventory.Comparison.Metadata.Identity
-	active := fmt.Sprintf("review · %s#%d", Escape(identity.Repository), identity.Number)
-	if guide, ok := m.activeGuide(); ok {
-		active += fmt.Sprintf(" · guide %d/%d", guide+1, len(s.Guides.Items))
-	}
-	title := styleLine(classTitle, appHeader(active, m.contextViewTabs()+" · ctrl+p: switch PR"))
+	title := m.contextViewTabs()
 	if m.selectedReviewView() != viewChanges {
 		if m.selectedReviewView() == viewDescription {
 			return title + "\n" + m.descriptionView() + "\n" + m.reviewStatus()
@@ -1420,18 +1433,9 @@ func (m *Model) reviewView() string {
 }
 
 func (m *Model) contextViewTabs() string {
-	if m.Width < 100 {
-		labels := []string{"Changes", "Description", "Commits"}
-		return "View: [" + labels[m.selectedReviewView()] + "]"
-	}
-	labels := []string{"Changes", "Description", "Commits"}
-	active := int(m.selectedReviewView())
-	for i, label := range labels {
-		if i == active {
-			labels[i] = "[" + label + "]"
-		}
-	}
-	return styleLine(classTitle, strings.Join(labels, " | "))
+	tabs := []string{"Diff [F1]", "Description [F2]", "Commits [F3]"}
+	tabs[m.selectedReviewView()] = "› " + tabs[m.selectedReviewView()]
+	return styleLine(classTitle, strings.Join(tabs, " ·   "))
 }
 
 func (m *Model) contextViewPlaceholder() string {

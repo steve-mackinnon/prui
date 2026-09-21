@@ -69,10 +69,7 @@ func TestPRContextViewRendersTextualTabStripAndContextPlaceholder(t *testing.T) 
 			m.Width, m.Height = width, 12
 			m.Update(tea.KeyPressMsg{Code: 'v', Text: "v"})
 			view := ansi.Strip(m.View().Content)
-			wantTab := "Changes | [Description] | Commits"
-			if width < 100 {
-				wantTab = "View: [Description]"
-			}
+			wantTab := "› Description [F2]"
 			if !strings.Contains(view, wantTab) {
 				t.Fatalf("context tab strip does not identify active Description:\n%s", view)
 			}
@@ -83,5 +80,34 @@ func TestPRContextViewRendersTextualTabStripAndContextPlaceholder(t *testing.T) 
 				t.Fatalf("description retained a source file rail:\n%s", view)
 			}
 		})
+	}
+}
+
+func TestPRContextTabsAreTheQuietTopRowAndHaveDirectFunctionKeys(t *testing.T) {
+	m := New(context.Background(), nil)
+	t.Cleanup(m.Close)
+	m.openReviewTab(screenSession())
+	m.Width, m.Height = 120, 12
+
+	view := ansi.Strip(m.View().Content)
+	first, _, _ := strings.Cut(view, "\n")
+	if first != "› Diff [F1] ·   Description [F2] ·   Commits [F3]" {
+		t.Fatalf("top row = %q, want quiet direct tab strip", first)
+	}
+	if strings.Contains(first, "review ·") || strings.Contains(first, "ctrl+p") {
+		t.Fatalf("top row retained review chrome: %q", first)
+	}
+
+	m.Update(tea.KeyPressMsg{Code: tea.KeyF2})
+	if got := m.selectedReviewView(); got != viewDescription {
+		t.Fatalf("F2 selected %v, want description", got)
+	}
+	m.Update(tea.KeyPressMsg{Code: tea.KeyF3})
+	if got := m.selectedReviewView(); got != viewCommits {
+		t.Fatalf("F3 selected %v, want commits", got)
+	}
+	m.Update(tea.KeyPressMsg{Code: tea.KeyF1})
+	if got := m.selectedReviewView(); got != viewChanges {
+		t.Fatalf("F1 selected %v, want diff", got)
 	}
 }
