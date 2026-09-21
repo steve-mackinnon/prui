@@ -1556,9 +1556,9 @@ func (m *Model) reviewViewForLayout(preferSideBySide bool) string {
 	detail := m.detail()
 	if useSideBySide {
 		if m.sideBySideEnabled() {
-			detail = renderProjectedSideBySideDetail(m.displayDetail(), m.detailWidth(), m.Horizontal)
+			detail = m.renderProjectedSideBySideDetail(m.displayDetail(), m.detailWidth(), m.Horizontal)
 		} else {
-			detail = renderSideBySideDetail(detail, m.detailWidth(), m.Horizontal)
+			detail = m.renderSideBySideDetail(detail, m.detailWidth(), m.Horizontal)
 		}
 	}
 	offset := min(m.offset(), max(0, len(detail)-1))

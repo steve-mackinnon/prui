@@ -248,8 +248,8 @@ const sideBySideMinimumWidth = 160
 // renderSideBySideDetail renders aligned source rows into the current detail
 // pane. Full rows deliberately remain single cards: only source cells get the
 // central separator and shared horizontal code offset.
-func renderSideBySideDetail(lines []diffLine, width, horizontal int) []diffLine {
-	return renderProjectedSideBySideDetail(projectSideBySideDetail(lines), width, horizontal)
+func (m *Model) renderSideBySideDetail(lines []diffLine, width, horizontal int) []diffLine {
+	return m.renderProjectedSideBySideDetail(projectSideBySideDetail(lines), width, horizontal)
 }
 
 // projectSideBySideDetail turns source lines into logical split rows. Model
@@ -271,14 +271,14 @@ func projectSideBySideDetail(lines []diffLine) []diffLine {
 
 // renderProjectedSideBySideDetail renders logical rows assembled by Model so
 // cursor and overlays share the same row indices as the visible split view.
-func renderProjectedSideBySideDetail(lines []diffLine, width, horizontal int) []diffLine {
+func (m *Model) renderProjectedSideBySideDetail(lines []diffLine, width, horizontal int) []diffLine {
 	rendered := make([]diffLine, 0, len(lines))
 	cellWidth := max(1, (max(1, width)-visibleWidth(" │ "))/2)
 	for _, line := range lines {
 		if line.sideBySide == nil {
 			rendered = append(rendered, diffLine{styledLine: styledLine{
 				Class: line.Class,
-				Text:  styleLine(line.Class, clip(line.Text, width)),
+				Text:  m.styleLine(line.Class, clip(line.Text, width)),
 			}, target: line.target, commentID: line.commentID})
 			continue
 		}
@@ -286,18 +286,18 @@ func renderProjectedSideBySideDetail(lines []diffLine, width, horizontal int) []
 		if row.full != nil {
 			rendered = append(rendered, diffLine{styledLine: styledLine{
 				Class: classPlain,
-				Text:  styleLine(row.full.Class, clip(row.full.Text, width)),
+				Text:  m.styleLine(row.full.Class, clip(row.full.Text, width)),
 			}, target: line.target, commentID: line.commentID})
 			continue
 		}
-		old := renderSideBySideCell(row.old, cellWidth, horizontal)
-		new := renderSideBySideCell(row.new, cellWidth, horizontal)
+		old := m.renderSideBySideCell(row.old, cellWidth, horizontal)
+		new := m.renderSideBySideCell(row.new, cellWidth, horizontal)
 		rendered = append(rendered, diffLine{styledLine: styledLine{Class: classPlain, Text: old + " │ " + new}, target: line.target, commentID: line.commentID})
 	}
 	return rendered
 }
 
-func renderSideBySideCell(cell *diffCell, width, horizontal int) string {
+func (m *Model) renderSideBySideCell(cell *diffCell, width, horizontal int) string {
 	if cell == nil || cell.line == nil {
 		return strings.Repeat(" ", width)
 	}
@@ -308,7 +308,7 @@ func renderSideBySideCell(cell *diffCell, width, horizontal int) string {
 	text = clip(text, max(0, width-visibleWidth(gutter)))
 	value := gutter + text
 	value += strings.Repeat(" ", max(0, width-visibleWidth(value)))
-	return styleLine(cell.line.Class, value)
+	return m.styleLine(cell.line.Class, value)
 }
 
 func splitPatchMarker(text string) (marker, source string) {
