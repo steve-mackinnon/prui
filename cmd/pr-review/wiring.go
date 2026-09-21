@@ -8,6 +8,7 @@ import (
 	"pr-review/internal/guide"
 	"pr-review/internal/review"
 	"pr-review/internal/source"
+	"pr-review/internal/theme"
 	"pr-review/internal/tui"
 )
 
@@ -56,6 +57,16 @@ func (a *application) model(ctx context.Context, o options) *tui.Model {
 	if _, supported := a.gh.(source.ReviewCommentViewer); !a.offline && supported {
 		m.SetViewerReader(a.viewer)
 	}
+	if o.Theme.Name != "" {
+		m.SetTheme(o.Theme)
+	}
+	if o.ThemeConfigPath != "" {
+		configPath := o.ThemeConfigPath
+		m.SetThemeSelectionSaver(func(name string) (theme.PersistResult, error) {
+			return theme.PersistSelection(configPath, name)
+		})
+	}
+	m.SetThemeSelectionLocked(o.ThemeName != "")
 	return m
 }
 

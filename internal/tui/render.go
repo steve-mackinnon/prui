@@ -479,9 +479,9 @@ func Plain(s *review.Session) string {
 
 func (m *Model) evidenceView() string {
 	c := m.Session.Context
-	lines := []string{styleLine(statusClass(m.Session), status(m.Session)), styleLine(classTitle, fmt.Sprintf("Evidence scope | retained %d | omitted %d | examined paths %d", len(c.Evidence), len(c.OmittedPaths), len(c.ExaminedPaths))), fmt.Sprintf("budgets: files %d | excerpt %d bytes | retained %d bytes", c.FileBudget, c.ExcerptBudget, c.ByteBudget)}
+	lines := []string{m.styleLine(statusClass(m.Session), status(m.Session)), m.styleLine(classTitle, fmt.Sprintf("Evidence scope | retained %d | omitted %d | examined paths %d", len(c.Evidence), len(c.OmittedPaths), len(c.ExaminedPaths))), fmt.Sprintf("budgets: files %d | excerpt %d bytes | retained %d bytes", c.FileBudget, c.ExcerptBudget, c.ByteBudget)}
 	for _, b := range c.ExhaustedBudgets {
-		lines = append(lines, styleLine(classWarning, "WARNING budget exhausted: "+Escape(b)))
+		lines = append(lines, m.styleLine(classWarning, "WARNING budget exhausted: "+Escape(b)))
 	}
 	for _, e := range c.Evidence {
 		lines = append(lines, fmt.Sprintf("[observed] %s @ %.12s %s:%d-%d (%s)", e.Kind, e.CommitSHA, Escape(string(e.Path)), e.LineStart, e.LineEnd, Escape(e.RetrievalReason)))

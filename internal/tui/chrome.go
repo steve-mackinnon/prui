@@ -62,7 +62,7 @@ func reviewHealth(s *review.Session) (string, []healthItem) {
 	return progress, items
 }
 
-func healthStatus(width int, s *review.Session) string {
+func (m *Model) healthStatus(width int, s *review.Session) string {
 	progress, items := reviewHealth(s)
 	help := "?: Health & help"
 	parts := []string{progress}
@@ -88,7 +88,7 @@ func healthStatus(width int, s *review.Session) string {
 	if severity >= 2 {
 		class = classWarning
 	}
-	return styleLine(class, line)
+	return m.styleLine(class, line)
 }
 
 func (m *Model) reviewStatus() string {
@@ -110,11 +110,11 @@ func (m *Model) reviewStatus() string {
 				text += " · d delete"
 			}
 		}
-		return styleLine(classWarning, clip(text, m.Width))
+		return m.styleLine(classWarning, clip(text, m.Width))
 	}
 	if m.ActionError != nil {
 		progress, _ := reviewHealth(m.Session)
-		return styleLine(classWarning, clip(progress+" · ! Action failed: "+Escape(m.ActionError.Error())+" · ?: Health & help", m.Width))
+		return m.styleLine(classWarning, clip(progress+" · ! Action failed: "+Escape(m.ActionError.Error())+" · ?: Health & help", m.Width))
 	}
-	return healthStatus(m.Width, m.Session)
+	return m.healthStatus(m.Width, m.Session)
 }

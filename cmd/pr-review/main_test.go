@@ -13,6 +13,13 @@ func TestOptions(t *testing.T) {
 		valid bool
 	}{
 		{[]string{"open", "https://github.com/o/r/pull/1", "--plain"}, true},
+		{[]string{"open", "https://github.com/o/r/pull/1", "--theme", "dark"}, true},
+		{[]string{"prs", "--theme", "light"}, true},
+		{[]string{"current", "--theme", "high-contrast"}, true},
+		{[]string{"--theme", "high-contrast"}, true},
+		{[]string{"resume", "0123456789abcdef0123456789abcdef", "--theme", "terminal"}, true},
+		{[]string{"open", "https://github.com/o/r/pull/1", "--theme", "unknown"}, false},
+		{[]string{"verify", "https://github.com/o/r/pull/1", "--artifacts", "/tmp/artifacts", "--theme", "dark"}, false},
 		{[]string{}, true},
 		{[]string{"open", "1", "--github-repo", "o/r"}, true},
 		{[]string{"open", "1"}, false},

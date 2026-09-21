@@ -13,6 +13,7 @@ import (
 	"pr-review/internal/session"
 	"pr-review/internal/source"
 	"pr-review/internal/testutil"
+	"pr-review/internal/theme"
 	"pr-review/internal/tui"
 )
 
@@ -144,6 +145,27 @@ func TestOfflineModelKeepsSavedSessionsUsable(t *testing.T) {
 	modelKey(m, tea.KeyEnter)
 	if m.ActionError == nil || !strings.Contains(m.ActionError.Error(), "offline") {
 		t.Fatal("offline browser contacted GitHub", m.ActionError)
+	}
+}
+
+func TestModelThemeSelectionSaverPersistsGlobalConfig(t *testing.T) {
+	app, original := wiringFixture(t)
+	configPath := filepath.Join(t.TempDir(), "theme.json")
+	palette, err := theme.Resolve(theme.Dark, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := app.model(context.Background(), options{
+		Command: "resume", SessionID: original.ID, Theme: palette, ThemeConfigPath: configPath,
+	})
+	defer m.Close()
+	completeModelAction(t, m, m.Init())
+	modelKey(m, 't')
+	m.ThemePicker.Index = 1 // light
+	modelKey(m, tea.KeyEnter)
+	config, exists, err := theme.LoadConfig(configPath)
+	if err != nil || !exists || config.Theme != theme.Light {
+		t.Fatalf("saved config = %#v, exists %t, err %v", config, exists, err)
 	}
 }
 

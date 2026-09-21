@@ -123,6 +123,7 @@ func run(args []string) int {
 			fmt.Fprintln(os.Stderr, "prs without owner/repo requires an interactive terminal; pass owner/repo to list directly")
 			return 1
 		}
+		resolveInteractiveTheme(&o)
 		m := app.model(ctx, o)
 		p := tea.NewProgram(m, tea.WithContext(ctx))
 		m.SetNotifier(func(s string) { p.Send(tui.Notice(s)) })
@@ -160,6 +161,7 @@ func run(args []string) int {
 		}
 		return 0
 	}
+	resolveInteractiveTheme(&o)
 	m := app.model(ctx, o)
 	p := tea.NewProgram(m, tea.WithContext(ctx))
 	m.SetNotifier(func(s string) { p.Send(tui.Notice(s)) })
@@ -180,6 +182,15 @@ func run(args []string) int {
 		return 2
 	}
 	return 0
+}
+
+func resolveInteractiveTheme(o *options) {
+	resolved, warning, configPath := resolveThemeForInteractiveInvocation(true, o.ThemeName, globalThemeConfigPath)
+	o.Theme = resolved
+	o.ThemeConfigPath = configPath
+	if warning != "" {
+		fmt.Fprintln(os.Stderr, tui.Escape(warning))
+	}
 }
 
 func checkoutFromWorkingDirectory() (string, error) {

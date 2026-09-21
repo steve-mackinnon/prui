@@ -118,7 +118,7 @@ func (m *Model) pickerScreen(p *pickerState, header, rows []string, empty, foote
 		for i := start; i < min(len(rows), start+capacity); i++ {
 			line := selectionMarker(i == selected) + rows[i]
 			if i == selected {
-				line = styleLine(selectedClass(true), line)
+				line = m.styleLine(selectedClass(true), line)
 			}
 			lines = append(lines, line)
 		}

@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"context"
 	"strings"
 	"testing"
 
@@ -9,7 +10,41 @@ import (
 	"pr-review/internal/review"
 	"pr-review/internal/session"
 	"pr-review/internal/source"
+	"pr-review/internal/theme"
 )
+
+func TestModelsOwnIndependentThemeStyles(t *testing.T) {
+	dark, err := theme.Resolve(theme.Dark, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	light, err := theme.Resolve(theme.Light, map[theme.Token]string{theme.Added: "#112233"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	darkModel := New(context.Background(), nil)
+	lightModel := New(context.Background(), nil)
+	darkModel.SetTheme(dark)
+	lightModel.SetTheme(light)
+
+	darkAdded := darkModel.styleLine(classAdded, "+added")
+	lightAdded := lightModel.styleLine(classAdded, "+added")
+	if darkAdded == lightAdded {
+		t.Fatalf("different palettes rendered the same added line: %q", darkAdded)
+	}
+	if got := darkModel.styleLine(classAdded, "+added"); got != darkAdded {
+		t.Fatalf("setting a second model theme changed the first model: got %q, want %q", got, darkAdded)
+	}
+	for _, styled := range []string{darkAdded, lightAdded} {
+		if got := ansi.Strip(styled); got != "+added" {
+			t.Fatalf("themed style changed text: %q", got)
+		}
+	}
+}
+
+func terminalStyleLine(c lineClass, s string) string {
+	return New(context.Background(), nil).styleLine(c, s)
+}
 
 func TestClassifyPatchGrammar(t *testing.T) {
 	for _, c := range []struct {
@@ -62,21 +97,21 @@ func TestClassifyEscapedHostileBytesStayContext(t *testing.T) {
 func TestStyleLinePreservesTextAndWidth(t *testing.T) {
 	for _, c := range []lineClass{classPlain, classTitle, classFileHeader, classHunk, classAdded, classRemoved, classContext} {
 		const line = "+abc def"
-		styled := styleLine(c, line)
+		styled := terminalStyleLine(c, line)
 		if ansi.Strip(styled) != line {
 			t.Fatalf("class %d altered text: %q", c, styled)
 		}
 		if visibleWidth(styled) != visibleWidth(line) {
 			t.Fatalf("class %d changed visible width: %q", c, styled)
 		}
-		if styleLine(c, "") != "" {
+		if terminalStyleLine(c, "") != "" {
 			t.Fatalf("class %d styled an empty line", c)
 		}
 	}
-	if styleLine(classPlain, "x") != "x" || styleLine(classContext, "x") != "x" {
+	if terminalStyleLine(classPlain, "x") != "x" || terminalStyleLine(classContext, "x") != "x" {
 		t.Fatal("unstyled classes emitted escape sequences")
 	}
-	if !strings.Contains(styleLine(classAdded, "+x"), "\x1b[") {
+	if !strings.Contains(terminalStyleLine(classAdded, "+x"), "\x1b[") {
 		t.Fatal("added lines carry no style")
 	}
 }
@@ -95,7 +130,7 @@ func TestSelectionChromeKeepsMarkerAndFocusDistinctWithoutColor(t *testing.T) {
 		t.Fatal("focused selection did not use the shared focused selection style")
 	}
 	for _, focused := range []bool{false, true} {
-		styled := styleLine(selectedClass(focused), selectionMarker(true)+"main.go")
+		styled := terminalStyleLine(selectedClass(focused), selectionMarker(true)+"main.go")
 		if got := ansi.Strip(styled); got != "› main.go" {
 			t.Fatalf("focused=%t selection changed visible text: %q", focused, got)
 		}
@@ -112,7 +147,7 @@ func TestCursorMarkerReservesVisibleDetailGutter(t *testing.T) {
 }
 
 func TestClipIsANSIAware(t *testing.T) {
-	styled := styleLine(classAdded, "+abcdefgh")
+	styled := terminalStyleLine(classAdded, "+abcdefgh")
 	for _, w := range []int{0, 1, 3, 5, 9, 20} {
 		got := clip(styled, w)
 		if visibleWidth(got) > w {
@@ -217,7 +252,7 @@ func TestUnitLinesWordingMatchesUnitText(t *testing.T) {
 			if strings.Contains(l.Text, "\x1b") {
 				t.Fatalf("%s classified line carries ANSI: %q", u.Kind, l.Text)
 			}
-			b.WriteString(styleLine(l.Class, l.Text) + "\n")
+			b.WriteString(terminalStyleLine(l.Class, l.Text) + "\n")
 		}
 		if u.Kind == inventory.FileMetadata || u.Kind == inventory.TextHunk {
 			continue

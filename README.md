@@ -96,6 +96,7 @@ columns. Plain output is always unified.
 | `r` | Explicit metadata refresh; no diff recomputation or polling |
 | `N` | Start a new comparison with empty progress; retain the old session |
 | `s` | Session picker; up/down to select, Enter to resume, Esc to return |
+| `t` | Open the theme picker; up/down or `j`/`k` chooses, Enter saves and applies, Esc/`t` cancels |
 | Escape during a cancellable action | Cancel the operation and retain the current review |
 | `?`, `q`, Ctrl+C | Help, quit, cancel loading |
 
@@ -117,7 +118,57 @@ Immediately before posting, pr-review re-reads GitHub metadata and requires the 
 
 ## Color
 
-Color is detected once at startup from the terminal and the process environment; there is no color option, theme, or configuration file. `NO_COLOR` and `TERM=dumb` disable it, `CLICOLOR_FORCE` enables it, and redirected output is never colored. Lower-capability terminals downsample to 256 or 16 colors rather than losing text.
+The interactive TUI supports four built-in semantic palettes: `terminal` (the
+default), `light`, `dark`, and `high-contrast`. `terminal` preserves the
+existing ANSI/256-color mapping, so it follows the terminal's palette. Choose
+a palette for one invocation with `--theme NAME` on `pr-review`, `open`,
+`resume`, or `prs`; an invalid name exits before normal work begins. The flag
+is accepted with `--plain` but has no visible effect. `verify` does not accept
+`--theme` and never reads personal theme configuration.
+
+The optional global configuration file is `theme.json`:
+
+- macOS: `~/Library/Application Support/pr-review/theme.json`
+- Linux: `$XDG_CONFIG_HOME/pr-review/theme.json` when `XDG_CONFIG_HOME` is
+  absolute; otherwise `~/.config/pr-review/theme.json`
+
+It may select a built-in and override the fixed semantic color tokens:
+
+```json
+{
+  "theme": "dark",
+  "colors": {
+    "selection": "#30363d",
+    "focusedBorder": "bright-cyan",
+    "warning": "214"
+  }
+}
+```
+
+Supported tokens are `title`, `fileHeader`, `hunk`, `added`, `removed`,
+`metadata`, `warning`, `unavailable`, `selection`, `focusedBorder`, and
+`border`. Values must be `#RRGGBB`, `default`, an ANSI name (such as `red` or
+`bright-yellow`), or an ANSI palette index from `0` through `255`, written as
+a string. The explicit `--theme` name wins over the file's `theme` value, and
+valid `colors` overrides remain applied. Invalid JSON, duplicate or unknown
+keys, invalid names, and invalid color values are ignored as a whole: the app
+warns safely and uses the terminal palette (or a valid explicit `--theme`).
+Such a file is never overwritten.
+
+Press `t` in an interactive review or navigation picker to open a
+keyboard-only theme picker. It is unavailable while another modal owns input.
+Use arrows or `j`/`k` to choose and Enter to save and apply a built-in; Escape
+or `t` cancels. A successful choice atomically updates only the global
+`theme` value, retaining valid configured color overrides. It does not change
+review or session data. A failed save keeps the active palette unchanged.
+
+Color is still detected once at startup from the terminal and process
+environment. `NO_COLOR` and `TERM=dumb` disable it, `CLICOLOR_FORCE` follows
+the existing capability rules, and redirected output is never colored.
+Lower-capability terminals downsample to 256 or 16 colors rather than losing
+text. Themes supplement these accessibility safeguards: color is never the
+only cue, and the picker retains textual names, markers, and controls even
+when color is disabled.
 
 The guarantees, verified by tests, are: styling only wraps whole display lines that were already escaped, so escaping of hostile patch bytes is unchanged; removing every style yields exactly the uncolored render, so no character, label, warning, or line is added, dropped, or reworded by color; colored lines never exceed the terminal width and horizontal scrolling never splits an escape sequence; and `--plain` output is never colored and contains no terminal control sequences, whatever the terminal supports.
 

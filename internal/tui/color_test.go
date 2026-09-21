@@ -14,14 +14,32 @@ import (
 	"github.com/charmbracelet/colorprofile"
 	"github.com/charmbracelet/x/ansi"
 	"pr-review/internal/review"
+	"pr-review/internal/theme"
 )
 
-// withoutPalette renders f with every semantic style removed, which reproduces
-// the exact output the app produced before styling existed.
-func withoutPalette(f func() string) string {
-	styled := palette
-	palette = map[lineClass]lipgloss.Style{}
-	defer func() { palette = styled }()
+func testThemes(t *testing.T) []theme.Theme {
+	t.Helper()
+	themes := make([]theme.Theme, 0, len(theme.BuiltInNames())+1)
+	for _, name := range theme.BuiltInNames() {
+		palette, err := theme.Resolve(name, nil)
+		if err != nil {
+			t.Fatalf("Resolve(%q): %v", name, err)
+		}
+		themes = append(themes, palette)
+	}
+	override, err := theme.Resolve(theme.Dark, map[theme.Token]string{theme.Added: "#112233"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return append(themes, override)
+}
+
+// withoutStyles renders f with one model's semantic styles removed. It never
+// touches another model, which is the essential isolation property for themes.
+func withoutStyles(m *Model, f func() string) string {
+	styled := m.styles
+	m.styles = map[lineClass]lipgloss.Style{}
+	defer func() { m.styles = styled }()
 	return f()
 }
 
@@ -70,35 +88,38 @@ func TestColorProfileFallbackPreservesContent(t *testing.T) {
 	s := kindsSession()
 	m := styledModel(t, s)
 	profiles := []colorprofile.Profile{colorprofile.TrueColor, colorprofile.ANSI256, colorprofile.ANSI, colorprofile.Ascii, colorprofile.NoTTY}
-	for _, width := range []int{60, 100, 120} {
-		for i := range s.Inventory.Units {
-			for _, focus := range []pane{paneList, paneDiff} {
-				m.Selected, m.Focus = i, focus
-				m.Update(tea.WindowSizeMsg{Width: width, Height: 14})
-				colored := m.View().Content
-				unstyled := withoutPalette(func() string { return m.View().Content })
-				for _, p := range profiles {
-					got := downsample(colored, p)
-					if ansi.Strip(got) != unstyled {
-						t.Fatalf("profile %s width %d unit %d focus %v changed content:\n%q\n%q", p, width, i, focus, ansi.Strip(got), unstyled)
-					}
-					switch p {
-					case colorprofile.NoTTY:
-						// No terminal: styles are removed outright, so the view
-						// is byte-identical to the pre-styling render.
-						if got != unstyled {
-							t.Fatalf("NoTTY width %d unit %d focus %v not byte-identical:\n%q\n%q", width, i, focus, got, unstyled)
+	for _, palette := range testThemes(t) {
+		m.SetTheme(palette)
+		for _, width := range []int{60, 100, 120} {
+			for i := range s.Inventory.Units {
+				for _, focus := range []pane{paneList, paneDiff} {
+					m.Selected, m.Focus = i, focus
+					m.Update(tea.WindowSizeMsg{Width: width, Height: 14})
+					colored := m.View().Content
+					unstyled := withoutStyles(m, func() string { return m.View().Content })
+					for _, p := range profiles {
+						got := downsample(colored, p)
+						if ansi.Strip(got) != unstyled {
+							t.Fatalf("profile %s width %d unit %d focus %v changed content:\n%q\n%q", p, width, i, focus, ansi.Strip(got), unstyled)
 						}
-					case colorprofile.Ascii:
-						// NO_COLOR and colorless terminals: the writer rewrites
-						// each style, keeping only non-color attributes.
-						if leaked := colorlessSequences(got); len(leaked) > 0 {
-							t.Fatalf("Ascii width %d unit %d focus %v kept color: %q in %q", width, i, focus, leaked, got)
-						}
-					default:
-						for _, line := range strings.Split(got, "\n") {
-							if visibleWidth(line) > width {
-								t.Fatalf("profile %s exceeded width %d: %q", p, width, line)
+						switch p {
+						case colorprofile.NoTTY:
+							// No terminal: styles are removed outright, so the view
+							// is byte-identical to the pre-styling render.
+							if got != unstyled {
+								t.Fatalf("NoTTY width %d unit %d focus %v not byte-identical:\n%q\n%q", width, i, focus, got, unstyled)
+							}
+						case colorprofile.Ascii:
+							// NO_COLOR and colorless terminals: the writer rewrites
+							// each style, keeping only non-color attributes.
+							if leaked := colorlessSequences(got); len(leaked) > 0 {
+								t.Fatalf("Ascii width %d unit %d focus %v kept color: %q in %q", width, i, focus, leaked, got)
+							}
+						default:
+							for _, line := range strings.Split(got, "\n") {
+								if visibleWidth(line) > width {
+									t.Fatalf("profile %s exceeded width %d: %q", p, width, line)
+								}
 							}
 						}
 					}
@@ -158,7 +179,7 @@ func TestColorEnvironmentContract(t *testing.T) {
 func TestPlainContractGuard(t *testing.T) {
 	s := kindsSession()
 	styled := Plain(s)
-	if unstyled := withoutPalette(func() string { return Plain(s) }); styled != unstyled {
+	if unstyled := Plain(s); styled != unstyled {
 		t.Fatalf("plain output depends on the palette:\n%q\n%q", styled, unstyled)
 	}
 	if strings.ContainsAny(styled, "\x1b\a") {
@@ -181,7 +202,7 @@ func TestEscapeContractUnchanged(t *testing.T) {
 		if err != nil || got != raw {
 			t.Fatalf("escape is not reversible for %q: %q (%v)", raw, e, err)
 		}
-		if styled := styleLine(classContext, e); ansi.Strip(styled) != e {
+		if styled := New(context.Background(), nil).styleLine(classContext, e); ansi.Strip(styled) != e {
 			t.Fatalf("styling altered escaped text: %q", styled)
 		}
 	}

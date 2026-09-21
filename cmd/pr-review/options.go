@@ -3,18 +3,22 @@ package main
 import (
 	"errors"
 	"flag"
+	"fmt"
 	"io"
 	"regexp"
+	"strings"
 	"time"
 
 	"pr-review/internal/source"
+	"pr-review/internal/theme"
 )
 
 const usage = `pr-review
-pr-review open <PR-URL-or-number> [--github-repo owner/repo] [--plain]
-pr-review prs [owner/repo] [--plain]
+pr-review [--theme NAME]
+pr-review open <PR-URL-or-number> [--github-repo owner/repo] [--plain] [--theme NAME]
+pr-review prs [owner/repo] [--plain] [--theme NAME]
 pr-review sessions
-pr-review resume <id> [--offline] [--plain] [--new] [--repo <checkout>]
+pr-review resume <id> [--offline] [--plain] [--new] [--repo <checkout>] [--theme NAME]
 pr-review eval-guides <id>
 pr-review delete <id>
 pr-review verify <PR-URL-or-number> --artifacts <output-directory> [--github-repo owner/repo] [--measure-runs N] [--open-timeout DURATION]
@@ -24,6 +28,9 @@ Open and verify must be launched from the root of the local repository checkout.
 
 type options struct {
 	Command, SessionID, Storage string
+	ThemeName                   string
+	ThemeConfigPath             string
+	Theme                       theme.Theme
 	Identity                    source.Identity
 	Repository                  string
 	Checkout                    string
@@ -39,10 +46,18 @@ func parseOptions(args []string) (options, error) {
 		o.Command = "current"
 		return o, nil
 	}
-	o.Command = args[0]
+	implicitCurrent := strings.HasPrefix(args[0], "-")
+	if implicitCurrent {
+		o.Command = "current"
+	} else {
+		o.Command = args[0]
+	}
 	f := flag.NewFlagSet(o.Command, flag.ContinueOnError)
 	f.SetOutput(io.Discard)
 	f.StringVar(&o.Storage, "store", "", "private session storage location")
+	if o.Command == "current" || o.Command == "open" || o.Command == "resume" || o.Command == "prs" {
+		f.StringVar(&o.ThemeName, "theme", "", "interactive color theme")
+	}
 	start := 2
 	var repository string
 	switch o.Command {
@@ -71,7 +86,11 @@ func parseOptions(args []string) (options, error) {
 	case "sessions":
 		start = 1
 	case "current":
-		start = 1
+		if implicitCurrent {
+			start = 0
+		} else {
+			start = 1
+		}
 	case "delete", "eval-guides":
 	default:
 		return o, errors.New(usage)
@@ -84,6 +103,11 @@ func parseOptions(args []string) (options, error) {
 	}
 	if f.NArg() != 0 || o.Offline && o.New {
 		return o, errors.New(usage)
+	}
+	if o.ThemeName != "" {
+		if _, err := theme.Resolve(o.ThemeName, nil); err != nil {
+			return o, fmt.Errorf("invalid --theme %q; choose one of: %s", o.ThemeName, strings.Join(theme.BuiltInNames(), ", "))
+		}
 	}
 	if o.Command == "open" || o.Command == "verify" {
 		var err error

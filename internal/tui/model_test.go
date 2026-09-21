@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
-	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 	"pr-review/internal/guide"
 	"pr-review/internal/inventory"
@@ -234,10 +233,10 @@ func TestWideReviewFramesBothPanesAndHighlightsTheFocusedPane(t *testing.T) {
 	if !strings.HasPrefix(lines[3], "│› main.go") || !strings.Contains(lines[3], "│ │") || !strings.HasSuffix(lines[3], "│") {
 		t.Fatalf("wide review content is not enclosed by both pane borders:\n%s", strings.Join(lines, "\n"))
 	}
-	if !strings.Contains(view, styleLine(paneBorderClass(true), "│")) {
+	if !strings.Contains(view, m.styleLine(paneBorderClass(true), "│")) {
 		t.Fatalf("focused list pane border was not styled:\n%q", view)
 	}
-	if !strings.Contains(view, styleLine(paneBorderClass(false), "│")) {
+	if !strings.Contains(view, m.styleLine(paneBorderClass(false), "│")) {
 		t.Fatalf("unfocused diff pane border was not styled:\n%q", view)
 	}
 }
@@ -1120,17 +1119,13 @@ func TestStrippedViewMatchesUnstyledRender(t *testing.T) {
 	s := kindsSession()
 	m := New(context.Background(), func(context.Context, func(string)) (*review.Session, error) { return s, nil })
 	m.Update(m.Init()())
-	styled := palette
-	defer func() { palette = styled }()
 	for _, w := range []int{1, 20, 60, 99, 100, 120} {
 		for i := range s.Inventory.Units {
 			for _, focus := range []pane{paneList, paneDiff} {
 				m.Selected, m.Focus = i, focus
 				m.Update(tea.WindowSizeMsg{Width: w, Height: 12})
 				colored := m.View().Content
-				palette = map[lineClass]lipgloss.Style{}
-				plain := m.View().Content
-				palette = styled
+				plain := withoutStyles(m, func() string { return m.View().Content })
 				if ansi.Strip(colored) != plain {
 					t.Fatalf("width %d unit %d focus %v changed content:\n%q\n%q", w, i, focus, ansi.Strip(colored), plain)
 				}

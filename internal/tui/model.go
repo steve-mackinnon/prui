@@ -7,10 +7,12 @@ import (
 	"unicode/utf8"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"pr-review/internal/inventory"
 	"pr-review/internal/review"
 	"pr-review/internal/session"
 	"pr-review/internal/source"
+	"pr-review/internal/theme"
 )
 
 type Loader func(context.Context, func(string)) (*review.Session, error)
@@ -111,6 +113,7 @@ const (
 	pageRepositoryPicker
 	pagePullRequestPicker
 	pageGuideConsent
+	pageThemePicker
 )
 
 // commentComposer is deliberately tab-owned. Its target is copied from the
@@ -169,6 +172,7 @@ type Model struct {
 	SessionPicker                                        pickerState
 	RepositoryPicker                                     pickerState
 	PullRequestPicker                                    pickerState
+	ThemePicker                                          pickerState
 	Entries                                              []session.Entry
 	Repositories                                         []session.Repository
 	PullRequests                                         []source.PullRequest
@@ -208,6 +212,11 @@ type Model struct {
 	currentCheckout                                      string
 	tabs                                                 []workspaceTab
 	activeTab                                            int
+	theme                                                theme.Theme
+	themeOverrides                                       map[theme.Token]string
+	styles                                               map[lineClass]lipgloss.Style
+	saveTheme                                            func(string) (theme.PersistResult, error)
+	themeSelectionLocked                                 bool
 }
 
 type PullRequestLoader func(context.Context, string) ([]source.PullRequest, error)
@@ -215,8 +224,34 @@ type PullRequestOpener func(context.Context, string, source.Identity, func(strin
 
 func newModel(parent context.Context) *Model {
 	ctx, cancel := context.WithCancel(parent)
-	return &Model{ctx: ctx, cancel: cancel, Scroll: map[int]int{}, GuideScroll: map[int]int{}, Cursor: map[int]int{}, GuideCursor: map[int]int{}, collapsed: newExpansion(), Stack: []page{pageReview}, Width: 100, Height: 24, activeTab: -1, reactionEmoji: defaultEmojiSupport()}
+	terminal, err := theme.Resolve(theme.Terminal, nil)
+	if err != nil {
+		panic(err)
+	}
+	m := &Model{ctx: ctx, cancel: cancel, Scroll: map[int]int{}, GuideScroll: map[int]int{}, Cursor: map[int]int{}, GuideCursor: map[int]int{}, collapsed: newExpansion(), Stack: []page{pageReview}, Width: 100, Height: 24, activeTab: -1, reactionEmoji: defaultEmojiSupport()}
+	m.SetTheme(terminal)
+	return m
 }
+
+// SetTheme replaces this model's presentation palette. It does not mutate
+// any process-global style state, so concurrent models can use different
+// resolved themes safely.
+func (m *Model) SetTheme(t theme.Theme) {
+	m.theme = t
+	m.themeOverrides = t.Overrides()
+	m.styles = stylesFor(t)
+}
+
+// SetThemeSelectionSaver supplies the global preference writer used by the
+// interactive picker. The caller owns configuration-path discovery; a model
+// never reads a reviewed checkout or user configuration on its own.
+func (m *Model) SetThemeSelectionSaver(save func(string) (theme.PersistResult, error)) {
+	m.saveTheme = save
+}
+
+// SetThemeSelectionLocked preserves an explicit --theme choice for this
+// process. The picker may still update the global preference for a later run.
+func (m *Model) SetThemeSelectionLocked(locked bool) { m.themeSelectionLocked = locked }
 
 func New(parent context.Context, load Loader) *Model {
 	m := newModel(parent)
@@ -453,6 +488,13 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			if m.CommentMenu != nil {
 				return m, m.commentActionKey(v)
+			}
+			if m.top() == pageThemePicker {
+				return m, m.themePickerKey(v.String())
+			}
+			if v.String() == "t" && m.themePickerAvailable() {
+				m.openThemePicker()
+				return m, nil
 			}
 			if p := m.top(); p != pageReview {
 				return m, m.pageKey(p, v)
@@ -751,6 +793,8 @@ func (m *Model) pageKey(p page, key tea.KeyPressMsg) tea.Cmd {
 		return m.pullRequestPickerKey(k)
 	case pageGuideConsent:
 		return m.guideConsentKey(k)
+	case pageThemePicker:
+		return m.themePickerKey(k)
 	case pageHelp, pageURL, pageEvidence:
 		if k == "esc" {
 			m.pop()
@@ -1384,6 +1428,8 @@ func (m *Model) View() tea.View {
 			text = m.Session.Inventory.Comparison.Metadata.Identity.URL() + "\nOpen this URL in your browser for GitHub review actions.\nesc: back | q: quit"
 		case pageGuideConsent:
 			text = m.guideConsentView()
+		case pageThemePicker:
+			text = m.themePickerView()
 		case pageEvidence:
 			text = m.evidenceView()
 		default:
@@ -1483,7 +1529,7 @@ func (m *Model) reviewViewForLayout(preferSideBySide bool) string {
 	if preferSideBySide && !useSideBySide {
 		text += " · side-by-side needs 160 columns"
 	}
-	header := styleLine(headerClass, text)
+	header := m.styleLine(headerClass, text)
 	bodyHeight := m.bodyHeight()
 	leftWidth := m.listWidth()
 	list := []listLine{}
@@ -1538,8 +1584,8 @@ func (m *Model) reviewViewForLayout(preferSideBySide bool) string {
 		leftOuterWidth := leftWidth + 2
 		rightOuterWidth := m.Width - leftOuterWidth - 1
 		body = append(body,
-			styleLine(leftBorder, "┌"+strings.Repeat("─", leftOuterWidth-2)+"┐")+" "+
-				styleLine(rightBorder, "┌"+strings.Repeat("─", rightOuterWidth-2)+"┐"),
+			m.styleLine(leftBorder, "┌"+strings.Repeat("─", leftOuterWidth-2)+"┐")+" "+
+				m.styleLine(rightBorder, "┌"+strings.Repeat("─", rightOuterWidth-2)+"┐"),
 		)
 	}
 	for row := 0; row < bodyHeight; row++ {
@@ -1556,9 +1602,9 @@ func (m *Model) reviewViewForLayout(preferSideBySide bool) string {
 		}
 		if m.Width < 100 {
 			if m.Focus == paneDiff {
-				body = append(body, styleLine(class, clip(right, m.Width)))
+				body = append(body, m.styleLine(class, clip(right, m.Width)))
 			} else {
-				body = append(body, styleLine(leftClass, clip(left, m.Width)))
+				body = append(body, m.styleLine(leftClass, clip(left, m.Width)))
 			}
 		} else if framed {
 			left = clip(left, leftWidth)
@@ -1567,23 +1613,23 @@ func (m *Model) reviewViewForLayout(preferSideBySide bool) string {
 			right = clip(right, rightWidth)
 			rightPadding := strings.Repeat(" ", max(0, rightWidth-visibleWidth(right)))
 			body = append(body,
-				styleLine(leftBorder, "│")+styleLine(leftClass, left)+leftPadding+styleLine(leftBorder, "│")+" "+
-					styleLine(rightBorder, "│")+styleLine(class, right)+rightPadding+styleLine(rightBorder, "│"),
+				m.styleLine(leftBorder, "│")+m.styleLine(leftClass, left)+leftPadding+m.styleLine(leftBorder, "│")+" "+
+					m.styleLine(rightBorder, "│")+m.styleLine(class, right)+rightPadding+m.styleLine(rightBorder, "│"),
 			)
 		} else {
 			leftWidth := min(36, m.Width/3)
 			left = clip(left, leftWidth)
 			// Padding is measured on the clipped plain row, then the row is styled.
 			padding := strings.Repeat(" ", max(0, leftWidth-visibleWidth(left)))
-			body = append(body, styleLine(leftClass, left)+padding+" | "+styleLine(class, clip(right, m.Width-leftWidth-3)))
+			body = append(body, m.styleLine(leftClass, left)+padding+" | "+m.styleLine(class, clip(right, m.Width-leftWidth-3)))
 		}
 	}
 	if framed {
 		leftOuterWidth := leftWidth + 2
 		rightOuterWidth := m.Width - leftOuterWidth - 1
 		body = append(body,
-			styleLine(leftBorder, "└"+strings.Repeat("─", leftOuterWidth-2)+"┘")+" "+
-				styleLine(rightBorder, "└"+strings.Repeat("─", rightOuterWidth-2)+"┘"),
+			m.styleLine(leftBorder, "└"+strings.Repeat("─", leftOuterWidth-2)+"┘")+" "+
+				m.styleLine(rightBorder, "└"+strings.Repeat("─", rightOuterWidth-2)+"┘"),
 		)
 	}
 	return title + "\n" + header + "\n" + strings.Join(body, "\n") + "\n" + m.reviewStatus()
@@ -1592,7 +1638,7 @@ func (m *Model) reviewViewForLayout(preferSideBySide bool) string {
 func (m *Model) contextViewTabs() string {
 	tabs := []string{"Diff [1]", "Description [2]", "Commits [3]"}
 	tabs[m.selectedReviewView()] = "› " + tabs[m.selectedReviewView()]
-	return styleLine(classTitle, strings.Join(tabs, " ·   "))
+	return m.styleLine(classTitle, strings.Join(tabs, " ·   "))
 }
 
 func (m *Model) contextViewPlaceholder() string {
@@ -1611,7 +1657,7 @@ func (m *Model) descriptionView() string {
 	height := m.descriptionBodyHeight()
 	m.DescriptionScroll = max(0, min(m.DescriptionScroll, max(0, len(lines)-height)))
 	end := min(len(lines), m.DescriptionScroll+height)
-	return styleLine(classTitle, "Description") + "\nFrozen from GitHub when this review opened.\n" + strings.Join(lines[m.DescriptionScroll:end], "\n")
+	return m.styleLine(classTitle, "Description") + "\nFrozen from GitHub when this review opened.\n" + strings.Join(lines[m.DescriptionScroll:end], "\n")
 }
 
 func (m *Model) descriptionLines() []string {
@@ -1667,7 +1713,7 @@ func (m *Model) descriptionKey(key string) bool {
 // action failed. Its wording is identical to footer().
 func (m *Model) styledFooter() string {
 	if m.ActionError != nil {
-		return styleLine(classWarning, m.footer())
+		return m.styleLine(classWarning, m.footer())
 	}
-	return styleLine(classTitle, m.footer())
+	return m.styleLine(classTitle, m.footer())
 }

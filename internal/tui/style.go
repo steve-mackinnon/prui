@@ -8,6 +8,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"pr-review/internal/inventory"
 	"pr-review/internal/source"
+	"pr-review/internal/theme"
 )
 
 // lineClass names the semantic role of a complete display line. Classes are
@@ -53,27 +54,36 @@ func semantic(c color.Color, bold bool) lipgloss.Style {
 	return lipgloss.NewStyle().Foreground(c).Bold(bold).TabWidth(lipgloss.NoTabConversion)
 }
 
-var palette = map[lineClass]lipgloss.Style{
-	classTitle:       semantic(lipgloss.Cyan, true),
-	classFileHeader:  semantic(lipgloss.Yellow, true),
-	classHunk:        semantic(lipgloss.Magenta, false),
-	classAdded:       semantic(lipgloss.Green, false),
-	classRemoved:     semantic(lipgloss.Red, false),
-	classMetadata:    semantic(lipgloss.Blue, false),
-	classWarning:     semantic(lipgloss.BrightYellow, true),
-	classUnavailable: semantic(lipgloss.BrightRed, true),
-	// A muted background makes the selected row discoverable even while focus is
-	// in the detail pane. The textual chevron remains the primary cue when a
-	// terminal removes colors.
-	classSelection: lipgloss.NewStyle().Bold(true).Background(lipgloss.Color("236")).TabWidth(lipgloss.NoTabConversion),
-	// The selection in the focused pane adds reverse video, also colorless, so
-	// the two selection states differ without either depending on color.
-	classSelectionFocused: lipgloss.NewStyle().Bold(true).Reverse(true).TabWidth(lipgloss.NoTabConversion),
-	// Wide review panes keep a quiet outline until selected. The active pane
-	// uses the same warm accent as the review chrome, with bold retained as a
-	// color-independent focus cue.
-	classPaneBorder:        semantic(lipgloss.Color("240"), false),
-	classPaneBorderFocused: semantic(lipgloss.Color("208"), true),
+func stylesFor(t theme.Theme) map[lineClass]lipgloss.Style {
+	colorFor := func(token theme.Token) color.Color {
+		c, ok := t.Color(token)
+		if !ok {
+			panic("resolved theme missing semantic token")
+		}
+		return c
+	}
+	return map[lineClass]lipgloss.Style{
+		classTitle:       semantic(colorFor(theme.Title), true),
+		classFileHeader:  semantic(colorFor(theme.FileHeader), true),
+		classHunk:        semantic(colorFor(theme.Hunk), false),
+		classAdded:       semantic(colorFor(theme.Added), false),
+		classRemoved:     semantic(colorFor(theme.Removed), false),
+		classMetadata:    semantic(colorFor(theme.Metadata), false),
+		classWarning:     semantic(colorFor(theme.Warning), true),
+		classUnavailable: semantic(colorFor(theme.Unavailable), true),
+		// A muted background makes the selected row discoverable even while focus is
+		// in the detail pane. The textual chevron remains the primary cue when a
+		// terminal removes colors.
+		classSelection: lipgloss.NewStyle().Bold(true).Background(colorFor(theme.Selection)).TabWidth(lipgloss.NoTabConversion),
+		// The selection in the focused pane adds reverse video, also colorless, so
+		// the two selection states differ without either depending on color.
+		classSelectionFocused: lipgloss.NewStyle().Bold(true).Reverse(true).TabWidth(lipgloss.NoTabConversion),
+		// Wide review panes keep a quiet outline until selected. The active pane
+		// uses the same warm accent as the review chrome, with bold retained as a
+		// color-independent focus cue.
+		classPaneBorder:        semantic(colorFor(theme.Border), false),
+		classPaneBorderFocused: semantic(colorFor(theme.FocusedBorder), true),
+	}
 }
 
 // selectionMarker makes selection readable even when styles are unavailable.
@@ -157,8 +167,8 @@ func classifyPatch(escaped string) lineClass {
 
 // styleLine wraps one complete display line in its semantic style. Empty and
 // unstyled lines are returned untouched so colorless output stays byte-identical.
-func styleLine(c lineClass, s string) string {
-	style, ok := palette[c]
+func (m *Model) styleLine(c lineClass, s string) string {
+	style, ok := m.styles[c]
 	if !ok || s == "" {
 		return s
 	}
