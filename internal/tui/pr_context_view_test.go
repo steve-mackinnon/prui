@@ -69,7 +69,7 @@ func TestPRContextViewRendersTextualTabStripAndContextPlaceholder(t *testing.T) 
 			m.Width, m.Height = width, 12
 			m.Update(tea.KeyPressMsg{Code: 'v', Text: "v"})
 			view := ansi.Strip(m.View().Content)
-			wantTab := "› Description [F2]"
+			wantTab := "› Description [2]"
 			if !strings.Contains(view, wantTab) {
 				t.Fatalf("context tab strip does not identify active Description:\n%s", view)
 			}
@@ -83,7 +83,7 @@ func TestPRContextViewRendersTextualTabStripAndContextPlaceholder(t *testing.T) 
 	}
 }
 
-func TestPRContextTabsAreTheQuietTopRowAndHaveDirectFunctionKeys(t *testing.T) {
+func TestPRContextTabsAreTheQuietTopRowAndHaveDirectNumberKeys(t *testing.T) {
 	m := New(context.Background(), nil)
 	t.Cleanup(m.Close)
 	m.openReviewTab(screenSession())
@@ -91,23 +91,23 @@ func TestPRContextTabsAreTheQuietTopRowAndHaveDirectFunctionKeys(t *testing.T) {
 
 	view := ansi.Strip(m.View().Content)
 	first, _, _ := strings.Cut(view, "\n")
-	if first != "› Diff [F1] ·   Description [F2] ·   Commits [F3]" {
+	if first != "› Diff [1] ·   Description [2] ·   Commits [3]" {
 		t.Fatalf("top row = %q, want quiet direct tab strip", first)
 	}
 	if strings.Contains(first, "review ·") || strings.Contains(first, "ctrl+p") {
 		t.Fatalf("top row retained review chrome: %q", first)
 	}
 
-	m.Update(tea.KeyPressMsg{Code: tea.KeyF2})
+	m.Update(tea.KeyPressMsg{Code: '2', Text: "2"})
 	if got := m.selectedReviewView(); got != viewDescription {
-		t.Fatalf("F2 selected %v, want description", got)
+		t.Fatalf("2 selected %v, want description", got)
 	}
-	m.Update(tea.KeyPressMsg{Code: tea.KeyF3})
+	m.Update(tea.KeyPressMsg{Code: '3', Text: "3"})
 	if got := m.selectedReviewView(); got != viewCommits {
-		t.Fatalf("F3 selected %v, want commits", got)
+		t.Fatalf("3 selected %v, want commits", got)
 	}
-	m.Update(tea.KeyPressMsg{Code: tea.KeyF1})
+	m.Update(tea.KeyPressMsg{Code: '1', Text: "1"})
 	if got := m.selectedReviewView(); got != viewChanges {
-		t.Fatalf("F1 selected %v, want diff", got)
+		t.Fatalf("1 selected %v, want diff", got)
 	}
 }

@@ -436,13 +436,13 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, m.openSwitcher()
 			}
 			switch v.String() {
-			case "f1":
+			case "1":
 				m.selectReviewView(viewChanges)
 				return m, nil
-			case "f2":
+			case "2":
 				m.selectReviewView(viewDescription)
 				return m, nil
-			case "f3":
+			case "3":
 				m.selectReviewView(viewCommits)
 				return m, nil
 			}
@@ -1433,7 +1433,7 @@ func (m *Model) reviewView() string {
 }
 
 func (m *Model) contextViewTabs() string {
-	tabs := []string{"Diff [F1]", "Description [F2]", "Commits [F3]"}
+	tabs := []string{"Diff [1]", "Description [2]", "Commits [3]"}
 	tabs[m.selectedReviewView()] = "› " + tabs[m.selectedReviewView()]
 	return styleLine(classTitle, strings.Join(tabs, " ·   "))
 }

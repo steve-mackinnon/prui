@@ -43,7 +43,7 @@ README.md                      reviewer-visible view and keyboard documentation
 ## Interaction Contract
 
 - The first line of every interactive review is a dedicated, low-noise tab
-  strip: `› Diff [F1] · Description [F2] · Commits [F3]`. The `›` marks the
+  strip: `› Diff [1] · Description [2] · Commits [3]`. The `›` marks the
   selected tab and must remain visible without color. It replaces the prior PR
   identity, guide count, and persistent `ctrl+p` text; those details remain
   available from the switcher and Health & help.
@@ -53,9 +53,9 @@ README.md                      reviewer-visible view and keyboard documentation
 - `Description` and `Commits` replace the review body with one scrollable,
   read-only detail surface. They do not render a file rail, diff cursor,
   comment overlay, or source-progress control.
-- `F1`, `F2`, and `F3` directly select Diff, Description, and Commits. `v` and
-  `V` retain their existing next/previous cycling behavior. The function keys
-  avoid the PR workspace's numeric-tab bindings; all context bindings apply
+- `1`, `2`, and `3` directly select Diff, Description, and Commits. `v` and
+  `V` retain their existing next/previous cycling behavior. Numeric keys now
+  belong to context views; all context bindings apply
   only while the top-level review is active and are documented in Health & help.
 - Switching views never performs I/O, changes the frozen snapshot, marks a
   slice, changes the current diff selection, dismisses a local comment draft,
@@ -134,5 +134,4 @@ defines which view is selected.
 
 ## Open Questions
 
-None. `F1`–`F3` provide direct tab selection; no numeric review-tab bindings
-remain.
+None. `1`–`3` provide direct tab selection; no numeric review-tab bindings remain.
