@@ -1,5 +1,95 @@
 # TUI reliability and automated verification
 
+# Implementation Plan: Side-by-Side Diff View
+
+## Overview
+
+Implement the approved interactive side-by-side diff view as four sequential,
+verifiable slices. The feature projects the existing frozen unified patch into
+aligned presentation rows; it does not obtain a second diff, alter inventory
+data, or change the GitHub comment contract. Unified remains the initial
+layout and is automatically used below 160 columns even when a tab prefers the
+split view.
+
+## Architecture Decisions
+
+- Introduce a typed, tab-owned diff-layout preference (`unified` or
+  `side-by-side`) in `internal/tui.Model` and its saved review-tab state. It is
+  process-local and never enters `snapshot.json`, `state.json`, or `--plain`.
+- Make hunk projection a pure transformation from existing escaped `diffLine`
+  source rows into aligned render rows. A deletion run is paired only with the
+  immediately following addition run, position by position; surplus cells are
+  blank.
+- Keep source provenance at the cell boundary. Old cells retain `LEFT`
+  deletion targets; new cells retain `RIGHT` addition/context targets; context
+  old cells intentionally have no second target. Cursor and Enter therefore
+  retain today's observable commenting behavior.
+- Make full-width structural rows explicit, rather than pretending headers,
+  hunk labels, cards, comments, and editors are two empty source cells.
+- Use a 160-column eligibility check at the layout dispatch boundary. A tab
+  can prefer side-by-side while rendering unified at 159 or fewer columns;
+  resize back to eligibility restores split without changing tab state.
+- Keep one shared horizontal code offset. It clips unstyled source content in
+  both code cells after fixed gutters and before styling, so gutters and the
+  separator never drift.
+
+## Dependency Graph
+
+```text
+pure patch-line provenance
+        |
+        +-- aligned hunk-row projection + row tests
+        |       |
+        |       +-- split renderer + width eligibility
+        |       |       |
+        |       |       +-- tab preference/key + cursor/overlay adaptation
+        |       |               |
+        |       |               +-- guides, snapshots, docs, complete verification
+        |
+        +-- target-equivalence regressions -------------------^
+```
+
+## Task List
+
+The detailed, approved checklist will be appended to `tasks/todo.md` after
+this plan's review gate. The intended order is:
+
+1. Create the pure aligned-row projection and prove source/target equivalence.
+2. Render split rows behind the 160-column eligibility boundary, preserving
+   unified rendering exactly outside split eligibility.
+3. Add tab-owned `S` preference, resize behavior, cursor selection, and
+   comment/editor/overlay placement.
+4. Route guides and raw detail through the projection, update bindings and
+   README, then complete snapshots and full verification.
+
+## Verification Checkpoints
+
+- After task 1: focused pure projection and immutable target tests pass.
+- After task 2: focused renderer tests prove widths 159 and 160, alignment,
+  clipping, colorless output, and unified parity.
+- After task 3: focused model/comment tests prove tab isolation, resize
+  restoration, cursor target equivalence, and overlay ordering.
+- After task 4: `go test -race -count=1 ./...`, `go build ./...`,
+  `./scripts/verify.sh`, and `git diff --check` pass; inspect wide split and
+  narrow fallback in a real terminal.
+
+## Risks and Mitigations
+
+| Risk | Impact | Mitigation |
+| --- | --- | --- |
+| Display-row offsets diverge from the current line-stream offsets | High | Make the projection pure first; migrate offset/cursor logic only after row mapping and target-equivalence tests exist. |
+| A paired replacement selects the old target rather than the current unified target | High | Define target priority at the row boundary: new/right, then old/left only if no new target; regression-test Enter targets. |
+| Comment/editor rows break two-column vertical alignment | High | Emit them as explicit full-width rows immediately after their anchor; test old-then-new overlay ordering on paired rows. |
+| Split columns become unreadable on common widths | Medium | Enforce the approved 160-column automatic unified fallback, render an explicit reason, and test resize restoration. |
+| ANSI/color or wide characters misalign cell separators | High | Lay out escaped, unstyled text using existing display-width helpers, clip before styling, and extend color-removal/alignment tests. |
+| Guide detail has a separate assembly path | Medium | Reuse the same projection after guide unit assembly and test repeated file occurrences. |
+
+## Open Questions
+
+None. The approved specification fixes the interactive `S` toggle, tab-local
+non-persistence, preserved comment semantics, and automatic unified fallback
+below 160 columns.
+
 # Implementation Plan: Calm Review Workspace Layout
 
 ## Overview

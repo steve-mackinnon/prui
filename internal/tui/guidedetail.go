@@ -8,8 +8,10 @@ import (
 // guideDetail is the selected guide's diff assembled from its ordered section
 // unit IDs. Lines carry the same optional review targets as unitLines emits.
 type guideDetail struct {
-	lines []diffLine
-	files []fileAnchor
+	lines      []diffLine
+	files      []fileAnchor
+	splitLines []diffLine
+	splitFiles []fileAnchor
 }
 
 type fileAnchor struct {
@@ -21,7 +23,15 @@ type fileAnchor struct {
 // anchorFor resolves a selectable hierarchy row to its guide-detail offset.
 // Guide rows deliberately have no anchor so entering one preserves its scroll.
 func anchorFor(detail guideDetail, r row) (int, bool) {
-	for _, anchor := range detail.files {
+	return anchorForLayout(detail, r, false)
+}
+
+func anchorForLayout(detail guideDetail, r row, sideBySide bool) (int, bool) {
+	anchors := detail.files
+	if sideBySide {
+		anchors = detail.splitFiles
+	}
+	for _, anchor := range anchors {
 		if anchor.section != r.section {
 			continue
 		}
@@ -43,6 +53,10 @@ func detailFor(s *review.Session, guide int) guideDetail {
 		index[u.ID] = i
 	}
 	var detail guideDetail
+	appendLines := func(lines []diffLine) {
+		detail.lines = append(detail.lines, lines...)
+		detail.splitLines = append(detail.splitLines, projectSideBySideDetail(lines)...)
+	}
 	previous := -1
 	for si, section := range s.Guides.Items[guide].Sections {
 		for _, id := range section.UnitIDs {
@@ -53,13 +67,15 @@ func detailFor(s *review.Session, guide int) guideDetail {
 			file := s.UnitFiles[unit]
 			if file != previous && s.Inventory.Units[unit].Kind != inventory.FileMetadata {
 				detail.files = append(detail.files, fileAnchor{section: si, file: file, offset: len(detail.lines)})
-				detail.lines = append(detail.lines, diffLine{styledLine: styledLine{Class: classFileHeader, Text: fileDivider(s.Inventory.Files[file])}})
+				detail.splitFiles = append(detail.splitFiles, fileAnchor{section: si, file: file, offset: len(detail.splitLines)})
+				appendLines([]diffLine{{styledLine: styledLine{Class: classFileHeader, Text: fileDivider(s.Inventory.Files[file])}}})
 			}
 			if file != previous && s.Inventory.Units[unit].Kind == inventory.FileMetadata {
 				detail.files = append(detail.files, fileAnchor{section: si, file: file, offset: len(detail.lines)})
+				detail.splitFiles = append(detail.splitFiles, fileAnchor{section: si, file: file, offset: len(detail.splitLines)})
 			}
 			previous = file
-			detail.lines = append(detail.lines, unitLines(s, unit)...)
+			appendLines(unitLines(s, unit))
 		}
 	}
 	return detail

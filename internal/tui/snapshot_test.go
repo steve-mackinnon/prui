@@ -42,6 +42,14 @@ func TestScreenSnapshots(t *testing.T) {
 	}{
 		{"review_wide", 120, 12, func(m *Model) { m.Focus = paneDiff }},
 		{"review_narrow", 60, 10, func(m *Model) { m.Focus = paneDiff }},
+		{"review_side_by_side_wide", 160, 12, func(m *Model) {
+			m.Focus = paneDiff
+			key(m, 'S')
+		}},
+		{"review_side_by_side_narrow_fallback", 159, 12, func(m *Model) {
+			m.Focus = paneDiff
+			key(m, 'S')
+		}},
 		{"description_wide", 120, 12, func(m *Model) {
 			description := "A frozen pull request description."
 			m.Session.PullRequestDescription = &description

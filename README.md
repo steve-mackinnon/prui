@@ -61,6 +61,13 @@ groups all shortcuts under Navigate, Review, Views, Diagnostics, and App. The
 review surface keeps only `ctrl+p` discoverable because switching PRs is the
 primary workspace action.
 
+Diff detail opens in unified layout. Press `S` to prefer side-by-side source
+rows for the active review tab; that preference stays in memory only and is not
+shared with another open PR. At fewer than 160 terminal columns, the TUI keeps
+the preference but automatically renders unified detail and says
+`side-by-side needs 160 columns`; split detail resumes after resizing to 160
+columns. Plain output is always unified.
+
 ## Keyboard
 
 | Key | Action |
@@ -69,6 +76,7 @@ primary workspace action.
 | `n` | Next guide row; next unit in the file plan and inventory |
 | `]` / `[` | Next / previous guide, or file slice without guides |
 | `G` | Switch between the guide hierarchy and the deterministic file plan |
+| `S` | Toggle side-by-side detail; unified is the default and narrow terminals fall back below 160 columns |
 | `v` / `V` | Next / previous PR context view: Changes, Description, or Commits |
 | `tab` | Expand / collapse the selected guide or section |
 | `ctrl+h` / `ctrl+l` | Focus list / diff |

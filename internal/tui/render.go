@@ -164,6 +164,166 @@ func diffRangeStart(raw []byte) (start int, rest []byte, ok bool) {
 	return start, raw[i:], true
 }
 
+// diffCell is one side of an aligned diff row. line keeps the escaped source
+// text and immutable review target separate from its display line number.
+type diffCell struct {
+	line   *diffLine
+	number int
+}
+
+// diffRow is either one aligned old/new source row or one full-width
+// structural row. It is presentation data only and never changes unitLines.
+type diffRow struct {
+	old, new *diffCell
+	full     *diffLine
+}
+
+// projectSideBySideRows aligns a text hunk's already escaped diff lines. A
+// deletion run pairs only with immediately following additions; all other
+// structural lines stay full width.
+func projectSideBySideRows(lines []diffLine) []diffRow {
+	rows := make([]diffRow, 0, len(lines))
+	oldNumber, newNumber := 0, 0
+	deletions := make([]diffLine, 0)
+	cell := func(sourceLine diffLine, number int) *diffCell {
+		return &diffCell{line: &sourceLine, number: number}
+	}
+	flushDeletions := func() {
+		for _, line := range deletions {
+			rows = append(rows, diffRow{old: cell(line, oldNumber)})
+			oldNumber++
+		}
+		deletions = deletions[:0]
+	}
+
+	for _, line := range lines {
+		if old, new, ok := hunkStarts([]byte(line.Text)); ok {
+			flushDeletions()
+			oldNumber, newNumber = old, new
+			line := line
+			rows = append(rows, diffRow{full: &line})
+			continue
+		}
+		if strings.HasPrefix(line.Text, `\ No newline at end of file`) {
+			flushDeletions()
+			line := line
+			rows = append(rows, diffRow{full: &line})
+			continue
+		}
+
+		switch {
+		case line.Class == classRemoved && strings.HasPrefix(line.Text, "-"):
+			deletions = append(deletions, line)
+		case line.Class == classAdded && strings.HasPrefix(line.Text, "+"):
+			for len(deletions) > 0 {
+				old := deletions[0]
+				deletions = deletions[1:]
+				rows = append(rows, diffRow{old: cell(old, oldNumber), new: cell(line, newNumber)})
+				oldNumber++
+				newNumber++
+				goto next
+			}
+			rows = append(rows, diffRow{new: cell(line, newNumber)})
+			newNumber++
+		case line.Class == classContext && strings.HasPrefix(line.Text, " "):
+			flushDeletions()
+			oldLine := line
+			oldLine.target = nil
+			rows = append(rows, diffRow{old: cell(oldLine, oldNumber), new: cell(line, newNumber)})
+			oldNumber++
+			newNumber++
+		default:
+			flushDeletions()
+			line := line
+			rows = append(rows, diffRow{full: &line})
+		}
+	next:
+	}
+	flushDeletions()
+	return rows
+}
+
+const sideBySideMinimumWidth = 160
+
+// renderSideBySideDetail renders aligned source rows into the current detail
+// pane. Full rows deliberately remain single cards: only source cells get the
+// central separator and shared horizontal code offset.
+func renderSideBySideDetail(lines []diffLine, width, horizontal int) []diffLine {
+	return renderProjectedSideBySideDetail(projectSideBySideDetail(lines), width, horizontal)
+}
+
+// projectSideBySideDetail turns source lines into logical split rows. Model
+// uses these rows before it attaches comment overlays so guide anchors and
+// focused-row navigation keep the same coordinate system as rendering.
+func projectSideBySideDetail(lines []diffLine) []diffLine {
+	rows := projectSideBySideRows(lines)
+	projected := make([]diffLine, 0, len(rows))
+	for _, row := range rows {
+		line := diffLine{sideBySide: &row, target: rowTarget(row)}
+		if row.full != nil {
+			line.styledLine = row.full.styledLine
+			line.target = row.full.target
+		}
+		projected = append(projected, line)
+	}
+	return projected
+}
+
+// renderProjectedSideBySideDetail renders logical rows assembled by Model so
+// cursor and overlays share the same row indices as the visible split view.
+func renderProjectedSideBySideDetail(lines []diffLine, width, horizontal int) []diffLine {
+	rendered := make([]diffLine, 0, len(lines))
+	cellWidth := max(1, (max(1, width)-visibleWidth(" │ "))/2)
+	for _, line := range lines {
+		if line.sideBySide == nil {
+			rendered = append(rendered, diffLine{styledLine: styledLine{
+				Class: line.Class,
+				Text:  styleLine(line.Class, clip(line.Text, width)),
+			}, target: line.target, commentID: line.commentID})
+			continue
+		}
+		row := *line.sideBySide
+		if row.full != nil {
+			rendered = append(rendered, diffLine{styledLine: styledLine{
+				Class: classPlain,
+				Text:  styleLine(row.full.Class, clip(row.full.Text, width)),
+			}, target: line.target, commentID: line.commentID})
+			continue
+		}
+		old := renderSideBySideCell(row.old, cellWidth, horizontal)
+		new := renderSideBySideCell(row.new, cellWidth, horizontal)
+		rendered = append(rendered, diffLine{styledLine: styledLine{Class: classPlain, Text: old + " │ " + new}, target: line.target, commentID: line.commentID})
+	}
+	return rendered
+}
+
+func renderSideBySideCell(cell *diffCell, width, horizontal int) string {
+	if cell == nil || cell.line == nil {
+		return strings.Repeat(" ", width)
+	}
+	marker, text := splitPatchMarker(cell.line.Text)
+	gutter := fmt.Sprintf("%5d %s ", cell.number, marker)
+	runes := []rune(text)
+	text = string(runes[min(max(0, horizontal), len(runes)):])
+	text = clip(text, max(0, width-visibleWidth(gutter)))
+	value := gutter + text
+	value += strings.Repeat(" ", max(0, width-visibleWidth(value)))
+	return styleLine(cell.line.Class, value)
+}
+
+func splitPatchMarker(text string) (marker, source string) {
+	if text == "" {
+		return " ", ""
+	}
+	runes := []rune(text)
+	switch runes[0] {
+	case '+', '-', ' ':
+		return string(runes[0]), string(runes[1:])
+	default:
+		return " ", text
+	}
+}
+
 // patchTarget maps a raw patch body line and advances counters according to
 // unified-diff grammar. Headers and no-newline markers never receive targets.
 func patchTarget(s *review.Session, f inventory.FileChange, raw []byte, oldLine, newLine *int) *source.ReviewCommentTarget {

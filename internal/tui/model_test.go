@@ -516,6 +516,128 @@ func TestDiffCursorTracksScrollingAndTabStateWithoutChangingReviewSelection(t *t
 	}
 }
 
+func TestSideBySideTabPreferenceIsIsolatedAcrossOpenReviews(t *testing.T) {
+	m := New(context.Background(), nil)
+	first, second := kindsSession(), kindsSession()
+	first.Inventory.Comparison.Metadata.Identity.Number = 1
+	second.Inventory.Comparison.Metadata.Identity.Number = 2
+	m.openReviewTab(first)
+	m.Width, m.Height = sideBySideMinimumWidth, 12
+
+	key(m, 'S')
+	if m.diffLayout() != diffLayoutSideBySide {
+		t.Fatal("S did not enable the first tab's side-by-side preference")
+	}
+	m.openReviewTab(second)
+	if m.diffLayout() != diffLayoutUnified {
+		t.Fatal("first tab's side-by-side preference leaked to newly opened tab")
+	}
+	key(m, 'S')
+	m.activateTab(0)
+	if m.diffLayout() != diffLayoutSideBySide {
+		t.Fatal("first tab did not restore its side-by-side preference")
+	}
+	m.activateTab(1)
+	if m.diffLayout() != diffLayoutSideBySide {
+		t.Fatal("second tab did not retain its own side-by-side preference")
+	}
+}
+
+func TestDiffLayoutDefaultsToUnifiedAndSTogglesOnlyChanges(t *testing.T) {
+	m := New(context.Background(), nil)
+	m.Loading = false
+	m.openReviewTab(kindsSession())
+	m.Width, m.Height = sideBySideMinimumWidth, 12
+
+	if got := m.diffLayout(); got != diffLayoutUnified {
+		t.Fatalf("initial diff layout = %v, want unified", got)
+	}
+	key(m, 'S')
+	if got := m.diffLayout(); got != diffLayoutSideBySide {
+		t.Fatalf("S in Changes layout = %v, want side-by-side", got)
+	}
+	m.selectReviewView(viewDescription)
+	key(m, 'S')
+	if got := m.diffLayout(); got != diffLayoutSideBySide {
+		t.Fatalf("S outside Changes changed layout to %v", got)
+	}
+}
+
+func TestDiffLayoutRestoresPreferredSideBySideAtMinimumWidth(t *testing.T) {
+	m := New(context.Background(), nil)
+	m.Loading = false
+	m.openReviewTab(kindsSession())
+	m.Width, m.Height = sideBySideMinimumWidth, 12
+	key(m, 'S')
+
+	m.Update(tea.WindowSizeMsg{Width: sideBySideMinimumWidth - 1, Height: 12})
+	if got := m.diffLayout(); got != diffLayoutSideBySide {
+		t.Fatalf("narrow width reset preference to %v", got)
+	}
+	if m.sideBySideEnabled() {
+		t.Fatal("side-by-side enabled below its minimum width")
+	}
+	m.Update(tea.WindowSizeMsg{Width: sideBySideMinimumWidth, Height: 12})
+	if !m.sideBySideEnabled() {
+		t.Fatal("side-by-side did not resume at its minimum width")
+	}
+}
+
+func TestSideBySideResizePreservesPreferenceScrollCursorAndDraft(t *testing.T) {
+	m := New(context.Background(), nil)
+	m.Loading = false
+	m.openReviewTab(kindsSession())
+	m.Selected, m.Focus = 1, paneDiff
+	m.Update(tea.WindowSizeMsg{Width: sideBySideMinimumWidth, Height: 5})
+	key(m, 'S')
+	m.cursorActive = true
+	key(m, 'j')
+	wantTarget := *m.displayDetail()[m.cursor()].target
+	m.setOffset(1)
+	m.Composer = &commentComposer{Target: wantTarget, Draft: "keep this draft", Cursor: 4}
+
+	m.Update(tea.WindowSizeMsg{Width: sideBySideMinimumWidth - 1, Height: 5})
+	if m.diffLayout() != diffLayoutSideBySide || m.offset() != 1 {
+		t.Fatalf("narrow fallback reset preference or scroll: layout=%v offset=%d", m.diffLayout(), m.offset())
+	}
+	if m.Composer == nil || m.Composer.Draft != "keep this draft" {
+		t.Fatalf("narrow fallback lost draft: %#v", m.Composer)
+	}
+	if got := m.displayDetail()[m.cursor()].target; got == nil || *got != wantTarget {
+		t.Fatalf("narrow fallback cursor target = %#v, want %#v", got, wantTarget)
+	}
+
+	m.Update(tea.WindowSizeMsg{Width: sideBySideMinimumWidth, Height: 5})
+	if m.diffLayout() != diffLayoutSideBySide || m.offset() != 1 {
+		t.Fatalf("wide resize reset preference or scroll: layout=%v offset=%d", m.diffLayout(), m.offset())
+	}
+	if got := m.displayDetail()[m.cursor()].target; got == nil || *got != wantTarget {
+		t.Fatalf("wide resize cursor target = %#v, want %#v", got, wantTarget)
+	}
+}
+
+func TestSideBySideCursorPrefersRightTargetOnPairedRows(t *testing.T) {
+	m := New(context.Background(), nil)
+	m.Loading = false
+	m.Session = kindsSession()
+	m.Selected, m.Focus = 1, paneDiff
+	m.Width, m.Height, m.layout = sideBySideMinimumWidth, 12, diffLayoutSideBySide
+
+	for i, line := range m.displayDetail() {
+		if line.target != nil && line.target.Line == 2 {
+			m.setCursor(i)
+			break
+		}
+	}
+	if got := m.displayDetail()[m.cursor()].target; got == nil || got.Side != "RIGHT" || got.Line != 2 {
+		t.Fatalf("paired row cursor target = %#v, want RIGHT line 2", got)
+	}
+	namedKey(m, tea.KeyEnter)
+	if m.Composer == nil || m.Composer.Target.Side != "RIGHT" || m.Composer.Target.Line != 2 {
+		t.Fatalf("Enter target = %#v, want RIGHT line 2", m.Composer)
+	}
+}
+
 func TestDiffEnterOpensACommentComposerOnlyForTheCursorTarget(t *testing.T) {
 	m := New(context.Background(), nil)
 	m.Loading = false

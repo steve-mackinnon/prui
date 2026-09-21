@@ -42,8 +42,9 @@ type styledLine struct {
 // display data. The target is derived from patch bytes, never terminal text.
 type diffLine struct {
 	styledLine
-	target    *source.ReviewCommentTarget
-	commentID int64 // nonzero only for an already anchored overlay comment
+	target     *source.ReviewCommentTarget
+	commentID  int64    // nonzero only for an already anchored overlay comment
+	sideBySide *diffRow // non-nil for one logical, aligned source row
 }
 
 // palette is the semantic style table, named by meaning rather than color.

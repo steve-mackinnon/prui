@@ -463,6 +463,45 @@ func TestGuideDetailJumpsRepeatedFileOccurrence(t *testing.T) {
 	}
 }
 
+func TestSideBySideGuideJumpUsesProjectedRepeatedFileAnchor(t *testing.T) {
+	s, _, _ := guidedSession(t, splitAnalyzer{})
+	// The final section repeats a.go. Its anchor must be measured in rendered
+	// rows: its paired deletion/addition consumes one split row, not two
+	// unified lines.
+	s.Guides.Items[0].Sections = append(s.Guides.Items[0].Sections,
+		s.Guides.Items[1].Sections[0],
+		s.Guides.Items[0].Sections[1],
+	)
+	m := loaded(t, s, sideBySideMinimumWidth, 3)
+	key(m, 'S')
+
+	rows := m.rows()
+	occurrences := make([]int, 0, 2)
+	for i, r := range rows {
+		if r.kind == portionRow && r.guide == 0 && string(s.Inventory.Files[r.file].NewPath) == "a.go" {
+			occurrences = append(occurrences, i)
+		}
+	}
+	if len(occurrences) != 2 {
+		t.Fatalf("a.go occurrences = %d, want 2", len(occurrences))
+	}
+	m.Row, m.Selected = occurrences[1], rows[occurrences[1]].units[0]
+
+	want := -1
+	for i, line := range m.displayDetail() {
+		if line.sideBySide != nil && line.sideBySide.full != nil && line.sideBySide.full.Text == fileDivider(s.Inventory.Files[rows[occurrences[1]].file]) {
+			want = i
+		}
+	}
+	if want < 0 {
+		t.Fatal("repeated file divider absent from split guide detail")
+	}
+	namedKey(m, tea.KeyEnter)
+	if got := m.GuideScroll[0]; got != want {
+		t.Fatalf("split repeated a.go jump = %d, want rendered anchor %d", got, want)
+	}
+}
+
 func TestGuideFallbackEnterOnlyFocusesDiff(t *testing.T) {
 	s, _, _ := guidedSession(t, nil)
 	m := loaded(t, s, 120, 5)

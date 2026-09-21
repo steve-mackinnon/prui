@@ -1,5 +1,90 @@
 # TUI reliability and testing tasks
 
+# Side-by-Side Diff View tasks
+
+## 1. Pure aligned hunk-row projection
+
+- [x] Add a pure typed projection from text-hunk `diffLine` values to aligned
+      old/new/full-width display rows, without changing current unified output.
+- [x] Pair each deletion run only with its immediately following addition run;
+      context duplicates to both cells and unequal runs produce blank cells.
+- Acceptance: table-driven cases prove escaped cell text, line numbers,
+      semantic classes, full-width structural lines, and immutable `LEFT`/
+      `RIGHT` target equivalence.
+- Verify: write focused failing tests, then run
+      `go test ./internal/tui -run 'TestSideBySideProjection' -count=1`.
+- Depends on: approved `SPEC-side-by-side-diff.md`.
+- Files: `internal/tui/{render,render_test}.go`.
+- Estimated scope: Small (2 files).
+
+## 2. Split renderer and automatic unified fallback
+
+- [x] Render projected rows as two aligned code cells with stable gutters,
+      markers, separator, shared horizontal scrolling, and full-width cards.
+- [x] Retain current unified rendering exactly, and select it automatically
+      below 160 columns while showing the required fallback wording.
+- Acceptance: width 160 renders split text hunks; width 159 renders unified
+      detail with `side-by-side needs 160 columns`; clipping and color removal
+      preserve separators, text ordering, and terminal widths.
+- Verify: write focused failing tests, then run
+      `go test ./internal/tui -run 'Test(SideBySideRender|SideBySideFallback|Color)' -count=1`.
+- Depends on: task 1.
+- Files: `internal/tui/{model,render,style}_test.go`,
+      `internal/tui/{model,render,style}.go`.
+- Estimated scope: Medium (5 files).
+
+## Checkpoint: projection and responsive rendering
+
+- [ ] Focused projection/render/color tests pass, and the 159/160-column
+      rendered output is inspected for readable unified fallback and aligned
+      split gutters.
+
+## 3. Tab-owned layout preference and comment-safe row navigation
+
+- [x] Add the process-local `unified`/`side-by-side` preference to review-tab
+      state and route `S` only in the interactive Changes view.
+- [x] Adapt offset, cursor, editor, and remote-overlay insertion to rendered
+      rows, preserving target priority: `RIGHT` where present, otherwise
+      `LEFT` for deletion-only rows.
+- Acceptance: preferences remain isolated across tabs and survive width
+      transitions; Enter selects exactly the prior unified target; paired
+      old/new remote threads remain deterministic old-then-new rows.
+- Verify: write focused failing tests, then run
+      `go test ./internal/tui -run 'Test(SideBySide(Tab|Resize|Comment|Cursor|Overlay))' -count=1`.
+- Depends on: tasks 1-2.
+- Files: `internal/tui/{model,model_test,render_test}.go`.
+- Estimated scope: Medium (3 files).
+
+## 4. Guide integration, reviewer documentation, and complete verification
+
+- [x] Route guide-detail text hunks through the active row layout while
+      preserving repeated-file anchors, raw inventory navigation, marks, and
+      non-text cards.
+- [x] Document `S`, the default unified layout, and automatic 160-column
+      fallback in keyboard/layout documentation and Health & help.
+- [x] Add/inspect deterministic wide split and narrow fallback baselines.
+- Acceptance: file, inventory, and guide paths render equivalent source and
+      comment targets; plain output remains unified; help and README agree.
+- Verify: `go test -race -count=1 ./...`, `go build ./...`,
+      `./scripts/verify.sh`, and `git diff --check`; manually inspect both
+      layouts in a terminal.
+- Depends on: task 3.
+- Files: `internal/tui/{guidedetail,bindings,bindings_test,snapshot_test}.go`,
+      `internal/tui/testdata/screens/*`, `README.md`.
+- Estimated scope: Medium (5 files plus baselines).
+
+## Completion checkpoint
+
+- [x] All automated success criteria in `SPEC-side-by-side-diff.md` are met.
+- [ ] Wide split / narrow fallback are manually inspected in a real terminal
+      before a release; automated rendering coverage passes without a TTY.
+- [x] Full automated verification passes without changing frozen source,
+      persistence, plain output, or GitHub comment semantics.
+- [ ] The final diff is committed as an atomic feature change after the user
+      reviews the unrelated working-tree files.
+- [ ] The wide split / narrow fallback manual inspection occurs before release
+      (not performed by this non-interactive run).
+
 # Calm Review Workspace Layout tasks
 
 ## 1. Shared chrome and selection semantics

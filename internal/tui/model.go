@@ -39,6 +39,22 @@ const (
 	viewCommits
 )
 
+// diffLayout is a tab-local display preference. Its zero value deliberately
+// keeps newly opened reviews in the existing unified representation.
+type diffLayout uint8
+
+const (
+	diffLayoutUnified diffLayout = iota
+	diffLayoutSideBySide
+)
+
+func (l diffLayout) toggled() diffLayout {
+	if l == diffLayoutSideBySide {
+		return diffLayoutUnified
+	}
+	return diffLayoutSideBySide
+}
+
 // The switcher keeps a bounded set of concurrently open reviews.
 const maxTabs = 9
 
@@ -64,6 +80,7 @@ type reviewTabState struct {
 	GuideCursor                                          map[int]int
 	cursorActive                                         bool
 	Horizontal                                           int
+	layout                                               diffLayout
 	guidePathOffset, guidePathPause, guidePathGeneration int
 	Inventory                                            bool
 	Focus                                                pane
@@ -142,6 +159,7 @@ type Model struct {
 	GuideCursor                                          map[int]int
 	cursorActive                                         bool
 	Width, Height, Horizontal                            int
+	layout                                               diffLayout
 	guidePathOffset, guidePathPause, guidePathGeneration int
 	Inventory                                            bool
 	Focus                                                pane
@@ -410,9 +428,16 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case Notice:
 		m.notice = string(v)
 	case tea.WindowSizeMsg:
+		cursorTarget, cursorCommentID := m.cursorAnchor()
 		m.Width = max(1, v.Width)
 		m.Height = max(1, v.Height)
-		m.cursorInViewport(1)
+		m.restoreCursorAnchor(cursorTarget, cursorCommentID)
+		// A split-preference resize can change the number of display rows above a
+		// target. Keep its semantic cursor and saved reading offset intact across
+		// the unified fallback instead of replacing it with a nearby visible row.
+		if m.diffLayout() != diffLayoutSideBySide {
+			m.cursorInViewport(1)
+		}
 		return m, m.restartGuidePathScroll()
 	case tea.KeyPressMsg:
 		if m.Busy && v.String() == "esc" && m.cancelAction != nil {
@@ -481,6 +506,12 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "G":
 			m.Files = !m.Files
 			m.syncRow(m.rows())
+		case "S":
+			if m.selectedReviewView() == viewChanges {
+				target, commentID := m.cursorAnchor()
+				m.layout = m.layout.toggled()
+				m.restoreCursorAnchor(target, commentID)
+			}
 		case "e":
 			m.push(pageEvidence)
 			m.Inventory, m.Focus = false, paneList
@@ -642,7 +673,7 @@ func (m *Model) saveActiveReview() {
 	m.tabs[m.activeTab].review = &reviewTabState{
 		Session: m.Session, ContextView: m.ContextView, DescriptionScroll: m.DescriptionScroll, Err: m.Err, Selected: m.Selected, Row: m.Row, Files: m.Files,
 		collapsed: m.collapsed, Scroll: m.Scroll, GuideScroll: m.GuideScroll, Cursor: m.Cursor, GuideCursor: m.GuideCursor,
-		Horizontal: m.Horizontal, Inventory: m.Inventory, Focus: m.Focus, cursorActive: m.cursorActive,
+		Horizontal: m.Horizontal, layout: m.layout, Inventory: m.Inventory, Focus: m.Focus, cursorActive: m.cursorActive,
 		guidePathOffset: m.guidePathOffset, guidePathPause: m.guidePathPause, guidePathGeneration: m.guidePathGeneration,
 		Stack: m.Stack, Loading: m.Loading, Busy: m.Busy,
 		ActionError: m.ActionError, notice: m.notice, loadingFrame: m.loadingFrame,
@@ -658,7 +689,7 @@ func (m *Model) restoreReviewTab(state *reviewTabState) {
 	m.Session, m.ContextView, m.DescriptionScroll, m.Err = state.Session, state.ContextView, state.DescriptionScroll, state.Err
 	m.Selected, m.Row, m.Files = state.Selected, state.Row, state.Files
 	m.collapsed, m.Scroll, m.GuideScroll, m.Cursor, m.GuideCursor = state.collapsed, state.Scroll, state.GuideScroll, state.Cursor, state.GuideCursor
-	m.Horizontal, m.Inventory, m.Focus = state.Horizontal, state.Inventory, state.Focus
+	m.Horizontal, m.layout, m.Inventory, m.Focus = state.Horizontal, state.layout, state.Inventory, state.Focus
 	m.cursorActive = state.cursorActive
 	m.guidePathOffset, m.guidePathPause, m.guidePathGeneration = state.guidePathOffset, state.guidePathPause, state.guidePathGeneration
 	m.Stack, m.Loading, m.Busy = state.Stack, state.Loading, state.Busy
@@ -736,7 +767,7 @@ func (m *Model) openCommentComposer() tea.Cmd {
 	if cursor < 0 {
 		return nil
 	}
-	target := m.detail()[cursor].target
+	target := m.displayDetail()[cursor].target
 	if target == nil || target.Path == "" || !utf8.ValidString(target.Path) {
 		return nil
 	}
@@ -755,7 +786,7 @@ func (m *Model) openCommentActionMenu() bool {
 	if cursor < 0 {
 		return false
 	}
-	line := m.detail()[cursor]
+	line := m.displayDetail()[cursor]
 	if line.commentID <= 0 {
 		return false
 	}
@@ -870,7 +901,7 @@ func (m *Model) scroll(delta int) {
 }
 
 func (m *Model) clampOffset(offset int) int {
-	last := max(0, len(m.detail())-m.bodyHeight())
+	last := max(0, len(m.displayDetail())-m.bodyHeight())
 	return max(0, min(last, offset))
 }
 
@@ -879,7 +910,7 @@ func (m *Model) clampOffset(offset int) int {
 func (m *Model) focusDetail(rows []row) {
 	if len(rows) > 0 {
 		r := rows[max(0, min(len(rows)-1, m.Row))]
-		if offset, ok := anchorFor(detailFor(m.Session, r.guide), r); ok {
+		if offset, ok := anchorForLayout(detailFor(m.Session, r.guide), r, m.sideBySideEnabled()); ok {
 			m.setOffset(m.clampOffset(offset))
 		}
 	}
@@ -945,6 +976,81 @@ func (m *Model) detail() []diffLine {
 		}
 	}
 	return lines
+}
+
+// displayDetail is the single source of truth for rendered-row navigation.
+// Unified mode keeps its original line stream; split mode projects source rows
+// before attaching full-width comment and editor overlays.
+func (m *Model) displayDetail() []diffLine {
+	if !m.sideBySideEnabled() {
+		return m.detail()
+	}
+	return m.sideBySideDetail()
+}
+
+func (m *Model) sideBySideEnabled() bool {
+	return m.diffLayout() == diffLayoutSideBySide && m.selectedReviewView() == viewChanges && m.Width >= sideBySideMinimumWidth
+}
+
+func (m *Model) diffLayout() diffLayout { return m.layout }
+
+func (m *Model) sideBySideDetail() []diffLine {
+	base := m.baseDetail()
+	if guide, ok := m.activeGuide(); ok {
+		base = detailFor(m.Session, guide).splitLines
+	} else {
+		base = projectSideBySideDetail(base)
+	}
+	lines := make([]diffLine, 0, len(base)+len(m.Comments)+2)
+	for _, line := range base {
+		lines = append(lines, line)
+		if line.sideBySide == nil {
+			continue
+		}
+		row := *line.sideBySide
+		// A paired row can have comments on both sides. Keep their overlay
+		// order stable: old/LEFT before new/RIGHT.
+		for _, target := range rowTargets(row) {
+			for _, comment := range m.Comments {
+				if comment.Target == target && comment.ParentID == 0 {
+					lines = append(lines, m.reviewCommentThread(comment, 0)...)
+				}
+			}
+			if m.Composer != nil && m.Composer.Target == target {
+				lines = append(lines, m.inlineEditorLines()...)
+			}
+		}
+	}
+	return lines
+}
+
+func rowTargets(row diffRow) []source.ReviewCommentTarget {
+	targets := make([]source.ReviewCommentTarget, 0, 2)
+	if row.old != nil && row.old.line != nil && row.old.line.target != nil {
+		targets = append(targets, *row.old.line.target)
+	}
+	if row.new != nil && row.new.line != nil && row.new.line.target != nil {
+		targets = append(targets, *row.new.line.target)
+	}
+	if row.full != nil && row.full.target != nil {
+		targets = append(targets, *row.full.target)
+	}
+	return targets
+}
+
+// rowTarget is the sole cursor/comment-entry choice for a visible split row:
+// GitHub's current/new (RIGHT) target wins, otherwise use deleted (LEFT).
+func rowTarget(row diffRow) *source.ReviewCommentTarget {
+	if row.new != nil && row.new.line != nil && row.new.line.target != nil {
+		return row.new.line.target
+	}
+	if row.old != nil && row.old.line != nil && row.old.line.target != nil {
+		return row.old.line.target
+	}
+	if row.full != nil {
+		return row.full.target
+	}
+	return nil
 }
 
 func (m *Model) reviewCommentThread(comment source.ReviewComment, indent int) []diffLine {
@@ -1098,7 +1204,7 @@ func (m *Model) setOffset(offset int) {
 // every raw unit and guide so changing tabs or detail modes preserves review
 // context without changing the list selection.
 func (m *Model) cursor() int {
-	detail := m.detail()
+	detail := m.displayDetail()
 	if len(detail) == 0 {
 		return -1
 	}
@@ -1144,11 +1250,42 @@ func (m *Model) setCursor(line int) {
 	m.Cursor[m.Selected] = line
 }
 
+func (m *Model) cursorAnchor() (*source.ReviewCommentTarget, int64) {
+	cursor := m.cursor()
+	if cursor < 0 {
+		return nil, 0
+	}
+	line := m.displayDetail()[cursor]
+	if line.target != nil {
+		target := *line.target
+		return &target, line.commentID
+	}
+	return nil, line.commentID
+}
+
+// restoreCursorAnchor keeps a semantic selection stable while a resize or
+// layout toggle changes the number of display rows above it.
+func (m *Model) restoreCursorAnchor(target *source.ReviewCommentTarget, commentID int64) {
+	if target == nil && commentID == 0 {
+		return
+	}
+	for i, line := range m.displayDetail() {
+		if target != nil && line.target != nil && *line.target == *target {
+			m.setCursor(i)
+			return
+		}
+		if target == nil && commentID > 0 && line.commentID == commentID {
+			m.setCursor(i)
+			return
+		}
+	}
+}
+
 func (m *Model) moveCursor(delta int) {
 	if delta == 0 {
 		return
 	}
-	detail, current := m.detail(), m.cursor()
+	detail, current := m.displayDetail(), m.cursor()
 	if current < 0 {
 		return
 	}
@@ -1176,7 +1313,7 @@ func (m *Model) cursorInViewport(delta int) {
 	if current >= start && current < end {
 		return
 	}
-	detail := m.detail()
+	detail := m.displayDetail()
 	if delta < 0 {
 		for i := min(len(detail)-1, end-1); i >= start; i-- {
 			if detail[i].target != nil || detail[i].commentID > 0 {
@@ -1290,6 +1427,13 @@ func (m *Model) guideConsentView() string {
 	return "Generate OpenAI guide?\n\nThis sends bounded pinned patches and repository evidence to OpenAI. Exclusions and credential-like content are withheld. The request uses store:false; your API key is not persisted.\n\nenter: send source and generate a new guided session | esc: cancel | q: quit"
 }
 func (m *Model) reviewView() string {
+	return m.reviewViewForLayout(m.diffLayout() == diffLayoutSideBySide)
+}
+
+// reviewViewForLayout is the layout boundary used by the tab preference added
+// in the next slice. Keeping the choice an argument here leaves this slice
+// stateless while making its responsive fallback directly testable.
+func (m *Model) reviewViewForLayout(preferSideBySide bool) string {
 	s := m.Session
 	title := m.contextViewTabs()
 	if m.selectedReviewView() != viewChanges {
@@ -1335,6 +1479,10 @@ func (m *Model) reviewView() string {
 		guide, _ := m.activeGuide()
 		text += fmt.Sprintf(" %d/%d", guide+1, len(s.Guides.Items))
 	}
+	useSideBySide := preferSideBySide && m.Width >= sideBySideMinimumWidth
+	if preferSideBySide && !useSideBySide {
+		text += " · side-by-side needs 160 columns"
+	}
 	header := styleLine(headerClass, text)
 	bodyHeight := m.bodyHeight()
 	leftWidth := m.listWidth()
@@ -1360,18 +1508,27 @@ func (m *Model) reviewView() string {
 	start := max(0, firstDisplayLine(list, selectedRow)-bodyHeight+1)
 	list = list[start:min(len(list), start+bodyHeight)]
 	detail := m.detail()
+	if useSideBySide {
+		if m.sideBySideEnabled() {
+			detail = renderProjectedSideBySideDetail(m.displayDetail(), m.detailWidth(), m.Horizontal)
+		} else {
+			detail = renderSideBySideDetail(detail, m.detailWidth(), m.Horizontal)
+		}
+	}
 	offset := min(m.offset(), max(0, len(detail)-1))
 	detail = detail[offset:min(len(detail), offset+bodyHeight)]
 	// Horizontal scrolling stays on unstyled text; styles are applied after clipping.
-	for i, line := range detail {
-		runes := []rune(line.Text)
-		marker := ""
-		if m.cursorActive {
-			marker = cursorMarker(offset+i == m.cursor())
-		}
-		detail[i].Text = marker + string(runes[min(m.Horizontal, len(runes)):])
-		if line.commentID > 0 && offset+i == m.cursor() {
-			detail[i].Class = selectedClass(true)
+	if !useSideBySide {
+		for i, line := range detail {
+			runes := []rune(line.Text)
+			marker := ""
+			if m.cursorActive {
+				marker = cursorMarker(offset+i == m.cursor())
+			}
+			detail[i].Text = marker + string(runes[min(m.Horizontal, len(runes)):])
+			if line.commentID > 0 && offset+i == m.cursor() {
+				detail[i].Class = selectedClass(true)
+			}
 		}
 	}
 	body := []string{}
