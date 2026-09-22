@@ -8,6 +8,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 	"pr-review/internal/inventory"
 	"pr-review/internal/review"
 	"pr-review/internal/session"
@@ -1121,17 +1122,25 @@ func (m *Model) reviewCommentLinesAt(comment source.ReviewComment, indent int) [
 	prefix := strings.Repeat(" ", 2+indent)
 	border := prefix + "+" + strings.Repeat("-", inner+2) + "+"
 	line := func(class lineClass, text string) diffLine {
-		text = clip(text, inner)
 		text += strings.Repeat(" ", max(0, inner-visibleWidth(text)))
 		return diffLine{styledLine: styledLine{Class: class, Text: prefix + "| " + text + " |"}, commentID: comment.ID}
 	}
-	author := Escape(comment.Author)
+	wrappedLines := func(class lineClass, text string) []diffLine {
+		wrapped := ansi.Wrap(Escape(text), inner, "")
+		lines := make([]diffLine, 0, strings.Count(wrapped, "\n")+1)
+		for _, part := range strings.Split(wrapped, "\n") {
+			lines = append(lines, line(class, part))
+		}
+		return lines
+	}
+	author := comment.Author
 	if author == "" {
 		author = "unknown"
 	}
-	lines := []diffLine{{styledLine: styledLine{Class: classMetadata, Text: border}, commentID: comment.ID}, line(classMetadata, "@"+author)}
+	lines := []diffLine{{styledLine: styledLine{Class: classMetadata, Text: border}, commentID: comment.ID}}
+	lines = append(lines, wrappedLines(classMetadata, "@"+author)...)
 	for _, body := range strings.Split(comment.Body, "\n") {
-		lines = append(lines, line(classPlain, Escape(body)))
+		lines = append(lines, wrappedLines(classPlain, body)...)
 	}
 	return append(lines, diffLine{styledLine: styledLine{Class: classMetadata, Text: m.commentBottomBorder(prefix, inner, comment.ID)}, commentID: comment.ID})
 }
@@ -1216,7 +1225,7 @@ func (m *Model) overlayInnerWidth(indent int) int {
 	if m.reviewUsesPaneFrames() {
 		reserved++ // keep nested overlay borders visually clear of the pane edge
 	}
-	return max(8, min(68, m.detailWidth()-(2+indent)-reserved))
+	return max(8, m.detailWidth()-(2+indent)-reserved)
 }
 
 func (m *Model) detailWidth() int {

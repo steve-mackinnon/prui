@@ -787,6 +787,36 @@ func TestInlineCommentsRenderOnlyAtExactFrozenTargets(t *testing.T) {
 	}
 }
 
+func TestReviewCommentUsesAvailableDetailWidthAndWrapsLongBody(t *testing.T) {
+	m := New(context.Background(), nil)
+	m.Loading = false
+	m.Session = kindsSession()
+	m.Width, m.Height = 180, 24
+	comment := source.ReviewComment{
+		ID:     1,
+		Author: "reviewer",
+		Body:   "This comment should wrap inside the available review pane instead of being clipped after a narrow fixed-width box. The final words must remain visible.",
+	}
+
+	lines := m.reviewCommentLines(comment)
+	if inner := m.overlayInnerWidth(0); inner <= 68 {
+		t.Fatalf("comment inner width = %d, want more than the previous 68-column cap", inner)
+	}
+	if len(lines) < 5 { // border, author, at least two body rows, border
+		t.Fatalf("long comment body was not wrapped: %#v", lines)
+	}
+	rendered := strings.Join(func() []string {
+		out := make([]string, len(lines))
+		for i := range lines {
+			out[i] = lines[i].Text
+		}
+		return out
+	}(), "\n")
+	if !strings.Contains(rendered, "The final words") || !strings.Contains(rendered, "must remain visible.") {
+		t.Fatalf("wrapped comment lost trailing text:\n%s", rendered)
+	}
+}
+
 func TestCommentCursorOpensLocalActionMenuAndEscapeDoesNotWrite(t *testing.T) {
 	m := New(context.Background(), nil)
 	m.Loading = false
