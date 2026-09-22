@@ -159,6 +159,7 @@ func TestSideBySideRenderAtMinimumWidth(t *testing.T) {
 	m.Loading = false
 	m.Session = screenSession()
 	m.Width, m.Height = 160, 12
+	m.Focus, m.cursorActive = paneDiff, true
 
 	view := ansi.Strip(m.reviewViewForLayout(true))
 	for _, want := range []string{"@@ -1 +1 @@", "    1 - old greeting", "│     1 + hello world"} {
@@ -168,6 +169,9 @@ func TestSideBySideRenderAtMinimumWidth(t *testing.T) {
 	}
 	if !containsLine(view, "old greeting", "hello world") {
 		t.Fatalf("split source cells did not share a display row:\n%s", view)
+	}
+	if !containsLine(view, "› ", "old greeting", "hello world") {
+		t.Fatalf("split view did not render the active diff cursor:\n%s", view)
 	}
 }
 

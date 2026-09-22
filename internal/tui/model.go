@@ -1564,17 +1564,24 @@ func (m *Model) reviewViewForLayout(preferSideBySide bool) string {
 	offset := min(m.offset(), max(0, len(detail)-1))
 	detail = detail[offset:min(len(detail), offset+bodyHeight)]
 	// Horizontal scrolling stays on unstyled text; styles are applied after clipping.
-	if !useSideBySide {
-		for i, line := range detail {
-			runes := []rune(line.Text)
-			marker := ""
-			if m.cursorActive {
-				marker = cursorMarker(offset+i == m.cursor())
-			}
-			detail[i].Text = marker + string(runes[min(m.Horizontal, len(runes)):])
+	// Split rows need the same stable cursor gutter as unified rows. Without it,
+	// a focused comment target remains selectable but has no visible location.
+	for i, line := range detail {
+		marker := ""
+		if m.cursorActive {
+			marker = cursorMarker(offset+i == m.cursor())
+		}
+		if useSideBySide {
+			detail[i].Text = marker + line.Text
 			if line.commentID > 0 && offset+i == m.cursor() {
 				detail[i].Class = selectedClass(true)
 			}
+			continue
+		}
+		runes := []rune(line.Text)
+		detail[i].Text = marker + string(runes[min(m.Horizontal, len(runes)):])
+		if line.commentID > 0 && offset+i == m.cursor() {
+			detail[i].Class = selectedClass(true)
 		}
 	}
 	body := []string{}
