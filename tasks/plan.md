@@ -1,5 +1,58 @@
 # TUI reliability and automated verification
 
+# Implementation Plan: Split-Diff Pane Cursor and Comment Targeting
+
+## Overview
+
+Make split-diff selection cell-aware so the visible cursor identifies one
+commentable old/new source cell and `enter` submits that cell's immutable
+GitHub target. The work repairs the missing split cursor and adds an explicit
+`P` side toggle without changing the GitHub client contract or the existing
+unified fallback.
+
+## Architecture Decisions
+
+- Store source selection as a complete `ReviewCommentTarget`; keep comment-card
+  selection as its stable comment ID. Rendered row indexes are derived state.
+- A split row exposes all valid source targets, with `RIGHT` then `LEFT` only
+  as the initial/fallback priority. Context remains right-only.
+- Render the existing text chevron inside a reserved gutter for each source
+  cell. `P` changes selection only if the same row has another valid target.
+- Retain semantic selection through `S`, resize, guide/raw-detail projection,
+  scrolling, and per-tab save/restore. No new persisted field is introduced.
+
+## Dependency Graph
+
+```text
+semantic target/comment selection
+        |
+        +-- split cell cursor gutter and target-aware rendering
+        |       |
+        |       +-- P key routing, help, composer integration
+        |               |
+        |               +-- guides/resize/overlay regressions and docs
+```
+
+## Task List
+
+See the `Split-Diff Pane Cursor and Comment Targeting tasks` section in
+`tasks/todo.md`. Tasks 1–3 are sequential because they share the cursor-state
+contract; task 4 verifies integration after that contract is stable.
+
+## Risks and Mitigations
+
+| Risk | Impact | Mitigation |
+| --- | --- | --- |
+| Row indexes change between layouts/overlays | High | Select full target/comment identity and resolve its current display row only when rendering or moving. |
+| Left context is offered to GitHub | High | Preserve raw-patch target rules: only deleted cells are `LEFT`; context stays `RIGHT`. |
+| Cursor gutters misalign colored or wide text | High | Reserve/gauge gutter before clipping and assert ANSI-free display widths. |
+| Existing comments become confused with source selection | Medium | Keep comment-ID selection distinct; P is a no-op on comment cards. |
+
+## Open Questions
+
+None. `P` is the approved unbound side-toggle key; `S` continues to select the
+layout.
+
 # Implementation Plan: Side-by-Side Diff View
 
 ## Overview

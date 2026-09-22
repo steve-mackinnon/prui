@@ -1,5 +1,137 @@
 # TUI reliability and testing tasks
 
+# Split-Diff Pane Cursor and Comment Targeting tasks
+
+## 1. Semantic cursor selection foundation
+
+**Description:** Replace split mode's row-only cursor authority with a
+semantic selection that can name either a full frozen source target or a
+stable comment ID. Expose all valid cell targets for a projected row while
+retaining `RIGHT`, then `LEFT` as the initial/fallback preference.
+
+**Acceptance criteria:**
+- [ ] A paired deletion/addition row can resolve both its exact `LEFT` and
+      `RIGHT` targets; context resolves only its `RIGHT` target.
+- [ ] Selection restoration across unified/split projection finds the same
+      target rather than relying on a stale display-row offset.
+- [ ] Comment-card selection remains ID-based and distinct from source-cell
+      selection.
+
+**Verification:**
+- [ ] Add focused table/model regressions, then run
+      `go test ./internal/tui -run 'Test(SideBySideCursor|DiffCursor|CommentCursor)' -count=1`.
+
+**Dependencies:** approved `SPEC-split-diff-pane-cursor.md`.
+
+**Files likely touched:**
+- `internal/tui/model.go`
+- `internal/tui/model_test.go`
+
+**Estimated scope:** Small (2 files).
+
+## 2. Cell-level split cursor rendering
+
+**Description:** Render a color-independent cursor gutter in each split source
+cell, with the chevron on the selected target, while retaining stable gutters,
+separator alignment, and shared horizontal clipping.
+
+**Acceptance criteria:**
+- [ ] The initial split selection visibly marks the `RIGHT` cell on paired and
+      context rows, or the `LEFT` cell on deletion-only rows.
+- [ ] Both cells reserve identical cursor-gutter width; color removal, escaped
+      control input, and wide-rune clipping preserve alignment.
+- [ ] Structural rows and comment cards remain full-width and do not fabricate
+      a cell cursor.
+
+**Verification:**
+- [ ] Add focused render tests, then run
+      `go test ./internal/tui -run 'Test(SideBySide(Render|Cursor)|Color)' -count=1`.
+
+**Dependencies:** task 1.
+
+**Files likely touched:**
+- `internal/tui/render.go`
+- `internal/tui/render_test.go`
+- `internal/tui/style.go`
+- `internal/tui/style_test.go`
+
+**Estimated scope:** Medium (4 files).
+
+## Checkpoint: target identity and visible cursor
+
+- [ ] Focused cursor/render/color tests pass at 160 columns, with a visible
+      chevron on a right-only, left-only, and paired source row.
+- [ ] `git diff --check` passes.
+
+## 3. Side toggle and composer flow
+
+**Description:** Route `P` only from a focused eligible split diff. It switches
+between valid cells on the current row, preserves vertical position, and makes
+`enter` open the existing composer against the selected target. Document the
+binding and active side.
+
+**Acceptance criteria:**
+- [ ] `P` alternates a paired row between precise `RIGHT` and `LEFT` targets;
+      one-sided rows retain selection and give a non-error notice.
+- [ ] `enter` opens the composer for the selected side; composer/menu/action
+      input cannot silently change that target.
+- [ ] `P` is unavailable in unified/narrow fallback and on comment cards;
+      help and the visible side label agree with key behavior.
+
+**Verification:**
+- [ ] Add focused model/binding regressions, then run
+      `go test ./internal/tui -run 'Test(SideBySideCursor|DiffEnter|CommentComposer|.*Help)' -count=1`.
+
+**Dependencies:** tasks 1–2.
+
+**Files likely touched:**
+- `internal/tui/model.go`
+- `internal/tui/model_test.go`
+- `internal/tui/bindings.go`
+- `internal/tui/bindings_test.go`
+- `README.md`
+
+**Estimated scope:** Medium (5 files).
+
+## 4. Projection-boundary regressions and completion checks
+
+**Description:** Prove that cell selection remains correct through the places
+that change detail projection or vertical placement: resize, unified fallback,
+tab switching, guide/raw views, remote comment overlays, and drafts. Update
+deterministic screen baselines if their documented renderer requires it.
+
+**Acceptance criteria:**
+- [ ] A selected `LEFT` or `RIGHT` source target survives `S`, 159/160-column
+      transitions, tab switching, and guide/raw navigation whenever that target
+      remains in the active detail.
+- [ ] Overlay ordering and comment-card actions remain unchanged; no invalid
+      old-context target can be selected.
+- [ ] Documentation, snapshots, plain output, and the full test suite agree.
+
+**Verification:**
+- [ ] Run `go test -race -count=1 ./...`.
+- [ ] Run `go build ./...`, `./scripts/verify.sh`, and `git diff --check`.
+- [ ] Manually inspect a 160-column split diff: select both sides of a paired
+      replacement, resize below/above 160, and open/cancel a composer on each.
+
+**Dependencies:** task 3.
+
+**Files likely touched:**
+- `internal/tui/model_test.go`
+- `internal/tui/guides_test.go`
+- `internal/tui/snapshot_test.go`
+- `internal/tui/testdata/screens/*`
+- `README.md`
+
+**Estimated scope:** Medium (5 files plus baselines).
+
+## Completion checkpoint
+
+- [ ] All success criteria in `SPEC-split-diff-pane-cursor.md` are met.
+- [ ] Full automated verification passes with no GitHub contract, persistence,
+      or plain-output change.
+- [ ] The 160-column split interaction is manually inspected before release.
+
 # Side-by-Side Diff View tasks
 
 ## 1. Pure aligned hunk-row projection
