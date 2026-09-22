@@ -200,6 +200,7 @@ type Model struct {
 	notify                                               func(string)
 	listPullRequests                                     PullRequestLoader
 	openPullRequest                                      PullRequestOpener
+	refreshPullRequest                                   PullRequestRefresher
 	generateGuide                                        GuideLoader
 	submitComment                                        CommentSubmitter
 	readComments                                         CommentReader
@@ -222,6 +223,7 @@ type Model struct {
 
 type PullRequestLoader func(context.Context, string) ([]source.PullRequest, error)
 type PullRequestOpener func(context.Context, string, source.Identity, func(string)) (*review.Session, error)
+type PullRequestRefresher func(context.Context, *review.Session, func(string)) (*review.Session, error)
 
 func newModel(parent context.Context) *Model {
 	ctx, cancel := context.WithCancel(parent)
@@ -350,7 +352,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.begin()
 		if v.Err == nil && v.Session != nil {
-			return m, m.refreshComments()
+			return m, tea.Batch(m.refreshCommentsInBackground(), m.refreshOpenedPullRequest(m.activeTab, v.Session))
 		}
 	case ActionResult:
 		v.Err = m.finishAction(v.Err)
@@ -389,26 +391,12 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		active := m.activeTab
 		busy, actionErr, notice := m.Busy, m.ActionError, m.notice
 		v.Err = m.finishAction(v.Err)
-		apply := func(state *reviewTabState) {
-			if state == nil || state.commentGeneration != v.Generation {
-				return
-			}
-			if v.Err != nil {
-				state.ActionError = v.Err
-				return
-			}
-			state.Comments = commentOverlay(v.Comments, state.Session)
-		}
-		if v.Target == active {
-			state := &reviewTabState{Session: m.Session, Comments: m.Comments, commentGeneration: m.commentGeneration, ActionError: m.ActionError}
-			apply(state)
-			m.Comments, m.ActionError = state.Comments, state.ActionError
-		} else if v.Target >= 0 && v.Target < len(m.tabs) {
-			apply(m.tabs[v.Target].review)
-		}
+		m.applyCommentListResult(v.Target, v.Generation, v.Comments, v.Err)
 		if active != v.Target {
 			m.Busy, m.ActionError, m.notice = busy, actionErr, notice
 		}
+	case BackgroundCommentListResult:
+		m.applyCommentListResult(v.Target, v.Generation, v.Comments, v.Err)
 	case ViewerResult:
 		v.Err = m.finishAction(v.Err)
 		if v.Target == m.activeTab {
@@ -431,12 +419,34 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			m.registerReviewTab(v.Session, active == v.Target)
 			if active == v.Target {
-				return m, m.refreshComments()
+				return m, tea.Batch(m.refreshCommentsInBackground(), m.refreshOpenedPullRequest(m.activeTab, v.Session))
 			}
 		}
 		if active != v.Target {
 			m.Busy, m.ActionError, m.notice = busy, actionErr, notice
 		}
+	case PullRequestRefreshResult:
+		if v.Err != nil || v.Session == nil || v.Target < 0 || v.Target >= len(m.tabs) {
+			return m, nil
+		}
+		state := m.tabs[v.Target].review
+		if state == nil || state.Session == nil || state.Session.ID != v.SessionID {
+			return m, nil
+		}
+		if state.Session.Inventory.Comparison.InventoryID == v.Session.Inventory.Comparison.InventoryID {
+			state.Session = v.Session
+			if v.Target == m.activeTab {
+				m.Session = v.Session
+			}
+			return m, nil
+		}
+		// A changed immutable comparison has a fresh session and must not inherit
+		// reading progress or detail offsets from the old source.
+		m.tabs[v.Target].review = newReviewTabState(v.Session)
+		if v.Target == m.activeTab {
+			m.restoreReviewTab(m.tabs[v.Target].review)
+		}
+		return m, m.refreshCommentsInBackground()
 	case PullRequestListResult:
 		active := m.activeTab
 		busy, actionErr, notice := m.Busy, m.ActionError, m.notice

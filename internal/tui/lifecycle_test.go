@@ -422,6 +422,48 @@ func TestPullRequestOpeningUsesWorkspaceTabsWithoutReplacingOtherReviews(t *test
 	}
 }
 
+func TestPullRequestRefreshKeepsCachedReviewInteractive(t *testing.T) {
+	cached := largeSession(1, 1)
+	cached.ID = "cached-session"
+	cached.RevisionStatus = session.Unchecked
+	current := *cached
+	current.RevisionStatus = session.Current
+
+	started := make(chan struct{})
+	release := make(chan struct{})
+	m := newModel(context.Background())
+	m.openReviewTab(cached)
+	m.SetPullRequestRefresh(func(ctx context.Context, opened *review.Session, _ func(string)) (*review.Session, error) {
+		if opened != cached {
+			t.Fatalf("opened session = %p, want cached %p", opened, cached)
+		}
+		close(started)
+		select {
+		case <-release:
+			return &current, nil
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	})
+	defer m.Close()
+
+	cmd := m.refreshOpenedPullRequest(0, cached)
+	if cmd == nil {
+		t.Fatal("cached review did not start background refresh")
+	}
+	done := make(chan tea.Msg, 1)
+	go func() { done <- cmd() }()
+	<-started
+	if m.Busy || m.loadingModal().active {
+		t.Fatal("background refresh blocked the cached review")
+	}
+	close(release)
+	m.Update(<-done)
+	if m.Session != &current || m.Session.RevisionStatus != session.Current {
+		t.Fatalf("refreshed session = %#v, want current cached review", m.Session)
+	}
+}
+
 func TestPullRequestOpeningCapacityAndFailureRetainBrowserAndReviews(t *testing.T) {
 	store := pickerStore(t)
 	identity := source.Identity{Repository: "owner/repo", Number: 99}

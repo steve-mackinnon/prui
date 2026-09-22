@@ -48,6 +48,9 @@ func (a *application) model(ctx context.Context, o options) *tui.Model {
 		return a.fresh(c, old, override, notify)
 	})
 	m.SetPullRequestLifecycle(a.listPullRequests, a.openFromPullRequestList)
+	if o.Command == "prs" || o.Command == "current" || o.Command == "open" {
+		m.SetPullRequestRefresh(a.refreshOpenedPullRequest)
+	}
 	m.SetGuideLifecycle(a.requestGuide)
 	m.SetCommentSubmitter(a.submitReviewComment)
 	m.SetCommentActionSubmitter(a.submitReviewCommentAction)

@@ -699,6 +699,49 @@ func (s *Store) LoadComparisonSnapshot(metadata source.Metadata) (*Snapshot, err
 	return nil, nil
 }
 
+// LoadComparisonSnapshotForIdentity returns locally frozen source material for
+// a PR without using it as a freshness signal. Callers must check the current
+// revision separately before treating the result as current.
+func (s *Store) LoadComparisonSnapshotForIdentity(id source.Identity) (*Snapshot, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed || (!s.readOnly && s.lock == nil) {
+		return nil, errors.New("session store closed")
+	}
+	repository, err := normalizeRepository(id.Repository)
+	if err != nil || id.Number <= 0 {
+		return nil, errors.New("invalid pull request identity")
+	}
+	entries, err := os.ReadDir(s.path)
+	if err != nil {
+		return nil, err
+	}
+	var latest *Snapshot
+	var updatedAt time.Time
+	for _, entry := range entries {
+		if !idPattern.MatchString(entry.Name()) {
+			continue
+		}
+		r, err := s.load(entry.Name())
+		if err != nil {
+			continue
+		}
+		identity := r.Inventory.Comparison.Metadata.Identity
+		cachedRepository, err := normalizeRepository(identity.Repository)
+		if err != nil || cachedRepository != repository || identity.Number != id.Number {
+			continue
+		}
+		if latest != nil && !r.UpdatedAt.After(updatedAt) {
+			continue
+		}
+		snapshot := r.Snapshot
+		snapshot.Guides = nil
+		snapshot.DerivedFrom = ""
+		latest, updatedAt = &snapshot, r.UpdatedAt
+	}
+	return latest, nil
+}
+
 func (s *Store) load(id string) (*Record, error) {
 	dir, err := s.directory(id)
 	if err != nil {

@@ -344,15 +344,9 @@ func guideCacheKey(s *review.Session) session.GuideCacheKey {
 	return session.GuideCacheKey{Repository: m.Identity.Repository, Number: m.Identity.Number, BaseSHA: m.BaseSHA, HeadSHA: m.HeadSHA}
 }
 
-// cachedPullRequestSnapshot first verifies the PR's current immutable
-// comparison through GitHub, then reuses the locally stored frozen source
-// material. This avoids Git fetches and inventory/context rebuilding when the
-// base and head have not changed, while never trusting a cache entry as a
-// freshness signal.
+// cachedPullRequestSnapshot opens locally frozen source immediately. Its
+// caller must check freshness asynchronously before reporting it as current.
 func (a *application) cachedPullRequestSnapshot(ctx context.Context, checkout string, id source.Identity, notify func(string)) (*review.Session, error) {
-	if err := a.online(ctx); err != nil {
-		return nil, err
-	}
 	hasCached, err := a.store.HasComparisonSnapshot(id)
 	if err != nil {
 		return nil, err
@@ -364,23 +358,16 @@ func (a *application) cachedPullRequestSnapshot(ctx context.Context, checkout st
 	if err != nil {
 		return nil, err
 	}
+	if _, err := os.Stat(checkout); err != nil {
+		return nil, err
+	}
 	if err := outsideCheckout(a.store.Path(), checkout); err != nil {
 		return nil, err
 	}
-	if a.setupError != nil {
-		return nil, a.setupError
-	}
-	if a.gh == nil {
-		return nil, errors.New("gh executable required; install GitHub CLI and authenticate")
-	}
 	if notify != nil {
-		notify("Checking current PR revision and local source cache...")
+		notify("Opening local frozen source; checking the current PR revision in the background...")
 	}
-	m, err := a.Metadata(ctx, id)
-	if err != nil {
-		return nil, err
-	}
-	snapshot, err := a.store.LoadComparisonSnapshot(m)
+	snapshot, err := a.store.LoadComparisonSnapshotForIdentity(id)
 	if err != nil || snapshot == nil {
 		return nil, err
 	}
@@ -391,17 +378,54 @@ func (a *application) cachedPullRequestSnapshot(ctx context.Context, checkout st
 	if err != nil {
 		return nil, err
 	}
-	saved.RevisionStatus = session.Current
+	saved.RevisionStatus = session.Unchecked
 	if err := a.store.Save(saved); err != nil {
 		return nil, err
 	}
-	if err := a.store.RememberRepository(m.BaseRepository, checkout); err != nil {
+	if err := a.store.RememberRepository(saved.Inventory.Comparison.Metadata.BaseRepository, checkout); err != nil {
 		return nil, err
 	}
 	if notify != nil {
-		notify("Reused local frozen source for the unchanged PR comparison.")
+		notify("Opened local frozen source; checking the current PR revision in the background...")
 	}
 	return saved, nil
+}
+
+// refreshOpenedPullRequest checks an immediately opened frozen session. A
+// changed immutable comparison is rebuilt; an unchanged one simply becomes
+// current without refetching Git objects.
+func (a *application) refreshOpenedPullRequest(ctx context.Context, opened *review.Session, notify func(string)) (*review.Session, error) {
+	if opened == nil {
+		return nil, errors.New("opened pull request session is required")
+	}
+	if notify != nil {
+		notify("Checking current PR revision in the background...")
+	}
+	metadata, err := a.Metadata(ctx, opened.Inventory.Comparison.Metadata.Identity)
+	if err != nil {
+		opened.RevisionStatus = session.CheckFailed
+		if saveErr := a.store.Save(opened); saveErr != nil {
+			return nil, saveErr
+		}
+		if notify != nil {
+			notify("Could not check PR freshness; showing the local frozen comparison.")
+		}
+		return opened, nil
+	}
+	if source.SamePinnedRevision(metadata, opened.Inventory.Comparison.Metadata) {
+		opened.RevisionStatus = session.Current
+		if err := a.store.Save(opened); err != nil {
+			return nil, err
+		}
+		if notify != nil {
+			notify("Local frozen comparison is current.")
+		}
+		return opened, nil
+	}
+	if notify != nil {
+		notify("PR changed; fetching the new pinned comparison...")
+	}
+	return a.open(ctx, string(opened.Checkout), opened.Inventory.Comparison.Metadata.Identity, notify)
 }
 
 // openFromPullRequestList is the only automatic guide path. It still pins a
@@ -448,7 +472,13 @@ func (a *application) load(ctx context.Context, o options, notify func(string)) 
 		if err != nil {
 			return nil, err
 		}
-		saved, err := a.open(ctx, checkout, o.Identity, notify)
+		var saved *review.Session
+		if !o.Plain {
+			saved, err = a.cachedPullRequestSnapshot(ctx, checkout, o.Identity, notify)
+		}
+		if err == nil && saved == nil {
+			saved, err = a.open(ctx, checkout, o.Identity, notify)
+		}
 		if err != nil && cached {
 			return nil, fmt.Errorf("remembered checkout for %s is unavailable or does not match; pass --repo <checkout>: %w", o.Identity.Repository, err)
 		}
