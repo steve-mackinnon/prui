@@ -69,7 +69,7 @@ func TestPRContextViewRendersTextualTabStripAndContextPlaceholder(t *testing.T) 
 			m.Width, m.Height = width, 12
 			m.Update(tea.KeyPressMsg{Code: 'v', Text: "v"})
 			view := ansi.Strip(m.View().Content)
-			wantTab := "› Description [2]"
+			wantTab := "╭ Description [2] ╮"
 			if !strings.Contains(view, wantTab) {
 				t.Fatalf("context tab strip does not identify active Description:\n%s", view)
 			}
@@ -91,8 +91,8 @@ func TestPRContextTabsAreTheQuietTopRowAndHaveDirectNumberKeys(t *testing.T) {
 
 	view := ansi.Strip(m.View().Content)
 	first, _, _ := strings.Cut(view, "\n")
-	if first != "› Diff [1] ·   Description [2] ·   Commits [3]" {
-		t.Fatalf("top row = %q, want quiet direct tab strip", first)
+	if first != "╭ Diff [1] ╮  ╭ Description [2] ╮  ╭ Commits [3] ╮" {
+		t.Fatalf("top row = %q, want bordered direct tab strip", first)
 	}
 	if strings.Contains(first, "review ·") || strings.Contains(first, "ctrl+p") {
 		t.Fatalf("top row retained review chrome: %q", first)
@@ -109,5 +109,32 @@ func TestPRContextTabsAreTheQuietTopRowAndHaveDirectNumberKeys(t *testing.T) {
 	m.Update(tea.KeyPressMsg{Code: '1', Text: "1"})
 	if got := m.selectedReviewView(); got != viewChanges {
 		t.Fatalf("1 selected %v, want diff", got)
+	}
+}
+
+func TestPRContextTabsHighlightOnlyTheSelectedView(t *testing.T) {
+	m := New(context.Background(), nil)
+	t.Cleanup(m.Close)
+	m.openReviewTab(screenSession())
+
+	for _, tc := range []struct {
+		view  reviewView
+		label string
+	}{
+		{viewChanges, "Diff [1]"},
+		{viewDescription, "Description [2]"},
+		{viewCommits, "Commits [3]"},
+	} {
+		m.selectReviewView(tc.view)
+		active := m.styleLine(selectedClass(true), "╭ "+tc.label+" ╮")
+		tabs := m.contextViewTabs()
+		if !strings.Contains(tabs, active) {
+			t.Fatalf("selected %s tab is not highlighted", tc.label)
+		}
+		for _, other := range []string{"Diff [1]", "Description [2]", "Commits [3]"} {
+			if other != tc.label && strings.Contains(tabs, m.styleLine(selectedClass(true), "╭ "+other+" ╮")) {
+				t.Fatalf("unselected %s tab is highlighted", other)
+			}
+		}
 	}
 }

@@ -1637,8 +1637,15 @@ func (m *Model) reviewViewForLayout(preferSideBySide bool) string {
 
 func (m *Model) contextViewTabs() string {
 	tabs := []string{"Diff [1]", "Description [2]", "Commits [3]"}
-	tabs[m.selectedReviewView()] = "› " + tabs[m.selectedReviewView()]
-	return m.styleLine(classTitle, strings.Join(tabs, " ·   "))
+	for i, tab := range tabs {
+		framed := "╭ " + tab + " ╮"
+		if reviewView(i) == m.selectedReviewView() {
+			tabs[i] = m.styleLine(selectedClass(true), framed)
+		} else {
+			tabs[i] = m.styleLine(classTitle, framed)
+		}
+	}
+	return strings.Join(tabs, "  ")
 }
 
 func (m *Model) contextViewPlaceholder() string {
