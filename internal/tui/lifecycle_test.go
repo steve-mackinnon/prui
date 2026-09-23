@@ -102,7 +102,7 @@ func TestLifecycleProgressRefreshPickerAndFreshFailure(t *testing.T) {
 		if width < 50 {
 			progress = "0/1"
 		}
-		if width < 100 && (!strings.Contains(view, progress) || !strings.Contains(view, "Guides unavailable")) {
+		if width < 100 && (!strings.Contains(view, progress) || !strings.Contains(view, "Freshness unknown")) {
 			t.Fatalf("narrow layout lost compact health status: %q", view)
 		}
 	}
@@ -278,8 +278,11 @@ func TestPullRequestPickerListsAndOpens(t *testing.T) {
 		t.Fatal("pull request list missing")
 	}
 	_, cmd = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	if !m.Busy {
+		t.Fatal("local snapshot open did not start")
+	}
 	m.Update(cmd())
-	if m.top() != pageReview || m.Session == nil || m.Session.ID != saved.ID {
+	if m.Busy || m.top() != pageReview || m.Session == nil || m.Session.ID != saved.ID || !m.Files {
 		t.Fatal("selected pull request did not open")
 	}
 
@@ -346,8 +349,8 @@ func TestCurrentRepositoryBrowserListsAndOpensWithoutRepositoryPicker(t *testing
 		t.Fatalf("current repository browser did not show PRs: %s", m.View().Content)
 	}
 	_, cmd = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
-	if !m.Busy || !strings.Contains(m.View().Content, "Opening selected pull request and resolving its guide") {
-		t.Fatal("PR selection did not show guide-resolution loading state")
+	if !m.Busy || !strings.Contains(m.View().Content, "Opening selected pull request") {
+		t.Fatal("PR selection did not show loading state")
 	}
 	m.Update(cmd())
 	if m.top() != pageReview || m.Session != saved {
@@ -423,6 +426,48 @@ func TestPullRequestOpeningUsesWorkspaceTabsWithoutReplacingOtherReviews(t *test
 	_, cmd = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	if cmd != nil || m.activeTab != 0 || calls[firstID] != 1 || len(m.tabs) != 1 {
 		t.Fatalf("duplicate open calls=%d active=%d tabs=%d", calls[firstID], m.activeTab, len(m.tabs))
+	}
+}
+
+func TestPullRequestRefreshKeepsCachedReviewInteractive(t *testing.T) {
+	cached := largeSession(1, 1)
+	cached.ID = "cached-session"
+	cached.RevisionStatus = session.Unchecked
+	current := *cached
+	current.RevisionStatus = session.Current
+
+	started := make(chan struct{})
+	release := make(chan struct{})
+	m := newModel(context.Background())
+	m.openReviewTab(cached)
+	m.SetPullRequestRefresh(func(ctx context.Context, opened *review.Session, _ func(string)) (*review.Session, error) {
+		if opened != cached {
+			t.Fatalf("opened session = %p, want cached %p", opened, cached)
+		}
+		close(started)
+		select {
+		case <-release:
+			return &current, nil
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	})
+	defer m.Close()
+
+	cmd := m.refreshOpenedPullRequest(0, cached)
+	if cmd == nil {
+		t.Fatal("cached review did not start background refresh")
+	}
+	done := make(chan tea.Msg, 1)
+	go func() { done <- cmd() }()
+	<-started
+	if m.Busy || m.loadingModal().active {
+		t.Fatal("background refresh blocked the cached review")
+	}
+	close(release)
+	m.Update(<-done)
+	if m.Session != &current || m.Session.RevisionStatus != session.Current {
+		t.Fatalf("refreshed session = %#v, want current cached review", m.Session)
 	}
 }
 

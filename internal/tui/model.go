@@ -161,13 +161,14 @@ type Model struct {
 	Err                                                  error
 	Selected                                             int
 	Row                                                  int  // selected guide hierarchy row
-	Files                                                bool // G: navigate the deterministic file plan instead of guides
+	Files                                                bool // F: navigate the deterministic file plan instead of guides
 	collapsed                                            expansion
 	Scroll                                               map[int]int
 	GuideScroll                                          map[int]int
 	Cursor                                               map[int]int
 	GuideCursor                                          map[int]int
 	cursorActive                                         bool
+	pendingCenter                                        bool
 	Width, Height, Horizontal                            int
 	layout                                               diffLayout
 	guidePathOffset, guidePathPause, guidePathGeneration int
@@ -209,6 +210,7 @@ type Model struct {
 	notify                                               func(string)
 	listPullRequests                                     PullRequestLoader
 	openPullRequest                                      PullRequestOpener
+	refreshPullRequest                                   PullRequestRefresher
 	generateGuide                                        GuideLoader
 	submitComment                                        CommentSubmitter
 	submitReview                                         ReviewSubmitter
@@ -232,6 +234,7 @@ type Model struct {
 
 type PullRequestLoader func(context.Context, string) ([]source.PullRequest, error)
 type PullRequestOpener func(context.Context, string, source.Identity, func(string)) (*review.Session, error)
+type PullRequestRefresher func(context.Context, *review.Session, func(string)) (*review.Session, error)
 
 func newModel(parent context.Context) *Model {
 	ctx, cancel := context.WithCancel(parent)
@@ -239,7 +242,7 @@ func newModel(parent context.Context) *Model {
 	if err != nil {
 		panic(err)
 	}
-	m := &Model{ctx: ctx, cancel: cancel, Scroll: map[int]int{}, GuideScroll: map[int]int{}, Cursor: map[int]int{}, GuideCursor: map[int]int{}, collapsed: newExpansion(), Stack: []page{pageReview}, Width: 100, Height: 24, activeTab: -1, reactionEmoji: defaultEmojiSupport()}
+	m := &Model{ctx: ctx, cancel: cancel, Scroll: map[int]int{}, GuideScroll: map[int]int{}, Cursor: map[int]int{}, GuideCursor: map[int]int{}, Files: true, collapsed: newExpansion(), Stack: []page{pageReview}, Width: 100, Height: 24, activeTab: -1, reactionEmoji: defaultEmojiSupport()}
 	m.SetTheme(terminal)
 	return m
 }
@@ -360,7 +363,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.begin()
 		if v.Err == nil && v.Session != nil {
-			return m, m.refreshComments()
+			return m, tea.Batch(m.refreshCommentsInBackground(), m.refreshOpenedPullRequest(m.activeTab, v.Session))
 		}
 	case ActionResult:
 		v.Err = m.finishAction(v.Err)
@@ -413,26 +416,12 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		active := m.activeTab
 		busy, actionErr, notice := m.Busy, m.ActionError, m.notice
 		v.Err = m.finishAction(v.Err)
-		apply := func(state *reviewTabState) {
-			if state == nil || state.commentGeneration != v.Generation {
-				return
-			}
-			if v.Err != nil {
-				state.ActionError = v.Err
-				return
-			}
-			state.Comments = commentOverlay(v.Comments, state.Session)
-		}
-		if v.Target == active {
-			state := &reviewTabState{Session: m.Session, Comments: m.Comments, commentGeneration: m.commentGeneration, ActionError: m.ActionError}
-			apply(state)
-			m.Comments, m.ActionError = state.Comments, state.ActionError
-		} else if v.Target >= 0 && v.Target < len(m.tabs) {
-			apply(m.tabs[v.Target].review)
-		}
+		m.applyCommentListResult(v.Target, v.Generation, v.Comments, v.Err)
 		if active != v.Target {
 			m.Busy, m.ActionError, m.notice = busy, actionErr, notice
 		}
+	case BackgroundCommentListResult:
+		m.applyCommentListResult(v.Target, v.Generation, v.Comments, v.Err)
 	case ViewerResult:
 		v.Err = m.finishAction(v.Err)
 		if v.Target == m.activeTab {
@@ -455,12 +444,34 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			m.registerReviewTab(v.Session, active == v.Target)
 			if active == v.Target {
-				return m, m.refreshComments()
+				return m, tea.Batch(m.refreshCommentsInBackground(), m.refreshOpenedPullRequest(m.activeTab, v.Session))
 			}
 		}
 		if active != v.Target {
 			m.Busy, m.ActionError, m.notice = busy, actionErr, notice
 		}
+	case PullRequestRefreshResult:
+		if v.Err != nil || v.Session == nil || v.Target < 0 || v.Target >= len(m.tabs) {
+			return m, nil
+		}
+		state := m.tabs[v.Target].review
+		if state == nil || state.Session == nil || state.Session.ID != v.SessionID {
+			return m, nil
+		}
+		if state.Session.Inventory.Comparison.InventoryID == v.Session.Inventory.Comparison.InventoryID {
+			state.Session = v.Session
+			if v.Target == m.activeTab {
+				m.Session = v.Session
+			}
+			return m, nil
+		}
+		// A changed immutable comparison has a fresh session and must not inherit
+		// reading progress or detail offsets from the old source.
+		m.tabs[v.Target].review = newReviewTabState(v.Session)
+		if v.Target == m.activeTab {
+			m.restoreReviewTab(m.tabs[v.Target].review)
+		}
+		return m, m.refreshCommentsInBackground()
 	case PullRequestListResult:
 		active := m.activeTab
 		busy, actionErr, notice := m.Busy, m.ActionError, m.notice
@@ -498,8 +509,11 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.diffLayout() != diffLayoutSideBySide {
 			m.cursorInViewport(1)
 		}
+		m.ensureReplyEditorVisible()
 		return m, m.restartGuidePathScroll()
 	case tea.KeyPressMsg:
+		pendingCenter := m.pendingCenter
+		m.pendingCenter = false
 		if m.Busy && v.String() == "esc" && m.cancelAction != nil {
 			m.cancelCurrentAction()
 			return m, nil
@@ -524,6 +538,14 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			if p := m.top(); p != pageReview {
 				return m, m.pageKey(p, v)
+			}
+			if v.String() == "z" && m.selectedReviewView() == viewChanges && m.Focus == paneDiff {
+				if pendingCenter {
+					m.centerCursor()
+				} else {
+					m.pendingCenter = true
+				}
+				return m, nil
 			}
 			if v.String() == "ctrl+p" {
 				return m, m.openSwitcher()
@@ -579,8 +601,13 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if !m.Inventory {
 				m.syncRow(m.rows())
 			}
+		case "F":
+			m.Files = true
+			m.Inventory = false
+			m.syncRow(m.rows())
 		case "G":
-			m.Files = !m.Files
+			m.Files = false
+			m.Inventory = false
 			m.syncRow(m.rows())
 		case "S":
 			if m.selectedReviewView() == viewChanges {
@@ -738,7 +765,7 @@ func (m *Model) activateTab(index int) bool {
 func newReviewTabState(s *review.Session) *reviewTabState {
 	return &reviewTabState{
 		Session: s, Scroll: map[int]int{}, GuideScroll: map[int]int{}, Cursor: map[int]int{}, GuideCursor: map[int]int{},
-		ContextView: viewChanges, DescriptionScroll: 0, collapsed: newExpansion(), Stack: []page{pageReview}, Focus: paneList,
+		ContextView: viewChanges, DescriptionScroll: 0, Files: true, collapsed: newExpansion(), Stack: []page{pageReview}, Focus: paneList,
 	}
 }
 
@@ -759,6 +786,7 @@ func (m *Model) saveActiveReview() {
 }
 
 func (m *Model) restoreReviewTab(state *reviewTabState) {
+	m.pendingCenter = false
 	if state == nil {
 		return
 	}
@@ -1267,6 +1295,9 @@ func (m *Model) inlineEditorLinesFor(draft string, editorCursor, indent int) []d
 		lines = append(lines, diffLine{styledLine: styledLine{Class: classWarning, Text: prefix + "| " + content + " |"}})
 	}
 	lines = append(lines, diffLine{styledLine: styledLine{Class: classWarning, Text: border}})
+	for i := range lines {
+		lines[i].editor = true
+	}
 	return lines
 }
 
@@ -1452,6 +1483,39 @@ func (m *Model) ensureCursorVisible() {
 	}
 }
 
+// Keep the reply box in the detail viewport after opening or editing it.
+// An editor taller than the viewport cannot fit, so show its final rows.
+func (m *Model) ensureReplyEditorVisible() {
+	if m.CommentMenu == nil || m.CommentMenu.mode != commentActionReply {
+		return
+	}
+	start, end := -1, -1
+	for i, line := range m.displayDetail() {
+		if line.editor {
+			if start < 0 {
+				start = i
+			}
+			end = i + 1
+		}
+	}
+	if start < 0 {
+		return
+	}
+	height, offset := m.bodyHeight(), m.offset()
+	if end-start > height || end > offset+height {
+		m.setOffset(m.clampOffset(end - height))
+	} else if start < offset {
+		m.setOffset(m.clampOffset(start))
+	}
+}
+
+func (m *Model) centerCursor() {
+	if cursor := m.cursor(); cursor >= 0 {
+		m.setOffset(m.clampOffset(cursor - m.bodyHeight()/2))
+		m.cursorActive = true
+	}
+}
+
 func (m *Model) bodyHeight() int {
 	if m.reviewUsesPaneFrames() {
 		return max(1, m.Height-5)
@@ -1565,6 +1629,8 @@ func (m *Model) reviewViewForLayout(preferSideBySide bool) string {
 	label := "File slices"
 	if m.Inventory {
 		label = "Full inventory"
+	} else if !m.Files {
+		label = "Guide"
 	}
 	rows := m.navigable()
 	if rows != nil {
@@ -1581,6 +1647,9 @@ func (m *Model) reviewViewForLayout(preferSideBySide bool) string {
 		headerClass = classWarning
 	}
 	text := fmt.Sprintf("%s %d · %s [%s] · focus: %s", strings.ToUpper(label), len(s.Inventory.Files), pathLabel(s.Inventory.Files[s.UnitFiles[m.Selected]]), kind, focus)
+	if m.Width < 100 {
+		text = fmt.Sprintf("focus: %s · %s %d", focus, strings.ToUpper(label), len(s.Inventory.Files))
+	}
 	if m.Inventory {
 		text = fmt.Sprintf("%s %d · unit %d/%d [%s] · focus: %s", strings.ToUpper(label), len(s.Inventory.Units), m.Selected+1, len(s.Inventory.Units), kind, focus)
 	}
@@ -1595,7 +1664,13 @@ func (m *Model) reviewViewForLayout(preferSideBySide bool) string {
 	if preferSideBySide && !useSideBySide {
 		text += " · side-by-side needs 160 columns"
 	}
-	header := m.styleLine(headerClass, text)
+	fileTab, guideTab := "Files [F]", "Guide [G]"
+	if m.Files {
+		fileTab = "[Files F]"
+	} else {
+		guideTab = "[Guide G]"
+	}
+	header := m.styleLine(headerClass, fileTab+" | "+guideTab+" · "+text)
 	bodyHeight := m.bodyHeight()
 	leftWidth := m.listWidth()
 	list := []listLine{}
@@ -1610,6 +1685,8 @@ func (m *Model) reviewViewForLayout(preferSideBySide bool) string {
 	case rows != nil:
 		selectedRow = max(0, min(len(rows)-1, m.Row))
 		list = guideList(s, rows, selectedRow, leftWidth, m.Focus == paneList, m.guidePathOffset)
+	case !m.Files && !m.Inventory:
+		list = append(list, listLine{row: -1, text: "No guide yet. Press g to generate."})
 	default:
 		selectedRow = s.UnitFiles[m.Selected]
 		for i, f := range s.Inventory.Files {

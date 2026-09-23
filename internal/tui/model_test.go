@@ -12,6 +12,7 @@ import (
 	"pr-review/internal/guide"
 	"pr-review/internal/inventory"
 	"pr-review/internal/review"
+	"pr-review/internal/session"
 	"pr-review/internal/source"
 	"pr-review/internal/testutil"
 )
@@ -137,6 +138,8 @@ func TestCommandSwitcherDoesNotTakeOverGuideTab(t *testing.T) {
 	guided, _, _ := guidedSession(t, groupingAnalyzer{path: "a.go"})
 	m.Session = guided
 	m.Stack = []page{pageReview}
+	m.Files = false
+	m.begin()
 	rows := m.rows()
 	if len(rows) == 0 {
 		t.Fatal("fixture has no guide rows")
@@ -204,6 +207,51 @@ func TestReviewHeaderExposesSwitcherAndFitsViewport(t *testing.T) {
 		if visibleWidth(line) > 15 {
 			t.Fatalf("tab workspace viewport exceeded width: %q", line)
 		}
+	}
+}
+
+func TestReviewStartsWithFilesAndGuideTabNeedsOptIn(t *testing.T) {
+	m := New(context.Background(), nil)
+	m.openReviewTab(screenSession())
+	if !m.Files || !strings.Contains(ansi.Strip(m.View().Content), "[Files F]") {
+		t.Fatal("review did not open on Files")
+	}
+	key(m, 'G')
+	if m.Files || !strings.Contains(ansi.Strip(m.View().Content), "No guide yet. Press g") {
+		t.Fatal("empty Guide tab did not offer explicit generation")
+	}
+	key(m, 'F')
+	if !m.Files || !strings.Contains(ansi.Strip(m.View().Content), "main.go") {
+		t.Fatal("F did not restore the changed-file picker")
+	}
+}
+
+func TestBackgroundComparisonRefreshPreservesReadingAndTabOwnership(t *testing.T) {
+	m := New(context.Background(), nil)
+	old := largeSession(2, 2)
+	old.Inventory.Comparison.Metadata.Identity = source.Identity{Repository: "owner/repo", Number: 1}
+	old.Inventory.Comparison.Metadata.BaseSHA = strings.Repeat("a", 40)
+	old.Inventory.Comparison.Metadata.HeadSHA = strings.Repeat("b", 40)
+	old.ReviewedSliceIDs = []string{"file-1"}
+	old.ID = "cached"
+	m.openReviewTab(old)
+	m.Selected = 1
+	fresh := *old
+	fresh.RevisionStatus = session.Current
+	m.Update(PullRequestRefreshResult{Target: 0, SessionID: old.ID, Session: &fresh})
+	if m.Session != &fresh || m.Selected != 1 || len(m.Session.ReviewedSliceIDs) != 1 || m.Session.RevisionStatus != session.Current {
+		t.Fatal("same-revision refresh lost selection or progress")
+	}
+	other := largeSession(1, 1)
+	other.Inventory.Comparison.Metadata.Identity = source.Identity{Repository: "owner/repo", Number: 2}
+	m.openReviewTab(other)
+	changed := largeSession(2, 2)
+	changed.Inventory.Comparison.Metadata = old.Inventory.Comparison.Metadata
+	changed.Inventory.Comparison.Metadata.HeadSHA = strings.Repeat("c", 40)
+	changed.Inventory.Comparison.InventoryID = "changed"
+	m.Update(PullRequestRefreshResult{Target: 0, SessionID: old.ID, Session: changed})
+	if m.Session != other || m.tabs[0].review.Session != changed || m.tabs[0].review.Selected != 0 {
+		t.Fatal("late refresh changed the active review or kept a stale selection")
 	}
 }
 
@@ -346,7 +394,7 @@ func TestRawReviewMockedEndToEnd(t *testing.T) {
 		t.Fatal("status missing")
 	}
 	m.Update(tea.WindowSizeMsg{Width: 120, Height: 24})
-	if !strings.Contains(ansi.Strip(m.View().Content), "Guides unavailable") {
+	if !strings.Contains(ansi.Strip(m.View().Content), "Guide available with g") {
 		t.Fatal("terminal status hides the analysis decision")
 	}
 	hunk := -1
@@ -480,6 +528,79 @@ func TestDiffCursorMovesBetweenCommentTargetsAndKeepsThemVisible(t *testing.T) {
 	key(m, 'k')
 	if got := m.cursor(); got != first {
 		t.Fatalf("k cursor = %d, want %d", got, first)
+	}
+}
+
+func TestZZCentersFocusedDiffCursor(t *testing.T) {
+	m := largeModel(largeTextSession(1, 1), 120, 11)
+	m.Focus = paneDiff
+	m.cursorActive = true
+	for i, line := range m.displayDetail() {
+		if i >= 25 && line.target != nil {
+			m.setCursor(i)
+			break
+		}
+	}
+	cursor, selected := m.cursor(), m.Selected
+	if cursor < 25 {
+		t.Fatalf("fixture has no distant comment target: %d", cursor)
+	}
+	m.setOffset(cursor - 1)
+	key(m, 'z')
+	if got := m.offset(); got != cursor-1 {
+		t.Fatalf("first z moved offset to %d", got)
+	}
+	key(m, 'z')
+	if want := m.clampOffset(cursor - m.bodyHeight()/2); m.offset() != want {
+		t.Fatalf("zz offset = %d, want %d", m.offset(), want)
+	}
+	if m.cursor() != cursor || m.Selected != selected {
+		t.Fatalf("zz changed cursor or unit: cursor=%d selected=%d", m.cursor(), m.Selected)
+	}
+
+	for i := len(m.displayDetail()) - 1; i >= 0; i-- {
+		line := m.displayDetail()[i]
+		if line.target != nil || line.commentID > 0 {
+			m.setCursor(i)
+			break
+		}
+	}
+	m.setOffset(0)
+	m.cursorActive = false
+	key(m, 'z')
+	key(m, 'z')
+	if want := m.clampOffset(m.cursor() - m.bodyHeight()/2); m.offset() != want {
+		t.Fatalf("zz near end offset = %d, want clamped %d", m.offset(), want)
+	}
+	if !m.cursorActive {
+		t.Fatal("zz did not reveal the selected line marker")
+	}
+}
+
+func TestZZRequiresConsecutiveKeysInFocusedChangesDiff(t *testing.T) {
+	m := largeModel(largeTextSession(1, 1), 120, 11)
+	m.Focus = paneDiff
+	m.cursorActive = true
+	for i, line := range m.displayDetail() {
+		if i >= 25 && line.target != nil {
+			m.setCursor(i)
+			break
+		}
+	}
+	m.setOffset(m.cursor() - 1)
+	initial := m.offset()
+	key(m, 'z')
+	key(m, 'j')
+	key(m, 'z')
+	if got := m.offset(); got != initial {
+		t.Fatalf("interrupted z sequence changed offset to %d", got)
+	}
+	m.Focus = paneList
+	key(m, 'z')
+	m.Focus = paneDiff
+	key(m, 'z')
+	if got := m.offset(); got != initial {
+		t.Fatalf("list z leaked into diff sequence: offset %d", got)
 	}
 }
 
@@ -884,6 +1005,72 @@ func TestReplyEditorAndCanonicalReplyRenderAsIndentedThread(t *testing.T) {
 	}
 	if strings.Contains(m.reviewStatus(), "draft") {
 		t.Fatalf("reply draft leaked into status: %s", m.reviewStatus())
+	}
+}
+
+func TestOpeningReplyScrollsEntireEditorIntoView(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		width int
+		split bool
+	}{
+		{"narrow", 80, false},
+		{"wide", 120, false},
+		{"side by side", 160, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			m := New(context.Background(), nil)
+			m.Loading = false
+			m.Session, m.Selected, m.Focus = kindsSession(), 1, paneDiff
+			m.Width, m.Height = tc.width, 10
+			if tc.split {
+				key(m, 'S')
+			}
+			var target source.ReviewCommentTarget
+			for _, line := range m.baseDetail() {
+				if line.target != nil {
+					target = *line.target
+					break
+				}
+			}
+			m.Comments = []source.ReviewComment{{ID: 7, Target: target, Body: "parent"}}
+			commentRow := -1
+			for i, line := range m.displayDetail() {
+				if line.commentID == 7 {
+					commentRow = i
+				}
+			}
+			if commentRow < 0 {
+				t.Fatal("comment missing from detail")
+			}
+			m.setCursor(commentRow)
+			m.setOffset(max(0, commentRow-m.bodyHeight()+1))
+			if _, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter}); cmd != nil {
+				t.Fatal("opening comment actions unexpectedly returned a command")
+			}
+			key(m, 'r')
+			if m.CommentMenu == nil || m.CommentMenu.mode != commentActionReply {
+				t.Fatal("reply editor did not open")
+			}
+			assertEditorVisible := func() {
+				t.Helper()
+				start, end := -1, -1
+				for i, line := range m.displayDetail() {
+					if line.editor {
+						if start < 0 {
+							start = i
+						}
+						end = i + 1
+					}
+				}
+				if start < 0 || start < m.offset() || end > m.offset()+m.bodyHeight() {
+					t.Fatalf("reply editor rows [%d,%d) outside viewport [%d,%d)", start, end, m.offset(), m.offset()+m.bodyHeight())
+				}
+			}
+			assertEditorVisible()
+			m.Update(tea.KeyPressMsg{Code: tea.KeyEnter, Mod: tea.ModShift})
+			assertEditorVisible()
+		})
 	}
 }
 

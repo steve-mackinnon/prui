@@ -90,6 +90,7 @@ func TestScreenSnapshots(t *testing.T) {
 				Title: "Greeting", Description: "Update the greeting and its documentation.",
 				Sections: []guide.Section{{Title: "Implementation", UnitIDs: []string{"unit-0"}}, {Title: "Documentation", UnitIDs: []string{"unit-1"}}},
 			}}}
+			m.Files = false
 			m.begin()
 		}},
 		{"repositories", 60, 8, func(m *Model) {

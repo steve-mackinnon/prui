@@ -193,6 +193,31 @@ func TestComparisonSnapshotCacheMatchesOnlyExactPinnedRevisions(t *testing.T) {
 	}
 }
 
+func TestLatestComparisonIsLocalAndScopedToPullRequest(t *testing.T) {
+	s, err := Open(filepath.Join(t.TempDir(), "sessions"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	first, err := s.Create(fixture())
+	if err != nil {
+		t.Fatal(err)
+	}
+	first.ReviewedSliceIDs = []string{"file"}
+	if err := s.Save(first); err != nil {
+		t.Fatal(err)
+	}
+	id := first.Inventory.Comparison.Metadata.Identity
+	got, err := s.LatestComparison(id)
+	if err != nil || got == nil || got.ID != first.ID || len(got.ReviewedSliceIDs) != 1 {
+		t.Fatalf("latest saved review = %#v, %v", got, err)
+	}
+	missing, err := s.LatestComparison(source.Identity{Repository: id.Repository, Number: id.Number + 1})
+	if err != nil || missing != nil {
+		t.Fatalf("unrelated PR returned review = %#v, %v", missing, err)
+	}
+}
+
 func TestStoreRestartFrozenBytesAndProgress(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "sessions")
 	s, err := Open(dir)

@@ -1,5 +1,5 @@
 ╭ Diff [1] ╮  ╭ Description [2] ╮  ╭ Commits [3] ╮
-FILE SLICES 2 · main.go [text_hunk] · focus: diff · side-by-side needs 160 columns
+[Files F] | Guide [G] · FILE SLICES 2 · main.go [text_hunk] · focus: diff · side-by-side needs 160 columns
 ┌────────────────────────────────────┐ ┌──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
 │› main.go                           │ │━━━ FILE · main.go ━━━                                                                                                │
 │  README.md                         │ │@@ -1 +1 @@                                                                                                           │
@@ -9,4 +9,4 @@ FILE SLICES 2 · main.go [text_hunk] · focus: diff · side-by-side needs 160 co
 │                                    │ │                                                                                                                      │
 │                                    │ │                                                                                                                      │
 └────────────────────────────────────┘ └──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
-0/2 read · R Submit review (0) · ✓ Inventory complete · ? Freshness unknown · ? Guides unavailable · ?: Health & help
+0/2 read · R Submit review (0) · ✓ Inventory complete · ? Freshness unknown · Guide available with g · ?: Health & help

@@ -64,6 +64,10 @@ func loaded(t *testing.T, s *review.Session, width, height int) *Model {
 	m := New(context.Background(), func(context.Context, func(string)) (*review.Session, error) { return s, nil })
 	t.Cleanup(m.Close)
 	completeAction(t, m, m.Init())
+	if s.Guides != nil && s.Guides.Status == guide.Generated {
+		m.Files = false // guide-focused fixture; production reviews open in Files.
+		m.begin()
+	}
 	m.Update(tea.WindowSizeMsg{Width: width, Height: height})
 	return m
 }
@@ -194,10 +198,10 @@ func TestGuideNavigation(t *testing.T) {
 		t.Fatal("returning from the raw inventory left the guide cursor elsewhere")
 	}
 
-	// G falls back to the deterministic file plan on demand.
-	m.Update(tea.KeyPressMsg{Code: 'G', Text: "G"})
+	// F selects the deterministic file plan; G restores the guide.
+	m.Update(tea.KeyPressMsg{Code: 'F', Text: "F"})
 	if m.rows() != nil || !strings.Contains(ansi.Strip(m.View().Content), "FILE SLICES") {
-		t.Fatal("G did not expose the deterministic file plan")
+		t.Fatal("F did not expose the deterministic file plan")
 	}
 	m.Update(tea.KeyPressMsg{Code: 'G', Text: "G"})
 	if !strings.Contains(ansi.Strip(m.View().Content), "GUIDES") {
@@ -505,9 +509,9 @@ func TestSideBySideGuideJumpUsesProjectedRepeatedFileAnchor(t *testing.T) {
 func TestGuideFallbackEnterOnlyFocusesDiff(t *testing.T) {
 	s, _, _ := guidedSession(t, nil)
 	m := loaded(t, s, 120, 5)
-	m.Update(tea.KeyPressMsg{Code: 'G', Text: "G"})
-	if !m.Files || m.rows() != nil {
-		t.Fatal("G did not retain the deterministic file plan")
+	m.Update(tea.KeyPressMsg{Code: 'F', Text: "F"})
+	if m.rows() != nil {
+		t.Fatal("F did not retain the deterministic file plan")
 	}
 	m.Scroll[m.Selected] = 1
 	namedKey(m, tea.KeyEnter)
@@ -670,7 +674,7 @@ func TestGuideFallback(t *testing.T) {
 		t.Fatal("a fallback bundle produced guide rows")
 	}
 	view := ansi.Strip(m.View().Content)
-	if !strings.Contains(view, "FILE SLICES") || !strings.Contains(view, "Guides unavailable") {
+	if !strings.Contains(view, "FILE SLICES") || !strings.Contains(view, "Guide available with g") {
 		t.Fatal("fallback does not render the deterministic file plan", view)
 	}
 	key(m, 'n')

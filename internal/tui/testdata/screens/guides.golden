@@ -1,5 +1,5 @@
 ╭ Diff [1] ╮  ╭ Description [2] ╮  ╭ Commits [3] ╮
-GUIDES 2 · main.go [text_hunk] · focus: files · marking: whole files · guide detail 1/1
+Files [F] | [Guide G] · GUIDES 2 · main.go [text_hunk] · focus: files · marking: whole files · guide detail 1/1
 ┌────────────────────────────────────┐ ┌───────────────────────────────────────────────────────────────────────────────┐
 │› - 1. Greeting                     │ │━━━ FILE · main.go ━━━                                                         │
 │    Update the greeting and its     │ │@@ -1 +1 @@                                                                    │

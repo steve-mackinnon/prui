@@ -1,6 +1,6 @@
 # pr-review
 
-Pinned GitHub PR review in a local terminal, with inline comments and explicit PR review submission in the interactive TUI. Deterministic file slices, bounded pinned repository evidence, durable local reading progress, and explicit revision checks. Selecting a PR from the interactive PR list or switcher automatically resolves OpenAI review guides; successful guides are reused locally for the same immutable comparison. No server, no telemetry, no stored credentials. Source retrieval remains read-only; GitHub writes require an explicit reviewer action.
+Pinned GitHub PR review in a local terminal, with inline comments and explicit PR review submission in the interactive TUI. Deterministic file slices, bounded pinned repository evidence, durable local reading progress, and explicit revision checks. Saved reviews open immediately while an asynchronous check refreshes the pinned comparison. OpenAI guide generation requires explicit confirmation. No server, no telemetry, no stored credentials. Source retrieval remains read-only; GitHub writes require an explicit reviewer action.
 
 ## Run
 
@@ -28,7 +28,7 @@ The no-argument interactive launcher reads the checkout's standard GitHub.com
 HTTPS/SSH GitHub origins and never runs Git in the checkout to resolve them. If
 the checkout has no supported `origin`, use `prs owner/repo` or `open` instead.
 
-`open`, normal `resume`, explicit refresh, and listing a repository’s PRs contact GitHub. `sessions`, `delete`, and `resume --offline` do not. Implementation tests use synthetic objects, mocked GitHub, and a local test provider endpoint only. Re-selecting a PR from the interactive PR list or switcher first checks current metadata; when its repository, number, base SHA, and head SHA match a locally stored frozen session, it reuses that source inventory and evidence without Git fetching or rebuilding resources. It still creates a new unreviewed session. The same path reuses a valid successful local guide for the pinned comparison or starts generation. Direct `open`, `resume`, `--plain`, offline mode, and `verify` never start guide generation. Git fetch sends requested revision IDs and Git protocol negotiation to GitHub; metadata/authentication use the user's trusted `gh` installation.
+`open`, normal `resume`, explicit refresh, and listing a repository’s PRs contact GitHub. `sessions`, `delete`, and `resume --offline` do not. Implementation tests use synthetic objects, mocked GitHub, and a local test provider endpoint only. Re-selecting a PR from the interactive PR list or switcher shows a validated local snapshot first, then checks the current pinned revision in the background. An unchanged revision reuses its source inventory, evidence, and reading progress without Git fetching or rebuilding resources; a changed revision opens a new comparison. A successful guide already cached for the pinned comparison can be reused, but generation requires explicit confirmation with `g`. Direct `open`, `resume`, `--plain`, offline mode, and `verify` never start guide generation. Git fetch sends requested revision IDs and Git protocol negotiation to GitHub; metadata/authentication use the user's trusted `gh` installation.
 
 `eval-guides SESSION_ID` reads an existing local session through a read-only store handle and emits a JSON report. It never opens GitHub, reads provider credentials, or creates guides; a session without stored generated guides reports `not_available`. Reports always include structural validation, and include named synthetic-corpus checks only when the frozen inventory matches a curated synthetic fixture.
 
@@ -40,7 +40,7 @@ the checkout has no supported `origin`, use `prs owner/repo` or `open` instead.
 
 Guides group the frozen review units into functional chunks, each with a title, description, and ordered sections that reference specific units. They are an interpretation layer: `Slices` and `UnitFiles` are unchanged, reading progress stays file-slice based, and the raw inventory remains the complete source view. Every unit appears in guide navigation exactly once; anything the model did not group lands in a synthesized `Ungrouped changes` guide.
 
-Selecting a PR from the interactive PR list or switcher automatically resolves its guide after checking current metadata. A matching locally stored frozen comparison is reused without Git fetching or resource rebuilding; otherwise the comparison is pinned normally. A valid successful local guide for the same repository, PR number, base SHA, and head SHA is reused without a provider request; otherwise generation starts and the review shows a cancellable loading state. Direct `open`, `resume`, `--plain`, offline mode, and `verify` do not generate guides. Failed or unavailable results are retained only with their originating review for transparency, never reused as cache hits, and a later PR-list selection retries them. Press `g` in an interactive review to manually retry guide generation; Escape cancels an in-flight request. `OPENAI_API_KEY` is never written to a snapshot, log, or error string. The default model is `gpt-5.6-terra`; `OPENAI_BASE_URL` may override the provider endpoint. There are no `--send-source-to-openai`, `--model`, or `--exclude` CLI flags. `resume --offline` rejects guide generation and all GitHub operations before accessing clients or credentials; stored guides remain readable.
+Selecting a PR from the interactive PR list or switcher displays the latest validated saved review immediately when one exists, with freshness shown as unknown until an asynchronous GitHub check finishes. The check reuses a matching frozen comparison without Git fetching or resource rebuilding; a changed comparison is pinned normally and replaces the displayed review when ready. A previously generated guide for the same repository, PR number, base SHA, and head SHA is reused locally. Press `g` in an interactive review and confirm to generate a guide; Escape cancels an in-flight request. Direct `open`, `resume`, `--plain`, offline mode, and `verify` do not generate guides. `OPENAI_API_KEY` is never written to a snapshot, log, or error string. The default model is `gpt-5.6-terra`; `OPENAI_BASE_URL` may override the provider endpoint. There are no `--send-source-to-openai`, `--model`, or `--exclude` CLI flags. `resume --offline` rejects guide generation and all GitHub operations before accessing clients or credentials; stored guides remain readable.
 
 A completed guide generation creates a new derived session with empty reading progress, retaining the original frozen snapshot and its progress. Escape cancels an in-flight request; cancellation keeps the current session and does not save a derived session. Missing credentials or invalid provider configuration leave the current session intact.
 
@@ -48,7 +48,7 @@ What leaves the machine is only the assembled request package: pinned patches an
 
 Failure is cheap and explicit. A transport error, non-2xx status, refusal, deadline, oversize payload, or unusable structured output produces an `analysis_unavailable` bundle with a stated reason, a durable session, and the unchanged deterministic file plan. Only a structurally valid generated bundle is persisted as a reusable local cache entry; unavailable bundles never suppress a later retry. Retrying cannot modify a stored snapshot; a later successful attempt is a new session. Generated text is model interpretation of the bounded input, not source truth, approval, security findings, or complete architectural documentation, and it can be wrong about anything it was not shown.
 
-When a session has generated guides, they are the default left pane: guide, then section, then the file portions each section covers, with the selected guide's combined diff in the right pane. Enter on a section or file jumps to its position in that diff. A file appears under every section that owns part of it. `n` walks rows, `]`/`[` jump between guides, `tab` expands or collapses the selected guide or section, Enter focuses its diff, and `G` switches to the deterministic file plan. `i` still lists every raw unit and navigates them one at a time, so the complete source view is never behind an interpretation. Marking is unchanged: `m` marks the whole file slice of the selected unit, including the units that file contributes to other guides, and both the header and footer say so. A fallback, absent, or empty bundle simply has no rows, so those sessions navigate the file plan exactly as before.
+The left pane opens on Files, the normal changed-file picker. Press `F` for Files or `G` for Guide. When a session has generated guides, Guide shows each guide, section, and covered file portion, with the selected guide's combined diff in the right pane. Enter on a section or file jumps to its position in that diff. A file appears under every section that owns part of it. `n` walks rows, `]`/`[` jump between guides, `tab` expands or collapses the selected guide or section, and Enter focuses its diff. `i` still lists every raw unit and navigates them one at a time. Marking is unchanged: `m` marks the whole file slice of the selected unit, including the units that file contributes to other guides. A fallback, absent, or empty bundle leaves the file plan available.
 
 Reviews opened in one process keep independent in-memory reading positions, hierarchy expansion, pane focus, scroll offsets, notices, and errors. `ctrl+p` (or `p` where control-key reporting is unreliable) opens a keyboard-only PR switcher over the current review. It lists already-open reviews first, then open PRs for the active repository; typing filters, Enter switches or starts a new read-only pinned review, and Escape leaves the current review unchanged. The overlay never takes a permanent column or changes plain output.
 
@@ -74,7 +74,7 @@ columns. Plain output is always unified.
 | `ctrl+p` / `p` | Open the PR switcher; type to filter, Enter switches/opens, Escape cancels |
 | `n` | Next guide row; next unit in the file plan and inventory |
 | `]` / `[` | Next / previous guide, or file slice without guides |
-| `G` | Switch between the guide hierarchy and the deterministic file plan |
+| `F` / `G` | Select Files or Guide in the left pane |
 | `S` | Toggle side-by-side detail; unified is the default and narrow terminals fall back below 160 columns |
 | `v` / `V` | Next / previous PR context view: Changes, Description, or Commits |
 | `tab` | Expand / collapse the selected guide or section |
@@ -86,13 +86,14 @@ columns. Plain output is always unified.
 | `c` | Refresh ephemeral inline review comments (online reviews only) |
 | Up / down, `j` / `k` | Navigate list or scroll focused diff |
 | `J` / `K` | Scroll diff by 5 lines |
+| `zz` | Center the focused diff on its selected line |
 | `d` / `u`, Page Down / Page Up | Page through actual diff |
 | `h` / `l`, left / right | Horizontal scrolling; no hidden line truncation in plain output |
 | Home | Reset selected unit's scroll |
 | `i` | Toggle the full unit inventory; every raw unit, unfiltered by guides |
 | `e` | Show bounded evidence and included/excluded scope |
 | `U` | Show canonical GitHub URL for copying; does not launch a browser |
-| `g` | Manually retry guide generation; Escape cancels an in-flight request |
+| `g` | Request guide generation after confirming source upload; Escape cancels an in-flight request |
 | `m` | Mark/unmark the whole file slice of the selected unit, including its units under other guide sections; saves immediately |
 | `r` | Explicit metadata refresh; no diff recomputation or polling |
 | `N` | Start a new comparison with empty progress; retain the old session |

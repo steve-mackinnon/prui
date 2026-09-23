@@ -71,6 +71,13 @@ type CommentListResult struct {
 	Comments   []source.ReviewComment
 	Err        error
 }
+
+type BackgroundCommentListResult struct {
+	Target     int
+	Generation uint64
+	Comments   []source.ReviewComment
+	Err        error
+}
 type CommentActionResult struct {
 	Target     int
 	CommentID  int64
@@ -109,6 +116,16 @@ type PullRequestOpenResult struct {
 	Err      error
 }
 
+// PullRequestRefreshResult updates a review that was initially shown from a
+// local frozen snapshot. It is intentionally separate from opening so the
+// revision check never blocks the review surface.
+type PullRequestRefreshResult struct {
+	Target    int
+	SessionID string
+	Session   *review.Session
+	Err       error
+}
+
 type switcherResult struct {
 	identity source.Identity
 	title    string
@@ -124,6 +141,25 @@ func (m *Model) SetLifecycle(store *session.Store, reader review.MetadataReader,
 
 func (m *Model) SetPullRequestLifecycle(list PullRequestLoader, open PullRequestOpener) {
 	m.listPullRequests, m.openPullRequest = list, open
+}
+
+// SetPullRequestRefresh supplies the background freshness check for a review
+// opened from a local frozen snapshot.
+func (m *Model) SetPullRequestRefresh(refresh PullRequestRefresher) { m.refreshPullRequest = refresh }
+
+func (m *Model) refreshOpenedPullRequest(target int, opened *review.Session) tea.Cmd {
+	if m.refreshPullRequest == nil || opened == nil || opened.RevisionStatus != session.Unchecked {
+		return nil
+	}
+	refresh, sessionID := m.refreshPullRequest, opened.ID
+	return func() tea.Msg {
+		notify := m.notify
+		if notify == nil {
+			notify = func(string) {}
+		}
+		s, err := refresh(m.ctx, opened, notify)
+		return PullRequestRefreshResult{Target: target, SessionID: sessionID, Session: s, Err: err}
+	}
 }
 
 func (m *Model) SetGuideLifecycle(generate GuideLoader) { m.generateGuide = generate }
@@ -151,6 +187,39 @@ func (m *Model) refreshComments() tea.Cmd {
 		comments, err := read(ctx, metadata)
 		return CommentListResult{Target: target, Generation: generation, Comments: comments, Err: err}
 	})
+}
+
+func (m *Model) refreshCommentsInBackground() tea.Cmd {
+	if m.readComments == nil || m.Session == nil {
+		return nil
+	}
+	m.commentGeneration++
+	generation, target, read := m.commentGeneration, m.activeTab, m.readComments
+	metadata := m.Session.Inventory.Comparison.Metadata
+	return func() tea.Msg {
+		comments, err := read(m.ctx, metadata)
+		return BackgroundCommentListResult{Target: target, Generation: generation, Comments: comments, Err: err}
+	}
+}
+
+func (m *Model) applyCommentListResult(target int, generation uint64, comments []source.ReviewComment, err error) {
+	apply := func(state *reviewTabState) {
+		if state == nil || state.commentGeneration != generation {
+			return
+		}
+		if err != nil {
+			state.ActionError = err
+			return
+		}
+		state.Comments = commentOverlay(comments, state.Session)
+	}
+	if target == m.activeTab {
+		state := &reviewTabState{Session: m.Session, Comments: m.Comments, commentGeneration: m.commentGeneration, ActionError: m.ActionError}
+		apply(state)
+		m.Comments, m.ActionError = state.Comments, state.ActionError
+	} else if target >= 0 && target < len(m.tabs) {
+		apply(m.tabs[target].review)
+	}
 }
 
 func (m *Model) refreshViewer() tea.Cmd {
@@ -300,6 +369,7 @@ func (m *Model) commentActionKey(key tea.KeyPressMsg) tea.Cmd {
 			menu.mode = commentActionReply
 			m.editorCursorVisible = true
 			m.editorCursorGeneration++
+			m.ensureReplyEditorVisible()
 			return nextEditorCursorTick(m.editorCursorGeneration)
 		case "a":
 			menu.mode = commentActionReact
@@ -309,6 +379,9 @@ func (m *Model) commentActionKey(key tea.KeyPressMsg) tea.Cmd {
 			}
 		}
 		return nil
+	}
+	if menu.mode == commentActionReply {
+		defer m.ensureReplyEditorVisible()
 	}
 	switch menu.mode {
 	case commentActionReact:
@@ -720,7 +793,7 @@ func (m *Model) pullRequestPickerKey(k string) tea.Cmd {
 				}
 			}
 		}
-		m.notice = "Opening selected pull request and resolving its guide; source stays local..."
+		m.notice = "Opening selected pull request; source stays local..."
 		ctx := m.beginAction()
 		target := m.activeTab
 		return m.start(func() tea.Msg {
@@ -802,7 +875,7 @@ func (m *Model) openSelectedPullRequest(identity source.Identity) tea.Cmd {
 		m.ActionError = errors.New("no pinned checkout available for selected pull request")
 		return nil
 	}
-	m.notice = "Opening selected pull request and resolving its guide; source stays local..."
+	m.notice = "Opening selected pull request; source stays local..."
 	ctx := m.beginAction()
 	target := m.activeTab
 	return m.start(func() tea.Msg {

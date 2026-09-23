@@ -1,5 +1,5 @@
 ╭ Diff [1] ╮  ╭ Description [2] ╮  ╭ Commits [3] ╮
-FILE SLICES 2 · main.go [text_hunk] · focus: diff
+[Files F] | Guide [G] · focus: diff · FILE SLICES 2
 ━━━ FILE · main.go ━━━
 @@ -1 +1 @@
 -old greeting
@@ -7,4 +7,4 @@ FILE SLICES 2 · main.go [text_hunk] · focus: diff
 
 
 
-0/2 read · R Review (0) · ? Guides unavailable · ?: Help
+0/2 read · R Review (0) · ? Freshness unknown · ?: Help

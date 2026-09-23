@@ -152,8 +152,8 @@ func mark(collapsed bool) string {
 	return "- "
 }
 
-// rows is the model's view of the hierarchy; nil means the file plan is active,
-// either because the reviewer pressed G or because analysis produced no guides.
+// rows is the model's view of the hierarchy; nil means Files is selected or
+// no generated guide exists for the Guide tab.
 func (m *Model) rows() []row {
 	if m.Files {
 		return nil
