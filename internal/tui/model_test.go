@@ -935,6 +935,72 @@ func TestReplyEditorAndCanonicalReplyRenderAsIndentedThread(t *testing.T) {
 	}
 }
 
+func TestOpeningReplyScrollsEntireEditorIntoView(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		width int
+		split bool
+	}{
+		{"narrow", 80, false},
+		{"wide", 120, false},
+		{"side by side", 160, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			m := New(context.Background(), nil)
+			m.Loading = false
+			m.Session, m.Selected, m.Focus = kindsSession(), 1, paneDiff
+			m.Width, m.Height = tc.width, 10
+			if tc.split {
+				key(m, 'S')
+			}
+			var target source.ReviewCommentTarget
+			for _, line := range m.baseDetail() {
+				if line.target != nil {
+					target = *line.target
+					break
+				}
+			}
+			m.Comments = []source.ReviewComment{{ID: 7, Target: target, Body: "parent"}}
+			commentRow := -1
+			for i, line := range m.displayDetail() {
+				if line.commentID == 7 {
+					commentRow = i
+				}
+			}
+			if commentRow < 0 {
+				t.Fatal("comment missing from detail")
+			}
+			m.setCursor(commentRow)
+			m.setOffset(max(0, commentRow-m.bodyHeight()+1))
+			if _, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter}); cmd != nil {
+				t.Fatal("opening comment actions unexpectedly returned a command")
+			}
+			key(m, 'r')
+			if m.CommentMenu == nil || m.CommentMenu.mode != commentActionReply {
+				t.Fatal("reply editor did not open")
+			}
+			assertEditorVisible := func() {
+				t.Helper()
+				start, end := -1, -1
+				for i, line := range m.displayDetail() {
+					if line.editor {
+						if start < 0 {
+							start = i
+						}
+						end = i + 1
+					}
+				}
+				if start < 0 || start < m.offset() || end > m.offset()+m.bodyHeight() {
+					t.Fatalf("reply editor rows [%d,%d) outside viewport [%d,%d)", start, end, m.offset(), m.offset()+m.bodyHeight())
+				}
+			}
+			assertEditorVisible()
+			m.Update(tea.KeyPressMsg{Code: tea.KeyEnter, Mod: tea.ModShift})
+			assertEditorVisible()
+		})
+	}
+}
+
 func TestReactionPickerDigitsAndBottomBorderCounts(t *testing.T) {
 	m := New(context.Background(), nil)
 	m.Loading = false

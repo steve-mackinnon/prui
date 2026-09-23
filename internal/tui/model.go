@@ -484,6 +484,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.diffLayout() != diffLayoutSideBySide {
 			m.cursorInViewport(1)
 		}
+		m.ensureReplyEditorVisible()
 		return m, m.restartGuidePathScroll()
 	case tea.KeyPressMsg:
 		if m.Busy && v.String() == "esc" && m.cancelAction != nil {
@@ -1229,6 +1230,9 @@ func (m *Model) inlineEditorLinesFor(draft string, editorCursor, indent int) []d
 		lines = append(lines, diffLine{styledLine: styledLine{Class: classWarning, Text: prefix + "| " + content + " |"}})
 	}
 	lines = append(lines, diffLine{styledLine: styledLine{Class: classWarning, Text: border}})
+	for i := range lines {
+		lines[i].editor = true
+	}
 	return lines
 }
 
@@ -1411,6 +1415,32 @@ func (m *Model) ensureCursorVisible() {
 	}
 	if cursor >= offset+m.bodyHeight() {
 		m.setOffset(m.clampOffset(cursor - m.bodyHeight() + 1))
+	}
+}
+
+// Keep the reply box in the detail viewport after opening or editing it.
+// An editor taller than the viewport cannot fit, so show its final rows.
+func (m *Model) ensureReplyEditorVisible() {
+	if m.CommentMenu == nil || m.CommentMenu.mode != commentActionReply {
+		return
+	}
+	start, end := -1, -1
+	for i, line := range m.displayDetail() {
+		if line.editor {
+			if start < 0 {
+				start = i
+			}
+			end = i + 1
+		}
+	}
+	if start < 0 {
+		return
+	}
+	height, offset := m.bodyHeight(), m.offset()
+	if end-start > height || end > offset+height {
+		m.setOffset(m.clampOffset(end - height))
+	} else if start < offset {
+		m.setOffset(m.clampOffset(start))
 	}
 }
 

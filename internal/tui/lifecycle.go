@@ -339,6 +339,7 @@ func (m *Model) commentActionKey(key tea.KeyPressMsg) tea.Cmd {
 			menu.mode = commentActionReply
 			m.editorCursorVisible = true
 			m.editorCursorGeneration++
+			m.ensureReplyEditorVisible()
 			return nextEditorCursorTick(m.editorCursorGeneration)
 		case "a":
 			menu.mode = commentActionReact
@@ -348,6 +349,9 @@ func (m *Model) commentActionKey(key tea.KeyPressMsg) tea.Cmd {
 			}
 		}
 		return nil
+	}
+	if menu.mode == commentActionReply {
+		defer m.ensureReplyEditorVisible()
 	}
 	switch menu.mode {
 	case commentActionReact:
