@@ -531,6 +531,79 @@ func TestDiffCursorMovesBetweenCommentTargetsAndKeepsThemVisible(t *testing.T) {
 	}
 }
 
+func TestZZCentersFocusedDiffCursor(t *testing.T) {
+	m := largeModel(largeTextSession(1, 1), 120, 11)
+	m.Focus = paneDiff
+	m.cursorActive = true
+	for i, line := range m.displayDetail() {
+		if i >= 25 && line.target != nil {
+			m.setCursor(i)
+			break
+		}
+	}
+	cursor, selected := m.cursor(), m.Selected
+	if cursor < 25 {
+		t.Fatalf("fixture has no distant comment target: %d", cursor)
+	}
+	m.setOffset(cursor - 1)
+	key(m, 'z')
+	if got := m.offset(); got != cursor-1 {
+		t.Fatalf("first z moved offset to %d", got)
+	}
+	key(m, 'z')
+	if want := m.clampOffset(cursor - m.bodyHeight()/2); m.offset() != want {
+		t.Fatalf("zz offset = %d, want %d", m.offset(), want)
+	}
+	if m.cursor() != cursor || m.Selected != selected {
+		t.Fatalf("zz changed cursor or unit: cursor=%d selected=%d", m.cursor(), m.Selected)
+	}
+
+	for i := len(m.displayDetail()) - 1; i >= 0; i-- {
+		line := m.displayDetail()[i]
+		if line.target != nil || line.commentID > 0 {
+			m.setCursor(i)
+			break
+		}
+	}
+	m.setOffset(0)
+	m.cursorActive = false
+	key(m, 'z')
+	key(m, 'z')
+	if want := m.clampOffset(m.cursor() - m.bodyHeight()/2); m.offset() != want {
+		t.Fatalf("zz near end offset = %d, want clamped %d", m.offset(), want)
+	}
+	if !m.cursorActive {
+		t.Fatal("zz did not reveal the selected line marker")
+	}
+}
+
+func TestZZRequiresConsecutiveKeysInFocusedChangesDiff(t *testing.T) {
+	m := largeModel(largeTextSession(1, 1), 120, 11)
+	m.Focus = paneDiff
+	m.cursorActive = true
+	for i, line := range m.displayDetail() {
+		if i >= 25 && line.target != nil {
+			m.setCursor(i)
+			break
+		}
+	}
+	m.setOffset(m.cursor() - 1)
+	initial := m.offset()
+	key(m, 'z')
+	key(m, 'j')
+	key(m, 'z')
+	if got := m.offset(); got != initial {
+		t.Fatalf("interrupted z sequence changed offset to %d", got)
+	}
+	m.Focus = paneList
+	key(m, 'z')
+	m.Focus = paneDiff
+	key(m, 'z')
+	if got := m.offset(); got != initial {
+		t.Fatalf("list z leaked into diff sequence: offset %d", got)
+	}
+}
+
 func TestDiffCursorTracksScrollingAndTabStateWithoutChangingReviewSelection(t *testing.T) {
 	m := New(context.Background(), nil)
 	first, second := kindsSession(), kindsSession()

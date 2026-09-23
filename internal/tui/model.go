@@ -162,6 +162,7 @@ type Model struct {
 	Cursor                                               map[int]int
 	GuideCursor                                          map[int]int
 	cursorActive                                         bool
+	pendingCenter                                        bool
 	Width, Height, Horizontal                            int
 	layout                                               diffLayout
 	guidePathOffset, guidePathPause, guidePathGeneration int
@@ -487,6 +488,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.ensureReplyEditorVisible()
 		return m, m.restartGuidePathScroll()
 	case tea.KeyPressMsg:
+		pendingCenter := m.pendingCenter
+		m.pendingCenter = false
 		if m.Busy && v.String() == "esc" && m.cancelAction != nil {
 			m.cancelCurrentAction()
 			return m, nil
@@ -510,6 +513,14 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			if p := m.top(); p != pageReview {
 				return m, m.pageKey(p, v)
+			}
+			if v.String() == "z" && m.selectedReviewView() == viewChanges && m.Focus == paneDiff {
+				if pendingCenter {
+					m.centerCursor()
+				} else {
+					m.pendingCenter = true
+				}
+				return m, nil
 			}
 			if v.String() == "ctrl+p" {
 				return m, m.openSwitcher()
@@ -742,6 +753,7 @@ func (m *Model) saveActiveReview() {
 }
 
 func (m *Model) restoreReviewTab(state *reviewTabState) {
+	m.pendingCenter = false
 	if state == nil {
 		return
 	}
@@ -1441,6 +1453,13 @@ func (m *Model) ensureReplyEditorVisible() {
 		m.setOffset(m.clampOffset(end - height))
 	} else if start < offset {
 		m.setOffset(m.clampOffset(start))
+	}
+}
+
+func (m *Model) centerCursor() {
+	if cursor := m.cursor(); cursor >= 0 {
+		m.setOffset(m.clampOffset(cursor - m.bodyHeight()/2))
+		m.cursorActive = true
 	}
 }
 

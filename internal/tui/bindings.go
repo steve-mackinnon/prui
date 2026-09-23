@@ -21,6 +21,7 @@ var bindings = []binding{
 	{keys: "ctrl+p", desc: "open the pull-request switcher", groups: groupFooter | groupHelp, section: "App"},
 	{keys: "j/k, up/down", desc: "move selection or scroll diff", groups: groupNav | groupHelp, section: "Navigate"},
 	{keys: "J/K", desc: "scroll diff by 5", groups: groupNav | groupHelp, section: "Navigate"},
+	{keys: "zz", desc: "center the focused diff on its line cursor", groups: groupNav | groupHelp, section: "Navigate"},
 	{keys: "h/l, ctrl+h/ctrl+l", desc: "focus list/diff", groups: groupNav | groupFooter | groupHelp, section: "Navigate"},
 	{keys: "enter", desc: "focus the diff; open a line editor or selected-comment action menu", groups: groupNav | groupHelp, section: "Navigate"},
 	{keys: "tab", desc: "expand/collapse the selected guide or section", groups: groupNav | groupHelp, section: "Navigate"},

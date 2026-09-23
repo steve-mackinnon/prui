@@ -85,6 +85,7 @@ columns. Plain output is always unified.
 | `c` | Refresh ephemeral inline review comments (online reviews only) |
 | Up / down, `j` / `k` | Navigate list or scroll focused diff |
 | `J` / `K` | Scroll diff by 5 lines |
+| `zz` | Center the focused diff on its selected line |
 | `d` / `u`, Page Down / Page Up | Page through actual diff |
 | `h` / `l`, left / right | Horizontal scrolling; no hidden line truncation in plain output |
 | Home | Reset selected unit's scroll |
