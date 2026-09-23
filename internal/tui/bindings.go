@@ -31,7 +31,7 @@ var bindings = []binding{
 	{keys: "left/right", desc: "horizontal scroll", groups: groupNav | groupHelp, section: "Navigate"},
 	{keys: "home", desc: "reset selected guide scroll, or selected unit's without guides", groups: groupNav | groupHelp, section: "Navigate"},
 	{keys: "i", desc: "toggle full inventory; every raw unit, unfiltered by guides", groups: groupFooter | groupHelp, section: "Views"},
-	{keys: "G", desc: "guides or deterministic file plan", groups: groupFooter | groupHelp, section: "Views"},
+	{keys: "F/G", desc: "select Files or Guide in the left pane", groups: groupFooter | groupHelp, section: "Views"},
 	{keys: "S", desc: "toggle side-by-side detail (unified default; falls back below 160 columns)", groups: groupFooter | groupHelp, section: "Views"},
 	{keys: "e", desc: "show evidence scope", groups: groupFooter | groupHelp, section: "Views"},
 	{keys: "v/V", desc: "next/previous PR context view", groups: groupFooter | groupHelp, section: "Views"},

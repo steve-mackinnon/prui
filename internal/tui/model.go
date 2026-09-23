@@ -155,7 +155,7 @@ type Model struct {
 	Err                                                  error
 	Selected                                             int
 	Row                                                  int  // selected guide hierarchy row
-	Files                                                bool // G: navigate the deterministic file plan instead of guides
+	Files                                                bool // F: navigate the deterministic file plan instead of guides
 	collapsed                                            expansion
 	Scroll                                               map[int]int
 	GuideScroll                                          map[int]int
@@ -231,7 +231,7 @@ func newModel(parent context.Context) *Model {
 	if err != nil {
 		panic(err)
 	}
-	m := &Model{ctx: ctx, cancel: cancel, Scroll: map[int]int{}, GuideScroll: map[int]int{}, Cursor: map[int]int{}, GuideCursor: map[int]int{}, collapsed: newExpansion(), Stack: []page{pageReview}, Width: 100, Height: 24, activeTab: -1, reactionEmoji: defaultEmojiSupport()}
+	m := &Model{ctx: ctx, cancel: cancel, Scroll: map[int]int{}, GuideScroll: map[int]int{}, Cursor: map[int]int{}, GuideCursor: map[int]int{}, Files: true, collapsed: newExpansion(), Stack: []page{pageReview}, Width: 100, Height: 24, activeTab: -1, reactionEmoji: defaultEmojiSupport()}
 	m.SetTheme(terminal)
 	return m
 }
@@ -556,8 +556,13 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if !m.Inventory {
 				m.syncRow(m.rows())
 			}
+		case "F":
+			m.Files = true
+			m.Inventory = false
+			m.syncRow(m.rows())
 		case "G":
-			m.Files = !m.Files
+			m.Files = false
+			m.Inventory = false
 			m.syncRow(m.rows())
 		case "S":
 			if m.selectedReviewView() == viewChanges {
@@ -715,7 +720,7 @@ func (m *Model) activateTab(index int) bool {
 func newReviewTabState(s *review.Session) *reviewTabState {
 	return &reviewTabState{
 		Session: s, Scroll: map[int]int{}, GuideScroll: map[int]int{}, Cursor: map[int]int{}, GuideCursor: map[int]int{},
-		ContextView: viewChanges, DescriptionScroll: 0, collapsed: newExpansion(), Stack: []page{pageReview}, Focus: paneList,
+		ContextView: viewChanges, DescriptionScroll: 0, Files: true, collapsed: newExpansion(), Stack: []page{pageReview}, Focus: paneList,
 	}
 }
 
@@ -1518,6 +1523,8 @@ func (m *Model) reviewViewForLayout(preferSideBySide bool) string {
 	label := "File slices"
 	if m.Inventory {
 		label = "Full inventory"
+	} else if !m.Files {
+		label = "Guide"
 	}
 	rows := m.navigable()
 	if rows != nil {
@@ -1534,6 +1541,9 @@ func (m *Model) reviewViewForLayout(preferSideBySide bool) string {
 		headerClass = classWarning
 	}
 	text := fmt.Sprintf("%s %d · %s [%s] · focus: %s", strings.ToUpper(label), len(s.Inventory.Files), pathLabel(s.Inventory.Files[s.UnitFiles[m.Selected]]), kind, focus)
+	if m.Width < 100 {
+		text = fmt.Sprintf("focus: %s · %s %d", focus, strings.ToUpper(label), len(s.Inventory.Files))
+	}
 	if m.Inventory {
 		text = fmt.Sprintf("%s %d · unit %d/%d [%s] · focus: %s", strings.ToUpper(label), len(s.Inventory.Units), m.Selected+1, len(s.Inventory.Units), kind, focus)
 	}
@@ -1548,7 +1558,13 @@ func (m *Model) reviewViewForLayout(preferSideBySide bool) string {
 	if preferSideBySide && !useSideBySide {
 		text += " · side-by-side needs 160 columns"
 	}
-	header := m.styleLine(headerClass, text)
+	fileTab, guideTab := "Files [F]", "Guide [G]"
+	if m.Files {
+		fileTab = "[Files F]"
+	} else {
+		guideTab = "[Guide G]"
+	}
+	header := m.styleLine(headerClass, fileTab+" | "+guideTab+" · "+text)
 	bodyHeight := m.bodyHeight()
 	leftWidth := m.listWidth()
 	list := []listLine{}
@@ -1563,6 +1579,8 @@ func (m *Model) reviewViewForLayout(preferSideBySide bool) string {
 	case rows != nil:
 		selectedRow = max(0, min(len(rows)-1, m.Row))
 		list = guideList(s, rows, selectedRow, leftWidth, m.Focus == paneList, m.guidePathOffset)
+	case !m.Files && !m.Inventory:
+		list = append(list, listLine{row: -1, text: "No guide yet. Press g to generate."})
 	default:
 		selectedRow = s.UnitFiles[m.Selected]
 		for i, f := range s.Inventory.Files {

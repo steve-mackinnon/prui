@@ -35,7 +35,9 @@ func reviewHealth(s *review.Session) (string, []healthItem) {
 	if !s.Inventory.Complete {
 		items[0] = healthItem{text: "! Inventory incomplete", severity: 3}
 	}
-	if s.Guides == nil || s.Guides.Status == guide.Unavailable {
+	if s.Guides == nil || s.Guides.Status == guide.Unavailable && s.Guides.Reason == "analysis not requested" {
+		items = append(items, healthItem{text: "Guide available with g", severity: 0})
+	} else if s.Guides.Status == guide.Unavailable {
 		items = append(items, healthItem{text: "? Guides unavailable", severity: 1})
 	} else {
 		items = append(items, healthItem{text: fmt.Sprintf("✓ Guides %d", len(s.Guides.Items))})

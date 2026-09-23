@@ -1,5 +1,5 @@
 ╭ Diff [1] ╮  ╭ Description [2] ╮  ╭ Commits [3] ╮
-FILE SLICES 2 · main.go [text_hunk] · focus: files
+[Files F] | Guide [G] · FILE SLICES 2 · main.go [text_hunk] · focus: files
 ┌─────────────────────────────────┐ ┌──────────────────────────────────────────────────────────────┐
 │› main.go                        │ │━━━ FILE · main.go ━━━                                        │
 │  README.md                      │ │@@ -1 +1 @@                                                   │

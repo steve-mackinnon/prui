@@ -649,6 +649,41 @@ func (s *Store) HasComparisonSnapshot(id source.Identity) (bool, error) {
 	return false, nil
 }
 
+// LatestComparison returns the newest validated saved review for this PR. It
+// is only a display cache; callers must check GitHub asynchronously before
+// treating its pinned revision as current.
+func (s *Store) LatestComparison(id source.Identity) (*Record, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed || (!s.readOnly && s.lock == nil) {
+		return nil, errors.New("session store closed")
+	}
+	repository, err := normalizeRepository(id.Repository)
+	if err != nil || id.Number <= 0 {
+		return nil, errors.New("invalid pull request identity")
+	}
+	entries, err := os.ReadDir(s.path)
+	if err != nil {
+		return nil, err
+	}
+	var latest *Record
+	for _, entry := range entries {
+		if !idPattern.MatchString(entry.Name()) {
+			continue
+		}
+		r, err := s.load(entry.Name())
+		if err != nil {
+			continue
+		}
+		identity := r.Inventory.Comparison.Metadata.Identity
+		normalized, err := normalizeRepository(identity.Repository)
+		if err == nil && normalized == repository && identity.Number == id.Number && (latest == nil || r.UpdatedAt.After(latest.UpdatedAt)) {
+			latest = r
+		}
+	}
+	return latest, nil
+}
+
 // LoadComparisonSnapshot returns a copy of previously validated frozen source
 // material for the same immutable comparison, or nil when none is available.
 // Fresh presentation data is installed on that copy so callers create a new

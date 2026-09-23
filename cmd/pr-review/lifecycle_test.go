@@ -340,8 +340,16 @@ func TestLifecyclePRListOpenCachesOnlyGeneratedGuides(t *testing.T) {
 		return generatedGuideAnalyzer{}, nil
 	}}
 	first, err := app.openFromPullRequestList(context.Background(), r.Dir, meta.Identity, nil)
-	if err != nil || first.Guides == nil || first.Guides.Status != guide.Generated || calls != 1 {
-		t.Fatalf("first PR-list guide = %#v, calls=%d, err=%v", first, calls, err)
+	if err != nil || calls != 0 {
+		t.Fatalf("PR-list open unexpectedly generated a guide: calls=%d, err=%v", calls, err)
+	}
+	guided, err := app.generateGuide(context.Background(), first, generatedGuideAnalyzer{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	guided.ReviewedSliceIDs = []string{guided.Slices[0].FileID}
+	if err := store.Save(guided); err != nil {
+		t.Fatal(err)
 	}
 	app.newAnalyzer = func() (guide.Analyzer, error) {
 		calls++
@@ -351,7 +359,7 @@ func TestLifecyclePRListOpenCachesOnlyGeneratedGuides(t *testing.T) {
 		return nil, errors.New("source cache hit must not run git")
 	})
 	second, err := app.openFromPullRequestList(context.Background(), r.Dir, meta.Identity, nil)
-	if err != nil || second.Guides == nil || second.Guides.Status != guide.Generated || calls != 1 {
+	if err != nil || second.Guides == nil || second.Guides.Status != guide.Generated || calls != 0 || len(second.ReviewedSliceIDs) != 1 {
 		t.Fatalf("cached PR-list guide = %#v, calls=%d, err=%v", second, calls, err)
 	}
 }
@@ -433,11 +441,15 @@ func TestLifecyclePRListOpenRetriesUnavailableGuides(t *testing.T) {
 	}}
 	for attempt := 1; attempt <= 2; attempt++ {
 		got, err := app.openFromPullRequestList(context.Background(), r.Dir, meta.Identity, nil)
-		if err != nil || got.Guides == nil || got.Guides.Status != guide.Unavailable {
-			t.Fatalf("attempt %d unavailable guide = %#v, %v", attempt, got, err)
+		if err != nil || calls != 0 {
+			t.Fatalf("attempt %d generated without consent: calls=%d, %v", attempt, calls, err)
+		}
+		_, err = app.generateGuide(context.Background(), got, unavailableGuideAnalyzer{})
+		if err != nil {
+			t.Fatal(err)
 		}
 	}
-	if calls != 2 {
-		t.Fatalf("unavailable guide analyzer calls = %d, want retry", calls)
+	if calls != 0 {
+		t.Fatalf("PR-list analyzer calls = %d, want none", calls)
 	}
 }

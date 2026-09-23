@@ -59,9 +59,6 @@ func TestEntryPointsShareReviewOperations(t *testing.T) {
 				t.Fatal("entry failed", m.Err, m.ActionError)
 			}
 			expectedCalls := 0
-			if command == "prs" || command == "current" {
-				expectedCalls = 1
-			}
 			if calls != expectedCalls {
 				t.Fatalf("analyzer calls after %s entry = %d, want %d", command, calls, expectedCalls)
 			}

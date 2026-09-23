@@ -12,6 +12,7 @@ import (
 	"pr-review/internal/guide"
 	"pr-review/internal/inventory"
 	"pr-review/internal/review"
+	"pr-review/internal/session"
 	"pr-review/internal/source"
 	"pr-review/internal/testutil"
 )
@@ -137,6 +138,8 @@ func TestCommandSwitcherDoesNotTakeOverGuideTab(t *testing.T) {
 	guided, _, _ := guidedSession(t, groupingAnalyzer{path: "a.go"})
 	m.Session = guided
 	m.Stack = []page{pageReview}
+	m.Files = false
+	m.begin()
 	rows := m.rows()
 	if len(rows) == 0 {
 		t.Fatal("fixture has no guide rows")
@@ -204,6 +207,51 @@ func TestReviewHeaderExposesSwitcherAndFitsViewport(t *testing.T) {
 		if visibleWidth(line) > 15 {
 			t.Fatalf("tab workspace viewport exceeded width: %q", line)
 		}
+	}
+}
+
+func TestReviewStartsWithFilesAndGuideTabNeedsOptIn(t *testing.T) {
+	m := New(context.Background(), nil)
+	m.openReviewTab(screenSession())
+	if !m.Files || !strings.Contains(ansi.Strip(m.View().Content), "[Files F]") {
+		t.Fatal("review did not open on Files")
+	}
+	key(m, 'G')
+	if m.Files || !strings.Contains(ansi.Strip(m.View().Content), "No guide yet. Press g") {
+		t.Fatal("empty Guide tab did not offer explicit generation")
+	}
+	key(m, 'F')
+	if !m.Files || !strings.Contains(ansi.Strip(m.View().Content), "main.go") {
+		t.Fatal("F did not restore the changed-file picker")
+	}
+}
+
+func TestBackgroundComparisonRefreshPreservesReadingAndTabOwnership(t *testing.T) {
+	m := New(context.Background(), nil)
+	old := largeSession(2, 2)
+	old.Inventory.Comparison.Metadata.Identity = source.Identity{Repository: "owner/repo", Number: 1}
+	old.Inventory.Comparison.Metadata.BaseSHA = strings.Repeat("a", 40)
+	old.Inventory.Comparison.Metadata.HeadSHA = strings.Repeat("b", 40)
+	old.ReviewedSliceIDs = []string{"file-1"}
+	old.ID = "cached"
+	m.openReviewTab(old)
+	m.Selected = 1
+	fresh := *old
+	fresh.RevisionStatus = session.Current
+	m.Update(PullRequestRefreshResult{Target: 0, SessionID: old.ID, Session: &fresh})
+	if m.Session != &fresh || m.Selected != 1 || len(m.Session.ReviewedSliceIDs) != 1 || m.Session.RevisionStatus != session.Current {
+		t.Fatal("same-revision refresh lost selection or progress")
+	}
+	other := largeSession(1, 1)
+	other.Inventory.Comparison.Metadata.Identity = source.Identity{Repository: "owner/repo", Number: 2}
+	m.openReviewTab(other)
+	changed := largeSession(2, 2)
+	changed.Inventory.Comparison.Metadata = old.Inventory.Comparison.Metadata
+	changed.Inventory.Comparison.Metadata.HeadSHA = strings.Repeat("c", 40)
+	changed.Inventory.Comparison.InventoryID = "changed"
+	m.Update(PullRequestRefreshResult{Target: 0, SessionID: old.ID, Session: changed})
+	if m.Session != other || m.tabs[0].review.Session != changed || m.tabs[0].review.Selected != 0 {
+		t.Fatal("late refresh changed the active review or kept a stale selection")
 	}
 }
 
@@ -346,7 +394,7 @@ func TestRawReviewMockedEndToEnd(t *testing.T) {
 		t.Fatal("status missing")
 	}
 	m.Update(tea.WindowSizeMsg{Width: 120, Height: 24})
-	if !strings.Contains(ansi.Strip(m.View().Content), "Guides unavailable") {
+	if !strings.Contains(ansi.Strip(m.View().Content), "Guide available with g") {
 		t.Fatal("terminal status hides the analysis decision")
 	}
 	hunk := -1

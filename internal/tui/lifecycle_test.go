@@ -98,7 +98,7 @@ func TestLifecycleProgressRefreshPickerAndFreshFailure(t *testing.T) {
 		if width >= 100 && !strings.Contains(view, "Freshness unknown") {
 			t.Fatalf("wide layout hid freshness: %q", view)
 		}
-		if width < 100 && (!strings.Contains(view, "0/1 read") || !strings.Contains(view, "Guides unavailable")) {
+		if width < 100 && (!strings.Contains(view, "0/1 read") || !strings.Contains(view, "Freshness unknown")) {
 			t.Fatalf("narrow layout lost compact health status: %q", view)
 		}
 	}
@@ -274,8 +274,11 @@ func TestPullRequestPickerListsAndOpens(t *testing.T) {
 		t.Fatal("pull request list missing")
 	}
 	_, cmd = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	if !m.Busy {
+		t.Fatal("local snapshot open did not start")
+	}
 	m.Update(cmd())
-	if m.top() != pageReview || m.Session == nil || m.Session.ID != saved.ID {
+	if m.Busy || m.top() != pageReview || m.Session == nil || m.Session.ID != saved.ID || !m.Files {
 		t.Fatal("selected pull request did not open")
 	}
 
@@ -342,8 +345,8 @@ func TestCurrentRepositoryBrowserListsAndOpensWithoutRepositoryPicker(t *testing
 		t.Fatalf("current repository browser did not show PRs: %s", m.View().Content)
 	}
 	_, cmd = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
-	if !m.Busy || !strings.Contains(m.View().Content, "Opening selected pull request and resolving its guide") {
-		t.Fatal("PR selection did not show guide-resolution loading state")
+	if !m.Busy || !strings.Contains(m.View().Content, "Opening selected pull request") {
+		t.Fatal("PR selection did not show loading state")
 	}
 	m.Update(cmd())
 	if m.top() != pageReview || m.Session != saved {

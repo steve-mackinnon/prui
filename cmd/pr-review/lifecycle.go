@@ -347,11 +347,11 @@ func guideCacheKey(s *review.Session) session.GuideCacheKey {
 // cachedPullRequestSnapshot opens locally frozen source immediately. Its
 // caller must check freshness asynchronously before reporting it as current.
 func (a *application) cachedPullRequestSnapshot(ctx context.Context, checkout string, id source.Identity, notify func(string)) (*review.Session, error) {
-	hasCached, err := a.store.HasComparisonSnapshot(id)
+	latest, err := a.store.LatestComparison(id)
 	if err != nil {
 		return nil, err
 	}
-	if !hasCached {
+	if latest == nil {
 		return nil, nil
 	}
 	checkout, err = canonicalPath(checkout)
@@ -367,17 +367,17 @@ func (a *application) cachedPullRequestSnapshot(ctx context.Context, checkout st
 	if notify != nil {
 		notify("Opening local frozen source; checking the current PR revision in the background...")
 	}
-	snapshot, err := a.store.LoadComparisonSnapshotForIdentity(id)
-	if err != nil || snapshot == nil {
-		return nil, err
-	}
+	snapshot := latest.Snapshot
+	snapshot.Guides = nil
+	snapshot.DerivedFrom = ""
 	// The checkout is only a future-refresh hint; frozen source material stays
 	// byte-identical to the cache entry.
 	snapshot.Checkout = []byte(checkout)
-	saved, err := a.store.Create(*snapshot)
+	saved, err := a.store.Create(snapshot)
 	if err != nil {
 		return nil, err
 	}
+	saved.ReviewedSliceIDs = append([]string(nil), latest.ReviewedSliceIDs...)
 	saved.RevisionStatus = session.Unchecked
 	if err := a.store.Save(saved); err != nil {
 		return nil, err
@@ -428,9 +428,8 @@ func (a *application) refreshOpenedPullRequest(ctx context.Context, opened *revi
 	return a.open(ctx, string(opened.Checkout), opened.Inventory.Comparison.Metadata.Identity, notify)
 }
 
-// openFromPullRequestList is the only automatic guide path. It still pins a
-// current PR revision before using a local frozen-source cache, so a base/head
-// change cannot reuse source material or interpretation for different units.
+// openFromPullRequestList reuses a saved guide when present. Generation is
+// requested separately through the review's explicit consent action.
 func (a *application) openFromPullRequestList(ctx context.Context, checkout string, id source.Identity, notify func(string)) (*review.Session, error) {
 	raw, err := a.cachedPullRequestSnapshot(ctx, checkout, id, notify)
 	if err != nil {
@@ -442,28 +441,24 @@ func (a *application) openFromPullRequestList(ctx context.Context, checkout stri
 	if err != nil {
 		return nil, err
 	}
-	if notify != nil {
-		notify("Checking local guide cache for this pinned comparison...")
-	}
 	if cached, err := a.store.LoadGeneratedGuide(guideCacheKey(raw), raw.Inventory); err != nil {
 		return nil, err
 	} else if cached != nil {
-		if notify != nil {
-			notify("Reusing local guide for this pinned comparison...")
-		}
 		derived := raw.Snapshot
 		derived.Guides = cached
 		derived.DerivedFrom = raw.ID
-		return a.store.Create(derived)
+		guided, err := a.store.Create(derived)
+		if err != nil {
+			return nil, err
+		}
+		guided.ReviewedSliceIDs = append([]string(nil), raw.ReviewedSliceIDs...)
+		guided.RevisionStatus = raw.RevisionStatus
+		if err := a.store.Save(guided); err != nil {
+			return nil, err
+		}
+		return guided, nil
 	}
-	if notify != nil {
-		notify("Generating OpenAI guide from bounded pinned source and evidence...")
-	}
-	analyzer, err := a.createGuideAnalyzer()
-	if err != nil {
-		return raw, nil
-	}
-	return a.generateGuide(ctx, raw, analyzer)
+	return raw, nil
 }
 
 func (a *application) load(ctx context.Context, o options, notify func(string)) (*review.Session, error) {

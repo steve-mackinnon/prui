@@ -1,5 +1,5 @@
 ╭ Diff [1] ╮  ╭ Description [2] ╮  ╭ Commits [3] ╮
-FILE SLICES 2 · main.go [text_hunk] · focus: diff
+[Files F] | Guide [G] · FILE SLICES 2 · main.go [text_hunk] · focus: diff
 ┌────────────────────────────────────┐ ┌───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
 │› main.go                           │ │━━━ FILE · main.go ━━━                                                                                                 │
 │  README.md                         │ │@@ -1 +1 @@                                                                                                            │
@@ -9,4 +9,4 @@ FILE SLICES 2 · main.go [text_hunk] · focus: diff
 │                                    │ │                                                                                                                       │
 │                                    │ │                                                                                                                       │
 └────────────────────────────────────┘ └───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
-0/2 read · ✓ Inventory complete · ? Guides unavailable · ? Freshness unknown · ?: Health & help
+0/2 read · ✓ Inventory complete · Guide available with g · ? Freshness unknown · ?: Health & help
