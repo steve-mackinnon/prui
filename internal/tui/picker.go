@@ -97,6 +97,10 @@ func (m *Model) pickerScreen(p *pickerState, header, rows []string, empty, foote
 }
 
 func (m *Model) pickerScreenRows(p *pickerState, header []string, rows [][]string, empty, footer string) string {
+	return m.pickerScreenRowsStyled(p, header, rows, empty, footer, false)
+}
+
+func (m *Model) pickerScreenRowsStyled(p *pickerState, header []string, rows [][]string, empty, footer string, styled bool) string {
 	if m.Busy {
 		footer = Escape(m.notice) + " · esc: cancel"
 	} else if m.ActionError != nil {
@@ -125,6 +129,9 @@ func (m *Model) pickerScreenRows(p *pickerState, header []string, rows [][]strin
 		rowHeight := max(1, len(rows[selected]))
 		start := max(0, selected-max(1, capacity/rowHeight)+1)
 		for i, used := start, 0; i < len(rows) && used < capacity; i++ {
+			if used > 0 && len(rows[i]) > capacity-used {
+				break
+			}
 			for j, row := range rows[i] {
 				if used >= capacity {
 					break
@@ -133,7 +140,7 @@ func (m *Model) pickerScreenRows(p *pickerState, header []string, rows [][]strin
 				if j == 0 {
 					line = selectionMarker(i == selected) + row
 				}
-				if i == selected {
+				if i == selected && !styled {
 					line = m.styleLine(selectedClass(true), line)
 				}
 				lines = append(lines, line)

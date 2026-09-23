@@ -809,41 +809,6 @@ func (m *Model) repositoryPickerView() string {
 	return m.pickerScreen(&m.RepositoryPicker, []string{appHeader("Repositories", ""), "Select a repository to list its open pull requests."}, rows, "No remembered repositories. Open a PR with --repo first.", "enter: open · r: reload · esc: back")
 }
 
-func (m *Model) pullRequestPickerView() string {
-	if m.Session != nil {
-		return m.switcherView()
-	}
-	rows := make([][]string, len(m.PullRequests))
-	for i, pr := range m.PullRequests {
-		name := func(s string) string {
-			if s == "" {
-				return "unknown"
-			}
-			return Escape(s)
-		}
-		opened := "unknown"
-		if !pr.OpenedAt.IsZero() {
-			opened = pr.OpenedAt.Local().Format("Jan 2, 2006")
-		}
-		checks := "? checks unknown"
-		switch pr.Checks {
-		case source.ChecksPassed:
-			checks = "✓ checks pass"
-		case source.ChecksFailed:
-			checks = "✗ checks fail"
-		case source.ChecksPending:
-			checks = "… checks pending"
-		}
-		rows[i] = []string{fmt.Sprintf("#%d %s", pr.Identity.Number, Escape(pr.Title))}
-		if m.Width <= 80 {
-			rows[i] = append(rows[i], "by "+name(pr.Author)+" · opened "+opened, "last commit "+name(pr.LastModifier)+" · "+checks)
-		} else {
-			rows[i] = append(rows[i], "by "+name(pr.Author)+" · opened "+opened+" · last commit "+name(pr.LastModifier)+" · "+checks)
-		}
-	}
-	return m.pickerScreenRows(&m.PullRequestPicker, []string{appHeader("Open pull requests", "")}, rows, "No open pull requests.", "enter: open · esc: back")
-}
-
 func (m *Model) switcherView() string {
 	results := m.switcherResults()
 	m.PullRequestPicker.clamp(len(results))

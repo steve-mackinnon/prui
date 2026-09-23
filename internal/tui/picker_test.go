@@ -172,13 +172,46 @@ func TestPullRequestPickerShowsMetadataAndCheckStates(t *testing.T) {
 		{Identity: source.Identity{Number: 4}, Title: "No status", Checks: source.ChecksUnknown},
 	}
 	view := ansi.Strip(m.View().Content)
-	for _, want := range []string{"#1 Passing", "by alice · opened Sep 23, 2026", "last commit bob · ✓ checks pass", "✗ checks fail", "… checks pending", "? checks unknown"} {
+	for _, want := range []string{"╭─ ✓ Checks pass", "╰", "#1  Passing", "Author alice  ·  Opened Sep 23, 2026", "Last commit bob", "✗ Checks fail"} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("missing %q in:\n%s", want, view)
 		}
 	}
+	for _, tc := range []struct {
+		index int
+		label string
+	}{{2, "… Checks pending"}, {3, "? Checks unknown"}} {
+		m.PullRequestPicker.Index = tc.index
+		if got := ansi.Strip(m.View().Content); !strings.Contains(got, tc.label) {
+			t.Fatalf("missing %q in:\n%s", tc.label, got)
+		}
+	}
 	if lines := strings.Split(view, "\n"); len(lines) > m.Height {
 		t.Fatalf("picker overflowed: %s", view)
+	}
+	if strings.Count(view, "╭") != strings.Count(view, "╰") {
+		t.Fatalf("partial card rendered:\n%s", view)
+	}
+}
+
+func TestPullRequestCardsKeepBordersAndSemanticColorAtWideWidth(t *testing.T) {
+	m := New(context.Background(), nil)
+	defer m.Close()
+	m.Stack = []page{pagePullRequestPicker}
+	m.Width, m.Height = 120, 10
+	m.PullRequests = []source.PullRequest{{Identity: source.Identity{Number: 42}, Title: "\x1b[31m Colorful change " + strings.Repeat("x", 120), Author: "alice", LastModifier: strings.Repeat("b", 100), Checks: source.ChecksFailed}}
+	colored := m.View().Content
+	if !strings.Contains(colored, m.styleLine(classRemoved, "✗ Checks fail")) || !strings.Contains(colored, m.styleLine(classPaneBorderFocused, "╭─ ")) {
+		t.Fatalf("card lost semantic status or selected border color: %q", colored)
+	}
+	plain := ansi.Strip(colored)
+	if strings.Count(plain, "╭") != 1 || strings.Count(plain, "╰") != 1 || !strings.Contains(plain, `\x1b[31m`) || !strings.Contains(plain, "Last commit b") {
+		t.Fatalf("card border or escaped title missing:\n%s", plain)
+	}
+	for _, line := range strings.Split(plain, "\n") {
+		if visibleWidth(line) > m.Width {
+			t.Fatalf("wide card overflows: %q", line)
+		}
 	}
 }
 

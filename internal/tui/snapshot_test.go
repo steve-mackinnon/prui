@@ -131,7 +131,7 @@ func TestScreenSnapshots(t *testing.T) {
 				// Invisible right-edge padding is not part of the text baseline.
 				lines[i] = strings.TrimRight(line, " ")
 			}
-			if tc.name == "repositories" && !strings.Contains(got, "› example/repo-20") || tc.name == "pull_requests" && !strings.Contains(got, "› #20 Change 20") {
+			if tc.name == "repositories" && !strings.Contains(got, "› example/repo-20") || tc.name == "pull_requests" && (!strings.Contains(got, "› ╭") || !strings.Contains(got, "#20  Change 20")) {
 				t.Fatalf("selected item is invisible; cannot accept this baseline:\n%s", got)
 			}
 			checkScreen(t, tc.name, strings.Join(lines, "\n")+"\n")
