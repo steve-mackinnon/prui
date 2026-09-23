@@ -45,6 +45,7 @@ type diffLine struct {
 	styledLine
 	target     *source.ReviewCommentTarget
 	commentID  int64    // nonzero only for an already anchored overlay comment
+	editor     bool     // true for rows in the active inline editor
 	sideBySide *diffRow // non-nil for one logical, aligned source row
 }
 
