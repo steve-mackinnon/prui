@@ -1,10 +1,10 @@
 # pr-review
 
-Pinned GitHub PR review in a local terminal, with explicitly submitted line comments in the interactive TUI. Deterministic file slices, bounded pinned repository evidence, durable local reading progress, and explicit revision checks. Selecting a PR from the interactive PR list or switcher automatically resolves OpenAI review guides; successful guides are reused locally for the same immutable comparison. No server, no telemetry, no stored credentials. Source retrieval remains read-only; the only GitHub write is a reviewer-confirmed, line-anchored comment. Phases 1-4 implemented.
+Pinned GitHub PR review in a local terminal, with inline comments and explicit PR review submission in the interactive TUI. Deterministic file slices, bounded pinned repository evidence, durable local reading progress, and explicit revision checks. Selecting a PR from the interactive PR list or switcher automatically resolves OpenAI review guides; successful guides are reused locally for the same immutable comparison. No server, no telemetry, no stored credentials. Source retrieval remains read-only; GitHub writes require an explicit reviewer action.
 
 ## Run
 
-Building requires Go 1.26.8+. Opening a new comparison requires Git and authenticated GitHub CLI (`gh`); resuming a frozen snapshot does not require Git or its checkout. Missing `gh`/authentication/connectivity leaves resume usable with unknown freshness. Posting an inline comment additionally requires the authenticated GitHub credential to have Pull requests write permission for the repository. Dependencies are pinned in `go.mod`/`go.sum`: Bubble Tea v2.0.9 and Lip Gloss v2.0.2. macOS/Linux only initially.
+Building requires Go 1.26.8+. Opening a new comparison requires Git and authenticated GitHub CLI (`gh`); resuming a frozen snapshot does not require Git or its checkout. Missing `gh`/authentication/connectivity leaves resume usable with unknown freshness. Posting an inline comment or submitting a review additionally requires the authenticated GitHub credential to have Pull requests write permission for the repository. Dependencies are pinned in `go.mod`/`go.sum`: Bubble Tea v2.0.9 and Lip Gloss v2.0.2. macOS/Linux only initially.
 
 ```sh
 cd /path/to/checkout # open and verify must run at the repository root
@@ -54,12 +54,11 @@ Reviews opened in one process keep independent in-memory reading positions, hier
 
 The interactive review uses a compact workspace: an identity header, a mode and
 selection header, the file/guide rail and detail pane, and a one-line health
-status. The health status reports local reading progress plus inventory,
-guides, freshness, and unavailable-content state; narrow terminals keep
-progress and the highest-severity state. `?` opens **Health & help**, which
-groups all shortcuts under Navigate, Review, Views, Diagnostics, and App. The
-review surface keeps only `ctrl+p` discoverable because switching PRs is the
-primary workspace action.
+status. The status line keeps `R Submit review` and the pending count visible
+alongside local reading progress, inventory, guides, freshness, and unavailable
+content. Narrow terminals abbreviate the action and retain the highest-severity
+state. `?` opens **Health & help**, which groups shortcuts under Navigate,
+Review, Views, Diagnostics, and App.
 
 Diff detail opens in unified layout. Press `S` to prefer side-by-side source
 rows for the active review tab; that preference stays in memory only and is not
@@ -81,7 +80,9 @@ columns. Plain output is always unified.
 | `tab` | Expand / collapse the selected guide or section |
 | `ctrl+h` / `ctrl+l` | Focus list / diff |
 | `enter` / `esc` | In the list, focus the selected diff / go back; in a focused diff, open a composer for a target or an action menu for a selected comment / discard local drafts and menus |
-| `enter` | Submit the inline line-comment draft; `shift+enter` inserts a newline |
+| `enter` in a line editor | Post the line comment immediately; `shift+enter` inserts a newline |
+| `ctrl+p` in a line editor | Save or update a local pending comment without posting |
+| `R` | Open Submit review from Changes, Description, or Commits |
 | `c` | Refresh ephemeral inline review comments (online reviews only) |
 | Up / down, `j` / `k` | Navigate list or scroll focused diff |
 | `J` / `K` | Scroll diff by 5 lines |
@@ -108,13 +109,15 @@ Every interactive PR has `Changes`, `Description`, and `Commits` context views. 
 
 The interactive diff pane marks one selected display line. Press `enter` while that pane is focused to open a Markdown composer only when the line is commentable: added and context lines target the new-file `RIGHT` side, and deleted lines target the old-file `LEFT` side. Headers, hunk markers, binary/metadata/unavailable content, and paths that cannot be sent as valid JSON are not commentable. `j`/`k` move the line cursor through commentable lines; scrolling and the cursor are separate.
 
-Press `enter` on a selected commentable diff line to open an inline editor immediately beneath it. The bordered editor keeps the draft visually separate from code and shows a blinking caret at the edit point. Type Markdown normally; `enter` submits one comment, `shift+enter` adds a newline, `backspace` and `delete` remove the preceding/following rune, and `esc` discards the draft. Drafts are memory-only: they are never saved in a session, logged, or passed on a command line. A failed submission keeps the draft and target for an intentional retry.
+Press `enter` on a selected commentable diff line to open an inline editor immediately beneath it. The bordered editor keeps the draft visually separate from code and shows a blinking caret at the edit point. Type Markdown normally; `enter` posts one comment immediately, `ctrl+p` adds it to the local pending review, `shift+enter` adds a newline, and `esc` discards the editor. Opening a line with an existing pending comment reopens that draft. Up to 100 pending comments appear under their target lines and in the Submit review screen; they are memory-only and are lost when the app exits. A failed immediate submission keeps the editor and target for an intentional retry.
+
+`R` opens **Submit review** from any PR context view. Choose Comment, Approve, or Request changes with the arrow keys, then Tab to the Markdown summary. Comment and Request changes require a summary; Approve allows an empty one. Tab again to browse pending line comments: Enter edits the selected draft at its diff target, and `d` removes it. Enter in the summary opens a confirmation showing the review decision and pending count; a second Enter sends the review and all pending comments to GitHub in one request. Escape backs out without writing. A failed submission leaves the summary and pending comments in memory for inspection; because a network failure can have an uncertain outcome, check GitHub before retrying. Successful submission clears the local queue and refreshes the inline comment overlay.
 
 Online reviews load a bounded, read-only overlay of review comments and `c` refreshes it. Comments render only when their frozen head SHA, path, side, and line exactly match a diff target; remote author and body text are escaped. A successful post is inserted immediately from GitHub’s canonical response. Remote comments are never stored in sessions or plain output; offline reviews neither fetch nor post them.
 
 Comment boxes participate in focused-diff `j`/`k` navigation, are visibly marked, and are kept in view. `enter` on one opens a local action menu: `r` opens a separate rune-aware reply box indented beneath that message, `a` opens the finite GitHub reaction picker (`1`–`8` choose its displayed reaction), and `d` is shown only after the authenticated viewer identity matches the displayed comment author. GitHub replies can target only a thread’s top-level comment, so `r` on an existing reply automatically uses that root and renders the canonical response in its thread. Reaction totals are compact emoji chips (`👍`, `👎`, `😄`, `😕`, `❤️`, `🎉`, `🚀`, `👀`) in the message box’s bottom border; an explicit non-UTF-8 locale uses the original GitHub token labels instead. Deletion requires a second `enter` confirmation. `esc` always closes the menu or draft without a write. Reply/reaction/deletion requests are preflighted against the frozen PR and update only that tab’s memory-only overlay from the canonical GitHub response; a failed reply retains its draft for retry.
 
-Immediately before posting, pr-review re-reads GitHub metadata and requires the repository identities plus base and head SHAs to equal the frozen comparison. If they differ, it makes no write and asks you to open a new comparison. A successful request uses the frozen head SHA, path, side, and line; GitHub can still mark the comment outdated if the pull request advances after that preflight. Comments are unavailable in `--plain` and `resume --offline`, and no open, resume, refresh, guide action, or background task can post one.
+Immediately before posting a comment or submitting a review, pr-review re-reads GitHub metadata and requires the repository identities plus base and head SHAs to equal the frozen comparison. If they differ, it makes no write and asks you to open a new comparison. A successful request uses the frozen head SHA and line targets; GitHub can still mark a comment outdated if the pull request advances after that preflight. Writes are unavailable in `--plain` and `resume --offline`, and no open, resume, refresh, guide action, or background task can submit one.
 
 ## Color
 

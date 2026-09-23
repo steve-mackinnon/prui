@@ -5,7 +5,7 @@
 - Account for every raw change and every unit exactly once. Limits produce explicit incomplete/unavailable states, never an empty-success substitute.
 - Never execute reviewed code, hooks, filters, textconv, external diff, credential helpers, submodule commands, or repository-selected network helpers.
 - Never mutate the checkout, index, refs, configuration, or object files. Temporary isolated storage is tool-owned and removed on completion/cancellation.
-- No telemetry or persisted credentials. Source retrieval, opening, resuming, refresh, guide generation, and background work never write reviews. Phase 5 adds only the explicitly submitted, line-anchored GitHub comment described below. Phases 1 to 3 have no model integration and no source upload; Phase 4 analysis supersedes the no-upload part of this rule under the PR-list behavior below.
+- No telemetry or persisted credentials. Source retrieval, opening, resuming, refresh, guide generation, and background work never write reviews. GitHub writes require an explicit reviewer action in the interactive TUI: an immediate line comment, comment action, or confirmed PR review submission. Phases 1 to 3 have no model integration and no source upload; Phase 4 analysis supersedes the no-upload part of this rule under the PR-list behavior below.
 - Default limits: 10,000 entries; 50 MiB materialized content; 1 MiB per blob; 100,000 diff lines; 60 seconds per operation; 512 MiB temporary fetch storage.
 - Fetch storage is monitored, not an exact network-byte cap. Terminate the process group on exhaustion; polling permits overshoot. No automatic resource-limit retries.
 - Verification: `go vet ./...`, `go test -race -count=1 ./...`, `go build ./...`. Synthetic fixtures only; never weaken tests or suppress checks to pass.
@@ -32,7 +32,7 @@
 
 # Phase 5 Line Comment Contract
 
-- The sole GitHub write is one reviewer-initiated, line-anchored pull-request comment from the interactive TUI. There are no automatic comments, replies, timeline comments, batches, ranges, queues, retries, persisted drafts, or comment history.
+- Phase 5's initial GitHub write is one reviewer-initiated, line-anchored pull-request comment from the interactive TUI. Later review submission and comment actions extend this boundary as described below. There are no automatic comments, timeline comments, retries, or persisted drafts.
 - A comment target is derived from immutable raw patch bytes: additions and context use the new path, `RIGHT`, and new-file line; deletions use the old path, `LEFT`, and old-file line. Headers, hunk markers, no-newline markers, non-text units, unavailable units, and invalid UTF-8 paths are never commentable. Terminal escaping, styling, cursor position, and scroll offsets never determine the target.
 - The editor is transient, tab-owned inline state. `enter` focuses the diff from the list and, only in a focused diff on a commentable line, opens it directly below that line. Within it, `enter` explicitly submits, `shift+enter` adds a newline, `backspace`/`delete` remove the preceding/following rune, and `esc` discards. Comment text is memory-only and is never persisted, logged, rendered in errors, or placed in process arguments.
 - Read-only comment overlays are bounded, per-tab, and ephemeral. They load only online and on explicit `c` refresh; every rendered item must exactly match the frozen head SHA, path, side, and line. Remote bodies, logins, and paths are escaped; comments never enter sessions, logs, or plain output.
@@ -48,3 +48,11 @@
 - Reaction rendering is emoji-first only for UTF-8 locales, with the bounded GitHub reaction tokens as the fallback for explicit non-UTF-8 locales. Emoji glyph/font support is not probed, and reaction meaning never depends on color.
 - Every action remains online-only and freshness-preflighted. Delete additionally fetches the authenticated viewer and is permitted only when that login exactly equals the loaded comment author, then requires explicit final confirmation.
 - Action results carry origin tab, stable comment ID, and generation. Stale results and results for another tab are ignored. Canonical replies and reactions, menus, drafts, viewer identity, and deletion state are overlay-only: never sessions, logs, or plain output.
+
+# Pull Request Review Submission Contract
+
+- `R` is a persistent, visible action in every interactive PR context view. It opens a tab-owned form with Comment, Approve, and Request changes, a Markdown summary, pending comment list, and a separate confirmation step. Comment and Request changes require a nonblank summary; Approve may omit one.
+- In the inline editor, `enter` still posts one comment immediately. `ctrl+p` queues or updates a local pending comment without a network request. Pending comments are displayed at their immutable diff target and in the review form; the reviewer can edit or remove them before submission. Pending bodies and the summary are process-memory-only and are lost on exit or a new comparison.
+- Review submission sends one JSON stdin request through `gh api` to the pull-request reviews endpoint with the frozen head SHA, event, summary, and validated line targets. No draft text appears in process arguments, logs, sessions, or plain output. A successful request clears the local queue and refreshes the read-only inline overlay.
+- Before the write, the application checks current repository identities and base/head SHAs against the frozen comparison. Mismatch, offline mode, invalid input, or unavailable GitHub capability makes no write. There is no automatic retry after an uncertain outcome; a failed request retains local drafts for inspection.
+- Queued comments and asynchronous results belong to their originating review tab. Switching tabs cannot retarget a request. A new comparison clears drafts anchored to the old one. Source retrieval, guide generation, and progress updates cannot submit a review.

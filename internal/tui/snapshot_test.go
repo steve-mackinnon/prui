@@ -75,6 +75,14 @@ func TestScreenSnapshots(t *testing.T) {
 			m.Comments = []source.ReviewComment{{ID: 7, Author: "reviewer", Target: target, Body: "parent message"}, {ID: 8, ParentID: 7, Author: "viewer", Target: target, Body: "threaded reply"}}
 			m.CommentReactions = map[int64][]source.ReviewCommentReaction{7: {{Content: "heart"}, {Content: "heart"}, {Content: "+1"}}}
 		}},
+		{"review_form_wide", 120, 16, func(m *Model) {
+			m.Pending = []source.ReviewComment{{Target: source.ReviewCommentTarget{Path: "main.go", Side: "RIGHT", Line: 1}, Body: "Please cover the empty case."}}
+			m.openReviewForm()
+		}},
+		{"review_form_narrow", 60, 10, func(m *Model) {
+			m.openReviewForm()
+			m.ReviewForm.Event, m.ReviewForm.Body, m.ReviewForm.Confirm = 2, "Please address the edge case.", true
+		}},
 		{"loading", 80, 8, func(m *Model) { m.Loading, m.cancelAction = true, func() {} }},
 		{"load_error", 80, 8, func(m *Model) { m.Err = errors.New("synthetic metadata failure") }},
 		{"guides", 120, 14, func(m *Model) {

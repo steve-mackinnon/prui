@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"pr-review/internal/guide"
@@ -35,11 +36,6 @@ func reviewHealth(s *review.Session) (string, []healthItem) {
 	if !s.Inventory.Complete {
 		items[0] = healthItem{text: "! Inventory incomplete", severity: 3}
 	}
-	if s.Guides == nil || s.Guides.Status == guide.Unavailable {
-		items = append(items, healthItem{text: "? Guides unavailable", severity: 1})
-	} else {
-		items = append(items, healthItem{text: fmt.Sprintf("✓ Guides %d", len(s.Guides.Items))})
-	}
 	switch s.RevisionStatus {
 	case session.Current:
 		items = append(items, healthItem{text: "✓ Freshness current"})
@@ -49,6 +45,11 @@ func reviewHealth(s *review.Session) (string, []healthItem) {
 		items = append(items, healthItem{text: "! Freshness unknown", severity: 3})
 	default:
 		items = append(items, healthItem{text: "? Freshness unknown", severity: 1})
+	}
+	if s.Guides == nil || s.Guides.Status == guide.Unavailable {
+		items = append(items, healthItem{text: "? Guides unavailable", severity: 1})
+	} else {
+		items = append(items, healthItem{text: fmt.Sprintf("✓ Guides %d", len(s.Guides.Items))})
 	}
 	unavailable := 0
 	for _, u := range s.Inventory.Units {
@@ -64,18 +65,56 @@ func reviewHealth(s *review.Session) (string, []healthItem) {
 
 func (m *Model) healthStatus(width int, s *review.Session) string {
 	progress, items := reviewHealth(s)
+	if width < 50 {
+		highest := items[0]
+		for _, item := range items[1:] {
+			if item.severity >= highest.severity {
+				highest = item
+			}
+		}
+		action := "R Review"
+		if len(m.Pending) > 0 {
+			action = fmt.Sprintf("R Review:%d", len(m.Pending))
+		}
+		status := highest.text
+		if status == "! Inventory incomplete" && visibleWidth(strings.Join([]string{strings.TrimSuffix(progress, " read"), action, status}, " · ")) > width {
+			status = "! Inventory gap"
+		}
+		class := classTitle
+		if highest.severity >= 2 {
+			class = classWarning
+		}
+		return m.styleLine(class, clip(strings.Join([]string{strings.TrimSuffix(progress, " read"), action, status}, " · "), width))
+	}
 	help := "?: Health & help"
-	parts := []string{progress}
+	action := fmt.Sprintf("R Submit review (%d)", len(m.Pending))
+	if width < 110 {
+		action = fmt.Sprintf("R Review (%d)", len(m.Pending))
+		help = "?: Help"
+	}
+	parts := []string{progress, action}
 	severity := 0
 	if width >= 100 {
+		sort.SliceStable(items, func(i, j int) bool {
+			priority := func(item healthItem) int {
+				if item.severity >= 2 {
+					return item.severity
+				}
+				return 0
+			}
+			return priority(items[i]) > priority(items[j])
+		})
 		for _, item := range items {
-			parts = append(parts, item.text)
-			severity = max(severity, item.severity)
+			candidate := append(append([]string(nil), parts...), item.text, help)
+			if visibleWidth(strings.Join(candidate, " · ")) <= width {
+				parts = append(parts, item.text)
+				severity = max(severity, item.severity)
+			}
 		}
 	} else {
 		highest := items[0]
 		for _, item := range items[1:] {
-			if item.severity > highest.severity {
+			if item.severity >= highest.severity {
 				highest = item
 			}
 		}
@@ -92,6 +131,9 @@ func (m *Model) healthStatus(width int, s *review.Session) string {
 }
 
 func (m *Model) reviewStatus() string {
+	if m.Composer != nil {
+		return m.styleLine(classWarning, clip("enter: post now · ctrl+p: add to pending review · shift+enter: newline · esc: discard", m.Width))
+	}
 	if menu := m.CommentMenu; menu != nil {
 		text := "Comment actions: r reply · a react · esc cancel"
 		switch menu.mode {
@@ -115,6 +157,10 @@ func (m *Model) reviewStatus() string {
 	if m.ActionError != nil {
 		progress, _ := reviewHealth(m.Session)
 		return m.styleLine(classWarning, clip(progress+" · ! Action failed: "+Escape(m.ActionError.Error())+" · ?: Health & help", m.Width))
+	}
+	if m.ReviewSubmitted {
+		progress, _ := reviewHealth(m.Session)
+		return m.styleLine(classTitle, clip("✓ Review submitted on GitHub · "+progress+" · ?: Health & help", m.Width))
 	}
 	return m.healthStatus(m.Width, m.Session)
 }

@@ -23,6 +23,8 @@ type fixtureGH struct {
 	prs        []source.PullRequest
 	comments   []source.ReviewComment
 	commentErr error
+	reviews    []source.PullRequestReview
+	reviewErr  error
 }
 
 type requestFunc func(context.Context, source.Request) ([]byte, error)
@@ -57,6 +59,31 @@ func (g *fixtureGH) ListPullRequests(context.Context, string) ([]source.PullRequ
 func (g *fixtureGH) CreateReviewComment(_ context.Context, comment source.ReviewComment) (source.ReviewComment, error) {
 	g.comments = append(g.comments, comment)
 	return comment, g.commentErr
+}
+
+func (g *fixtureGH) CreatePullRequestReview(_ context.Context, review source.PullRequestReview) error {
+	g.reviews = append(g.reviews, review)
+	return g.reviewErr
+}
+
+func TestSubmitPullRequestReviewRequiresFrozenComparison(t *testing.T) {
+	app, saved := wiringFixture(t)
+	gh := app.gh.(*fixtureGH)
+	frozen := saved.Inventory.Comparison.Metadata
+	review := source.PullRequestReview{Identity: frozen.Identity, CommitID: frozen.HeadSHA, Event: "APPROVE"}
+	submission := tui.ReviewSubmission{Metadata: frozen, Review: review}
+	if err := app.submitPullRequestReview(context.Background(), submission); err != nil || len(gh.reviews) != 1 {
+		t.Fatal(err, gh.reviews)
+	}
+	gh.value.HeadSHA = frozen.BaseSHA
+	if err := app.submitPullRequestReview(context.Background(), submission); err == nil || !strings.Contains(err.Error(), "new comparison") || len(gh.reviews) != 1 {
+		t.Fatal("stale review was submitted", err, gh.reviews)
+	}
+	gh.value = frozen
+	app.offline = true
+	if err := app.submitPullRequestReview(context.Background(), submission); err == nil || len(gh.reviews) != 1 {
+		t.Fatal("offline review was submitted", err, gh.reviews)
+	}
 }
 
 func TestSubmitReviewCommentRequiresExactFrozenMetadata(t *testing.T) {

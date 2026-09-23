@@ -1,0 +1,332 @@
+package tui
+
+import (
+	"errors"
+	"fmt"
+	"strings"
+
+	tea "charm.land/bubbletea/v2"
+	"pr-review/internal/source"
+)
+
+var reviewEvents = []struct{ label, event string }{
+	{"Comment", "COMMENT"},
+	{"Approve", "APPROVE"},
+	{"Request changes", "REQUEST_CHANGES"},
+}
+
+// The form and queued comments belong to one open review tab and never enter a
+// saved session. The confirmation state keeps Enter from writing accidentally.
+type reviewForm struct {
+	Event, Focus, Selected int // focus: event, summary, pending comments
+	Body                   string
+	Cursor                 int // rune offset
+	Confirm                bool
+	generation             uint64
+}
+
+func (m *Model) unsentReviewDrafts() bool {
+	if len(m.Pending) > 0 || m.ReviewForm != nil && strings.TrimSpace(m.ReviewForm.Body) != "" {
+		return true
+	}
+	for i, tab := range m.tabs {
+		if i != m.activeTab && tab.review != nil && (len(tab.review.Pending) > 0 || tab.review.ReviewForm != nil && strings.TrimSpace(tab.review.ReviewForm.Body) != "") {
+			return true
+		}
+	}
+	return false
+}
+
+func (m *Model) openReviewForm() {
+	if m.ReviewForm == nil {
+		m.ReviewForm = &reviewForm{}
+	}
+	m.push(pageReviewSubmit)
+	m.ReviewSubmitted = false
+}
+
+func (m *Model) reviewFormView() string {
+	f := m.ReviewForm
+	if f == nil || m.Session == nil {
+		return "Review unavailable · esc: back"
+	}
+	metadata := m.Session.Inventory.Comparison.Metadata
+	lines := []string{
+		fmt.Sprintf("Submit review · %s#%d · head %.12s", Escape(metadata.Identity.Repository), metadata.Identity.Number, metadata.HeadSHA),
+		fmt.Sprintf("%d/%d file slices read · %d pending comments", len(m.Session.ReviewedSliceIDs), len(m.Session.Slices), len(m.Pending)),
+	}
+	if f.Confirm {
+		lines = append(lines, "", "Confirm GitHub review submission", reviewEvents[f.Event].label+" · "+fmt.Sprintf("%d pending comments", len(m.Pending)))
+		if f.Body != "" {
+			lines = append(lines, "Summary:")
+			bodyLines := strings.Split(f.Body, "\n")
+			limit := max(1, m.Height-len(lines)-3)
+			if len(bodyLines) > limit {
+				bodyLines = bodyLines[:limit]
+			}
+			for _, line := range bodyLines {
+				lines = append(lines, "  "+Escape(line))
+			}
+		}
+	} else {
+		decision := "Review decision: " + reviewEvents[f.Event].label + " (↑/↓ to change)"
+		if f.Focus == 0 {
+			decision = "› " + decision
+		}
+		lines = append(lines, "", decision)
+		label := "Summary"
+		if f.Focus == 1 {
+			label = "› Summary"
+		}
+		if f.Event != 1 {
+			label += " (required)"
+		}
+		lines = append(lines, label)
+		body := []rune(f.Body)
+		cursor := max(0, min(len(body), f.Cursor))
+		before, after := string(body[:cursor]), string(body[cursor:])
+		if f.Focus == 1 {
+			body = []rune(before + "▏" + after)
+		}
+		bodyLines := strings.Split(string(body), "\n")
+		bodyLimit := max(1, min(3, m.Height-8))
+		if len(bodyLines) > bodyLimit {
+			cursorLine := strings.Count(before, "\n")
+			start := max(0, min(cursorLine-bodyLimit+1, len(bodyLines)-bodyLimit))
+			bodyLines = bodyLines[start : start+bodyLimit]
+		}
+		for _, line := range bodyLines {
+			lines = append(lines, "  "+Escape(line))
+		}
+		lines = append(lines, fmt.Sprintf("Pending comments (%d) · tab to select, enter edit, d remove", len(m.Pending)))
+		reserved := 1
+		if !m.Session.Inventory.Complete {
+			reserved++
+		}
+		if m.ActionError != nil {
+			reserved += 2
+		}
+		available := max(0, m.Height-len(lines)-reserved)
+		start := max(0, f.Selected-available+1)
+		for i := start; i < len(m.Pending) && i < start+available; i++ {
+			comment := m.Pending[i]
+			marker := "  "
+			if f.Focus == 2 && i == f.Selected {
+				marker = "› "
+			}
+			first := strings.SplitN(comment.Body, "\n", 2)[0]
+			lines = append(lines, fmt.Sprintf("%s%s:%d %s · %s", marker, Escape(comment.Target.Path), comment.Target.Line, comment.Target.Side, Escape(first)))
+		}
+	}
+	if !m.Session.Inventory.Complete {
+		lines = append(lines, "! Inventory incomplete")
+	}
+	if m.ActionError != nil {
+		lines = append(lines, "! "+Escape(m.ActionError.Error()))
+		lines = append(lines, "Check GitHub before retrying; delivery may have succeeded.")
+	}
+	footer := "tab: next field · enter: confirm · shift+enter: newline · esc: back"
+	if f.Confirm {
+		footer = "enter: submit review and pending comments · esc: edit"
+	}
+	if len(lines) >= m.Height {
+		// Keep the latest actionable error or warning beside the submit hint.
+		if m.ActionError != nil {
+			lines = append(lines[:max(0, m.Height-3)], "! "+Escape(m.ActionError.Error()), "Check GitHub before retrying; delivery may have succeeded.")
+		} else {
+			lines = lines[:max(0, m.Height-1)]
+		}
+	}
+	lines = append(lines, footer)
+	for i := range lines {
+		lines[i] = clip(lines[i], m.Width)
+	}
+	return strings.Join(lines, "\n")
+}
+
+func (m *Model) reviewFormKey(key tea.KeyPressMsg) tea.Cmd {
+	f := m.ReviewForm
+	if f == nil {
+		m.pop()
+		return nil
+	}
+	k := key.String()
+	if f.Confirm {
+		switch k {
+		case "esc":
+			f.Confirm = false
+		case "enter":
+			if m.submitReview == nil || m.Session == nil {
+				m.ActionError = errors.New("review submission unavailable")
+				return nil
+			}
+			f.generation++
+			generation, target, submit := f.generation, m.activeTab, m.submitReview
+			metadata := m.Session.Inventory.Comparison.Metadata
+			comments := append([]source.ReviewComment(nil), m.Pending...)
+			submission := ReviewSubmission{Metadata: metadata, Review: source.PullRequestReview{Identity: metadata.Identity, CommitID: metadata.HeadSHA, Event: reviewEvents[f.Event].event, Body: f.Body, Comments: comments}}
+			m.notice = "Submitting pull request review..."
+			ctx := m.beginAction()
+			return m.start(func() tea.Msg {
+				return ReviewResult{Target: target, Generation: generation, Err: submit(ctx, submission)}
+			})
+		}
+		return nil
+	}
+	switch k {
+	case "esc":
+		m.pop()
+	case "tab":
+		f.Focus = (f.Focus + 1) % 3
+	case "up", "k":
+		if f.Focus == 0 {
+			f.Event = (f.Event + len(reviewEvents) - 1) % len(reviewEvents)
+		} else if f.Focus == 2 && len(m.Pending) > 0 {
+			f.Selected = (f.Selected + len(m.Pending) - 1) % len(m.Pending)
+		} else if f.Focus == 1 {
+			m.insertReviewSummary(key.Text)
+		}
+	case "down", "j":
+		if f.Focus == 0 {
+			f.Event = (f.Event + 1) % len(reviewEvents)
+		} else if f.Focus == 2 && len(m.Pending) > 0 {
+			f.Selected = (f.Selected + 1) % len(m.Pending)
+		} else if f.Focus == 1 {
+			m.insertReviewSummary(key.Text)
+		}
+	case "enter":
+		switch f.Focus {
+		case 0:
+			f.Focus = 1
+		case 1:
+			if f.Event != 1 && strings.TrimSpace(f.Body) == "" {
+				m.ActionError = errors.New("review summary is required")
+				return nil
+			}
+			m.ActionError = nil
+			f.Confirm = true
+		case 2:
+			if f.Selected < len(m.Pending) {
+				pending := m.Pending[f.Selected]
+				if !m.focusPendingTarget(pending.Target) {
+					m.ActionError = errors.New("pending comment target is unavailable in this comparison")
+					return nil
+				}
+				m.Composer = &commentComposer{Target: pending.Target, Draft: pending.Body, Cursor: len([]rune(pending.Body)), PendingIndex: f.Selected}
+				m.pop()
+			}
+		}
+	case "d":
+		if f.Focus == 2 && f.Selected < len(m.Pending) {
+			m.Pending = append(m.Pending[:f.Selected], m.Pending[f.Selected+1:]...)
+			f.Selected = max(0, min(f.Selected, len(m.Pending)-1))
+		} else if f.Focus == 1 {
+			m.insertReviewSummary(key.Text)
+		}
+	case "shift+enter":
+		if f.Focus == 1 {
+			m.insertReviewSummary("\n")
+		}
+	case "backspace":
+		if f.Focus == 1 && f.Cursor > 0 {
+			r := []rune(f.Body)
+			f.Body = string(append(r[:f.Cursor-1], r[f.Cursor:]...))
+			f.Cursor--
+		}
+	case "delete":
+		if f.Focus == 1 {
+			r := []rune(f.Body)
+			if f.Cursor < len(r) {
+				f.Body = string(append(r[:f.Cursor], r[f.Cursor+1:]...))
+			}
+		}
+	case "left":
+		if f.Focus == 1 {
+			f.Cursor = max(0, f.Cursor-1)
+		}
+	case "right":
+		if f.Focus == 1 {
+			f.Cursor = min(len([]rune(f.Body)), f.Cursor+1)
+		}
+	default:
+		if f.Focus == 1 && key.Text != "" && !key.Mod.Contains(tea.ModCtrl) && !key.Mod.Contains(tea.ModAlt) {
+			m.insertReviewSummary(key.Text)
+		}
+	}
+	return nil
+}
+
+func (m *Model) focusPendingTarget(target source.ReviewCommentTarget) bool {
+	if m.Session == nil {
+		return false
+	}
+	for unit := range m.Session.Inventory.Units {
+		for _, line := range unitLines(m.Session, unit) {
+			if line.target != nil && *line.target == target {
+				m.ContextView, m.Files, m.Inventory, m.Selected, m.Focus = viewChanges, true, false, unit, paneDiff
+				m.cursorActive = true
+				for row, detail := range m.displayDetail() {
+					matches := detail.target != nil && *detail.target == target
+					if detail.sideBySide != nil {
+						for _, candidate := range rowTargets(*detail.sideBySide) {
+							matches = matches || candidate == target
+						}
+					}
+					if matches {
+						m.setCursor(row)
+						m.ensureCursorVisible()
+						return true
+					}
+				}
+				return false
+			}
+		}
+	}
+	return false
+}
+
+func (m *Model) insertReviewSummary(text string) {
+	f := m.ReviewForm
+	r := []rune(f.Body)
+	insert := []rune(text)
+	f.Body = string(append(append(r[:f.Cursor], insert...), r[f.Cursor:]...))
+	f.Cursor += len(insert)
+}
+
+func (m *Model) pendingLines(target source.ReviewCommentTarget) []diffLine {
+	lines := []diffLine{}
+	for i, comment := range m.Pending {
+		if comment.Target == target {
+			first := strings.SplitN(comment.Body, "\n", 2)[0]
+			lines = append(lines, diffLine{styledLine: styledLine{Class: classWarning, Text: fmt.Sprintf("  [Pending %d] %s · R to review", i+1, Escape(first))}})
+		}
+	}
+	return lines
+}
+
+func (m *Model) applyReviewResult(result ReviewResult) {
+	apply := func(state *reviewTabState) {
+		if state == nil || state.ReviewForm == nil || state.ReviewForm.generation != result.Generation {
+			return
+		}
+		state.Busy = false
+		state.ActionError = result.Err
+		if result.Err == nil {
+			state.Pending = nil
+			state.ReviewForm = nil
+			state.ReviewSubmitted = true
+			if len(state.Stack) > 1 && state.Stack[len(state.Stack)-1] == pageReviewSubmit {
+				state.Stack = state.Stack[:len(state.Stack)-1]
+			}
+		} else {
+			state.ReviewForm.Confirm = false
+		}
+	}
+	if result.Target == m.activeTab {
+		state := &reviewTabState{ReviewForm: m.ReviewForm, Pending: m.Pending, ReviewSubmitted: m.ReviewSubmitted, Stack: m.Stack, Busy: m.Busy, ActionError: m.ActionError, notice: m.notice}
+		apply(state)
+		m.ReviewForm, m.Pending, m.ReviewSubmitted, m.Stack, m.Busy, m.ActionError, m.notice = state.ReviewForm, state.Pending, state.ReviewSubmitted, state.Stack, state.Busy, state.ActionError, state.notice
+	} else if result.Target >= 0 && result.Target < len(m.tabs) {
+		apply(m.tabs[result.Target].review)
+	}
+}

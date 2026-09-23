@@ -92,6 +92,9 @@ type reviewTabState struct {
 	Busy                                                 bool
 	ActionError                                          error
 	Composer                                             *commentComposer
+	Pending                                              []source.ReviewComment
+	ReviewForm                                           *reviewForm
+	ReviewSubmitted                                      bool
 	CommentMenu                                          *commentActionMenu
 	Comments                                             []source.ReviewComment
 	CommentReactions                                     map[int64][]source.ReviewCommentReaction
@@ -114,6 +117,8 @@ const (
 	pageRepositoryPicker
 	pagePullRequestPicker
 	pageGuideConsent
+	pageReviewSubmit
+	pageQuitPending
 	pageThemePicker
 )
 
@@ -121,10 +126,11 @@ const (
 // immutable diff provenance when the reviewer opens the composer, so later
 // navigation cannot silently retarget a draft.
 type commentComposer struct {
-	Target     source.ReviewCommentTarget
-	Draft      string
-	Cursor     int // rune offset, never a byte offset
-	generation uint64
+	Target       source.ReviewCommentTarget
+	Draft        string
+	Cursor       int // rune offset, never a byte offset
+	PendingIndex int // -1 for a new comment; otherwise edits a local pending draft
+	generation   uint64
 }
 
 type commentActionMenu struct {
@@ -180,6 +186,9 @@ type Model struct {
 	SwitcherQuery                                        string
 	ActionError                                          error
 	Composer                                             *commentComposer
+	Pending                                              []source.ReviewComment
+	ReviewForm                                           *reviewForm
+	ReviewSubmitted                                      bool
 	CommentMenu                                          *commentActionMenu
 	Comments                                             []source.ReviewComment
 	CommentReactions                                     map[int64][]source.ReviewCommentReaction
@@ -202,6 +211,7 @@ type Model struct {
 	openPullRequest                                      PullRequestOpener
 	generateGuide                                        GuideLoader
 	submitComment                                        CommentSubmitter
+	submitReview                                         ReviewSubmitter
 	readComments                                         CommentReader
 	readViewer                                           ViewerReader
 	submitCommentAction                                  CommentActionSubmitter
@@ -357,6 +367,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if v.Err == nil && v.Session != nil {
 			m.Session = v.Session
 			if v.Reset {
+				m.Composer, m.ReviewForm, m.CommentMenu = nil, nil, nil
+				m.Pending, m.Comments = nil, nil
+				m.ReviewSubmitted = false
 				m.Selected, m.Horizontal, m.Row = 0, 0, 0
 				m.collapsed = newExpansion()
 				m.Scroll = map[int]int{}
@@ -376,6 +389,17 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.applyCommentResult(v)
 		if active != v.Target {
 			m.Busy, m.ActionError, m.notice = busy, actionErr, notice
+		}
+	case ReviewResult:
+		active := m.activeTab
+		busy, actionErr, notice := m.Busy, m.ActionError, m.notice
+		v.Err = m.finishAction(v.Err)
+		m.applyReviewResult(v)
+		if active != v.Target {
+			m.Busy, m.ActionError, m.notice = busy, actionErr, notice
+		}
+		if active == v.Target && v.Err == nil {
+			return m, m.refreshComments()
 		}
 	case CommentActionResult:
 		active := m.activeTab
@@ -480,7 +504,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.cancelCurrentAction()
 			return m, nil
 		}
-		if v.String() != "q" && v.String() != "ctrl+c" {
+		editingReviewText := m.top() == pageReviewSubmit
+		if (v.String() != "q" || editingReviewText) && v.String() != "ctrl+c" {
 			if m.Busy && (m.top() != pagePullRequestPicker || m.Session == nil) {
 				return m, nil
 			}
@@ -502,6 +527,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			if v.String() == "ctrl+p" {
 				return m, m.openSwitcher()
+			}
+			if v.String() == "R" && m.Session != nil {
+				m.openReviewForm()
+				return m, nil
 			}
 			switch v.String() {
 			case "1":
@@ -534,6 +563,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		switch v.String() {
 		case "q", "ctrl+c":
+			if v.String() == "q" && m.unsentReviewDrafts() {
+				m.push(pageQuitPending)
+				return m, nil
+			}
 			m.cancel()
 			return m, tea.Quit
 		case "?":
@@ -720,7 +753,7 @@ func (m *Model) saveActiveReview() {
 		guidePathOffset: m.guidePathOffset, guidePathPause: m.guidePathPause, guidePathGeneration: m.guidePathGeneration,
 		Stack: m.Stack, Loading: m.Loading, Busy: m.Busy,
 		ActionError: m.ActionError, notice: m.notice, loadingFrame: m.loadingFrame,
-		Composer: m.Composer, CommentMenu: m.CommentMenu, Comments: m.Comments, CommentReactions: m.CommentReactions, Viewer: m.Viewer, commentGeneration: m.commentGeneration,
+		Composer: m.Composer, Pending: m.Pending, ReviewForm: m.ReviewForm, ReviewSubmitted: m.ReviewSubmitted, CommentMenu: m.CommentMenu, Comments: m.Comments, CommentReactions: m.CommentReactions, Viewer: m.Viewer, commentGeneration: m.commentGeneration,
 		editorCursorVisible: m.editorCursorVisible, editorCursorGeneration: m.editorCursorGeneration,
 	}
 }
@@ -737,7 +770,7 @@ func (m *Model) restoreReviewTab(state *reviewTabState) {
 	m.guidePathOffset, m.guidePathPause, m.guidePathGeneration = state.guidePathOffset, state.guidePathPause, state.guidePathGeneration
 	m.Stack, m.Loading, m.Busy = state.Stack, state.Loading, state.Busy
 	m.ActionError, m.notice, m.loadingFrame = state.ActionError, state.notice, state.loadingFrame
-	m.Composer, m.CommentMenu, m.Comments, m.CommentReactions, m.Viewer, m.commentGeneration = state.Composer, state.CommentMenu, state.Comments, state.CommentReactions, state.Viewer, state.commentGeneration
+	m.Composer, m.Pending, m.ReviewForm, m.ReviewSubmitted, m.CommentMenu, m.Comments, m.CommentReactions, m.Viewer, m.commentGeneration = state.Composer, state.Pending, state.ReviewForm, state.ReviewSubmitted, state.CommentMenu, state.Comments, state.CommentReactions, state.Viewer, state.commentGeneration
 	m.editorCursorVisible, m.editorCursorGeneration = state.editorCursorVisible, state.editorCursorGeneration
 }
 
@@ -794,6 +827,16 @@ func (m *Model) pageKey(p page, key tea.KeyPressMsg) tea.Cmd {
 		return m.pullRequestPickerKey(k)
 	case pageGuideConsent:
 		return m.guideConsentKey(k)
+	case pageReviewSubmit:
+		return m.reviewFormKey(key)
+	case pageQuitPending:
+		if k == "esc" {
+			m.pop()
+		} else if k == "enter" {
+			m.cancel()
+			return tea.Quit
+		}
+		return nil
 	case pageThemePicker:
 		return m.themePickerKey(k)
 	case pageHelp, pageURL, pageEvidence:
@@ -816,7 +859,15 @@ func (m *Model) openCommentComposer() tea.Cmd {
 	if target == nil || target.Path == "" || !utf8.ValidString(target.Path) {
 		return nil
 	}
-	m.Composer = &commentComposer{Target: *target}
+	m.Composer = &commentComposer{Target: *target, PendingIndex: -1}
+	for i, pending := range m.Pending {
+		if pending.Target == *target {
+			m.Composer.PendingIndex = i
+			m.Composer.Draft = pending.Body
+			m.Composer.Cursor = len([]rune(pending.Body))
+			break
+		}
+	}
 	m.editorCursorVisible = true
 	m.editorCursorGeneration++
 	m.ensureCursorVisible()
@@ -1016,6 +1067,7 @@ func (m *Model) detail() []diffLine {
 				lines = append(lines, m.reviewCommentThread(comment, 0)...)
 			}
 		}
+		lines = append(lines, m.pendingLines(*line.target)...)
 		if m.Composer != nil && m.Composer.Target == *line.target {
 			lines = append(lines, m.inlineEditorLines()...)
 		}
@@ -1061,6 +1113,7 @@ func (m *Model) sideBySideDetail() []diffLine {
 					lines = append(lines, m.reviewCommentThread(comment, 0)...)
 				}
 			}
+			lines = append(lines, m.pendingLines(target)...)
 			if m.Composer != nil && m.Composer.Target == target {
 				lines = append(lines, m.inlineEditorLines()...)
 			}
@@ -1434,9 +1487,13 @@ func (m *Model) View() tea.View {
 				text += "\nStorage: " + Escape(m.store.Path()) + "\nSession: " + m.Session.ID
 			}
 		case pageURL:
-			text = m.Session.Inventory.Comparison.Metadata.Identity.URL() + "\nOpen this URL in your browser for GitHub review actions.\nesc: back | q: quit"
+			text = m.Session.Inventory.Comparison.Metadata.Identity.URL() + "\nOpen this URL in your browser.\nesc: back | q: quit"
 		case pageGuideConsent:
 			text = m.guideConsentView()
+		case pageReviewSubmit:
+			text = m.reviewFormView()
+		case pageQuitPending:
+			text = "Discard unsent review drafts and quit?\n\nenter: discard and quit · esc: keep reviewing"
 		case pageThemePicker:
 			text = m.themePickerView()
 		case pageEvidence:

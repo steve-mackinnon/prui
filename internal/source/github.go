@@ -106,6 +106,22 @@ type ReviewCommenter interface {
 	CreateReviewComment(context.Context, ReviewComment) (ReviewComment, error)
 }
 
+// PullRequestReview is one explicit review submission. Comments are held by the
+// caller until this request; creating it submits the review in a single write.
+type PullRequestReview struct {
+	Identity Identity
+	CommitID string
+	Event    string // COMMENT, APPROVE, or REQUEST_CHANGES
+	Body     string
+	Comments []ReviewComment
+}
+
+type PullRequestReviewWriter interface {
+	CreatePullRequestReview(context.Context, PullRequestReview) error
+}
+
+const MaxPendingReviewComments = 100
+
 // ReviewCommentReader is the narrow, read-only overlay boundary. Results are
 // deliberately ephemeral: callers must not put them in review sessions.
 type ReviewCommentReader interface {
@@ -203,6 +219,60 @@ func (g *GH) CreateReviewComment(ctx context.Context, comment ReviewComment) (Re
 		return ReviewComment{}, errors.New("invalid created review comment")
 	}
 	return created, nil
+}
+
+func ValidatePullRequestReview(review PullRequestReview) error {
+	if _, err := ParseIdentity(strconv.Itoa(review.Identity.Number), review.Identity.Repository); err != nil {
+		return errors.New("invalid pull request review")
+	}
+	if !shaPattern.MatchString(review.CommitID) || !utf8.ValidString(review.Body) || len(review.Comments) > MaxPendingReviewComments {
+		return errors.New("invalid pull request review")
+	}
+	switch review.Event {
+	case "COMMENT", "REQUEST_CHANGES":
+		if strings.TrimSpace(review.Body) == "" {
+			return errors.New("review summary is required")
+		}
+	case "APPROVE":
+	default:
+		return errors.New("invalid pull request review event")
+	}
+	for _, comment := range review.Comments {
+		if validateReviewComment(comment) != nil || comment.Target.Identity != review.Identity || comment.Target.CommitID != review.CommitID {
+			return errors.New("invalid pending review comment")
+		}
+	}
+	return nil
+}
+
+func (g *GH) CreatePullRequestReview(ctx context.Context, review PullRequestReview) error {
+	if err := ValidatePullRequestReview(review); err != nil {
+		return err
+	}
+	type inline struct {
+		Path string `json:"path"`
+		Line int    `json:"line"`
+		Side string `json:"side"`
+		Body string `json:"body"`
+	}
+	comments := make([]inline, 0, len(review.Comments))
+	for _, c := range review.Comments {
+		comments = append(comments, inline{Path: c.Target.Path, Line: c.Target.Line, Side: c.Target.Side, Body: c.Body})
+	}
+	payload, err := json.Marshal(struct {
+		CommitID string   `json:"commit_id"`
+		Event    string   `json:"event"`
+		Body     string   `json:"body"`
+		Comments []inline `json:"comments"`
+	}{review.CommitID, review.Event, review.Body, comments})
+	if err != nil {
+		return errors.New("could not prepare pull request review")
+	}
+	_, err = g.callWithStdin(ctx, payload, "api", "--hostname", "github.com", "--method", "POST", "--input", "-", fmt.Sprintf("repos/%s/pulls/%d/reviews", review.Identity.Repository, review.Identity.Number))
+	if err != nil {
+		return safeReviewCommentError(err)
+	}
+	return nil
 }
 
 func validCommentAction(id Identity, commentID int64) bool {

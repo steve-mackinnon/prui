@@ -164,6 +164,43 @@ func TestGitHubCreateReviewCommentUsesJSONStdin(t *testing.T) {
 	}
 }
 
+func TestCreatePullRequestReviewSendsPendingCommentsTogether(t *testing.T) {
+	id := Identity{Repository: "owner/repo", Number: 42}
+	sha := "0123456789abcdef0123456789abcdef01234567"
+	comment := ReviewComment{Target: ReviewCommentTarget{Identity: id, CommitID: sha, Path: "a.go", Side: "RIGHT", Line: 9}, Body: "Please fix this."}
+	called := 0
+	g := GH{Executable: "trusted-gh", Limits: Defaults(), Runner: listRunner(func(_ context.Context, request Request) ([]byte, error) {
+		called++
+		if !reflect.DeepEqual(request.Args, []string{"api", "--hostname", "github.com", "--method", "POST", "--input", "-", "repos/owner/repo/pulls/42/reviews"}) {
+			t.Fatalf("unexpected args: %#v", request.Args)
+		}
+		if strings.Contains(strings.Join(request.Args, "\x00"), comment.Body) {
+			t.Fatal("comment leaked into args")
+		}
+		var payload struct {
+			CommitID string `json:"commit_id"`
+			Event    string `json:"event"`
+			Body     string `json:"body"`
+			Comments []struct {
+				Path string `json:"path"`
+				Line int    `json:"line"`
+				Side string `json:"side"`
+				Body string `json:"body"`
+			} `json:"comments"`
+		}
+		if err := json.Unmarshal(request.Stdin, &payload); err != nil || payload.CommitID != sha || payload.Event != "REQUEST_CHANGES" || payload.Body != "Summary" || len(payload.Comments) != 1 || payload.Comments[0].Path != "a.go" || payload.Comments[0].Line != 9 || payload.Comments[0].Side != "RIGHT" || payload.Comments[0].Body != comment.Body {
+			t.Fatalf("payload = %#v, err = %v", payload, err)
+		}
+		return []byte(`{"id":123,"state":"CHANGES_REQUESTED"}`), nil
+	})}
+	if err := g.CreatePullRequestReview(context.Background(), PullRequestReview{Identity: id, CommitID: sha, Event: "REQUEST_CHANGES", Body: "Summary", Comments: []ReviewComment{comment}}); err != nil || called != 1 {
+		t.Fatal(err, called)
+	}
+	if err := g.CreatePullRequestReview(context.Background(), PullRequestReview{Identity: id, CommitID: sha, Event: "COMMENT", Comments: []ReviewComment{comment}}); err == nil || called != 1 {
+		t.Fatal("invalid review reached GitHub", err, called)
+	}
+}
+
 func TestGitHubListReviewCommentsUsesBoundedEndpointAndRejectsMalformedAnchors(t *testing.T) {
 	id := Identity{Repository: "owner/repo", Number: 42}
 	g := GH{Executable: "trusted-gh", Dir: t.TempDir(), Limits: Defaults(), Runner: listRunner(func(_ context.Context, request Request) ([]byte, error) {

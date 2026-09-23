@@ -34,6 +34,11 @@ type CommentSubmission struct {
 // implementation after its explicit freshness check; the model never reaches
 // directly into a GitHub client.
 type CommentSubmitter func(context.Context, CommentSubmission) (source.ReviewComment, error)
+type ReviewSubmission struct {
+	Metadata source.Metadata
+	Review   source.PullRequestReview
+}
+type ReviewSubmitter func(context.Context, ReviewSubmission) error
 type CommentReader func(context.Context, source.Metadata) ([]source.ReviewComment, error)
 type ViewerReader func(context.Context) (source.Viewer, error)
 
@@ -52,6 +57,11 @@ type CommentResult struct {
 	Target     int
 	Generation uint64
 	Comment    source.ReviewComment
+	Err        error
+}
+type ReviewResult struct {
+	Target     int
+	Generation uint64
 	Err        error
 }
 
@@ -121,6 +131,7 @@ func (m *Model) SetGuideLifecycle(generate GuideLoader) { m.generateGuide = gene
 // SetCommentSubmitter installs the explicit write action used by the composer.
 // It is intentionally separate from the read lifecycle dependencies.
 func (m *Model) SetCommentSubmitter(submit CommentSubmitter) { m.submitComment = submit }
+func (m *Model) SetReviewSubmitter(submit ReviewSubmitter)   { m.submitReview = submit }
 func (m *Model) SetCommentReader(read CommentReader)         { m.readComments = read }
 func (m *Model) SetViewerReader(read ViewerReader)           { m.readViewer = read }
 func (m *Model) SetCommentActionSubmitter(submit CommentActionSubmitter) {
@@ -216,6 +227,25 @@ func (m *Model) commentComposerKey(key tea.KeyPressMsg) tea.Cmd {
 		r := []rune(composer.Draft)
 		composer.Draft = string(append(append(r[:composer.Cursor], '\n'), r[composer.Cursor:]...))
 		composer.Cursor++
+		return nil
+	case "ctrl+p":
+		if composer.Draft == "" {
+			m.ActionError = errors.New("review comment body is required")
+			return nil
+		}
+		if composer.PendingIndex < 0 && len(m.Pending) >= source.MaxPendingReviewComments {
+			m.ActionError = errors.New("pending review supports up to 100 line comments")
+			return nil
+		}
+		comment := source.ReviewComment{Target: composer.Target, Body: composer.Draft}
+		if composer.PendingIndex >= 0 && composer.PendingIndex < len(m.Pending) && m.Pending[composer.PendingIndex].Target == composer.Target {
+			m.Pending[composer.PendingIndex] = comment
+		} else {
+			m.Pending = append(m.Pending, comment)
+		}
+		m.Composer = nil
+		m.ReviewSubmitted = false
+		m.ActionError = nil
 		return nil
 	case "enter":
 		if m.submitComment == nil {
@@ -367,13 +397,16 @@ func (m *Model) applyCommentResult(result CommentResult) {
 		state.ActionError = result.Err
 		if result.Err == nil {
 			state.Comments = append(state.Comments, result.Comment)
+			if i := state.Composer.PendingIndex; i >= 0 && i < len(state.Pending) && state.Pending[i].Target == state.Composer.Target {
+				state.Pending = append(state.Pending[:i], state.Pending[i+1:]...)
+			}
 			state.Composer = nil
 		}
 	}
 	if result.Target == m.activeTab {
-		state := &reviewTabState{Composer: m.Composer, Comments: m.Comments, Stack: m.Stack, Busy: m.Busy, ActionError: m.ActionError}
+		state := &reviewTabState{Composer: m.Composer, Pending: m.Pending, Comments: m.Comments, Stack: m.Stack, Busy: m.Busy, ActionError: m.ActionError}
 		apply(state)
-		m.Composer, m.Comments, m.Stack, m.Busy, m.ActionError = state.Composer, state.Comments, state.Stack, state.Busy, state.ActionError
+		m.Composer, m.Pending, m.Comments, m.Stack, m.Busy, m.ActionError = state.Composer, state.Pending, state.Comments, state.Stack, state.Busy, state.ActionError
 		return
 	}
 	if result.Target >= 0 && result.Target < len(m.tabs) {

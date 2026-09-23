@@ -266,7 +266,7 @@ func TestNarrowReviewHealthStatusKeepsProgressAndAttention(t *testing.T) {
 	m.Width, m.Height, m.Focus = 60, 10, paneDiff
 
 	view := ansi.Strip(m.View().Content)
-	if !strings.Contains(view, "0/2 read") || !strings.Contains(view, "Inventory incomplete") || !strings.Contains(view, "?: Health & help") {
+	if !strings.Contains(view, "0/2 read") || !strings.Contains(view, "R Review (0)") || !strings.Contains(view, "Inventory incomplete") || !strings.Contains(view, "?: Help") {
 		t.Fatalf("narrow health status hid progress or the highest-severity signal:\n%s", view)
 	}
 }

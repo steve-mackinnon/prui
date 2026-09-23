@@ -86,6 +86,34 @@ func (a *application) submitReviewComment(ctx context.Context, submission tui.Co
 	return commenter.CreateReviewComment(ctx, submission.Comment)
 }
 
+func (a *application) submitPullRequestReview(ctx context.Context, submission tui.ReviewSubmission) error {
+	if err := a.online(ctx); err != nil {
+		return err
+	}
+	review, frozen := submission.Review, submission.Metadata
+	if !validIdentity(frozen.Identity) || review.Identity != frozen.Identity || review.CommitID != frozen.HeadSHA || !validSHA(frozen.BaseSHA) || !validSHA(frozen.HeadSHA) || !validRepository(frozen.BaseRepository) || !validRepository(frozen.HeadRepository) {
+		return errors.New("invalid pull request review submission")
+	}
+	if err := source.ValidatePullRequestReview(review); err != nil {
+		return err
+	}
+	if a.setupError != nil {
+		return a.setupError
+	}
+	writer, ok := a.gh.(source.PullRequestReviewWriter)
+	if !ok {
+		return errors.New("GitHub review submission unavailable")
+	}
+	current, err := a.Metadata(ctx, frozen.Identity)
+	if err != nil {
+		return err
+	}
+	if current.Identity != frozen.Identity || current.BaseRepository != frozen.BaseRepository || current.HeadRepository != frozen.HeadRepository || current.BaseSHA != frozen.BaseSHA || current.HeadSHA != frozen.HeadSHA {
+		return errors.New("pull request changed; open a new comparison before submitting a review")
+	}
+	return writer.CreatePullRequestReview(ctx, review)
+}
+
 func (a *application) listReviewComments(ctx context.Context, metadata source.Metadata) ([]source.ReviewComment, error) {
 	if err := a.online(ctx); err != nil {
 		return nil, err
