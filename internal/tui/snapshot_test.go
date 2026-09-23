@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/charmbracelet/x/ansi"
 	"pr-review/internal/guide"
@@ -96,7 +97,7 @@ func TestScreenSnapshots(t *testing.T) {
 			m.Session = nil
 			m.Stack = []page{pagePullRequestPicker}
 			for i := 0; i < 20; i++ {
-				m.PullRequests = append(m.PullRequests, source.PullRequest{Identity: source.Identity{Repository: "example/review", Number: i + 1}, Title: fmt.Sprintf("Change %02d", i+1)})
+				m.PullRequests = append(m.PullRequests, source.PullRequest{Identity: source.Identity{Repository: "example/review", Number: i + 1}, Title: fmt.Sprintf("Change %02d", i+1), Author: "alice", LastModifier: "bob", OpenedAt: time.Date(2026, 9, 23, 12, 0, 0, 0, time.UTC), Checks: source.ChecksPassed})
 			}
 			for i := 0; i < 19; i++ {
 				key(m, 'j')

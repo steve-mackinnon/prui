@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -91,21 +92,40 @@ func TestGitHubListPullRequestsReadOnlyContract(t *testing.T) {
 	calls := 0
 	g := GH{Executable: "trusted-gh", Dir: t.TempDir(), Limits: Defaults(), Runner: listRunner(func(_ context.Context, request Request) ([]byte, error) {
 		calls++
-		want := []string{"api", "--hostname", "github.com", "--method", "GET", "repos/owner/repo/pulls?state=open&per_page=100"}
-		if !reflect.DeepEqual(request.Args, want) {
+		if len(request.Args) != 10 || !reflect.DeepEqual(request.Args[:4], []string{"api", "--hostname", "github.com", "graphql"}) || request.Args[4] != "-f" || !strings.Contains(request.Args[5], "pullRequests(first:100,states:OPEN") || !reflect.DeepEqual(request.Args[6:], []string{"-F", "owner=owner", "-F", "name=repo"}) {
 			t.Fatal("unexpected GitHub operation", request.Args)
 		}
-		return []byte(`[{"number":42,"title":"Add list"}]`), nil
+		return []byte(`{"data":{"repository":{"pullRequests":{"nodes":[{"number":42,"title":"Add list","createdAt":"2026-09-23T12:00:00Z","author":{"login":"alice"},"commits":{"nodes":[{"commit":{"author":{"name":"Bob","user":{"login":"bob"}},"statusCheckRollup":{"state":"FAILURE"}}}]}}]}}}}`), nil
 	})}
 	prs, err := g.ListPullRequests(context.Background(), "owner/repo")
-	if err != nil || len(prs) != 1 || prs[0].Identity != (Identity{Repository: "owner/repo", Number: 42}) || prs[0].Title != "Add list" || calls != 1 {
+	if err != nil || len(prs) != 1 || prs[0].Identity != (Identity{Repository: "owner/repo", Number: 42}) || prs[0].Title != "Add list" || prs[0].Author != "alice" || prs[0].LastModifier != "bob" || prs[0].OpenedAt.IsZero() || prs[0].Checks != ChecksFailed || calls != 1 {
 		t.Fatal(prs, err)
 	}
-	for _, body := range []string{`{}`, `[{"number":0,"title":"bad"}]`, `[{"number":1,"title":"bad\n"}]`} {
+	for _, body := range []string{`{}`, `{"errors":[{"message":"bad"}]}`, `{"data":{"repository":{"pullRequests":{"nodes":[{"number":0,"title":"bad","createdAt":"2026-09-23T12:00:00Z"}]}}}}`, `{"data":{"repository":{"pullRequests":{"nodes":[{"number":1,"title":"bad\n","createdAt":"2026-09-23T12:00:00Z"}]}}}}`} {
 		g.Runner = listRunner(func(context.Context, Request) ([]byte, error) { return []byte(body), nil })
 		if _, err := g.ListPullRequests(context.Background(), "owner/repo"); err == nil {
 			t.Fatal("accepted invalid list", body)
 		}
+	}
+}
+
+func TestGitHubListPullRequestsCheckStates(t *testing.T) {
+	for _, tc := range []struct {
+		state string
+		want  CheckStatus
+	}{
+		{"SUCCESS", ChecksPassed}, {"FAILURE", ChecksFailed}, {"ERROR", ChecksFailed},
+		{"PENDING", ChecksPending}, {"EXPECTED", ChecksPending},
+	} {
+		t.Run(tc.state, func(t *testing.T) {
+			g := GH{Executable: "trusted-gh", Limits: Defaults(), Runner: listRunner(func(context.Context, Request) ([]byte, error) {
+				return []byte(fmt.Sprintf(`{"data":{"repository":{"pullRequests":{"nodes":[{"number":1,"title":"Change","createdAt":"2026-09-23T12:00:00Z","commits":{"nodes":[{"commit":{"statusCheckRollup":{"state":%q}}}]}}]}}}}`, tc.state)), nil
+			})}
+			prs, err := g.ListPullRequests(context.Background(), "owner/repo")
+			if err != nil || len(prs) != 1 || prs[0].Checks != tc.want {
+				t.Fatalf("status %s: %v, %v", tc.state, prs, err)
+			}
+		})
 	}
 }
 

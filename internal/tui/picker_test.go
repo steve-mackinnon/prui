@@ -160,6 +160,28 @@ func TestPullRequestPickerOpensHelpAndReturns(t *testing.T) {
 	}
 }
 
+func TestPullRequestPickerShowsMetadataAndCheckStates(t *testing.T) {
+	m := New(context.Background(), nil)
+	defer m.Close()
+	m.Stack = []page{pagePullRequestPicker}
+	m.Width, m.Height = 80, 15
+	m.PullRequests = []source.PullRequest{
+		{Identity: source.Identity{Number: 1}, Title: "Passing", Author: "alice", LastModifier: "bob", OpenedAt: time.Date(2026, 9, 23, 12, 0, 0, 0, time.UTC), Checks: source.ChecksPassed},
+		{Identity: source.Identity{Number: 2}, Title: "Failing", Checks: source.ChecksFailed},
+		{Identity: source.Identity{Number: 3}, Title: "Running", Checks: source.ChecksPending},
+		{Identity: source.Identity{Number: 4}, Title: "No status", Checks: source.ChecksUnknown},
+	}
+	view := ansi.Strip(m.View().Content)
+	for _, want := range []string{"#1 Passing", "by alice · opened Sep 23, 2026", "last commit bob · ✓ checks pass", "✗ checks fail", "… checks pending", "? checks unknown"} {
+		if !strings.Contains(view, want) {
+			t.Fatalf("missing %q in:\n%s", want, view)
+		}
+	}
+	if lines := strings.Split(view, "\n"); len(lines) > m.Height {
+		t.Fatalf("picker overflowed: %s", view)
+	}
+}
+
 func TestPickerBackNavigationRestoresRepositorySelection(t *testing.T) {
 	for _, count := range []int{1, 3} {
 		t.Run(fmt.Sprint(count), func(t *testing.T) {

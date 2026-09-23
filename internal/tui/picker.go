@@ -89,6 +89,14 @@ func (m *Model) loadRepositories() tea.Cmd {
 }
 
 func (m *Model) pickerScreen(p *pickerState, header, rows []string, empty, footer string) string {
+	items := make([][]string, len(rows))
+	for i, row := range rows {
+		items[i] = []string{row}
+	}
+	return m.pickerScreenRows(p, header, items, empty, footer)
+}
+
+func (m *Model) pickerScreenRows(p *pickerState, header []string, rows [][]string, empty, footer string) string {
 	if m.Busy {
 		footer = Escape(m.notice) + " · esc: cancel"
 	} else if m.ActionError != nil {
@@ -114,13 +122,23 @@ func (m *Model) pickerScreen(p *pickerState, header, rows []string, empty, foote
 		lines = append(lines, empty)
 	} else {
 		selected := max(0, min(p.Index, len(rows)-1))
-		start := max(0, selected-capacity+1)
-		for i := start; i < min(len(rows), start+capacity); i++ {
-			line := selectionMarker(i == selected) + rows[i]
-			if i == selected {
-				line = m.styleLine(selectedClass(true), line)
+		rowHeight := max(1, len(rows[selected]))
+		start := max(0, selected-max(1, capacity/rowHeight)+1)
+		for i, used := start, 0; i < len(rows) && used < capacity; i++ {
+			for j, row := range rows[i] {
+				if used >= capacity {
+					break
+				}
+				line := "  " + row
+				if j == 0 {
+					line = selectionMarker(i == selected) + row
+				}
+				if i == selected {
+					line = m.styleLine(selectedClass(true), line)
+				}
+				lines = append(lines, line)
+				used++
 			}
-			lines = append(lines, line)
 		}
 	}
 	if footerRows > 0 {

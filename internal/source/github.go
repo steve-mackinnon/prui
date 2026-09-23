@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 	"unicode/utf8"
 )
 
@@ -57,9 +58,22 @@ type Metadata struct {
 }
 
 type PullRequest struct {
-	Identity Identity
-	Title    string
+	Identity     Identity
+	Title        string
+	Author       string
+	LastModifier string // Author of the latest commit in the PR.
+	OpenedAt     time.Time
+	Checks       CheckStatus
 }
+
+type CheckStatus string
+
+const (
+	ChecksUnknown CheckStatus = "unknown"
+	ChecksPending CheckStatus = "pending"
+	ChecksPassed  CheckStatus = "passed"
+	ChecksFailed  CheckStatus = "failed"
+)
 
 type GitHub interface {
 	Metadata(context.Context, Identity) (Metadata, error)
@@ -375,27 +389,89 @@ func (g *GH) ListPullRequests(ctx context.Context, repository string) ([]PullReq
 	if _, err := ParseIdentity("1", repository); err != nil {
 		return nil, err
 	}
-	data, err := g.call(ctx, "api", "--hostname", "github.com", "--method", "GET", fmt.Sprintf("repos/%s/pulls?state=open&per_page=100", repository))
+	parts := strings.Split(repository, "/")
+	const query = `query($owner:String!,$name:String!){repository(owner:$owner,name:$name){pullRequests(first:100,states:OPEN,orderBy:{field:CREATED_AT,direction:DESC}){nodes{number title createdAt author{login} commits(last:1){nodes{commit{author{name user{login}} statusCheckRollup{state}}}}}}}}`
+	data, err := g.call(ctx, "api", "--hostname", "github.com", "graphql", "-f", "query="+query, "-F", "owner="+parts[0], "-F", "name="+parts[1])
 	if err != nil {
 		return nil, fmt.Errorf("GitHub pull request list unavailable (check authentication and connectivity): %w", err)
 	}
-	var raw []struct {
-		Number int    `json:"number"`
-		Title  string `json:"title"`
+	var raw struct {
+		Data struct {
+			Repository *struct {
+				PullRequests struct {
+					Nodes []struct {
+						Number    int       `json:"number"`
+						Title     string    `json:"title"`
+						CreatedAt time.Time `json:"createdAt"`
+						Author    *struct {
+							Login string `json:"login"`
+						} `json:"author"`
+						Commits struct {
+							Nodes []struct {
+								Commit struct {
+									Author *struct {
+										Name string `json:"name"`
+										User *struct {
+											Login string `json:"login"`
+										} `json:"user"`
+									} `json:"author"`
+									StatusCheckRollup *struct {
+										State string `json:"state"`
+									} `json:"statusCheckRollup"`
+								} `json:"commit"`
+							} `json:"nodes"`
+						} `json:"commits"`
+					} `json:"nodes"`
+				} `json:"pullRequests"`
+			} `json:"repository"`
+		} `json:"data"`
+		Errors []json.RawMessage `json:"errors"`
 	}
-	if err := json.Unmarshal(data, &raw); err != nil || len(raw) > 100 {
+	if err := json.Unmarshal(data, &raw); err != nil || raw.Data.Repository == nil || len(raw.Errors) > 0 || len(raw.Data.Repository.PullRequests.Nodes) > 100 {
 		return nil, errors.New("invalid pull request list")
 	}
-	prs := make([]PullRequest, 0, len(raw))
+	prs := make([]PullRequest, 0, len(raw.Data.Repository.PullRequests.Nodes))
 	seen := map[int]bool{}
-	for _, pr := range raw {
-		if pr.Number <= 0 || seen[pr.Number] || strings.ContainsAny(pr.Title, "\x00\r\n") {
+	for _, item := range raw.Data.Repository.PullRequests.Nodes {
+		if item.Number <= 0 || seen[item.Number] || item.CreatedAt.IsZero() || !validListText(item.Title) || len(item.Commits.Nodes) > 1 {
 			return nil, errors.New("invalid pull request list")
 		}
-		seen[pr.Number] = true
-		prs = append(prs, PullRequest{Identity: Identity{Repository: repository, Number: pr.Number}, Title: pr.Title})
+		pr := PullRequest{Identity: Identity{Repository: repository, Number: item.Number}, Title: item.Title, OpenedAt: item.CreatedAt, Checks: ChecksUnknown}
+		if item.Author != nil {
+			pr.Author = item.Author.Login
+		}
+		if len(item.Commits.Nodes) == 1 {
+			commit := item.Commits.Nodes[0].Commit
+			if commit.Author != nil {
+				pr.LastModifier = commit.Author.Name
+				if commit.Author.User != nil {
+					pr.LastModifier = commit.Author.User.Login
+				}
+			}
+			if commit.StatusCheckRollup != nil {
+				switch commit.StatusCheckRollup.State {
+				case "SUCCESS":
+					pr.Checks = ChecksPassed
+				case "ERROR", "FAILURE":
+					pr.Checks = ChecksFailed
+				case "EXPECTED", "PENDING":
+					pr.Checks = ChecksPending
+				default:
+					return nil, errors.New("invalid pull request check status")
+				}
+			}
+		}
+		if !validListText(pr.Author) || !validListText(pr.LastModifier) {
+			return nil, errors.New("invalid pull request list")
+		}
+		seen[item.Number] = true
+		prs = append(prs, pr)
 	}
 	return prs, nil
+}
+
+func validListText(s string) bool {
+	return utf8.ValidString(s) && len(s) <= 512 && !strings.ContainsAny(s, "\x00\r\n")
 }
 
 func (g *GH) Token(ctx context.Context) (string, error) {
