@@ -90,3 +90,19 @@ func TestSideBySideFileViewJumpUsesProjectedBoundary(t *testing.T) {
 		t.Fatal("side-by-side view did not show second file boundary")
 	}
 }
+
+func TestFileViewCommentCursorUpdatesSelectedFile(t *testing.T) {
+	m := largeModel(largeTextSession(2, 2), 120, 8)
+	m.Focus = paneDiff
+	m.cursorActive = true
+	for i := 0; i < len(m.displayDetail()); i++ {
+		if m.Session.UnitFiles[m.Selected] == 1 {
+			if target := m.displayDetail()[m.cursor()].target; target == nil || target.Path != "file-1" {
+				t.Fatalf("selected file followed a different cursor target: %#v", target)
+			}
+			return
+		}
+		key(m, 'n')
+	}
+	t.Fatal("comment cursor reached the next file without updating selection")
+}

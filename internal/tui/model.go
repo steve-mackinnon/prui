@@ -1112,9 +1112,13 @@ func (m *Model) fileOffset(file int) int {
 }
 
 func (m *Model) syncFileToOffset() {
+	m.syncFileToLine(m.offset())
+}
+
+func (m *Model) syncFileToLine(index int) {
 	file := 0
 	for i, line := range m.displayDetail() {
-		if i > m.offset() {
+		if i > index {
 			break
 		}
 		if line.Class == classFileHeader && strings.HasPrefix(line.Text, "━━━ FILE · ") {
@@ -1526,6 +1530,9 @@ func (m *Model) moveCursor(delta int) {
 		if target == current {
 			m.setCursor(targets[max(0, min(len(targets)-1, i+delta))])
 			m.ensureCursorVisible()
+			if m.fileView() {
+				m.syncFileToLine(m.cursor())
+			}
 			return
 		}
 	}
