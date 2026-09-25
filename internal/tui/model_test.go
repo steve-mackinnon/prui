@@ -275,8 +275,11 @@ func TestWideReviewFramesBothPanesAndHighlightsTheFocusedPane(t *testing.T) {
 
 	view := m.View().Content
 	lines := strings.Split(ansi.Strip(view), "\n")
-	if !strings.HasPrefix(lines[2], "┌") || !strings.Contains(lines[2], "┐ ┌") || !strings.HasSuffix(lines[2], "┐") {
+	if !strings.HasPrefix(lines[2], "┌─ File (F)  Guide (G)") || !strings.Contains(lines[2], "┐ ┌") || !strings.HasSuffix(lines[2], "┐") {
 		t.Fatalf("wide review lacks pane top borders:\n%s", strings.Join(lines, "\n"))
+	}
+	if strings.Contains(ansi.Strip(view), "focus:") || !strings.Contains(view, m.styleLine(selectedClass(true), " File (F) ")) {
+		t.Fatalf("file tab is not selected in the list panel or focus text remains:\n%s", view)
 	}
 	if !strings.HasPrefix(lines[3], "│› main.go") || !strings.Contains(lines[3], "│ │") || !strings.HasSuffix(lines[3], "│") {
 		t.Fatalf("wide review content is not enclosed by both pane borders:\n%s", strings.Join(lines, "\n"))
@@ -286,6 +289,34 @@ func TestWideReviewFramesBothPanesAndHighlightsTheFocusedPane(t *testing.T) {
 	}
 	if !strings.Contains(view, m.styleLine(paneBorderClass(false), "│")) {
 		t.Fatalf("unfocused diff pane border was not styled:\n%q", view)
+	}
+}
+
+func TestSelectedFilePathScrollsAcrossFullName(t *testing.T) {
+	m := New(context.Background(), nil)
+	t.Cleanup(m.Close)
+	m.Loading = false
+	m.Session = screenSession()
+	path := "internal/very/long/path/to/the/selected/file/overflow_test.go"
+	m.Session.Inventory.Files[0].NewPath = []byte(path)
+	m.Width, m.Height, m.Focus = 120, 12, paneList
+	if !m.guidePathScrollEligible() {
+		t.Fatal("selected overflowing file path is not eligible to scroll")
+	}
+	first := ansi.Strip(m.View().Content)
+	_, cmd := m.Update(guidePathTick{generation: m.guidePathGeneration})
+	if cmd == nil {
+		t.Fatal("file path carousel stopped before showing the full path")
+	}
+	if m.guidePathOffset != 1 || ansi.Strip(m.View().Content) == first {
+		t.Fatal("selected file path did not advance")
+	}
+	_, _, pathWidth, _ := m.guidePathScrollTarget()
+	for m.guidePathOffset < visibleWidth(path)-pathWidth {
+		m.Update(guidePathTick{generation: m.guidePathGeneration})
+	}
+	if !strings.Contains(ansi.Strip(m.View().Content), "overflow_test.go") {
+		t.Fatal("carousel did not reveal the end of the file name")
 	}
 }
 

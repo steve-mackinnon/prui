@@ -1,5 +1,5 @@
 ╭ Diff [1] ╮  ╭ Description [2] ╮  ╭ Commits [3] ╮
-[Files F] | Guide [G] · focus: diff · FILE SLICES 2
+ File (F)  Guide (G)  · FILES 2 · file 1/2
 ━━━ FILE · main.go ━━━
 @@ -1 +1 @@
 -old greeting

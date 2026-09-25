@@ -1000,8 +1000,13 @@ func (m *Model) guidePathScrollEligible() bool {
 }
 
 func (m *Model) guidePathScrollTarget() (row, string, int, string) {
-	if m.top() != pageReview || m.Session == nil || m.Files || m.Inventory || m.Focus != paneList {
+	if m.top() != pageReview || m.Session == nil || m.Inventory || m.Focus != paneList || len(m.Session.Inventory.Units) == 0 {
 		return row{}, "", 0, ""
+	}
+	if m.Files {
+		file := m.Session.UnitFiles[m.Selected]
+		prefix := selectionMarker(true) + readMarker(m.Session, m.Session.Inventory.Files[file].ID)
+		return row{}, prefix, m.listWidth() - visibleWidth(prefix), pathLabel(m.Session.Inventory.Files[file])
 	}
 	rows := m.rows()
 	if m.Row < 0 || m.Row >= len(rows) || rows[m.Row].kind != portionRow {
@@ -1719,10 +1724,6 @@ func (m *Model) reviewViewForLayout(preferSideBySide bool) string {
 		return title + "\nEmpty comparison: no net tree changes.\n" + m.reviewStatus()
 	}
 	kind := s.Inventory.Units[m.Selected].Kind
-	focus := "files"
-	if m.Focus == paneDiff {
-		focus = "diff"
-	}
 	label := "File slices"
 	if m.Inventory {
 		label = "Full inventory"
@@ -1743,15 +1744,12 @@ func (m *Model) reviewViewForLayout(preferSideBySide bool) string {
 	if unavailable > 0 {
 		headerClass = classWarning
 	}
-	text := fmt.Sprintf("%s %d · %s [%s] · focus: %s", strings.ToUpper(label), len(s.Inventory.Files), pathLabel(s.Inventory.Files[s.UnitFiles[m.Selected]]), kind, focus)
+	text := fmt.Sprintf("%s %d · %s [%s]", strings.ToUpper(label), len(s.Inventory.Files), pathLabel(s.Inventory.Files[s.UnitFiles[m.Selected]]), kind)
 	if m.fileView() {
-		text = fmt.Sprintf("FILES %d · file %d/%d · focus: %s", len(s.Inventory.Files), s.UnitFiles[m.Selected]+1, len(s.Inventory.Files), focus)
-	}
-	if m.Width < 100 {
-		text = fmt.Sprintf("focus: %s · %s %d", focus, strings.ToUpper(label), len(s.Inventory.Files))
+		text = fmt.Sprintf("FILES %d · file %d/%d", len(s.Inventory.Files), s.UnitFiles[m.Selected]+1, len(s.Inventory.Files))
 	}
 	if m.Inventory {
-		text = fmt.Sprintf("%s %d · unit %d/%d [%s] · focus: %s", strings.ToUpper(label), len(s.Inventory.Units), m.Selected+1, len(s.Inventory.Units), kind, focus)
+		text = fmt.Sprintf("%s %d · unit %d/%d [%s]", strings.ToUpper(label), len(s.Inventory.Units), m.Selected+1, len(s.Inventory.Units), kind)
 	}
 	if rows != nil {
 		// The hierarchy interprets the change; progress does not follow it, and
@@ -1764,13 +1762,11 @@ func (m *Model) reviewViewForLayout(preferSideBySide bool) string {
 	if preferSideBySide && !useSideBySide {
 		text += " · side-by-side needs 160 columns"
 	}
-	fileTab, guideTab := "Files [F]", "Guide [G]"
-	if m.Files {
-		fileTab = "[Files F]"
-	} else {
-		guideTab = "[Guide G]"
+	framed := m.reviewUsesPaneFrames()
+	header := m.styleLine(headerClass, text)
+	if !framed {
+		header = m.reviewListTabs() + " · " + header
 	}
-	header := m.styleLine(headerClass, fileTab+" | "+guideTab+" · "+text)
 	bodyHeight := m.bodyHeight()
 	leftWidth := m.listWidth()
 	list := []listLine{}
@@ -1791,7 +1787,15 @@ func (m *Model) reviewViewForLayout(preferSideBySide bool) string {
 		selectedRow = s.UnitFiles[m.Selected]
 		for i, f := range s.Inventory.Files {
 			marker := selectionMarker(i == selectedRow)
-			list = append(list, listLine{row: i, text: marker + readMarker(s, f.ID) + pathLabel(f)})
+			prefix := marker + readMarker(s, f.ID)
+			path := pathLabel(f)
+			width := leftWidth - visibleWidth(prefix)
+			if i == selectedRow && m.Focus == paneList && visibleWidth(path) > width {
+				path = ansi.Cut(path, m.guidePathOffset, m.guidePathOffset+max(0, width))
+			} else {
+				path = middleTruncate(path, width)
+			}
+			list = append(list, listLine{row: i, text: prefix + path})
 		}
 	}
 	start := max(0, firstDisplayLine(list, selectedRow)-bodyHeight+1)
@@ -1828,13 +1832,12 @@ func (m *Model) reviewViewForLayout(preferSideBySide bool) string {
 		}
 	}
 	body := []string{}
-	framed := m.reviewUsesPaneFrames()
 	leftBorder, rightBorder := paneBorderClass(m.Focus == paneList), paneBorderClass(m.Focus == paneDiff)
 	if framed {
 		leftOuterWidth := leftWidth + 2
 		rightOuterWidth := m.Width - leftOuterWidth - 1
 		body = append(body,
-			m.styleLine(leftBorder, "┌"+strings.Repeat("─", leftOuterWidth-2)+"┐")+" "+
+			m.reviewListTabBorder(leftOuterWidth, leftBorder)+" "+
 				m.styleLine(rightBorder, "┌"+strings.Repeat("─", rightOuterWidth-2)+"┐"),
 		)
 	}
@@ -1883,6 +1886,21 @@ func (m *Model) reviewViewForLayout(preferSideBySide bool) string {
 		)
 	}
 	return title + "\n" + header + "\n" + strings.Join(body, "\n") + "\n" + m.reviewStatus()
+}
+
+func (m *Model) reviewListTabs() string {
+	file, guide := " File (F) ", " Guide (G) "
+	if m.Files || m.Inventory {
+		file = m.styleLine(selectedClass(true), file)
+	} else {
+		guide = m.styleLine(selectedClass(true), guide)
+	}
+	return file + guide
+}
+
+func (m *Model) reviewListTabBorder(width int, border lineClass) string {
+	tabs := m.reviewListTabs()
+	return m.styleLine(border, "┌─") + tabs + m.styleLine(border, strings.Repeat("─", max(0, width-3-visibleWidth(tabs)))+"┐")
 }
 
 func (m *Model) contextViewTabs() string {
