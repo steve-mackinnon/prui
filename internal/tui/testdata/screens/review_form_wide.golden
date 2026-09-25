@@ -1,9 +1,16 @@
 Submit review · example/review#42 · head aaaaaaaaaaaa
 0/2 file slices read · 1 pending comments
 
-› Review decision: Comment (↑/↓ to change)
-Summary (required)
+Review decision (j/k or ↑/↓)
+› ◉ Comment · General feedback without approval
+  ○ Approve · Approve merging these changes
+  ○ Request changes · Suggest changes before merging
 
+Comment (required)
+  ┌────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+  │ Leave a comment                                                                                                    │
+  │                                                                                                                    │
+  └────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
 Pending comments (1) · tab to select, enter edit, d remove
   main.go:1 RIGHT · Please cover the empty case.
-tab: next field · enter: confirm · shift+enter: newline · esc: back
+j/k or ↑/↓: choose · tab/enter: comment · esc: back

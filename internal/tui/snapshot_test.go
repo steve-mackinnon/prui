@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 	"pr-review/internal/guide"
 	"pr-review/internal/inventory"
@@ -78,6 +79,11 @@ func TestScreenSnapshots(t *testing.T) {
 		{"review_form_wide", 120, 16, func(m *Model) {
 			m.Pending = []source.ReviewComment{{Target: source.ReviewCommentTarget{Path: "main.go", Side: "RIGHT", Line: 1}, Body: "Please cover the empty case."}}
 			m.openReviewForm()
+		}},
+		{"review_form_narrow_edit", 60, 10, func(m *Model) {
+			m.openReviewForm()
+			namedKey(m, tea.KeyDown)
+			namedKey(m, tea.KeyTab)
 		}},
 		{"review_form_narrow", 60, 10, func(m *Model) {
 			m.openReviewForm()

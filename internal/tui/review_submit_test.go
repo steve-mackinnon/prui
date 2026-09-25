@@ -63,6 +63,41 @@ func TestPendingCommentAndReviewSubmission(t *testing.T) {
 	}
 }
 
+func TestReviewDecisionRadioAndCommentFocus(t *testing.T) {
+	m := New(context.Background(), nil)
+	m.Loading = false
+	m.Session, m.Width, m.Height = screenSession(), 80, 12
+	m.openReviewForm()
+	assertChoices := func(selected string) {
+		t.Helper()
+		view := m.reviewFormView()
+		for _, label := range []string{"Comment", "Approve", "Request changes"} {
+			if !strings.Contains(view, label) {
+				t.Fatalf("missing radio choice %q:\n%s", label, view)
+			}
+		}
+		if !strings.Contains(view, "› ◉ "+selected) || strings.Count(view, "◉") != 1 {
+			t.Fatalf("wrong selected decision:\n%s", view)
+		}
+	}
+	assertChoices("Comment")
+	key(m, 'j')
+	assertChoices("Approve")
+	namedKey(m, tea.KeyUp)
+	assertChoices("Comment")
+	key(m, 'k')
+	assertChoices("Request changes")
+	namedKey(m, tea.KeyTab)
+	view := m.reviewFormView()
+	if !strings.Contains(view, "  ◉ Request changes") || !strings.Contains(view, "› Comment (required)\n  ┃ ▏") {
+		t.Fatalf("comment editor did not follow the radio choices:\n%s", view)
+	}
+	key(m, 'j')
+	if m.ReviewForm.Body != "j" || m.ReviewForm.Event != 2 {
+		t.Fatalf("typing in comment changed review decision: %#v", m.ReviewForm)
+	}
+}
+
 func TestPendingCommentCanBeEditedFromReviewScreen(t *testing.T) {
 	m := New(context.Background(), nil)
 	m.Loading = false

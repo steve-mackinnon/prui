@@ -9,10 +9,10 @@ import (
 	"pr-review/internal/source"
 )
 
-var reviewEvents = []struct{ label, event string }{
-	{"Comment", "COMMENT"},
-	{"Approve", "APPROVE"},
-	{"Request changes", "REQUEST_CHANGES"},
+var reviewEvents = []struct{ label, description, event string }{
+	{"Comment", "General feedback without approval", "COMMENT"},
+	{"Approve", "Approve merging these changes", "APPROVE"},
+	{"Request changes", "Suggest changes before merging", "REQUEST_CHANGES"},
 }
 
 // The form and queued comments belong to one open review tab and never enter a
@@ -69,14 +69,30 @@ func (m *Model) reviewFormView() string {
 			}
 		}
 	} else {
-		decision := "Review decision: " + reviewEvents[f.Event].label + " (↑/↓ to change)"
-		if f.Focus == 0 {
-			decision = "› " + decision
+		if m.Height >= 12 {
+			lines = append(lines, "")
 		}
-		lines = append(lines, "", decision)
-		label := "Summary"
+		lines = append(lines, "Review decision (j/k or ↑/↓)")
+		for i, option := range reviewEvents {
+			marker, radio := "  ", "○"
+			if i == f.Event {
+				radio = "◉"
+				if f.Focus == 0 {
+					marker = "› "
+				}
+			}
+			row := marker + radio + " " + option.label
+			if m.Width >= 75 {
+				row += " · " + option.description
+			}
+			lines = append(lines, row)
+		}
+		if m.Height >= 13 {
+			lines = append(lines, "")
+		}
+		label := "Comment"
 		if f.Focus == 1 {
-			label = "› Summary"
+			label = "› Comment"
 		}
 		if f.Event != 1 {
 			label += " (required)"
@@ -89,17 +105,53 @@ func (m *Model) reviewFormView() string {
 			body = []rune(before + "▏" + after)
 		}
 		bodyLines := strings.Split(string(body), "\n")
-		bodyLimit := max(1, min(3, m.Height-8))
+		if f.Body == "" && f.Focus != 1 {
+			bodyLines = []string{"Leave a comment"}
+		}
+		reserved := 2 // pending heading and footer
+		if len(m.Pending) > 0 {
+			reserved++ // show at least one pending comment when space permits
+		}
+		if !m.Session.Inventory.Complete {
+			reserved++
+		}
+		if m.ActionError != nil {
+			reserved += 2
+		}
+		bordered := m.Height >= 14 && m.Width >= 20
+		if bordered {
+			reserved += 2 // top and bottom of the comment box
+		}
+		bodyLimit := max(1, min(3, m.Height-len(lines)-reserved))
 		if len(bodyLines) > bodyLimit {
 			cursorLine := strings.Count(before, "\n")
 			start := max(0, min(cursorLine-bodyLimit+1, len(bodyLines)-bodyLimit))
 			bodyLines = bodyLines[start : start+bodyLimit]
 		}
-		for _, line := range bodyLines {
-			lines = append(lines, "  "+Escape(line))
+		if m.Height >= 14 {
+			for len(bodyLines) < bodyLimit {
+				bodyLines = append(bodyLines, "")
+			}
+		}
+		if bordered {
+			inner := m.Width - 6
+			lines = append(lines, "  ┌"+strings.Repeat("─", inner+2)+"┐")
+			for _, line := range bodyLines {
+				content := clip(Escape(line), inner)
+				lines = append(lines, "  │ "+content+strings.Repeat(" ", inner-visibleWidth(content))+" │")
+			}
+			lines = append(lines, "  └"+strings.Repeat("─", inner+2)+"┘")
+		} else {
+			edge := "│"
+			if f.Focus == 1 {
+				edge = "┃"
+			}
+			for _, line := range bodyLines {
+				lines = append(lines, "  "+edge+" "+Escape(line))
+			}
 		}
 		lines = append(lines, fmt.Sprintf("Pending comments (%d) · tab to select, enter edit, d remove", len(m.Pending)))
-		reserved := 1
+		reserved = 1
 		if !m.Session.Inventory.Complete {
 			reserved++
 		}
@@ -125,7 +177,12 @@ func (m *Model) reviewFormView() string {
 		lines = append(lines, "! "+Escape(m.ActionError.Error()))
 		lines = append(lines, "Check GitHub before retrying; delivery may have succeeded.")
 	}
-	footer := "tab: next field · enter: confirm · shift+enter: newline · esc: back"
+	footer := "j/k or ↑/↓: choose · tab/enter: comment · esc: back"
+	if f.Focus == 1 {
+		footer = "enter: confirm · shift+enter: newline · esc: back"
+	} else if f.Focus == 2 {
+		footer = "j/k: select · enter: edit · d: remove · esc: back"
+	}
 	if f.Confirm {
 		footer = "enter: submit review and pending comments · esc: edit"
 	}
@@ -200,7 +257,7 @@ func (m *Model) reviewFormKey(key tea.KeyPressMsg) tea.Cmd {
 			f.Focus = 1
 		case 1:
 			if f.Event != 1 && strings.TrimSpace(f.Body) == "" {
-				m.ActionError = errors.New("review summary is required")
+				m.ActionError = errors.New("review comment is required")
 				return nil
 			}
 			m.ActionError = nil
