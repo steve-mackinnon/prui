@@ -66,12 +66,25 @@ type workspaceTab struct {
 	review   *reviewTabState
 }
 
+// descriptionRenderCache is tab-owned because each frozen review can have a
+// different body and an independent Description scroll position. It retains
+// ANSI lines exactly as produced by the Markdown adapter; navigation only
+// slices them and must not parse the body again.
+type descriptionRenderCache struct {
+	body      string
+	width     int
+	themeName string
+	lines     []string
+	valid     bool
+}
+
 // reviewTabState is the reviewer-visible state that must travel with an open
 // review. Window dimensions and services remain shared by the workspace.
 type reviewTabState struct {
 	Session                                              *review.Session
 	ContextView                                          reviewView
 	DescriptionScroll                                    int
+	descriptionCache                                     descriptionRenderCache
 	Err                                                  error
 	Selected                                             int
 	Row                                                  int
@@ -158,6 +171,7 @@ type Model struct {
 	Session                                              *review.Session
 	ContextView                                          reviewView
 	DescriptionScroll                                    int
+	descriptionCache                                     descriptionRenderCache
 	Err                                                  error
 	Selected                                             int
 	Row                                                  int  // selected guide hierarchy row
@@ -254,6 +268,10 @@ func (m *Model) SetTheme(t theme.Theme) {
 	m.theme = t
 	m.themeOverrides = t.Overrides()
 	m.styles = stylesFor(t)
+	m.descriptionCache = descriptionRenderCache{}
+	for i := range m.tabs {
+		m.tabs[i].review.descriptionCache = descriptionRenderCache{}
+	}
 }
 
 // SetThemeSelectionSaver supplies the global preference writer used by the
@@ -790,7 +808,7 @@ func (m *Model) saveActiveReview() {
 		return
 	}
 	m.tabs[m.activeTab].review = &reviewTabState{
-		Session: m.Session, ContextView: m.ContextView, DescriptionScroll: m.DescriptionScroll, Err: m.Err, Selected: m.Selected, Row: m.Row, Files: m.Files,
+		Session: m.Session, ContextView: m.ContextView, DescriptionScroll: m.DescriptionScroll, descriptionCache: m.descriptionCache, Err: m.Err, Selected: m.Selected, Row: m.Row, Files: m.Files,
 		collapsed: m.collapsed, Scroll: m.Scroll, GuideScroll: m.GuideScroll, Cursor: m.Cursor, GuideCursor: m.GuideCursor,
 		Horizontal: m.Horizontal, layout: m.layout, Inventory: m.Inventory, Focus: m.Focus, cursorActive: m.cursorActive,
 		guidePathOffset: m.guidePathOffset, guidePathPause: m.guidePathPause, guidePathGeneration: m.guidePathGeneration,
@@ -806,7 +824,7 @@ func (m *Model) restoreReviewTab(state *reviewTabState) {
 	if state == nil {
 		return
 	}
-	m.Session, m.ContextView, m.DescriptionScroll, m.Err = state.Session, state.ContextView, state.DescriptionScroll, state.Err
+	m.Session, m.ContextView, m.DescriptionScroll, m.descriptionCache, m.Err = state.Session, state.ContextView, state.DescriptionScroll, state.descriptionCache, state.Err
 	m.Selected, m.Row, m.Files = state.Selected, state.Row, state.Files
 	m.collapsed, m.Scroll, m.GuideScroll, m.Cursor, m.GuideCursor = state.collapsed, state.Scroll, state.GuideScroll, state.Cursor, state.GuideCursor
 	m.Horizontal, m.layout, m.Inventory, m.Focus = state.Horizontal, state.layout, state.Inventory, state.Focus
@@ -1937,21 +1955,23 @@ func (m *Model) descriptionView() string {
 
 func (m *Model) descriptionLines() []string {
 	if m.Session.PullRequestDescription == nil {
+		m.descriptionCache = descriptionRenderCache{}
 		return []string{"Description was not captured for this session."}
 	}
 	if *m.Session.PullRequestDescription == "" {
+		m.descriptionCache = descriptionRenderCache{}
 		return []string{"No description provided."}
 	}
+	body := *m.Session.PullRequestDescription
 	width := max(1, m.Width)
-	lines := []string{}
-	for _, raw := range strings.Split(*m.Session.PullRequestDescription, "\n") {
-		escaped := Escape(raw)
-		if escaped == "" {
-			lines = append(lines, "")
-			continue
-		}
-		lines = append(lines, wrap(escaped, width)...)
+	if m.descriptionCache.valid && m.descriptionCache.body == body && m.descriptionCache.width == width && m.descriptionCache.themeName == m.theme.Name {
+		return m.descriptionCache.lines
 	}
+	lines, err := renderDescriptionMarkdownForTheme(body, width, m.theme.Name)
+	if err != nil {
+		lines = []string{"Description could not be rendered."}
+	}
+	m.descriptionCache = descriptionRenderCache{body: body, width: width, themeName: m.theme.Name, lines: lines, valid: true}
 	return lines
 }
 

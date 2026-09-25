@@ -707,3 +707,55 @@ the in-memory review-tab workspace and its capacity, duplicate, numeric-key,
 and delayed-result routing. Preserve the active session while a selector open
 is pending; install the new session and reset transient state only on success.
 Disk-backed snapshots and the explicit session picker remain unchanged.
+
+# Implementation Plan: Markdown PR Description Rendering
+
+## Overview
+
+Replace Description's escaped plain-text presentation with safe, cached,
+width-aware GitHub-flavored Markdown rendering. This fixes CRLF bodies showing
+literal `\\r` while preserving frozen-description lifecycle, offline behavior,
+tab-owned scroll, and non-interactive handling of untrusted content.
+
+## Architecture Decisions
+
+- Use `charm.land/glamour/v2` with an explicitly selected repository style and
+  current Description body width. Do not use environment-selected styles.
+- Normalize CRLF and lone CR before parsing. Represent disallowed C0/DEL input
+  controls visibly before parsing; never pass user-supplied escape sequences
+  through as terminal control output.
+- Raw HTML stays literal text; links are informational only, and images have
+  no fetch or display behavior.
+- Cache rendered ANSI lines by frozen body, width, and active style. Invalidate
+  on resize, style change, or a replacement review; navigation only slices the
+  cache.
+
+## Dependency Graph
+
+```text
+input normalization + renderer adapter
+                 |
+                 +-- Description cache and scroll integration
+                         |
+                         +-- snapshots, documentation, full regression gate
+```
+
+## Task List
+
+See the `Markdown PR Description Rendering tasks` section in `tasks/todo.md`.
+The renderer adapter must land before model integration; final documentation
+and snapshots follow the completed interactive path.
+
+## Risks and Mitigations
+
+| Risk | Impact | Mitigation |
+| --- | --- | --- |
+| PR text injects terminal controls | High | Normalize/sanitize input before parsing and test ANSI/OSC payloads. |
+| ANSI output wraps or slices incorrectly | High | Use configured width, preserve ANSI lines, and assert stripped display widths. |
+| Re-rendering a 1 MiB frozen body on every keypress | Medium | Cache by body, width, and style; test cache reuse during scroll. |
+| Markdown HTML differs from GitHub's display | Medium | Keep HTML literal and document the display-only scope. |
+
+## Open Questions
+
+None. Raw HTML literal rendering is approved; link activation, remote images,
+and manual description refresh remain out of scope.

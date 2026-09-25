@@ -37,6 +37,7 @@ func screenSession() *review.Session {
 }
 
 func TestScreenSnapshots(t *testing.T) {
+	const descriptionMarkdown = "# Summary\r\n\r\n- review the loading path\r\n- confirm the fallback\r\n\r\n```go\r\nfmt.Println(\"ready\")\r\n```\r\n\r\n[Reference](https://example.com)\r\n\r\n<em>literal HTML</em>"
 	for _, tc := range []struct {
 		name          string
 		width, height int
@@ -52,14 +53,14 @@ func TestScreenSnapshots(t *testing.T) {
 			m.Focus = paneDiff
 			key(m, 'S')
 		}},
-		{"description_wide", 120, 12, func(m *Model) {
-			description := "A frozen pull request description."
+		{"description_wide", 120, 18, func(m *Model) {
+			description := descriptionMarkdown
 			m.Session.PullRequestDescription = &description
 			m.openReviewTab(m.Session)
 			key(m, 'v')
 		}},
-		{"description_narrow", 60, 10, func(m *Model) {
-			description := "A frozen pull request description."
+		{"description_narrow", 60, 18, func(m *Model) {
+			description := descriptionMarkdown
 			m.Session.PullRequestDescription = &description
 			m.openReviewTab(m.Session)
 			key(m, 'v')

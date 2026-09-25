@@ -9,6 +9,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 	"pr-review/internal/session"
+	"pr-review/internal/theme"
 )
 
 func TestDescriptionViewRendersFrozenEscapedTextAndProvenance(t *testing.T) {
@@ -22,7 +23,7 @@ func TestDescriptionViewRendersFrozenEscapedTextAndProvenance(t *testing.T) {
 	m.Update(tea.KeyPressMsg{Code: 'v', Text: "v"})
 
 	view := ansi.Strip(m.View().Content)
-	for _, want := range []string{"╭ Description [2] ╮", "Frozen from GitHub when this review opened.", "Summary", `\x1b]52;c;unsafe\a`} {
+	for _, want := range []string{"╭ Description [2] ╮", "Frozen from GitHub when this review opened.", "Summary", `\x1b]52;c;unsafe\x07`} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("description view missing %q:\n%s", want, view)
 		}
@@ -118,5 +119,65 @@ func TestDescriptionViewScrollIsTabOwnedAndLeavesChangesStateUntouched(t *testin
 	key(m, 'V')
 	if got := m.selectedReviewView(); got != viewChanges || m.DescriptionScroll == 0 {
 		t.Fatalf("switching back lost view or description scroll: view=%v scroll=%d", got, m.DescriptionScroll)
+	}
+}
+
+func TestDescriptionViewCachesRenderedLinesForScrollAndRebuildsOnResize(t *testing.T) {
+	m := New(context.Background(), nil)
+	t.Cleanup(m.Close)
+	s := screenSession()
+	description := "# Heading\n\n" + strings.Repeat("a description line that needs rendering\n", 20)
+	s.PullRequestDescription = &description
+	m.openReviewTab(s)
+	m.Width, m.Height = 60, 7
+	key(m, 'v')
+
+	first := m.descriptionLines()
+	if m.descriptionCache.body != description || m.descriptionCache.width != 60 || m.descriptionCache.themeName != theme.Terminal || len(first) == 0 {
+		t.Fatalf("description render was not cached: %#v", m.descriptionCache)
+	}
+	key(m, 'j')
+	if got := m.descriptionLines(); len(got) == 0 || &got[0] != &first[0] {
+		t.Fatal("description scroll did not reuse cached rendered lines")
+	}
+
+	m.Update(tea.WindowSizeMsg{Width: 36, Height: 7})
+	resized := m.descriptionLines()
+	if m.descriptionCache.width != 36 {
+		t.Fatalf("description cache width = %d, want 36", m.descriptionCache.width)
+	}
+	if &resized[0] == &first[0] {
+		t.Fatal("description resize reused stale rendered lines")
+	}
+}
+
+func TestDescriptionViewInvalidatesEveryTabCacheWhenThemeChanges(t *testing.T) {
+	m := New(context.Background(), nil)
+	t.Cleanup(m.Close)
+	first, second := screenSession(), screenSession()
+	firstDescription, secondDescription := "# First", "# Second"
+	first.PullRequestDescription, second.PullRequestDescription = &firstDescription, &secondDescription
+	second.Inventory.Comparison.Metadata.Identity.Number = 2
+	m.openReviewTab(first)
+	key(m, 'v')
+	m.descriptionLines()
+	m.openReviewTab(second)
+	key(m, 'v')
+	beforeTheme := m.descriptionLines()
+
+	dark, err := theme.Resolve(theme.Dark, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m.SetTheme(dark)
+	if m.descriptionCache.valid || m.tabs[0].review.descriptionCache.valid || m.tabs[1].review.descriptionCache.valid {
+		t.Fatal("theme change retained a stale description render cache")
+	}
+	afterTheme := m.descriptionLines()
+	if m.descriptionCache.themeName != theme.Dark {
+		t.Fatalf("description cache theme = %q, want %q", m.descriptionCache.themeName, theme.Dark)
+	}
+	if len(afterTheme) == 0 || &afterTheme[0] == &beforeTheme[0] {
+		t.Fatal("theme change did not rebuild description rendering")
 	}
 }

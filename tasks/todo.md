@@ -1109,3 +1109,93 @@ and text-only selected-state contracts remain intact.
 **Dependencies:** Tasks 1–3. **Files likely touched:** `internal/tui/{model,lifecycle,picker}.go`,
 matching tests/screens, `README.md`. **Estimated scope:** Large; split into
 state removal and selector lifecycle slices before implementation.
+
+# Markdown PR Description Rendering tasks
+
+## 1. Safe Markdown renderer adapter
+
+**Description:** Add the Glamour v2 dependency and a focused Description
+renderer adapter that normalizes line endings, makes unsafe controls visible,
+uses a configured terminal style and width, and returns ANSI-rendered lines.
+
+**Acceptance criteria:**
+- [x] CRLF and lone-CR Markdown render with no literal `\\r` artifact.
+- [x] Common GFM constructs render readably; raw HTML remains literal, and
+      unsafe terminal-control input cannot escape into output.
+- [x] The adapter has a narrow, testable API independent of `Model` state.
+
+**Verification:**
+- [x] Start with focused failing adapter tests, then run
+      `go test ./internal/tui -run 'TestDescriptionMarkdown' -count=1`.
+- [x] Glamour module metadata contains only Glamour and its transitive dependencies.
+
+**Dependencies:** Approved `SPEC-pr-description.md`.
+
+**Files likely touched:** `go.mod`, `go.sum`, new `internal/tui/description_markdown.go`,
+new `internal/tui/description_markdown_test.go`.
+
+**Estimated scope:** Medium (4 files).
+
+## 2. Cached Description-view integration
+
+**Description:** Replace per-key plain-text wrapping with a tab-owned cache of
+the adapter's ANSI lines. Invalidate it for the frozen body, available width,
+or theme/style changes while retaining all current empty/legacy and scrolling
+semantics.
+
+**Acceptance criteria:**
+- [x] Description scrolling slices cached output and does not reparse the
+      frozen body on navigation.
+- [x] Resize/theme/review replacement rebuilds cached wrapping; empty and
+      legacy views remain non-rendered explicit states.
+- [x] The Description tab has no effect on diff state, comments, or offline
+      lifecycle behavior.
+
+**Verification:**
+- [x] Add focused model/view regressions, then run
+      `go test ./internal/tui -run 'TestDescriptionView' -count=1`.
+
+**Dependencies:** Task 1.
+
+**Files likely touched:** `internal/tui/model.go`, `internal/tui/description_view_test.go`,
+`internal/tui/style.go`, `internal/tui/style_test.go`.
+
+**Estimated scope:** Medium (4 files).
+
+## Checkpoint: safe interactive rendering
+
+- [x] Focused renderer and Description-view tests pass in color and colorless
+      modes at narrow and wide widths.
+- [x] `git diff --check` passes.
+
+## 3. User-facing regression completion
+
+**Description:** Update frozen-description documentation and deterministic
+screens, then run the complete regression gate against the integrated feature.
+
+**Acceptance criteria:**
+- [x] README describes rendered Markdown as display-only and documents the
+      literal-HTML/no-link-activation scope.
+- [x] Screen snapshots reflect readable Markdown at wide and narrow widths.
+- [x] Full tests preserve source/session/review contracts and plain output.
+
+**Verification:**
+- [x] Run `go test -race -count=1 ./...`, `go build ./...`, and
+      `git diff --check`. `./scripts/verify.sh` is blocked by pre-existing
+      formatting in `internal/tui/program_test.go`.
+- [ ] Manually inspect a Description containing headings, a list, a fenced
+      block, a link, raw HTML, and CRLF input in a real terminal.
+
+**Dependencies:** Task 2.
+
+**Files likely touched:** `README.md`, `internal/tui/snapshot_test.go`,
+`internal/tui/testdata/screens/{description_wide,description_narrow}.golden`,
+`internal/tui/description_view_test.go`.
+
+**Estimated scope:** Medium (4 files).
+
+## Completion checkpoint
+
+- [ ] All success criteria in `SPEC-pr-description.md` are met.
+- [ ] Full automated verification passes with no GitHub lifecycle, snapshot,
+      source-pin, or link-activation behavior change.
