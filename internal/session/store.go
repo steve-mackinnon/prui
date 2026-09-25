@@ -445,7 +445,7 @@ func (s *Store) LoadGeneratedGuide(key GuideCacheKey, inv inventory.Inventory) (
 		return nil, nil
 	}
 	cachedKey, err := normalizeGuideCacheKey(GuideCacheKey{Repository: cached.Repository, Number: cached.Number, BaseSHA: cached.BaseSHA, HeadSHA: cached.HeadSHA})
-	if err != nil || cachedKey != key || cached.Bundle.Status != guide.Generated || guide.Validate(cached.Bundle, inv) != nil {
+	if err != nil || cachedKey != key || cached.Bundle.Status != guide.Generated || cached.Bundle.PromptVersion != guide.PromptVersion || guide.Validate(cached.Bundle, inv) != nil {
 		return nil, nil
 	}
 	bundle := cached.Bundle

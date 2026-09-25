@@ -30,7 +30,7 @@ func guideCacheKey() GuideCacheKey {
 }
 
 func generatedGuide() guide.Bundle {
-	return guide.Bundle{Status: guide.Generated, Provider: "openai", Model: "test-model", PromptVersion: "guides-v1", SchemaName: "pr_review_guides", InputDigest: "digest", Items: []guide.Item{{Title: "Authentication flow", Sections: []guide.Section{{Title: "Add login endpoint", UnitIDs: []string{"unit"}}}}}}
+	return guide.Bundle{Status: guide.Generated, Provider: "openai", Model: "test-model", PromptVersion: guide.PromptVersion, SchemaName: "pr_review_guides", InputDigest: "digest", Items: []guide.Item{{Title: "Authentication flow", Sections: []guide.Section{{Title: "Add login endpoint", UnitIDs: []string{"unit"}}}}}}
 }
 
 func TestGuideCacheStoresOnlyValidGeneratedGuidesByComparison(t *testing.T) {
@@ -150,6 +150,24 @@ func TestGuideCacheRejectsArtifactInvalidForCurrentInventory(t *testing.T) {
 	got, err := s.LoadGeneratedGuide(key, changedInventory)
 	if err != nil || got != nil {
 		t.Fatalf("inventory-invalid guide cache hit = %#v, %v", got, err)
+	}
+}
+
+func TestGuideCacheRejectsArtifactFromAnOlderPromptVersion(t *testing.T) {
+	s, err := Open(filepath.Join(t.TempDir(), "sessions"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	key, inv := guideCacheKey(), fixture().Inventory
+	stale := generatedGuide()
+	stale.PromptVersion = "guides-v1"
+	if err := s.SaveGeneratedGuide(key, stale, inv); err != nil {
+		t.Fatal(err)
+	}
+	got, err := s.LoadGeneratedGuide(key, inv)
+	if err != nil || got != nil {
+		t.Fatalf("stale prompt-version cache hit = %#v, %v", got, err)
 	}
 }
 

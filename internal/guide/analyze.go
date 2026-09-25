@@ -12,7 +12,7 @@ import (
 const (
 	// PromptVersion and SchemaName are provenance: a stored bundle states the
 	// contract that produced it, so guides from different prompts stay legible.
-	PromptVersion = "guides-v1"
+	PromptVersion = "guides-v2"
 	SchemaName    = "pr_review_guides"
 
 	maxItems     = 64
@@ -54,7 +54,7 @@ func Analyze(parent context.Context, a Analyzer, inv inventory.Inventory, in Inp
 		return Fallback(err.Error())
 	}
 	b := candidate
-	b.Items = retained(candidate.Items, inv)
+	b.Items = attachFileMetadata(retained(candidate.Items, inv), inv)
 	if len(b.Items) == 0 && len(inv.Units) > 0 {
 		return Fallback("analysis produced no usable guides")
 	}
@@ -71,6 +71,48 @@ func Analyze(parent context.Context, a Analyzer, inv inventory.Inventory, in Inp
 		return Fallback("analysis discarded: " + stated(err.Error()))
 	}
 	return b
+}
+
+// attachFileMetadata keeps a file's structural record with the first guide
+// section that already groups one of that file's other units. File metadata is
+// required for a complete review, but has no patch text for an analyzer to
+// reason about; requiring the model to name it otherwise produces a noisy
+// ungrouped-only guide for every normally grouped file.
+func attachFileMetadata(items []Item, inv inventory.Inventory) []Item {
+	metadata := make(map[string]string, len(inv.Files))
+	units := make(map[string]inventory.ReviewUnit, len(inv.Units))
+	used := map[string]bool{}
+	for _, u := range inv.Units {
+		units[u.ID] = u
+		if u.Kind == inventory.FileMetadata {
+			metadata[u.FileChangeID] = u.ID
+		}
+	}
+	for _, item := range items {
+		for _, section := range item.Sections {
+			for _, id := range section.UnitIDs {
+				used[id] = true
+			}
+		}
+	}
+	for i := range items {
+		for j := range items[i].Sections {
+			section := &items[i].Sections[j]
+			ids := make([]string, 0, len(section.UnitIDs)+1)
+			for _, id := range section.UnitIDs {
+				u := units[id]
+				if u.Kind != inventory.FileMetadata {
+					if id := metadata[u.FileChangeID]; id != "" && !used[id] {
+						ids = append(ids, id)
+						used[id] = true
+					}
+				}
+				ids = append(ids, id)
+			}
+			section.UnitIDs = ids
+		}
+	}
+	return items
 }
 
 // retained keeps only sections whose references this inventory can honour: an

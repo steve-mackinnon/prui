@@ -104,6 +104,23 @@ func TestAnalyzePartialResponseCoversTheRemainder(t *testing.T) {
 	}
 }
 
+func TestAnalyzeGroupsFileMetadataWithItsFirstGroupedContentUnit(t *testing.T) {
+	b := &builder{}
+	metadata := b.unit("apps/cms/src/collections/Media.ts", "", inventory.FileMetadata)
+	content := b.unit("apps/cms/src/collections/Media.ts", "@@ -1 +1 @@\n+export const Media = {}\n", inventory.TextHunk)
+	inv := b.build()
+	a := &fake{bundle: generated(Section{Title: "Update media", UnitIDs: units(content)})}
+
+	bundle := analyzed(t, a, inv)
+	if got := bundle.Items[0].Sections[0].UnitIDs; strings.Join(got, ",") != metadata+","+content {
+		t.Fatalf("file metadata = %v, want it before grouped content", got)
+	}
+	if got := ungroupedIDs(bundle); len(got) != 0 {
+		t.Fatalf("metadata for grouped content remained ungrouped: %v", got)
+	}
+	covered(t, bundle, inv)
+}
+
 func TestAnalyzeDropsOnlyUnusableSections(t *testing.T) {
 	inv := fixture("u1", "u2", "u3")
 	a := &fake{bundle: Bundle{Status: Generated, Items: []Item{{Title: "Authentication flow", Sections: []Section{
