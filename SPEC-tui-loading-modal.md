@@ -66,8 +66,10 @@ border. Its content is, in order:
   Tiny terminals use the readable ASCII fallback: `=` for the comet and `-` for
   the track. The state never relies on color.
 - The current, escaped notification text is rendered immediately beneath the bar.
-  It is clipped to the modal's interior width; it never wraps into an unbounded
-  height or leaks terminal control bytes.
+  It wraps within the modal's interior width and available viewport height, with
+  aligned continuation lines. If the viewport cannot show the full notice, the
+  final visible line ends in an ellipsis. It never grows beyond the viewport or
+  leaks terminal control bytes.
 - `esc: cancel` is a separate final line only when the action has an active
   cancellation callback. For non-cancellable work, the line is omitted rather
   than replaced by a disabled or misleading instruction.
@@ -182,8 +184,8 @@ Add focused unit and snapshot coverage in `internal/tui`.
 
 - Every foreground, input-blocking TUI operation presents the shared centered
   loading modal while it is active.
-- The animated bar is visibly above the current loading text and advances on
-  deterministic ticks.
+- The loading text wraps within the modal when space permits. The animated bar
+  remains visibly above it and advances on deterministic ticks.
 - A real cancel callback always yields a visible `esc: cancel` hint, and no hint
   appears when Esc cannot cancel the operation.
 - Esc cancellation, failures, retries, current-review retention, and PR tab

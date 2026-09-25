@@ -5,6 +5,7 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 )
 
 const (
@@ -84,14 +85,38 @@ func renderLoadingModal(width, height int, background string, modal loadingModal
 	if title == "" {
 		title = "Loading"
 	}
+	fixedLineCount := 6
+	if modal.cancelable {
+		fixedLineCount++
+	}
+	if height <= fixedLineCount {
+		return renderCompactLoading(width, height, modal)
+	}
+
+	noticePrefix := "  ↳ "
+	noticeWidth := max(1, inside-visibleWidth(noticePrefix))
+	noticeLines := strings.Split(ansi.Wrap(Escape(modal.notice), noticeWidth, ""), "\n")
+	maxNoticeLines := height - fixedLineCount
+	if len(noticeLines) > maxNoticeLines {
+		noticeLines = noticeLines[:maxNoticeLines]
+		last := len(noticeLines) - 1
+		noticeLines[last] = ansi.Truncate(noticeLines[last], max(0, noticeWidth-1), "") + "…"
+	}
+
 	content := []string{
 		"╭" + strings.Repeat("─", modalWidth-2) + "╮",
 		modalLine("  "+loadingSpinner(modal.frame)+"  "+title, inside),
 		modalLine("", inside),
 		modalLine(center(loadingBar(modal.frame), inside), inside),
-		modalLine("  ↳ "+Escape(modal.notice), inside),
-		modalLine("", inside),
 	}
+	for i, line := range noticeLines {
+		prefix := strings.Repeat(" ", visibleWidth(noticePrefix))
+		if i == 0 {
+			prefix = noticePrefix
+		}
+		content = append(content, modalLine(prefix+line, inside))
+	}
+	content = append(content, modalLine("", inside))
 	if modal.cancelable {
 		content = append(content, modalLine("  esc: cancel", inside))
 	}

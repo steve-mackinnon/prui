@@ -30,6 +30,35 @@ func TestLoadingModalRendersBarAboveEscapedNotice(t *testing.T) {
 	assertFitsViewport(t, got, 60, 12)
 }
 
+func TestLoadingModalWrapsLongNoticeWithinCard(t *testing.T) {
+	got := ansi.Strip(renderLoadingModal(40, 12, "Review\ncontent", loadingModal{
+		active:     true,
+		cancelable: true,
+		notice:     "Creating OpenAI analyzer for this confirmed guide request...",
+	}))
+
+	if !strings.Contains(got, "Creating OpenAI analyzer") || !strings.Contains(got, "confirmed guide") || !strings.Contains(got, "request...") {
+		t.Fatalf("modal clipped its wrapped notice:\n%s", got)
+	}
+	if strings.Count(got, "↳") != 1 {
+		t.Fatalf("wrapped notice should have one leading marker:\n%s", got)
+	}
+	assertFitsViewport(t, got, 40, 12)
+}
+
+func TestLoadingModalBoundsWrappedNoticeToViewport(t *testing.T) {
+	got := ansi.Strip(renderLoadingModal(40, 8, "Review", loadingModal{
+		active:     true,
+		cancelable: true,
+		notice:     "Creating an analyzer with a notice too long for the available height",
+	}))
+
+	if !strings.Contains(got, "…") || !strings.Contains(got, "esc: cancel") || !strings.Contains(got, "╰") {
+		t.Fatalf("height-bounded notice lost its overflow or modal chrome:\n%s", got)
+	}
+	assertFitsViewport(t, got, 40, 8)
+}
+
 func TestModelLoadingModalAnimatesAndEscCancelsOnlyCancelableWork(t *testing.T) {
 	m := New(context.Background(), nil)
 	m.Loading = false
