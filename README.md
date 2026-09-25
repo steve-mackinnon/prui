@@ -48,7 +48,7 @@ What leaves the machine is only the assembled request package: pinned patches an
 
 Failure is cheap and explicit. A transport error, non-2xx status, refusal, deadline, oversize payload, or unusable structured output produces an `analysis_unavailable` bundle with a stated reason, a durable session, and the unchanged deterministic file plan. Only a structurally valid generated bundle is persisted as a reusable local cache entry; unavailable bundles never suppress a later retry. Retrying cannot modify a stored snapshot; a later successful attempt is a new session. Generated text is model interpretation of the bounded input, not source truth, approval, security findings, or complete architectural documentation, and it can be wrong about anything it was not shown.
 
-The left pane opens on Files, the normal changed-file picker. Press `F` for Files or `G` for Guide. When a session has generated guides, Guide shows each guide, section, and covered file portion, with the selected guide's combined diff in the right pane. Enter on a section or file jumps to its position in that diff. A file appears under every section that owns part of it. `n` walks rows, `]`/`[` jump between guides, `tab` expands or collapses the selected guide or section, and Enter focuses its diff. `i` still lists every raw unit and navigates them one at a time. Marking is unchanged: `m` marks the whole file slice of the selected unit, including the units that file contributes to other guides. A fallback, absent, or empty bundle leaves the file plan available.
+The left pane opens on Files. Its right pane shows every changed file in order, with all of each file's hunks together. Scroll through the whole PR or press `j`/`k` to jump between file boundaries. Press `F` for Files or `G` for Guide. When a session has generated guides, Guide shows each guide, section, and covered file portion, with the selected guide's combined diff in the right pane. Enter on a section or file jumps to its position in that diff. A file appears under every section that owns part of it. `n` walks guide rows, `]`/`[` jump between guides, and `tab` expands or collapses the selected guide or section. `i` lists every raw unit. `m` marks the whole file slice of the selected unit. A fallback, absent, or empty bundle leaves Files available.
 
 Reviews opened in one process keep independent in-memory reading positions, hierarchy expansion, pane focus, scroll offsets, notices, and errors. `ctrl+p` (or `p` where control-key reporting is unreliable) opens a keyboard-only PR switcher over the current review. It lists already-open reviews first, then open PRs for the active repository; typing filters, Enter switches or starts a new read-only pinned review, and Escape leaves the current review unchanged. The overlay never takes a permanent column or changes plain output.
 
@@ -72,7 +72,7 @@ columns. Plain output is always unified.
 | Key | Action |
 | --- | --- |
 | `ctrl+p` / `p` | Open the PR switcher; type to filter, Enter switches/opens, Escape cancels |
-| `n` | Next guide row; next unit in the file plan and inventory |
+| `n` / `p` | Move between comment targets in a focused Files diff; move through files, guide rows, or inventory units in the list |
 | `]` / `[` | Next / previous guide, or file slice without guides |
 | `F` / `G` | Select Files or Guide in the left pane |
 | `S` | Toggle side-by-side detail; unified is the default and narrow terminals fall back below 160 columns |
@@ -84,12 +84,13 @@ columns. Plain output is always unified.
 | `ctrl+p` in a line editor | Save or update a local pending comment without posting |
 | `R` | Open Submit review from Changes, Description, or Commits |
 | `c` | Refresh ephemeral inline review comments (online reviews only) |
-| Up / down, `j` / `k` | Navigate list or scroll focused diff |
+| `j` / `k` | Jump to next / previous file in Files; navigate guide rows or inventory units elsewhere |
+| Up / down | Navigate list or scroll focused diff |
 | `J` / `K` | Scroll diff by 5 lines |
 | `zz` | Center the focused diff on its selected line |
 | `d` / `u`, Page Down / Page Up | Page through actual diff |
 | `h` / `l`, left / right | Horizontal scrolling; no hidden line truncation in plain output |
-| Home | Reset selected unit's scroll |
+| Home | Reset active diff scroll |
 | `i` | Toggle the full unit inventory; every raw unit, unfiltered by guides |
 | `e` | Show bounded evidence and included/excluded scope |
 | `U` | Show canonical GitHub URL for copying; does not launch a browser |

@@ -600,11 +600,13 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.Focus = paneList
 			if !m.Inventory {
 				m.syncRow(m.rows())
+				if m.fileView() {
+					m.file(0)
+				}
 			}
 		case "F":
-			m.Files = true
-			m.Inventory = false
-			m.syncRow(m.rows())
+			m.Files, m.Inventory = true, false
+			m.file(0)
 		case "G":
 			m.Files = false
 			m.Inventory = false
@@ -646,9 +648,19 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.toggle(rows)
 			}
 		case "n":
-			m.move(1)
+			if m.fileView() && m.Focus == paneDiff {
+				m.cursorActive = true
+				m.moveCursor(1)
+			} else {
+				m.move(1)
+			}
 		case "p":
-			m.move(-1)
+			if m.fileView() && m.Focus == paneDiff {
+				m.cursorActive = true
+				m.moveCursor(-1)
+			} else {
+				m.move(-1)
+			}
 		case "]":
 			m.file(1)
 		case "[":
@@ -666,14 +678,18 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.move(-1)
 			}
 		case "j":
-			if m.Focus == paneDiff {
+			if m.fileView() {
+				m.file(1)
+			} else if m.Focus == paneDiff {
 				m.cursorActive = true
 				m.moveCursor(1)
 			} else {
 				m.move(1)
 			}
 		case "k":
-			if m.Focus == paneDiff {
+			if m.fileView() {
+				m.file(-1)
+			} else if m.Focus == paneDiff {
 				m.cursorActive = true
 				m.moveCursor(-1)
 			} else {
@@ -959,6 +975,10 @@ func (m *Model) move(delta int) {
 		m.moveRow(rows, delta)
 		return
 	}
+	if !m.Inventory {
+		m.file(delta)
+		return
+	}
 	if m.Session != nil && len(m.Session.Inventory.Units) > 0 {
 		m.Selected = max(0, min(len(m.Session.Inventory.Units)-1, m.Selected+delta))
 		m.Horizontal = 0
@@ -1010,6 +1030,10 @@ func (m *Model) file(delta int) {
 	f := m.Session.UnitFiles[m.Selected]
 	f = max(0, min(len(m.Session.Slices)-1, f+delta))
 	m.Selected = m.Session.Slices[f].Units[0]
+	if !m.Inventory {
+		m.setOffset(m.clampOffset(m.fileOffset(f)))
+		m.cursorInViewport(1)
+	}
 	m.Horizontal = 0
 }
 func (m *Model) scroll(delta int) {
@@ -1019,6 +1043,9 @@ func (m *Model) scroll(delta int) {
 	// The clamp counts the same display lines the diff pane renders, so a diff
 	// that already fits cannot be scrolled past its end.
 	m.setOffset(m.clampOffset(m.offset() + delta))
+	if m.fileView() {
+		m.syncFileToOffset()
+	}
 	if m.Focus == paneDiff {
 		m.cursorInViewport(delta)
 	}
@@ -1064,9 +1091,57 @@ func (m *Model) activeGuide() (int, bool) {
 	return rows[max(0, min(len(rows)-1, m.Row))].guide, true
 }
 
+func (m *Model) fileView() bool {
+	return m.Session != nil && !m.Inventory && len(m.rows()) == 0
+}
+
+// fileOffset finds a file boundary in the rendered stream, including comment
+// overlays and side-by-side projection above it.
+func (m *Model) fileOffset(file int) int {
+	seen := 0
+	for i, line := range m.displayDetail() {
+		if line.Class != classFileHeader || !strings.HasPrefix(line.Text, "━━━ FILE · ") {
+			continue
+		}
+		if seen == file {
+			return i
+		}
+		seen++
+	}
+	return 0
+}
+
+func (m *Model) syncFileToOffset() {
+	file := 0
+	for i, line := range m.displayDetail() {
+		if i > m.offset() {
+			break
+		}
+		if line.Class == classFileHeader && strings.HasPrefix(line.Text, "━━━ FILE · ") {
+			file++
+		}
+	}
+	file = max(0, min(len(m.Session.Slices)-1, file-1))
+	if len(m.Session.Slices[file].Units) > 0 {
+		m.Selected = m.Session.Slices[file].Units[0]
+	}
+}
+
 func (m *Model) baseDetail() []diffLine {
 	if guide, ok := m.activeGuide(); ok {
 		return detailFor(m.Session, guide).lines
+	}
+	if m.fileView() {
+		var lines []diffLine
+		for f, slice := range m.Session.Slices {
+			lines = append(lines, diffLine{styledLine: styledLine{Class: classFileHeader, Text: fileDivider(m.Session.Inventory.Files[f])}})
+			for _, unit := range slice.Units {
+				if m.Session.Inventory.Units[unit].Kind != inventory.FileMetadata {
+					lines = append(lines, unitLines(m.Session, unit)...)
+				}
+			}
+		}
+		return lines
 	}
 	if m.Session == nil || m.Selected < 0 || m.Selected >= len(m.Session.Inventory.Units) {
 		return nil
@@ -1326,6 +1401,9 @@ func (m *Model) offset() int {
 	if guide, ok := m.activeGuide(); ok {
 		return m.GuideScroll[guide]
 	}
+	if m.fileView() {
+		return m.Scroll[-1]
+	}
 	return m.Scroll[m.Selected]
 }
 
@@ -1334,7 +1412,11 @@ func (m *Model) setOffset(offset int) {
 		m.GuideScroll[guide] = offset
 		return
 	}
-	m.Scroll[m.Selected] = offset
+	if m.fileView() {
+		m.Scroll[-1] = offset
+	} else {
+		m.Scroll[m.Selected] = offset
+	}
 }
 
 // cursor is the selected commentable detail line. It is kept separately for
@@ -1369,7 +1451,11 @@ func (m *Model) cursorValue() (int, bool) {
 	if m.Cursor == nil {
 		return 0, false
 	}
-	v, found := m.Cursor[m.Selected]
+	key := m.Selected
+	if m.fileView() {
+		key = -1
+	}
+	v, found := m.Cursor[key]
 	return v, found
 }
 
@@ -1384,7 +1470,11 @@ func (m *Model) setCursor(line int) {
 	if m.Cursor == nil {
 		m.Cursor = map[int]int{}
 	}
-	m.Cursor[m.Selected] = line
+	key := m.Selected
+	if m.fileView() {
+		key = -1
+	}
+	m.Cursor[key] = line
 }
 
 func (m *Model) cursorAnchor() (*source.ReviewCommentTarget, int64) {
@@ -1647,6 +1737,9 @@ func (m *Model) reviewViewForLayout(preferSideBySide bool) string {
 		headerClass = classWarning
 	}
 	text := fmt.Sprintf("%s %d · %s [%s] · focus: %s", strings.ToUpper(label), len(s.Inventory.Files), pathLabel(s.Inventory.Files[s.UnitFiles[m.Selected]]), kind, focus)
+	if m.fileView() {
+		text = fmt.Sprintf("FILES %d · file %d/%d · focus: %s", len(s.Inventory.Files), s.UnitFiles[m.Selected]+1, len(s.Inventory.Files), focus)
+	}
 	if m.Width < 100 {
 		text = fmt.Sprintf("focus: %s · %s %d", focus, strings.ToUpper(label), len(s.Inventory.Files))
 	}

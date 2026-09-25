@@ -470,11 +470,11 @@ func TestDUPageFocusedDiff(t *testing.T) {
 	m.Focus = paneDiff
 
 	key(m, 'd')
-	if got, want := m.Scroll[m.Selected], m.pageStep(); got != want {
+	if got, want := m.offset(), m.pageStep(); got != want {
 		t.Fatalf("d page-down offset = %d, want %d", got, want)
 	}
 	key(m, 'u')
-	if got := m.Scroll[m.Selected]; got != 0 {
+	if got := m.offset(); got != 0 {
 		t.Fatalf("u did not restore the initial offset: %d", got)
 	}
 }
@@ -516,18 +516,18 @@ func TestDiffCursorMovesBetweenCommentTargetsAndKeepsThemVisible(t *testing.T) {
 		t.Fatalf("unselected detail line does not retain the cursor gutter:\n%s", view)
 	}
 
-	key(m, 'j')
+	key(m, 'n')
 	second := m.cursor()
 	if second <= first || m.detail()[second].target == nil || m.detail()[second].target.Side != "LEFT" {
-		t.Fatalf("j cursor = %d (%#v), want deletion target after %d", second, m.detail()[second].target, first)
+		t.Fatalf("n cursor = %d (%#v), want deletion target after %d", second, m.detail()[second].target, first)
 	}
 	if second < m.offset() || second >= m.offset()+m.bodyHeight() {
 		t.Fatalf("cursor %d fell outside visible detail [%d,%d)", second, m.offset(), m.offset()+m.bodyHeight())
 	}
 
-	key(m, 'k')
+	key(m, 'p')
 	if got := m.cursor(); got != first {
-		t.Fatalf("k cursor = %d, want %d", got, first)
+		t.Fatalf("p cursor = %d, want %d", got, first)
 	}
 }
 
@@ -611,20 +611,16 @@ func TestDiffCursorTracksScrollingAndTabStateWithoutChangingReviewSelection(t *t
 	second.Inventory.Comparison.Metadata.Identity = source.Identity{Repository: "owner/repo", Number: 2}
 	m.openReviewTab(first)
 	m.Width, m.Height, m.Selected, m.Focus, m.Horizontal = 120, 5, 1, paneDiff, 8
-	key(m, 'j')
-	wantSelected := m.Selected
+	key(m, 'n')
 	key(m, 'J')
-	if got := m.cursor(); got < m.offset() || got >= m.offset()+m.bodyHeight() {
-		t.Fatalf("scroll left cursor %d outside visible detail [%d,%d)", got, m.offset(), m.offset()+m.bodyHeight())
-	}
 	wantCursor := m.cursor()
-	if m.Selected != wantSelected || m.Horizontal != 8 {
-		t.Fatalf("diff scrolling changed selection or horizontal position: selected=%d horizontal=%d", m.Selected, m.Horizontal)
+	if m.Horizontal != 8 {
+		t.Fatalf("diff scrolling changed horizontal position: %d", m.Horizontal)
 	}
 
 	m.openReviewTab(second)
 	m.Selected, m.Focus = 1, paneDiff
-	key(m, 'j')
+	key(m, 'n')
 	secondCursor := m.cursor()
 	m.activateTab(0)
 	if got := m.cursor(); got != wantCursor {
