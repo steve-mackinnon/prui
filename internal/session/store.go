@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"sort"
 	"strings"
 	"sync"
 	"syscall"
@@ -666,22 +667,38 @@ func (s *Store) LatestComparison(id source.Identity) (*Record, error) {
 	if err != nil {
 		return nil, err
 	}
-	var latest *Record
+	// Order the small state records first. Loading every immutable snapshot
+	// makes reopening proportional to all retained patch/evidence bytes.
+	// State is only a lookup hint: fully validate each candidate before use.
+	candidates := make([]State, 0, len(entries))
 	for _, entry := range entries {
 		if !idPattern.MatchString(entry.Name()) {
 			continue
 		}
-		r, err := s.load(entry.Name())
+		dir, err := s.directory(entry.Name())
+		if err != nil || privatePath(dir, true) != nil {
+			continue
+		}
+		var state State
+		if _, err := readJSON(filepath.Join(dir, "state.json"), &state); err != nil || state.SchemaVersion != SchemaVersion || state.ID != entry.Name() {
+			continue
+		}
+		candidates = append(candidates, state)
+	}
+	// Stable ordering preserves the old directory-order tie breaker.
+	sort.SliceStable(candidates, func(i, j int) bool { return candidates[i].UpdatedAt.After(candidates[j].UpdatedAt) })
+	for _, candidate := range candidates {
+		r, err := s.load(candidate.ID)
 		if err != nil {
 			continue
 		}
 		identity := r.Inventory.Comparison.Metadata.Identity
 		normalized, err := normalizeRepository(identity.Repository)
-		if err == nil && normalized == repository && identity.Number == id.Number && (latest == nil || r.UpdatedAt.After(latest.UpdatedAt)) {
-			latest = r
+		if err == nil && normalized == repository && identity.Number == id.Number {
+			return r, nil
 		}
 	}
-	return latest, nil
+	return nil, nil
 }
 
 // LoadComparisonSnapshot returns a copy of previously validated frozen source

@@ -172,14 +172,9 @@ func (v *View) Blob(ctx context.Context, oid string, limit int) ([]byte, error) 
 	if !shaPattern.MatchString(oid) {
 		return nil, errors.New("invalid object ID")
 	}
-	b, e := v.Git(ctx, 100, "cat-file", "-s", oid)
-	if e != nil {
-		return nil, e
-	}
-	n, e := strconv.Atoi(strings.TrimSpace(string(b)))
-	if e != nil || n > limit {
-		return nil, ErrLimit
-	}
+	// The process runner bounds stdout and kills the process group on overflow.
+	// Read once instead of spawning a separate Git process just to check size.
+	// Oversized reads return ErrLimit without exposing partial blob contents.
 	return v.Git(ctx, limit, "cat-file", "blob", oid)
 }
 func (v *View) mergeBase(ctx context.Context, m Metadata) (string, error) {

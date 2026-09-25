@@ -117,3 +117,12 @@ workflow runs on Linux; a successful local macOS run is not a Linux result.
 CI configuration follows the official [setup-go documentation](https://github.com/actions/setup-go)
 and [checkout documentation](https://github.com/actions/checkout). Go is selected
 from `go.mod`, and checkout credentials are not persisted in the working tree.
+
+## PR loading benchmarks
+
+`go test ./internal/session -run '^$' -bench BenchmarkLatestComparisonHistory -benchmem`
+measures reopening against 50 saved snapshots with 256 KiB of evidence each.
+`go test ./internal/source -run '^$' -bench BenchmarkBlobRead`
+measures bounded blob reads using an isolated local Git fixture. Neither benchmark
+contacts GitHub. Compare results on the same machine; these measure individual
+loading stages, not total interactive startup or network time.
