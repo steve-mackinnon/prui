@@ -117,11 +117,17 @@ executable search path are trusted.
 Snapshots contain raw source and may contain secrets already present in the PR.
 They are permission-restricted, **not encrypted**, and retained until deleted:
 
-- macOS: `~/Library/Application Support/pr-review/sessions`
-- Linux: `$XDG_DATA_HOME/pr-review/sessions`, or `~/.local/share/pr-review/sessions`
+- macOS: `~/Library/Application Support/pr-review/storage`
+- Linux: `$XDG_DATA_HOME/pr-review/storage`, or `~/.local/share/pr-review/storage`
 
-Only one process can write a store at a time. `delete` removes the named session,
-but not separately cached guides, remembered repositories, GitHub data, or backups.
+SQLite runs inside the application; no SQLite installation or database service is
+needed. Independent app processes can open the store, with transactional writes
+and generation checks protecting progress. `delete` removes the named session
+and unreferenced source data, but preserves reusable guides, remembered
+repositories, GitHub data, and backups.
+
+This is a fresh storage format. Old file caches are neither read nor imported.
+Windows support is deferred; use a local filesystem on macOS or Linux.
 
 Large or unavailable blobs remain visibly incomplete; the default per-blob limit
 is 1 MiB. PR browsing and comment overlays are bounded to 100 items. See the

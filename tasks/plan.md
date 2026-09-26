@@ -762,7 +762,8 @@ and manual description refresh remain out of scope.
 
 # Implementation Plan: SQLite Storage — Fresh Start
 
-Status: Approved for implementation on 2026-09-26; Sol agents executing.
+Status: Completed on 2026-09-26 with Sol implementation agents.
+Evidence: [SQLite verification](../docs/SQLITE-VERIFICATION.md).
 Spec: [SPEC-sqlite-storage.md](../SPEC-sqlite-storage.md), approved for planning.
 Task list: [SQLite Storage — Fresh Start tasks](todo.md#sqlite-storage--fresh-start-tasks).
 The user authorized appending these sections; all earlier work remains intact.

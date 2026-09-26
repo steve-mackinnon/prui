@@ -138,3 +138,25 @@ measures reopening against 50 saved snapshots with 256 KiB of evidence each.
 measures bounded blob reads using an isolated local Git fixture. Neither benchmark
 contacts GitHub. Compare results on the same machine; these measure individual
 loading stages, not total interactive startup or network time.
+
+## SQLite persistence verification
+
+Persistence tests use real disposable SQLite databases. They cover canonical
+source sharing, generation conflicts, ordered progress, metadata-only listing,
+reference-aware deletion, private ownership, read-only behavior, and failure
+rollback. Process tests exercise concurrent updates and interrupted transactions.
+They never open or import the user's previous file cache.
+
+Run the embedded-driver proof without CGo:
+
+```sh
+CGO_ENABLED=0 go test -count=1 ./internal/session/storage
+CGO_ENABLED=0 go build -o /tmp/pr-review-sqlite ./cmd/pr-review
+go test ./internal/session -run '^$' -bench 'Benchmark(LatestComparisonHistory|SQLite)' -benchmem -count=5
+```
+
+For release evidence, execute storage tests and the full verification gate on
+both macOS and Linux; a cross-build alone does not establish runtime behavior.
+The driver is embedded and requires no user-installed SQLite tools or library.
+Windows support and verification remain deferred. See
+[SQLite verification evidence](docs/SQLITE-VERIFICATION.md) for measured results.

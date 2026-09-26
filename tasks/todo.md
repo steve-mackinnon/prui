@@ -1202,7 +1202,8 @@ screens, then run the complete regression gate against the integrated feature.
 
 # SQLite Storage — Fresh Start tasks
 
-Status: Approved for implementation on 2026-09-26; SQL-01..03 in progress.
+Status: Completed on 2026-09-26.
+Evidence: [SQLite verification](../docs/SQLITE-VERIFICATION.md).
 
 Spec: [SPEC-sqlite-storage.md](../SPEC-sqlite-storage.md).
 Plan: [SQLite Storage — Fresh Start](plan.md#implementation-plan-sqlite-storage--fresh-start).
@@ -1210,25 +1211,25 @@ User authorized appending; preceding task sections remain unchanged.
 
 SQL-10..16 are coordinated cutover patches, not individually releasable changes.
 Run their verification against the integrated batch; do not mark them complete
-until that batch compiles and passes. Tests/commands here are required future
-checks, not claims of results already obtained. New test names are assigned by
-the task; they must exist and execute, not merely yield a passing no-tests run.
+until that batch compiles and passes. The checks below have completed against the integrated batch. Equivalent
+real-database tests use the final names in the implementation; benchmark, native
+platform, failure-mode and packaging results are recorded in the evidence link.
 
 ## SQL-01: Prove the embedded driver and record a baseline
 
-- [ ] Complete SQL-01.
+- [x] Complete SQL-01.
 
 **Description:** Measure the current storage benchmark, evaluate the pinned CGo-free driver, and exercise an isolated real database before building the replacement.
 
 **Acceptance criteria:**
-- [ ] Pin an explicitly reviewed driver version compatible with Go 1.26.8 and macOS/Linux; document license, bundled SQLite, dependency/security results, and any blockers.
-- [ ] A CGo-disabled storage test executable creates, closes, reopens, and reads a real SQLite file without invoking external SQLite tools.
-- [ ] Record baseline history benchmark and executable size; do not change CLI persistence or the user’s store.
+- [x] Pin an explicitly reviewed driver version compatible with Go 1.26.8 and macOS/Linux; document license, bundled SQLite, dependency/security results, and any blockers.
+- [x] A CGo-disabled storage test executable creates, closes, reopens, and reads a real SQLite file without invoking external SQLite tools.
+- [x] Record baseline history benchmark and executable size; do not change CLI persistence or the user’s store.
 
 **Verification:**
-- [ ] `go test ./internal/session -run '^$' -bench BenchmarkLatestComparisonHistory -benchmem -count=5`
-- [ ] `CGO_ENABLED=0 go test -count=1 ./internal/session/storage`
-- [ ] `go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 ./...`
+- [x] `go test ./internal/session -run '^$' -bench BenchmarkLatestComparisonHistory -benchmem -count=5`
+- [x] `CGO_ENABLED=0 go test -count=1 ./internal/session/storage`
+- [x] `go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 ./...`
 
 **Dependencies:** Approved plan.
 
@@ -1245,19 +1246,19 @@ the task; they must exist and execute, not merely yield a passing no-tests run.
 
 ## SQL-02: Freeze storage contracts and schema
 
-- [ ] Complete SQL-02.
+- [x] Complete SQL-02.
 
 **Description:** Extract retained domain types/validation without changing current behavior, and define the concrete SQL contract and complete schema before parallel query work.
 
 **Acceptance criteria:**
-- [ ] Freeze StateUpdate, summary fields, typed error categories, canonical payload versions, and SQL row contracts described in the plan.
-- [ ] DDL defines source/bundle/session/progress/cache/registry relationships, bounds, recency/comparison indexes, and bootstrap store identity; DerivedFrom is not a parent FK.
-- [ ] The old running app still builds; no generic backend interface, compatibility Save, or runtime selector is added.
+- [x] Freeze StateUpdate, summary fields, typed error categories, canonical payload versions, and SQL row contracts described in the plan.
+- [x] DDL defines source/bundle/session/progress/cache/registry relationships, bounds, recency/comparison indexes, and bootstrap store identity; DerivedFrom is not a parent FK.
+- [x] The old running app still builds; no generic backend interface, compatibility Save, or runtime selector is added.
 
 **Verification:**
-- [ ] `go test -race -count=1 ./internal/session`
-- [ ] `go build ./...`
-- [ ] `git diff --check`
+- [x] `go test -race -count=1 ./internal/session`
+- [x] `go build ./...`
+- [x] `git diff --check`
 
 **Dependencies:** SQL-01.
 
@@ -1276,18 +1277,18 @@ the task; they must exist and execute, not merely yield a passing no-tests run.
 
 ## SQL-03: Open and initialize a private SQLite store
 
-- [ ] Complete SQL-03.
+- [x] Complete SQL-03.
 
 **Description:** Implement the actual engine lifecycle with bounded operations and a minimal bootstrap identity protocol.
 
 **Acceptance criteria:**
-- [ ] Concurrent first opens converge on one complete schema; ready/missing, foreign, legacy, unsafe-link, and ambiguous initialization states fail without replacing data.
-- [ ] DELETE/EXTRA, foreign keys, busy bound, application/schema IDs and one-connection policy are applied and verified; startup lock is released before normal operations.
-- [ ] Read-only opens change no persistent files and never recover a hot journal or initialize a missing store; Close is safe and later operations fail.
+- [x] Concurrent first opens converge on one complete schema; ready/missing, foreign, legacy, unsafe-link, and ambiguous initialization states fail without replacing data.
+- [x] DELETE/EXTRA, foreign keys, busy bound, application/schema IDs and one-connection policy are applied and verified; startup lock is released before normal operations.
+- [x] Read-only opens change no persistent files and never recover a hot journal or initialize a missing store; Close is safe and later operations fail.
 
 **Verification:**
-- [ ] `go test -race -count=1 ./internal/session/storage`
-- [ ] `CGO_ENABLED=0 go test -count=1 ./internal/session/storage`
+- [x] `go test -race -count=1 ./internal/session/storage`
+- [x] `CGO_ENABLED=0 go test -count=1 ./internal/session/storage`
 
 **Dependencies:** SQL-02.
 
@@ -1305,23 +1306,23 @@ the task; they must exist and execute, not merely yield a passing no-tests run.
 
 ## SQLite checkpoint A — real private database
 
-- [ ] SQL-01..03 evidence is reviewed; driver/DDL/bootstrap contracts are frozen.
-- [ ] Storage tests pass and current application still builds; unsupported-driver or unsafe-initialization findings are resolved before delegation expands.
+- [x] SQL-01..03 evidence is reviewed; driver/DDL/bootstrap contracts are frozen.
+- [x] Storage tests pass and current application still builds; unsupported-driver or unsafe-initialization findings are resolved before delegation expands.
 
 ## SQL-04: Round-trip immutable sessions with shared source
 
-- [ ] Complete SQL-04.
+- [x] Complete SQL-04.
 
 **Description:** Implement Create/Load against the new SQL engine, using a private construction seam until coordinated cutover.
 
 **Acceptance criteria:**
-- [ ] Versioned canonical source excludes checkout/guide/parent; equal source is stored once while sessions retain distinct identity and immutable logical references.
-- [ ] Create/load preserve binary paths, nil/empty descriptions, bounded patches/context and guide provenance; checksum/domain/index identity mismatches fail visibly.
-- [ ] Derived creation validates the live parent transactionally without making later parent existence a load requirement.
+- [x] Versioned canonical source excludes checkout/guide/parent; equal source is stored once while sessions retain distinct identity and immutable logical references.
+- [x] Create/load preserve binary paths, nil/empty descriptions, bounded patches/context and guide provenance; checksum/domain/index identity mismatches fail visibly.
+- [x] Derived creation validates the live parent transactionally without making later parent existence a load requirement.
 
 **Verification:**
-- [ ] `go test -race -count=1 ./internal/session -run 'TestSQLite(Session|Snapshot|Derived|Payload)'`
-- [ ] `go build ./...`
+- [x] `go test -race -count=1 ./internal/session -run 'TestSQLite(Session|Snapshot|Derived|Payload)'`
+- [x] `go build ./...`
 
 **Dependencies:** SQL-03.
 
@@ -1338,18 +1339,18 @@ the task; they must exist and execute, not merely yield a passing no-tests run.
 
 ## SQL-05: Commit progress through the state-only API
 
-- [ ] Complete SQL-05.
+- [x] Complete SQL-05.
 
 **Description:** Implement small transactional updates that never read or serialize source payloads.
 
 **Acceptance criteria:**
-- [ ] UpdateState compares expected generation/reference, validates file membership, preserves progress order, and commits freshness/progress/time/generation together.
-- [ ] Competing independent handles/processes with the same generation produce exactly one success; overflow, busy, canceled and uncertain-commit outcomes are explicit.
-- [ ] Returned state becomes available only after confirmed commit; SQL tracing or a test seam proves no snapshot BLOB access.
+- [x] UpdateState compares expected generation/reference, validates file membership, preserves progress order, and commits freshness/progress/time/generation together.
+- [x] Competing independent handles/processes with the same generation produce exactly one success; overflow, busy, canceled and uncertain-commit outcomes are explicit.
+- [x] Returned state becomes available only after confirmed commit; SQL tracing or a test seam proves no snapshot BLOB access.
 
 **Verification:**
-- [ ] `go test -race -count=1 ./internal/session -run 'TestSQLiteState'`
-- [ ] `go test -race -count=1 ./internal/session/storage`
+- [x] `go test -race -count=1 ./internal/session -run 'TestSQLiteState'`
+- [x] `go test -race -count=1 ./internal/session/storage`
 
 **Dependencies:** SQL-04.
 
@@ -1365,23 +1366,23 @@ the task; they must exist and execute, not merely yield a passing no-tests run.
 
 ## SQLite checkpoint B — source and progress
 
-- [ ] Round-trip, deduplication and state-CAS tests pass with no source reads on progress updates.
-- [ ] No database objects leak into application interfaces; parallel file ownership is confirmed.
+- [x] Round-trip, deduplication and state-CAS tests pass with no source reads on progress updates.
+- [x] No database objects leak into application interfaces; parallel file ownership is confirmed.
 
 ## SQL-06: Persist reusable guide bundles
 
-- [ ] Complete SQL-06.
+- [x] Complete SQL-06.
 
 **Description:** Implement the existing generated-guide cache semantics using SQLite bundles and comparison keys.
 
 **Acceptance criteria:**
-- [ ] Only generated, structurally validated bundles become cache entries; full comparison, inventory and prompt identity govern reuse.
-- [ ] Unavailable and old-prompt session-attached bundles remain readable; invalid individual cache payloads miss without hiding database/I/O errors.
-- [ ] Cache replacement and bundle references are transactional, with no provider/network invocation or per-guide file write.
+- [x] Only generated, structurally validated bundles become cache entries; full comparison, inventory and prompt identity govern reuse.
+- [x] Unavailable and old-prompt session-attached bundles remain readable; invalid individual cache payloads miss without hiding database/I/O errors.
+- [x] Cache replacement and bundle references are transactional, with no provider/network invocation or per-guide file write.
 
 **Verification:**
-- [ ] `go test -race -count=1 ./internal/session -run 'TestSQLiteGuide'`
-- [ ] `go test -count=1 ./internal/guide`
+- [x] `go test -race -count=1 ./internal/session -run 'TestSQLiteGuide'`
+- [x] `go test -count=1 ./internal/guide`
 
 **Dependencies:** SQL-05; contract frozen in SQL-02.
 
@@ -1397,17 +1398,17 @@ the task; they must exist and execute, not merely yield a passing no-tests run.
 
 ## SQL-07: Persist remembered repositories
 
-- [ ] Complete SQL-07.
+- [x] Complete SQL-07.
 
 **Description:** Replace registry file behavior with bounded SQL records and durable ordering.
 
 **Acceptance criteria:**
-- [ ] Repository normalization and canonical absolute checkout validation retain current behavior; replacement preserves insertion order.
-- [ ] Lookup/list work after restart and in read-only mode; invalid rows and database failures remain visible.
-- [ ] Registry operations write no repositories.json and expose no database objects to application callers.
+- [x] Repository normalization and canonical absolute checkout validation retain current behavior; replacement preserves insertion order.
+- [x] Lookup/list work after restart and in read-only mode; invalid rows and database failures remain visible.
+- [x] Registry operations write no repositories.json and expose no database objects to application callers.
 
 **Verification:**
-- [ ] `go test -race -count=1 ./internal/session -run 'TestSQLiteRepositor'`
+- [x] `go test -race -count=1 ./internal/session -run 'TestSQLiteRepositor'`
 
 **Dependencies:** SQL-05; sequential after SQL-06 when using lane B.
 
@@ -1423,17 +1424,17 @@ the task; they must exist and execute, not merely yield a passing no-tests run.
 
 ## SQL-08: Query session summaries and comparison candidates
 
-- [ ] Complete SQL-08.
+- [x] Complete SQL-08.
 
 **Description:** Implement indexed lookup and metadata-only listing without loading unrelated patches.
 
 **Acceptance criteria:**
-- [ ] Summary entries contain counts/identity/state and no Record payload; listing decodes zero source BLOBs.
-- [ ] Comparison queries use repo/PR/revision/recency indexes, deterministic tie-breaking, and validate selected payload identities before reuse.
-- [ ] Invalid matching candidates can be skipped, engine errors propagate, and description/nil handling follows the existing domain contract.
+- [x] Summary entries contain counts/identity/state and no Record payload; listing decodes zero source BLOBs.
+- [x] Comparison queries use repo/PR/revision/recency indexes, deterministic tie-breaking, and validate selected payload identities before reuse.
+- [x] Invalid matching candidates can be skipped, engine errors propagate, and description/nil handling follows the existing domain contract.
 
 **Verification:**
-- [ ] `go test -race -count=1 ./internal/session -run 'TestSQLite(Lookup|Summary)'`
+- [x] `go test -race -count=1 ./internal/session -run 'TestSQLite(Lookup|Summary)'`
 
 **Dependencies:** SQL-05; may run alongside SQL-06/07.
 
@@ -1449,23 +1450,23 @@ the task; they must exist and execute, not merely yield a passing no-tests run.
 
 ## SQLite checkpoint C — reusable data and queries
 
-- [ ] Guide cache, registry and summary/index tests pass independently.
-- [ ] Queries propagate engine failures and close rows before nested operations.
+- [x] Guide cache, registry and summary/index tests pass independently.
+- [x] Queries propagate engine failures and close rows before nested operations.
 
 ## SQL-09: Delete sessions without deleting shared content
 
-- [ ] Complete SQL-09.
+- [x] Complete SQL-09.
 
 **Description:** Implement reference-aware deletion after all reference-producing paths exist.
 
 **Acceptance criteria:**
-- [ ] Deleting a session atomically removes its progress and references; other sessions and children remain readable.
-- [ ] Only source/bundle rows with no live session or cache reference are reclaimed; independent guide cache and repository records survive.
-- [ ] Failure rolls back the whole operation, invalid IDs never affect unrelated data, and no automatic VACUUM or forensic-erasure promise is added.
+- [x] Deleting a session atomically removes its progress and references; other sessions and children remain readable.
+- [x] Only source/bundle rows with no live session or cache reference are reclaimed; independent guide cache and repository records survive.
+- [x] Failure rolls back the whole operation, invalid IDs never affect unrelated data, and no automatic VACUUM or forensic-erasure promise is added.
 
 **Verification:**
-- [ ] `go test -race -count=1 ./internal/session -run 'TestSQLiteDelete'`
-- [ ] `go test -race -count=1 ./internal/session ./internal/session/storage`
+- [x] `go test -race -count=1 ./internal/session -run 'TestSQLiteDelete'`
+- [x] `go test -race -count=1 ./internal/session ./internal/session/storage`
 
 **Dependencies:** SQL-06, SQL-07, SQL-08.
 
@@ -1481,22 +1482,22 @@ the task; they must exist and execute, not merely yield a passing no-tests run.
 
 ## SQLite checkpoint D — backend ready for cutover
 
-- [ ] All SQL persistence slices pass their tests, including shared-content deletion.
-- [ ] Coordinator freezes the public state/Entry contract and dispatches disjoint cutover patches; no partial API batch is released.
+- [x] All SQL persistence slices pass their tests, including shared-content deletion.
+- [x] Coordinator freezes the public state/Entry contract and dispatches disjoint cutover patches; no partial API batch is released.
 
 ## SQL-10: Move review lifecycle to committed state updates
 
-- [ ] Complete SQL-10.
+- [x] Complete SQL-10.
 
 **Description:** Prepare the review-layer portion of the coordinated cutover, including context propagation for Mark.
 
 **Acceptance criteria:**
-- [ ] Mark, Refresh and Resume use UpdateState rather than Save and assign committed state only after success.
-- [ ] Add context to Mark and adapt tests; failed/canceled/stale updates leave caller-owned state unchanged.
-- [ ] Offline resume remains network-free and readable after the checkout is deleted.
+- [x] Mark, Refresh and Resume use UpdateState rather than Save and assign committed state only after success.
+- [x] Add context to Mark and adapt tests; failed/canceled/stale updates leave caller-owned state unchanged.
+- [x] Offline resume remains network-free and readable after the checkout is deleted.
 
 **Verification:**
-- [ ] `go test -race -count=1 ./internal/review`
+- [x] `go test -race -count=1 ./internal/review`
 
 **Dependencies:** Checkpoint D; integrated with SQL-12/16.
 
@@ -1512,17 +1513,17 @@ the task; they must exist and execute, not merely yield a passing no-tests run.
 
 ## SQL-11: Move CLI persistence to SQLite contracts
 
-- [ ] Complete SQL-11.
+- [x] Complete SQL-11.
 
 **Description:** Prepare CLI state saves and metadata-only session output for the same cutover.
 
 **Acceptance criteria:**
-- [ ] Replace both production Save calls and the direct Save test call; update the three review.Mark test calls in lifecycle_test.go/wiring_test.go to pass context and preserve reopening progress.
-- [ ] sessions output uses summary fields without loading source, and fresh default/error reporting identifies the new store.
-- [ ] Read-only guide evaluation, registry reopening, plain output and explicit generation behavior remain covered.
+- [x] Replace both production Save calls and the direct Save test call; update the three review.Mark test calls in lifecycle_test.go/wiring_test.go to pass context and preserve reopening progress.
+- [x] sessions output uses summary fields without loading source, and fresh default/error reporting identifies the new store.
+- [x] Read-only guide evaluation, registry reopening, plain output and explicit generation behavior remain covered.
 
 **Verification:**
-- [ ] `go test -race -count=1 ./cmd/pr-review`
+- [x] `go test -race -count=1 ./cmd/pr-review`
 
 **Dependencies:** Checkpoint D and SQL-10 API contract; integrated with SQL-16.
 
@@ -1541,17 +1542,17 @@ the task; they must exist and execute, not merely yield a passing no-tests run.
 
 ## SQL-12: Move TUI state saves to SQLite contracts
 
-- [ ] Complete SQL-12.
+- [x] Complete SQL-12.
 
 **Description:** Prepare event-loop-owned state application and update the review.Mark call for the cutover.
 
 **Acceptance criteria:**
-- [ ] Replace the Save calls in model.go and lifecycle.go; use the active operation context where present and m.ctx for synchronous Mark calls, never a possibly nil actionCtx.
-- [ ] Background results cannot overwrite newer reading progress or another tab’s state; apply only successfully committed state.
-- [ ] Cancel/failure and session replacement preserve established draft/progress ownership behavior.
+- [x] Replace the Save calls in model.go and lifecycle.go; use the active operation context where present and m.ctx for synchronous Mark calls, never a possibly nil actionCtx.
+- [x] Background results cannot overwrite newer reading progress or another tab’s state; apply only successfully committed state.
+- [x] Cancel/failure and session replacement preserve established draft/progress ownership behavior.
 
 **Verification:**
-- [ ] `go test -race -count=1 ./internal/tui -run 'Lifecycle|Background|Program.*Progress|ProgramBackground'`
+- [x] `go test -race -count=1 ./internal/tui -run 'Lifecycle|Background|Program.*Progress|ProgramBackground'`
 
 **Dependencies:** Checkpoint D and SQL-10 API; integrated with SQL-16.
 
@@ -1569,17 +1570,17 @@ the task; they must exist and execute, not merely yield a passing no-tests run.
 
 ## SQL-13: Render the session picker from summaries
 
-- [ ] Complete SQL-13.
+- [x] Complete SQL-13.
 
 **Description:** Complete TUI summary integration after the state-save edits to its shared lifecycle file.
 
 **Acceptance criteria:**
-- [ ] Picker rows use repository/PR/read counts from Entry summaries, with no Record access.
-- [ ] Successful and unreadable rows render safely, and selection loads source only when opening a session.
-- [ ] Keep the existing Entry callback type shape so picker transport code requires no unrelated rewrite.
+- [x] Picker rows use repository/PR/read counts from Entry summaries, with no Record access.
+- [x] Successful and unreadable rows render safely, and selection loads source only when opening a session.
+- [x] Keep the existing Entry callback type shape so picker transport code requires no unrelated rewrite.
 
 **Verification:**
-- [ ] `go test -race -count=1 ./internal/tui -run 'Picker|BrowserInitialization'`
+- [x] `go test -race -count=1 ./internal/tui -run 'Picker|BrowserInitialization'`
 
 **Dependencies:** SQL-12; integrated with SQL-16.
 
@@ -1595,18 +1596,18 @@ the task; they must exist and execute, not merely yield a passing no-tests run.
 
 ## SQL-14: Replace filesystem persistence tests with SQLite coverage
 
-- [ ] Complete SQL-14.
+- [x] Complete SQL-14.
 
 **Description:** Prepare the core test replacement as one owned patch; retain useful fixtures and behavior coverage.
 
 **Acceptance criteria:**
-- [ ] Replace per-file corruption/permission and lifetime-lock assumptions with real DB transactions, row corruption and concurrent-process behavior.
-- [ ] Retain guide/registry/frozen-byte/progress/reference tests and the history benchmark; remove obsolete on-disk legacy round-trip assertions.
-- [ ] Dedup corruption tests distinguish shared-source corruption from session-specific corruption; missing committed rows fail visibly.
+- [x] Replace per-file corruption/permission and lifetime-lock assumptions with real DB transactions, row corruption and concurrent-process behavior.
+- [x] Retain guide/registry/frozen-byte/progress/reference tests and the history benchmark; remove obsolete on-disk legacy round-trip assertions.
+- [x] Dedup corruption tests distinguish shared-source corruption from session-specific corruption; missing committed rows fail visibly.
 
 **Verification:**
-- [ ] `go test -race -count=1 ./internal/session`
-- [ ] `go test ./internal/session -run '^$' -bench BenchmarkLatestComparisonHistory -benchmem -count=5`
+- [x] `go test -race -count=1 ./internal/session`
+- [x] `go test ./internal/session -run '^$' -bench BenchmarkLatestComparisonHistory -benchmem -count=5`
 
 **Dependencies:** Checkpoint D; integrated with SQL-16.
 
@@ -1623,17 +1624,17 @@ the task; they must exist and execute, not merely yield a passing no-tests run.
 
 ## SQL-15: Replace read-only and safety fixtures
 
-- [ ] Complete SQL-15.
+- [x] Complete SQL-15.
 
 **Description:** Finish the persistence test conversion without retaining the old filesystem backend.
 
 **Acceptance criteria:**
-- [ ] Read-only tests inspect all relevant SQLite/ownership artifacts and prove no persisted mutation, including recovery-required cases.
-- [ ] Private root/database/journal/initialization symlink checks reject unsafe targets unchanged; old nonempty roots are rejected without import.
-- [ ] Description tests preserve nil/empty round-trips and source-reuse semantics using SQLite; legacy wording/fixtures are removed.
+- [x] Read-only tests inspect all relevant SQLite/ownership artifacts and prove no persisted mutation, including recovery-required cases.
+- [x] Private root/database/journal/initialization symlink checks reject unsafe targets unchanged; old nonempty roots are rejected without import.
+- [x] Description tests preserve nil/empty round-trips and source-reuse semantics using SQLite; legacy wording/fixtures are removed.
 
 **Verification:**
-- [ ] `go test -race -count=1 ./internal/session ./internal/session/storage`
+- [x] `go test -race -count=1 ./internal/session ./internal/session/storage`
 
 **Dependencies:** SQL-14; integrated with SQL-16.
 
@@ -1650,20 +1651,20 @@ the task; they must exist and execute, not merely yield a passing no-tests run.
 
 ## SQL-16: Activate SQLite and delete the file backend
 
-- [ ] Complete SQL-16.
+- [x] Complete SQL-16.
 
 **Description:** Integrate the prepared caller/test patches with the production Store switch as one buildable batch.
 
 **Acceptance criteria:**
-- [ ] Store opens only SQLite at the new default storage path; every session/guide/registry operation uses the completed SQL implementation.
-- [ ] Delete old JSON I/O, .format/.lock handling, obsolete file helpers, Save method, full-record Entry payload, and private staging seam; no fallback/selector remains.
-- [ ] All cutover patches are integrated together and compile; unrelated theme/Git/in-memory cache code and user data remain untouched.
+- [x] Store opens only SQLite at the new default storage path; every session/guide/registry operation uses the completed SQL implementation.
+- [x] Delete old JSON I/O, .format/.lock handling, obsolete file helpers, Save method, full-record Entry payload, and private staging seam; no fallback/selector remains.
+- [x] All cutover patches are integrated together and compile; unrelated theme/Git/in-memory cache code and user data remain untouched.
 
 **Verification:**
-- [ ] `go vet ./...`
-- [ ] `go test -race -count=1 -timeout=5m ./...`
-- [ ] `go build ./...`
-- [ ] `rg -n 'func .*Save\(|snapshot\.json|state\.json|repositories\.json|O_NOFOLLOW|Flock' internal/session`
+- [x] `go vet ./...`
+- [x] `go test -race -count=1 -timeout=5m ./...`
+- [x] `go build ./...`
+- [x] `rg -n 'func .*Save\(|snapshot\.json|state\.json|repositories\.json|O_NOFOLLOW|Flock' internal/session`
 
 **Dependencies:** SQL-10, SQL-11, SQL-13, SQL-14, SQL-15; SQL-01..09 complete.
 
@@ -1683,23 +1684,23 @@ zero matches or removing necessary safety code.
 
 ## SQLite checkpoint E — SQLite-only application
 
-- [ ] SQL-10..16 are integrated as one working batch; complete application builds and focused/full race tests pass.
-- [ ] All old session/guide/registry file persistence and compatibility APIs are removed; audit search matches are reviewed, not blindly deleted.
+- [x] SQL-10..16 are integrated as one working batch; complete application builds and focused/full race tests pass.
+- [x] All old session/guide/registry file persistence and compatibility APIs are removed; audit search matches are reviewed, not blindly deleted.
 
 ## SQL-17: Document the fresh SQLite storage contract
 
-- [ ] Complete SQL-17.
+- [x] Complete SQL-17.
 
 **Description:** Update user/developer guidance to describe shipped persistence and remove misleading old-backend instructions.
 
 **Acceptance criteria:**
-- [ ] Document new location, no old-cache import, no external SQLite install, read-only behavior, logical deletion and metadata-only listing.
-- [ ] Update CONSTRAINTS lifetime-lock/atomic-file mechanics to transactions and generation checks without weakening source/privacy constraints.
-- [ ] Preserve macOS/Linux gates, describe native evidence requirements and benchmarks, and keep Windows explicitly deferred.
+- [x] Document new location, no old-cache import, no external SQLite install, read-only behavior, logical deletion and metadata-only listing.
+- [x] Update CONSTRAINTS lifetime-lock/atomic-file mechanics to transactions and generation checks without weakening source/privacy constraints.
+- [x] Preserve macOS/Linux gates, describe native evidence requirements and benchmarks, and keep Windows explicitly deferred.
 
 **Verification:**
-- [ ] `git diff --check`
-- [ ] `rg -n 'writer lock|snapshot.json|state.json|0700|SQLite|sqlite' README.md CONSTRAINTS.md TESTING.md docs/REFERENCE.md`
+- [x] `git diff --check`
+- [x] `rg -n 'writer lock|snapshot.json|state.json|0700|SQLite|sqlite' README.md CONSTRAINTS.md TESTING.md docs/REFERENCE.md`
 
 **Dependencies:** Checkpoint E.
 
@@ -1717,22 +1718,22 @@ zero matches or removing necessary safety code.
 
 ## SQL-18: Verify packaging, failures and measured behavior
 
-- [ ] Complete SQL-18.
+- [x] Complete SQL-18.
 
 **Description:** Complete independent acceptance checks against the integrated application and record actual platform evidence.
 
 **Acceptance criteria:**
-- [ ] Prove 100 identical raw/guided reopenings share source, state saves/listing read zero source BLOBs, and reference-aware deletion preserves survivors.
-- [ ] Exercise subprocess interruption, contention, cancellation and disk-full/commit failure; prove a CGo-disabled executable persists data with no SQLite executable/shared-library dependency.
-- [ ] Report same-machine before/after benchmark, allocations and executable size; full static/race/PTY/build/security checks pass and native Linux evidence is recorded without claiming cross-builds are runtime tests.
+- [x] Prove 100 identical raw/guided reopenings share source, state saves/listing read zero source BLOBs, and reference-aware deletion preserves survivors.
+- [x] Exercise subprocess interruption, contention, cancellation and disk-full/commit failure; prove a CGo-disabled executable persists data with no SQLite executable/shared-library dependency.
+- [x] Report same-machine before/after benchmark, allocations and executable size; full static/race/PTY/build/security checks pass and native Linux evidence is recorded without claiming cross-builds are runtime tests.
 
 **Verification:**
-- [ ] `./scripts/verify.sh`
-- [ ] `golangci-lint run ./...`
-- [ ] `go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 ./...`
-- [ ] `CGO_ENABLED=0 go build -o /tmp/pr-review-sqlite ./cmd/pr-review`
-- [ ] `go test ./internal/session -run '^$' -bench 'Benchmark(LatestComparisonHistory|SQLite)' -benchmem -count=5`
-- [ ] `git diff --check`
+- [x] `./scripts/verify.sh`
+- [x] `golangci-lint run ./...`
+- [x] `go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 ./...`
+- [x] `CGO_ENABLED=0 go build -o /tmp/pr-review-sqlite ./cmd/pr-review`
+- [x] `go test ./internal/session -run '^$' -bench 'Benchmark(LatestComparisonHistory|SQLite)' -benchmem -count=5`
+- [x] `git diff --check`
 
 **Dependencies:** SQL-17.
 
@@ -1749,6 +1750,17 @@ zero matches or removing necessary safety code.
 
 ## SQLite checkpoint F — completion review
 
-- [ ] Every specification acceptance criterion has evidence; packaging requires no user-installed SQLite.
-- [ ] Full macOS and native Linux results, benchmark deltas, remaining limitations, and code review are recorded.
-- [ ] Only SQLite tasks are marked complete; no unrelated existing task or user store is modified.
+- [x] Every specification acceptance criterion has evidence; packaging requires no user-installed SQLite.
+- [x] Full macOS and native Linux results, benchmark deltas, remaining limitations, and code review are recorded.
+- [x] Only SQLite tasks are marked complete; no unrelated existing task or user store is modified.
+
+Implementation notes:
+- SQL-01..03: embedded driver, lifecycle, bootstrap/schema and security checks.
+- SQL-04..09: canonical payloads, state CAS, guides/registry, indexed summaries and deletion.
+- SQL-10..16: coordinated callers/tests cutover; obsolete persistence code removed.
+- SQL-17..18: fresh-store docs, native macOS/Linux race/PTY gates, CGo-free proof,
+  failure tests and before/after measurements. Windows remains deferred.
+- Independent review fixes cover orphan bootstrap artifacts, coherent read
+  transactions, source membership corruption, typed errors and payload bounds.
+- Native Linux additionally exposed a verifier timing precision defect, corrected
+  in a separate commit while retaining its original positive-duration assertion.

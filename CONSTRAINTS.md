@@ -14,8 +14,8 @@
 - Color capability is detected, never probed: honor the terminal profile and `NO_COLOR`/`CLICOLOR`/`CLICOLOR_FORCE`/`TERM=dumb`. Colorless profiles render today's text. Built-in theme selection and validated global `theme.json` overrides affect only the interactive semantic palette and remain subject to that capability handling. The `t` picker may atomically persist only a selected built-in to the app-owned global file; it never changes review/session data and never overwrites invalid configuration. `--plain` output neither reads theme configuration nor emits terminal control sequences.
 - Persist frozen actual patches and metadata independently of Git object lifetime; never rewrite a comparison/plan in place or automatically carry completion to a new version.
 - Reopening checks freshness explicitly or labels it unknown. Failed checks never imply current revisions; stale sessions remain readable. No hidden polling.
-- Store only app-owned local data outside the reviewed checkout, with private permissions, atomic replacement, integrity/reference validation, and a single-writer lock. Preserve corrupt/unsupported records; reject stale writers.
-- Session deletion removes its final and interrupted-write artifacts, not unrelated files, external service records, backups, or guaranteed forensic traces. Raw stored source is not encrypted and may contain sensitive content.
+- Store only app-owned local data outside the reviewed checkout, with private permissions, durable SQLite transactions, integrity/reference validation, and transactional generation checks. Preserve corrupt/unsupported records; reject stale writers. SQLite serializes writers; no process-lifetime store lock is held.
+- Session deletion transactionally removes its state and only unreferenced payloads, not unrelated data, external service records, backups, or guaranteed forensic traces. Raw stored source is not encrypted and may contain sensitive content.
 
 # Phase 4 Analysis Contract
 
