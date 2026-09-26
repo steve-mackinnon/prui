@@ -5,6 +5,7 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 )
 
@@ -66,9 +67,9 @@ func loadingSpinner(frame int) string {
 	return []string{"◐", "◓", "◑", "◒"}[frame%4]
 }
 
-// renderLoadingModal places a compact, ASCII-safe modal over a clipped base
-// screen. It returns plain display lines; View applies the existing styling
-// contract after all dynamic text has already been escaped.
+// renderLoadingModal draws the card at fixed viewport coordinates over the
+// clipped background. Both layers keep their own cells, including the text
+// to the right of the card.
 func renderLoadingModal(width, height int, background string, modal loadingModal) string {
 	if width <= 0 || height <= 0 {
 		return ""
@@ -92,11 +93,14 @@ func renderLoadingModal(width, height int, background string, modal loadingModal
 	if height <= fixedLineCount {
 		return renderCompactLoading(width, height, modal)
 	}
+	// Reserve a stable top row for the minimum card. Longer notices grow
+	// downward rather than recentering the overlay on every progress update.
+	startRow := max(0, (height-fixedLineCount-1)/2)
 
 	noticePrefix := "  ↳ "
 	noticeWidth := max(1, inside-visibleWidth(noticePrefix))
 	noticeLines := strings.Split(ansi.Wrap(Escape(modal.notice), noticeWidth, ""), "\n")
-	maxNoticeLines := height - fixedLineCount
+	maxNoticeLines := height - startRow - fixedLineCount
 	if len(noticeLines) > maxNoticeLines {
 		noticeLines = noticeLines[:maxNoticeLines]
 		last := len(noticeLines) - 1
@@ -122,15 +126,12 @@ func renderLoadingModal(width, height int, background string, modal loadingModal
 	}
 	content = append(content, "╰"+strings.Repeat("─", modalWidth-2)+"╯")
 
-	startRow := max(0, (height-len(content))/2)
 	left := max(0, (width-modalWidth)/2)
-	for i, line := range content {
-		if startRow+i >= len(lines) {
-			break
-		}
-		lines[startRow+i] = strings.Repeat(" ", left) + line
-	}
-	return strings.Join(lines, "\n")
+	canvas := lipgloss.NewCanvas(width, height)
+	return canvas.Compose(lipgloss.NewCompositor(
+		lipgloss.NewLayer(strings.Join(lines, "\n")),
+		lipgloss.NewLayer(strings.Join(content, "\n")).X(left).Y(startRow),
+	)).Render()
 }
 
 func renderCompactLoading(width, height int, modal loadingModal) string {
