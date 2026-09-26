@@ -2,6 +2,29 @@
 
 See the [README](../README.md) for installation and a short introduction. This reference covers interaction, storage, and source limits.
 
+## Command line
+
+Launching `pr-review` from a repository root opens its PR list. These commands
+cover cases that need a specific target or non-interactive output:
+
+| Command | Use |
+| --- | --- |
+| `pr-review open <PR-URL>` | Open a specific PR, including from a checkout without a supported `origin` remote. |
+| `pr-review open 42 --github-repo owner/repo --plain` | Print a review for a script or non-interactive terminal. |
+| `pr-review prs owner/repo` | Print up to 100 open PRs for a repository. |
+| `pr-review prs` | Browse remembered repositories interactively when outside a checkout. |
+| `pr-review sessions` | List saved session IDs, progress, and last freshness status. |
+| `pr-review resume <id> --offline --plain` | Read a saved snapshot without GitHub or the original checkout. |
+| `pr-review resume <id> --new --repo <checkout>` | Start a new comparison using another checkout; keep the old snapshot. |
+| `pr-review delete <id>` | Immediately delete a local session. |
+
+In the TUI, `s` opens saved sessions and `N` starts a new comparison. Direct
+`resume <id>` remains available when you already know the ID. Opening a PR in
+plain mode saves a snapshot. Normal resume checks GitHub; `--offline` disables
+network operations. `--plain` is also selected automatically for redirected
+input or output and `TERM=dumb`. All commands accept `--store` for a separate
+private store. Run `pr-review --help` for the full syntax.
+
 ## Optional review guides
 
 Guides group the frozen review units into functional chunks, each with a title, description, and ordered sections that reference specific units. They are an interpretation layer: `Slices` and `UnitFiles` are unchanged, reading progress stays file-slice based, and the raw inventory remains the complete source view. Each unit is assigned to a guide exactly once; anything the model did not group lands in a synthesized `Ungrouped changes` guide.

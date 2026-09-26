@@ -23,36 +23,21 @@ review**:
 gh auth login
 cd /path/to/your/checkout
 pr-review                                      # browse this checkout's open PRs
-pr-review open https://github.com/owner/repo/pull/42
 ```
 
 The launcher recognizes standard GitHub HTTPS/SSH `origin` remotes. For a
-checkout without a supported origin, use an explicit PR URL. Fetching and
-reviewing do not switch branches or modify the checkout.
-
-## Everyday commands
-
-```sh
-pr-review open 42 --github-repo owner/repo --plain
-pr-review prs owner/repo                        # print up to 100 open PRs
-pr-review prs                                  # browse remembered repositories
-pr-review sessions
-pr-review resume SESSION_ID
-pr-review resume SESSION_ID --offline --plain
-pr-review resume SESSION_ID --new --repo /path/to/checkout
-pr-review delete SESSION_ID                     # delete that local session immediately
-```
-
-`open` saves a snapshot, including in plain mode. Resume reads the saved source
-without requiring Git or the original checkout. Normal resume checks GitHub;
-`--offline` disables all network operations. A changed PR needs a new comparison;
-old snapshots remain readable. Cached PR reopening preserves reading progress.
+checkout without a supported origin, use `pr-review open <PR-URL>`. Select a PR
+from the list and press `ctrl+p` to switch PRs or `s` to browse saved sessions.
+Reopening a cached PR preserves reading progress. Fetching and reviewing do not
+switch branches or modify the checkout.
 
 All commands accept `--store /path/to/private-directory` for a separate store.
-Use `pr-review --help` for the full command syntax. `--plain` is automatic when
-input or output is redirected or `TERM=dumb`; it emits escaped, uncolored text
-without interactive actions. Exit codes are `0` for complete inventory, `1` for
-errors, `2` for unavailable review content, and `130` for canceled loading.
+Use `pr-review --help` for command syntax and the
+[CLI reference](docs/REFERENCE.md#command-line) for less common tasks such as
+plain output, offline review, and deletion. `--plain` is automatic when input
+or output is redirected or `TERM=dumb`; it emits escaped, uncolored text without
+interactive actions. Exit codes are `0` for complete inventory, `1` for errors,
+`2` for unavailable review content, and `130` for canceled loading.
 Local reading progress and exit success do not constitute GitHub approval.
 
 ## Review in the terminal
