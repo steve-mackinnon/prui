@@ -3,13 +3,45 @@
 Reviewed commit: `42468f813eb13141f179761ec299fd4706f56aca`.
 Audit date: 2026-09-25 (America/New_York).
 
-The package architecture is a reasonable foundation for this application. Keep
-it, but address the two P1 findings before release and resolve the comment bugs
-and failing lint gate. This audit changes documentation only; the issues below
-remain open. Reproductions are provided as an optional patch rather than adding
-known-failing tests to the normal suite.
+The package architecture is a reasonable foundation for this application. The
+findings below describe the reviewed commit; the remediation status records the
+subsequent fixes. Original reproduction probes are retained for that historical
+commit only. Permanent regression tests now live beside the fixed code.
 
-## Findings
+## Remediation status
+
+The four concrete bugs have been fixed:
+
+| Finding | Resolution |
+| --- | --- |
+| Background refresh race | Workers return immutable requests/results; the event loop merges freshness into the latest progress. Generation checks protect foreground actions, canceled/replaced sessions, and drafts. |
+| Credential upload filtering | Quoted keys, assignment forms, and recognizable key material exclude the affected file, including metadata, sibling hunks, and evidence across rename aliases; full-blob retrieval exclusions survive assembly and user exclusion patterns stay local; an HTTP-level regression checks the actual request body. Filtering remains heuristic. |
+| Mixed GitHub comments | Nullable remote anchors are parsed separately from strict write targets; file and outdated comments no longer discard current inline threads. |
+| Description-only write refusals | All write preflights use the existing pinned-revision comparison helper. |
+
+The consent screen now identifies the configured provider origin, explains that
+both source and the API credential go there, and warns that filtering can miss
+secrets. The displayed destination is captured for the model's lifetime.
+
+Goldmark is pinned to v1.7.17, `x/text` to v0.39.0, and `x/net` to v0.56.0.
+`govulncheck` v1.8.0 reports no vulnerabilities in the resulting graph. CI now
+runs that pinned checker. The configured GolangCI-Lint v2.13.2 gate is clean;
+its existing rules and exclusions were preserved. Theme file paths are normalized
+caller-selected global paths; this is not a claim of untrusted-path confinement.
+
+Remediation verification passed on macOS/arm64: `./scripts/verify.sh` (formatting,
+vet, full race suite, compiled PTY tests, and build), GolangCI-Lint v2.13.2 (zero
+issues), and govulncheck v1.8.0 (no vulnerabilities found). Synthetic regressions
+cover progress persistence, refresh ordering and draft retention, mixed comment
+pages, description-only write preflights, upload bodies, and provider consent.
+No real provider upload or GitHub write was performed.
+
+The license and private reporting channel still require maintainer choices.
+The two scaling suggestions under Architecture are longer-term improvements,
+not demonstrated release-blocking defects; no storage-format migration or broad
+TUI rewrite was introduced as part of these fixes.
+
+## Original findings
 
 ### P1: Background freshness refresh mutates UI-owned session state
 
@@ -85,7 +117,7 @@ Remedy: use the existing `source.SamePinnedRevision` in all write preflights.
 Keep description capture immutable as presentation data. Test description-only
 changes separately from repository/base/head changes for each write action.
 
-## Dependencies and release checks
+## Original dependency and release checks
 
 `govulncheck` v1.8.0 examined 29 modules and Go 1.26.8. It exited with findings:
 
@@ -162,7 +194,7 @@ avoid a large domain-layer rewrite unless storage formats begin dictating UI or
 review behavior. GitHub transport being in `source` is also acceptable provided
 write interfaces stay narrow and the application remains the policy boundary.
 
-## Verification and limits
+## Original verification and limits
 
 - `./scripts/verify.sh`: passed on macOS/arm64 with Go 1.26.8, including formatting,
   vet, race tests, compiled PTY tests, and build. Initial sandbox attempts failed
@@ -182,11 +214,12 @@ write interfaces stay narrow and the application remains the policy boundary.
   deployment, branch-protection, license-compatibility, or human accessibility
   sign-off is implied.
 
-### Reproduce the findings
+### Reproduce the original findings
 
 The [probe patch](audit-reproductions.patch) adds only synthetic tests using
-existing fixtures. From a clean checkout at the reviewed commit (with this
-patch available), run:
+existing fixtures at the original reviewed commit. It is not intended to apply
+to the remediated implementation, whose refresh interface has changed. From a
+clean checkout at the reviewed commit (with this patch available), run:
 
 ```sh
 git apply docs/audit-reproductions.patch

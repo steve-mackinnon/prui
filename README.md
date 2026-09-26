@@ -131,6 +131,7 @@ is 1 MiB. PR browsing and comment overlays are bounded to 100 items. See the
 ```sh
 ./scripts/verify.sh       # formatting, vet, race tests, PTY tests, build
 golangci-lint run ./...   # use v2.13.2, as pinned in CI
+go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 ./...
 ```
 
 Tests also require Python 3. They use synthetic repositories, fake GitHub clients,
@@ -149,7 +150,7 @@ Linux verification jobs. See [TESTING.md](TESTING.md) for the test workflow and
 | `internal/verify`, `internal/guideeval` | Terminal acceptance artifacts and local guide evaluation |
 
 For changes, add a focused regression test, preserve the source/privacy
-invariants, and run both gates. Manual live acceptance uses `pr-review verify`;
+invariants, and run all three checks. Manual live acceptance uses `pr-review verify`;
 its requirements are in the [reference](docs/REFERENCE.md#acceptance-and-guide-evaluation).
 
 ## License
