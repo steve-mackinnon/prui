@@ -757,6 +757,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		case "j":
 			switch {
+			case m.fileView() && m.Focus == paneDiff:
+				m.scroll(1)
 			case m.fileView():
 				m.file(1)
 			case m.Focus == paneDiff:
@@ -767,6 +769,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		case "k":
 			switch {
+			case m.fileView() && m.Focus == paneDiff:
+				m.scroll(-1)
 			case m.fileView():
 				m.file(-1)
 			case m.Focus == paneDiff:
@@ -1117,7 +1121,7 @@ func (m *Model) guidePathScrollTarget() (row, string, int, string) {
 
 func (m *Model) listWidth() int {
 	if m.Width < 100 {
-		return m.Width
+		return max(1, m.Width-2)
 	}
 	width := m.listWidthPreference
 	if width == 0 {
@@ -1510,7 +1514,7 @@ func (m *Model) overlayInnerWidth(indent int) int {
 
 func (m *Model) detailWidth() int {
 	if m.Width < 100 {
-		return m.Width
+		return max(1, m.Width-2)
 	}
 	return m.Width - m.listWidth() - 3
 }
@@ -1738,7 +1742,7 @@ func (m *Model) reviewFooterRows() int {
 }
 
 func (m *Model) bodyHeight() int {
-	return max(1, m.Height-3-m.reviewFooterRows())
+	return max(1, m.Height-4-m.reviewFooterRows())
 }
 
 func (m *Model) pageStep() int { return max(1, m.bodyHeight()-1) }
@@ -1841,16 +1845,6 @@ func (m *Model) reviewViewForLayout(preferSideBySide bool) string {
 	if rows != nil {
 		label = "Guides"
 	}
-	unavailable := 0
-	for _, u := range s.Inventory.Units {
-		if u.Kind == "unavailable" {
-			unavailable++
-		}
-	}
-	headerClass := classTitle
-	if unavailable > 0 {
-		headerClass = classWarning
-	}
 	text := fmt.Sprintf("%s %d · %s [%s]", strings.ToUpper(label), len(s.Inventory.Files), pathLabel(s.Inventory.Files[s.UnitFiles[m.Selected]]), kind)
 	if m.fileView() {
 		text = fmt.Sprintf("FILES %d · file %d/%d", len(s.Inventory.Files), s.UnitFiles[m.Selected]+1, len(s.Inventory.Files))
@@ -1868,14 +1862,12 @@ func (m *Model) reviewViewForLayout(preferSideBySide bool) string {
 	if preferSideBySide && !useSideBySide {
 		text += " · side-by-side needs 160 columns"
 	}
-	focus := "files"
-	if !m.Files && !m.Inventory {
-		focus = "guides"
+	leftLabel := strings.Join(m.reviewTabLabels(), "  ")
+	if m.Inventory {
+		leftLabel = "Full inventory (i)"
 	}
-	if m.Focus == paneDiff {
-		focus = "diff"
-	}
-	header := m.reviewListTabs() + " · focus: " + focus + " · " + m.styleLine(headerClass, text)
+	rightLabel := "Diff · " + text
+	header := m.paneFrameHeader(leftLabel, rightLabel)
 	bodyHeight := m.bodyHeight()
 	list, selectedRow := m.reviewListPresentation()
 	detail := m.detail()
@@ -1927,19 +1919,68 @@ func (m *Model) reviewViewForLayout(preferSideBySide bool) string {
 		}
 		if m.Width < 100 {
 			if m.Focus == paneDiff {
-				body = append(body, m.styleLine(class, clip(right, m.Width)))
+				body = append(body, m.frameBodyLine(right, class, m.detailWidth(), true))
 			} else {
-				body = append(body, m.styleLine(leftClass, clip(left, m.Width)))
+				body = append(body, m.frameBodyLine(left, leftClass, m.listWidth(), true))
 			}
 		} else {
 			leftWidth := m.listWidth()
-			left = clip(left, leftWidth)
-			// Padding is measured on the clipped plain row, then the row is styled.
-			padding := strings.Repeat(" ", max(0, leftWidth-visibleWidth(left)))
-			body = append(body, m.styleLine(leftClass, left)+padding+m.styleLine(paneBorderClass(m.Focus == paneDiff), " │ ")+m.styleLine(class, clip(right, m.Width-leftWidth-3)))
+			rightWidth := m.detailWidth()
+			body = append(body, m.styleLine(paneBorderClass(m.Focus == paneList), "│")+
+				m.frameBodyLine(left, leftClass, leftWidth, false)+
+				m.styleLine(classPaneBorderFocused, "│")+
+				m.frameBodyLine(right, class, rightWidth, false)+
+				m.styleLine(paneBorderClass(m.Focus == paneDiff), "│"))
 		}
 	}
-	return title + "\n" + header + "\n" + strings.Join(body, "\n") + "\n" + m.reviewStatus()
+	return title + "\n" + header + "\n" + strings.Join(body, "\n") + "\n" + m.paneFrameFooter() + "\n" + m.reviewStatus()
+}
+
+func (m *Model) frameBodyLine(content string, class lineClass, width int, edges bool) string {
+	content = clip(content, width)
+	line := m.styleLine(class, content) + strings.Repeat(" ", max(0, width-visibleWidth(content)))
+	if edges {
+		border := m.styleLine(paneBorderClass(true), "│")
+		return border + line + border
+	}
+	return line
+}
+
+func paneHeaderText(label string, width int) string {
+	if width <= 0 {
+		return ""
+	}
+	label = clip(" "+label+" ", width)
+	return label + strings.Repeat("─", max(0, width-visibleWidth(label)))
+}
+
+func (m *Model) paneFrameHeader(listLabel, detailLabel string) string {
+	if m.Width < 100 {
+		label := listLabel + " · List"
+		if m.Focus == paneDiff {
+			label = listLabel + " · Diff"
+		}
+		return m.styleLine(classPaneHeaderFocused, "┌"+paneHeaderText(label, m.Width-2)+"┐")
+	}
+	left, right := m.listWidth(), m.detailWidth()
+	listClass, detailClass := classPaneBorder, classPaneBorder
+	if m.Focus == paneList {
+		listClass = classPaneHeaderFocused
+	} else {
+		detailClass = classPaneHeaderFocused
+	}
+	return m.styleLine(listClass, "┌"+paneHeaderText(listLabel, left)) +
+		m.styleLine(classPaneBorderFocused, "┬") +
+		m.styleLine(detailClass, paneHeaderText(detailLabel, right)+"┐")
+}
+
+func (m *Model) paneFrameFooter() string {
+	if m.Width < 100 {
+		return m.styleLine(paneBorderClass(true), "└"+strings.Repeat("─", max(0, m.Width-2))+"┘")
+	}
+	return m.styleLine(paneBorderClass(m.Focus == paneList), "└"+strings.Repeat("─", m.listWidth())) +
+		m.styleLine(classPaneBorderFocused, "┴") +
+		m.styleLine(paneBorderClass(m.Focus == paneDiff), strings.Repeat("─", m.detailWidth())+"┘")
 }
 
 // workspaceIdentity uses titles already fetched by the PR browser. Direct and
@@ -1972,16 +2013,6 @@ func (m *Model) knownPRTitle(identity source.Identity) string {
 		}
 	}
 	return ""
-}
-
-func (m *Model) reviewListTabs() string {
-	labels := m.reviewTabLabels()
-	selected := 1
-	if m.Files || m.Inventory {
-		selected = 0
-	}
-	labels[selected] = m.styleLine(selectedClass(m.Focus == paneList), labels[selected])
-	return strings.Join(labels, "  ")
 }
 
 func (m *Model) contextViewTabs() string {

@@ -32,12 +32,12 @@ func (m *Model) mouseReviewClick(x, y int) tea.Cmd {
 	if y == 2 {
 		labels := m.reviewTabLabels()
 		fileWidth, guideWidth := visibleWidth(labels[0]), visibleWidth(labels[1])
-		if x < fileWidth {
+		if x >= 2 && x < 2+fileWidth {
 			m.Files, m.Inventory = true, false
 			m.file(0)
 			return m.restartGuidePathScroll()
 		}
-		if x >= fileWidth+2 && x < fileWidth+2+guideWidth {
+		if x >= fileWidth+4 && x < fileWidth+4+guideWidth {
 			m.Files, m.Inventory = false, false
 			m.syncRow(m.rows())
 			return m.restartGuidePathScroll()

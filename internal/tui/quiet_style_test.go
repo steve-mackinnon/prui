@@ -43,6 +43,10 @@ func TestQuietWorkspaceFocusSurvivesDefaultOverrides(t *testing.T) {
 			if !strings.Contains(boundary, "\x1b[1m") || ansi.Strip(boundary) != "│" {
 				t.Fatalf("focused boundary lost its independent bold cue: %q", boundary)
 			}
+			header := downsample(m.styleLine(classPaneHeaderFocused, "┌ Diff ─┐"), colorprofile.Ascii)
+			if !strings.Contains(header, "\x1b[1m") || ansi.Strip(header) != "┌ Diff ─┐" {
+				t.Fatalf("focused pane header lost its bold cue: %q", header)
+			}
 		})
 	}
 }

@@ -30,6 +30,7 @@ const (
 	classSelectionFocused
 	classPaneBorder
 	classPaneBorderFocused
+	classPaneHeaderFocused
 )
 
 // styledLine is one already-escaped display line plus its semantic class.
@@ -83,6 +84,7 @@ func stylesFor(t theme.Theme) map[lineClass]lipgloss.Style {
 		// the workspace accent, with bold retained as a color-independent cue.
 		classPaneBorder:        semantic(colorFor(theme.Border), false),
 		classPaneBorderFocused: semantic(colorFor(theme.FocusedBorder), true),
+		classPaneHeaderFocused: lipgloss.NewStyle().Foreground(colorFor(theme.FocusedBorder)).Background(colorFor(theme.Selection)).Bold(true).TabWidth(lipgloss.NoTabConversion),
 	}
 }
 

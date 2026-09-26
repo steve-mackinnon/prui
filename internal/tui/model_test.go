@@ -273,18 +273,24 @@ func TestWideReviewSeparatesPanesAndIdentifiesFocus(t *testing.T) {
 	m.Loading = false
 	m.Session = screenSession()
 	m.Width, m.Height = 120, 12
+	var listHeader string
 	for _, tc := range []struct {
 		focus pane
-		label string
-	}{{paneList, "files"}, {paneDiff, "diff"}} {
+	}{{paneList}, {paneDiff}} {
 		m.Focus = tc.focus
-		view := ansi.Strip(m.View().Content)
-		lines := strings.Split(view, "\n")
-		if !strings.Contains(lines[2], "[File (F)]  Guide (G) · focus: "+tc.label) {
-			t.Fatalf("missing selected list tab or focus cue:\n%s", view)
+		rendered := m.View().Content
+		if tc.focus == paneList {
+			listHeader = strings.Split(rendered, "\n")[2]
+		} else if listHeader == strings.Split(rendered, "\n")[2] {
+			t.Fatal("pane focus did not change header styling")
 		}
-		if !strings.HasPrefix(lines[3], "› main.go") || !strings.Contains(lines[3], " │ ") || strings.ContainsAny(view, "┌┐└┘") {
-			t.Fatalf("wide review should use a single divider:\n%s", view)
+		view := ansi.Strip(rendered)
+		lines := strings.Split(view, "\n")
+		if !strings.HasPrefix(lines[2], "┌ [File (F)]  Guide (G)") || !strings.Contains(lines[2], "┬ Diff · FILES") {
+			t.Fatalf("missing pane headers:\n%s", view)
+		}
+		if !strings.HasPrefix(lines[3], "│› main.go") || strings.Count(lines[3], "│") != 3 || !strings.HasPrefix(lines[3+m.bodyHeight()], "└") {
+			t.Fatalf("wide review should frame both panes:\n%s", view)
 		}
 	}
 }

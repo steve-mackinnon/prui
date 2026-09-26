@@ -10,11 +10,11 @@ func TestMouseResizeGrabOffsetAndBounds(t *testing.T) {
 		m := largeModel(largeTextSession(1, 1), width, 30)
 		d := m.workspaceGeometry().Divider
 		original := m.listWidth()
-		_, handled := m.mouseResize(tea.MouseClickMsg{X: d.Min.X + 2, Y: d.Min.Y, Button: tea.MouseLeft})
+		_, handled := m.mouseResize(tea.MouseClickMsg{X: d.Min.X, Y: d.Min.Y, Button: tea.MouseLeft})
 		if !handled {
 			t.Fatal("divider press not consumed")
 		}
-		m.mouseResize(tea.MouseMotionMsg{X: d.Min.X + 7, Y: d.Min.Y, Button: tea.MouseLeft})
+		m.mouseResize(tea.MouseMotionMsg{X: d.Min.X + 5, Y: d.Min.Y, Button: tea.MouseLeft})
 		if m.listWidth() != original+5 {
 			t.Fatalf("width %d: grab offset lost: got %d want %d", width, m.listWidth(), original+5)
 		}
@@ -101,7 +101,7 @@ func TestMouseResizeNarrowAndContextCancel(t *testing.T) {
 	m.activeTab = 0
 	d := m.workspaceGeometry().Divider
 	m.mouseResize(tea.MouseClickMsg{X: d.Min.X, Y: d.Min.Y, Button: tea.MouseLeft})
-	m.mouseResize(tea.MouseMotionMsg{X: 55, Y: d.Min.Y, Button: tea.MouseLeft})
+	m.mouseResize(tea.MouseMotionMsg{X: 56, Y: d.Min.Y, Button: tea.MouseLeft})
 	for _, narrow := range []bool{true, false} {
 		if narrow {
 			m.Width = 99
@@ -126,8 +126,8 @@ func TestMouseAndKeyboardResizeShareTabPreference(t *testing.T) {
 	m.openReviewTab(m.Session)
 	d := m.workspaceGeometry().Divider
 	m.Update(tea.MouseClickMsg{Button: tea.MouseLeft, X: d.Min.X, Y: d.Min.Y})
-	m.Update(tea.MouseMotionMsg{Button: tea.MouseLeft, X: 60, Y: d.Min.Y})
-	m.Update(tea.MouseReleaseMsg{Button: tea.MouseLeft, X: 60, Y: d.Min.Y})
+	m.Update(tea.MouseMotionMsg{Button: tea.MouseLeft, X: 61, Y: d.Min.Y})
+	m.Update(tea.MouseReleaseMsg{Button: tea.MouseLeft, X: 61, Y: d.Min.Y})
 	key(m, ']')
 	if m.listWidth() != 62 {
 		t.Fatalf("keyboard did not use dragged width: %d", m.listWidth())

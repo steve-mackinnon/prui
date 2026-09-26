@@ -114,11 +114,11 @@ func TestWorkspaceGeometryAndFooterAtResponsiveWidths(t *testing.T) {
 					}
 				}
 				body := lines[3]
-				if (width >= 100) != strings.Contains(body, " │ ") {
+				if (width >= 100) != (strings.Count(body, "│") == 3) {
 					t.Fatalf("unexpected pane divider: %q", body)
 				}
-				if strings.ContainsAny(body, "┌┐└┘") {
-					t.Fatalf("body contains pane outline: %q", body)
+				if !strings.HasPrefix(body, "│") || !strings.HasSuffix(body, "│") {
+					t.Fatalf("body lacks pane edges: %q", body)
 				}
 			})
 		}

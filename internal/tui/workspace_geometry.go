@@ -15,15 +15,15 @@ func (m *Model) workspaceGeometry() workspaceGeometry {
 	body := image.Rect(0, 3, m.Width, 3+m.bodyHeight()).Intersect(screen)
 	if m.Width < 100 {
 		if m.Focus == paneDiff {
-			return workspaceGeometry{Detail: body}
+			return workspaceGeometry{Detail: image.Rect(1, body.Min.Y, m.Width-1, body.Max.Y).Intersect(screen)}
 		}
-		return workspaceGeometry{Rail: body}
+		return workspaceGeometry{Rail: image.Rect(1, body.Min.Y, m.Width-1, body.Max.Y).Intersect(screen)}
 	}
 	left := m.listWidth()
 	return workspaceGeometry{
-		Rail:    image.Rect(0, 3, left, 3+m.bodyHeight()).Intersect(screen),
-		Divider: image.Rect(left, 3, left+3, 3+m.bodyHeight()).Intersect(screen),
-		Detail:  image.Rect(left+3, 3, m.Width, 3+m.bodyHeight()).Intersect(screen),
+		Rail:    image.Rect(1, 3, left+1, 3+m.bodyHeight()).Intersect(screen),
+		Divider: image.Rect(left+1, 3, left+2, 3+m.bodyHeight()).Intersect(screen),
+		Detail:  image.Rect(left+2, 3, m.Width-1, 3+m.bodyHeight()).Intersect(screen),
 	}
 }
 

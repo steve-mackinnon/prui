@@ -1,10 +1,10 @@
 example/review #42                         ctrl+p: switch PR
 › Diff [1]    Description [2]    Commits [3]
-[File (F)]  Guide (G) · focus: diff · FILES 2 · file 1/2
-── main.go
-@@ -1 +1 @@
--old greeting
-+hello world
-
+┌ [File (F)]  Guide (G) · Diff ────────────────────────────┐
+│── main.go                                                │
+│@@ -1 +1 @@                                               │
+│-old greeting                                             │
+│+hello world                                              │
+└──────────────────────────────────────────────────────────┘
 0/2 read · R Review (0) · ? Freshness unknown · ?: Help
 ↑/↓: scroll · enter: comment/menu · m: mark file · esc: list

@@ -48,7 +48,7 @@ func (m *Model) mouseResize(msg tea.MouseMsg) (tea.Cmd, bool) {
 			m.cancelMouseDrag()
 			return nil, true
 		}
-		width := m.clampListWidth(event.X - m.drag.grabOffset)
+		width := m.clampListWidth(event.X - m.drag.grabOffset - 1)
 		if width == m.listWidth() {
 			return nil, true
 		}

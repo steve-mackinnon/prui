@@ -39,7 +39,7 @@ func TestFileViewConcatenatesEveryHunkOnce(t *testing.T) {
 
 func TestFileViewNavigationHasOneStopPerFile(t *testing.T) {
 	m := largeModel(largeTextSession(3, 6), 120, 8)
-	m.Focus = paneDiff
+	m.Focus = paneList
 	for file := 1; file < 3; file++ {
 		key(m, 'j')
 		if got := m.Session.UnitFiles[m.Selected]; got != file {
@@ -63,6 +63,23 @@ func TestFileViewNavigationHasOneStopPerFile(t *testing.T) {
 	}
 }
 
+func TestFileViewJKScrollFocusedDiffWithoutJumpingFiles(t *testing.T) {
+	m := largeModel(largeTextSession(2, 4), 120, 8)
+	m.Focus = paneDiff
+	firstFile := m.Selected
+	key(m, 'j')
+	if got := m.offset(); got != 1 {
+		t.Fatalf("j scrolled diff to %d, want 1", got)
+	}
+	if m.Selected != firstFile {
+		t.Fatalf("j jumped from file %d to %d", firstFile, m.Selected)
+	}
+	key(m, 'k')
+	if got := m.offset(); got != 0 {
+		t.Fatalf("k scrolled diff to %d, want 0", got)
+	}
+}
+
 func TestFileViewScrollingContinuesIntoNextFile(t *testing.T) {
 	m := largeModel(largeTextSession(2, 4), 120, 8)
 	m.Focus = paneDiff
@@ -80,7 +97,7 @@ func TestFileViewScrollingContinuesIntoNextFile(t *testing.T) {
 
 func TestSideBySideFileViewJumpUsesProjectedBoundary(t *testing.T) {
 	m := largeModel(largeTextSession(2, 4), 160, 8)
-	m.Focus = paneDiff
+	m.Focus = paneList
 	key(m, 'S')
 	key(m, 'j')
 	if got, want := m.offset(), m.fileOffset(1); got != want {
