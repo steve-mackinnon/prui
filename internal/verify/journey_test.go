@@ -80,6 +80,17 @@ func TestRunJourneyOpensThenMarksAndResumesWithBoundedArtifacts(t *testing.T) {
 	}
 }
 
+func TestHarnessEvidencePreservesSubMillisecondProcessStart(t *testing.T) {
+	var evidence harnessEvidence
+	if err := json.Unmarshal([]byte(`{"process_start_ns":250000,"first_review_frame_ns":750000}`), &evidence); err != nil {
+		t.Fatal(err)
+	}
+	got := evidence.localTiming()
+	if got.ProcessStart != 250*time.Microsecond || got.FirstReviewFrame != 750*time.Microsecond {
+		t.Fatalf("local timing lost precision: %#v", got)
+	}
+}
+
 func TestRunOpenUsesItsConfiguredTimeoutInsteadOfThePTYTimeout(t *testing.T) {
 	root := t.TempDir()
 	fixture, err := os.ReadFile(filepath.Join("testdata", "fake_pr_review.py"))

@@ -55,8 +55,12 @@ type Journey struct {
 type harnessEvidence struct {
 	Transcript         string            `json:"transcript_base64"`
 	Screens            map[string]string `json:"screens"`
-	ProcessStartMS     int64             `json:"process_start_ms"`
-	FirstReviewFrameMS int64             `json:"first_review_frame_ms"`
+	ProcessStartNS     int64             `json:"process_start_ns"`
+	FirstReviewFrameNS int64             `json:"first_review_frame_ns"`
+}
+
+func (e harnessEvidence) localTiming() LocalTiming {
+	return LocalTiming{ProcessStart: time.Duration(e.ProcessStartNS), FirstReviewFrame: time.Duration(e.FirstReviewFrameNS)}
 }
 
 // RunJourney opens the requested PR through the shipped binary, then runs a
@@ -135,9 +139,7 @@ func RunJourney(ctx context.Context, config JourneyConfig) (Journey, error) {
 			cache = WarmCache
 		}
 		timing, _ := NewTimingRun(cache)
-		timing.Local.ProcessStart = time.Duration(evidence.ProcessStartMS) * time.Millisecond
-		firstFrame := time.Duration(evidence.FirstReviewFrameMS) * time.Millisecond
-		timing.Local.FirstReviewFrame = firstFrame
+		timing.Local = evidence.localTiming()
 		timing.Network.GitHubMetadata = openTiming.GitHubMetadata
 		timing.Network.PinAndInventory = openTiming.PinAndInventory
 		if run == 1 {

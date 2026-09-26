@@ -150,12 +150,12 @@ class Terminal:
 
 
 def one_run(binary, store, session, timeout):
-    started = time.monotonic()
+    started = time.monotonic_ns()
     first = Terminal(binary, ["resume", session, "--store", store, "--offline"], timeout)
     try:
-        process_start_ms = round((time.monotonic() - started) * 1000)
+        process_start_ns = time.monotonic_ns() - started
         match = first.wait(r"(\d+)/(\d+) read \(local\)")
-        first_frame_ms = round((time.monotonic() - started) * 1000)
+        first_frame_ns = time.monotonic_ns() - started
         before, total = int(match.group(1)), int(match.group(2))
         initial = first.screen.text()
         if total > 1: first.key(b"\x1b[B")
@@ -173,7 +173,7 @@ def one_run(binary, store, session, timeout):
         resumed.quit()
         transcript += bytes(resumed.output)
     finally: resumed.close()
-    return {"transcript_base64": base64.b64encode(transcript).decode(), "screens": {"initial": initial, "marked": marked, "resumed": screen}, "process_start_ms": process_start_ms, "first_review_frame_ms": first_frame_ms}
+    return {"transcript_base64": base64.b64encode(transcript).decode(), "screens": {"initial": initial, "marked": marked, "resumed": screen}, "process_start_ns": process_start_ns, "first_review_frame_ns": first_frame_ns}
 
 
 def main():
