@@ -355,7 +355,7 @@ func (g *GH) AddReviewCommentReaction(ctx context.Context, id Identity, commentI
 const maxReviewComments = 100
 
 // ListReviewComments reads exactly one explicitly bounded page. The API may
-// have more history, but an overlay never needs unbounded remote data.
+// have more history; only current line anchors in this first page are returned.
 func (g *GH) ListReviewComments(ctx context.Context, id Identity) ([]ReviewComment, error) {
 	if _, err := ParseIdentity(strconv.Itoa(id.Number), id.Repository); err != nil {
 		return nil, err
@@ -371,40 +371,65 @@ func (g *GH) ListReviewComments(ctx context.Context, id Identity) ([]ReviewComme
 	comments := make([]ReviewComment, 0, len(raw))
 	seen := map[int64]bool{}
 	for _, item := range raw {
-		comment, err := parseReviewComment(item, id)
+		comment, anchored, err := parseRemoteReviewComment(item, id)
 		if err != nil || seen[comment.ID] {
 			return nil, errors.New("invalid review comment list")
 		}
 		seen[comment.ID] = true
-		comments = append(comments, comment)
+		if anchored {
+			comments = append(comments, comment)
+		}
 	}
 	return comments, nil
 }
 
+// parseReviewComment validates write responses as strictly as outbound targets.
 func parseReviewComment(data []byte, identity Identity) (ReviewComment, error) {
-	var raw struct {
-		ID       int64  `json:"id"`
-		Body     string `json:"body"`
-		CommitID string `json:"commit_id"`
-		Path     string `json:"path"`
-		Side     string `json:"side"`
-		Line     int    `json:"line"`
-		ParentID int64  `json:"in_reply_to_id"`
-		User     *struct {
-			Login string `json:"login"`
-		} `json:"user"`
-	}
-	if json.Unmarshal(data, &raw) != nil || raw.ID <= 0 || raw.User == nil || raw.User.Login == "" || !utf8.ValidString(raw.User.Login) {
+	comment, anchored, err := parseRemoteReviewComment(data, identity)
+	if err != nil || !anchored {
 		return ReviewComment{}, errors.New("invalid review comment")
 	}
-	if raw.ParentID < 0 || raw.ParentID == raw.ID {
-		return ReviewComment{}, errors.New("invalid review comment")
-	}
-	comment := ReviewComment{ID: raw.ID, ParentID: raw.ParentID, Author: raw.User.Login, Body: raw.Body, Target: ReviewCommentTarget{Identity: identity, CommitID: raw.CommitID, Path: raw.Path, Side: raw.Side, Line: raw.Line}}
 	if err := validateReviewComment(comment); err != nil {
 		return ReviewComment{}, err
 	}
 	return comment, nil
+}
+
+// Remote records may describe files or outdated lines. Validate their common
+// fields before skipping them; original_line is never a current diff anchor.
+func parseRemoteReviewComment(data []byte, identity Identity) (ReviewComment, bool, error) {
+	var raw struct {
+		ID          int64  `json:"id"`
+		Body        string `json:"body"`
+		CommitID    string `json:"commit_id"`
+		Path        string `json:"path"`
+		Side        string `json:"side"`
+		Line        *int   `json:"line"`
+		SubjectType string `json:"subject_type"`
+		ParentID    int64  `json:"in_reply_to_id"`
+		User        *struct {
+			Login string `json:"login"`
+		} `json:"user"`
+	}
+	if !utf8.Valid(data) || json.Unmarshal(data, &raw) != nil || raw.ID <= 0 || raw.User == nil || raw.User.Login == "" {
+		return ReviewComment{}, false, errors.New("invalid review comment")
+	}
+	if raw.ParentID < 0 || raw.ParentID == raw.ID || !shaPattern.MatchString(raw.CommitID) || raw.Path == "" || raw.Body == "" {
+		return ReviewComment{}, false, errors.New("invalid review comment")
+	}
+	if (raw.SubjectType != "" && raw.SubjectType != "line" && raw.SubjectType != "file") ||
+		(raw.Side != "" && raw.Side != "LEFT" && raw.Side != "RIGHT") || (raw.Line != nil && *raw.Line <= 0) {
+		return ReviewComment{}, false, errors.New("invalid review comment anchor")
+	}
+	comment := ReviewComment{ID: raw.ID, ParentID: raw.ParentID, Author: raw.User.Login, Body: raw.Body, Target: ReviewCommentTarget{Identity: identity, CommitID: raw.CommitID, Path: raw.Path, Side: raw.Side}}
+	if raw.SubjectType == "file" || raw.Line == nil {
+		return comment, false, nil
+	}
+	if raw.Side == "" {
+		return ReviewComment{}, false, errors.New("invalid review comment anchor")
+	}
+	comment.Target.Line = *raw.Line
+	return comment, true, nil
 }
 
 func safeReviewCommentError(err error) error {
