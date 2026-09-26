@@ -31,6 +31,9 @@ func (m *Model) guideRecipient() string {
 }
 
 func (m *Model) guideConsentView() string {
+	if m.guidePreparation != nil {
+		return m.preparedGuideConsentView()
+	}
 	paragraphs := []string{
 		"Generate guide?",
 		"Recipient: " + Escape(m.guideRecipient()),

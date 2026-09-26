@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	reviewcontext "pr-review/internal/context"
 	"pr-review/internal/inventory"
 )
 
@@ -48,17 +49,22 @@ type Item struct {
 // Bundle is immutable snapshot data: the guides plus the provenance and scope
 // needed to explain how they were produced and what was withheld.
 type Bundle struct {
-	Status        Status    `json:"status"`
-	Items         []Item    `json:"items,omitempty"`
-	Reason        string    `json:"reason,omitempty"` // set when Status is Unavailable
-	Provider      string    `json:"provider,omitempty"`
-	Model         string    `json:"model,omitempty"`
-	PromptVersion string    `json:"prompt_version,omitempty"`
-	SchemaName    string    `json:"schema_name,omitempty"`
-	InputDigest   string    `json:"input_digest,omitempty"`
-	EvidenceIDs   []string  `json:"evidence_ids,omitempty"`
-	WithheldPaths []Omitted `json:"withheld_paths,omitempty"` // inputs excluded from the request
-	Limits        Limits    `json:"limits,omitzero"`
+	RetrievalIncomplete bool                     `json:"retrieval_incomplete,omitempty"`
+	RetrievalOmissions  []reviewcontext.Omitted  `json:"retrieval_omissions,omitempty"`
+	RetrievedEvidence   []reviewcontext.Evidence `json:"retrieved_evidence,omitempty"` // pinned tool excerpts submitted for this guide
+	UploadedEvidence    []reviewcontext.Evidence `json:"-"`                            // transient handoff to derived snapshot
+	RetrievalVersion    string                   `json:"retrieval_version,omitempty"`
+	Status              Status                   `json:"status"`
+	Items               []Item                   `json:"items,omitempty"`
+	Reason              string                   `json:"reason,omitempty"` // set when Status is Unavailable
+	Provider            string                   `json:"provider,omitempty"`
+	Model               string                   `json:"model,omitempty"`
+	PromptVersion       string                   `json:"prompt_version,omitempty"`
+	SchemaName          string                   `json:"schema_name,omitempty"`
+	InputDigest         string                   `json:"input_digest,omitempty"`
+	EvidenceIDs         []string                 `json:"evidence_ids,omitempty"`
+	WithheldPaths       []Omitted                `json:"withheld_paths,omitempty"` // inputs excluded from the request
+	Limits              Limits                   `json:"limits,omitzero"`
 }
 
 // Fallback is the durable statement that no guides exist and why.

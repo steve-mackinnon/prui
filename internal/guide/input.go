@@ -35,7 +35,8 @@ type Input struct {
 	Omissions    []reviewcontext.Omitted
 	Withheld     []Omitted // changed paths or contents excluded from this request
 	Limits       Limits
-	Digest       string // SHA-256 over the assembled request material
+	Digest       string                      // SHA-256 over the assembled request material
+	Search       *reviewcontext.SearchCorpus `json:"-"` // approved local tools; never serialized wholesale
 }
 
 // InputFrom re-applies the privacy policy to the pinned inventory. The raw
@@ -62,7 +63,7 @@ func InputFrom(inv inventory.Inventory, c reviewcontext.ContextBundle, policy pr
 	// Retrieval checks complete blobs before excerpting. Preserve those privacy
 	// decisions even when the credential lies outside a changed hunk or excerpt.
 	for _, omitted := range c.OmittedPaths {
-		if omitted.Reason == "credential-like content" || omitted.Reason == "credential-like filename" || omitted.Reason == "binary content" || strings.HasPrefix(omitted.Reason, "user exclusion: ") {
+		if omitted.Reason == "credential-like content" || omitted.Reason == "credential-like filename" || omitted.Reason == "binary content" || omitted.Reason == "source unavailable for search" || strings.HasPrefix(omitted.Reason, "user exclusion: ") {
 			excludePath(omitted.Path, omitted.Reason)
 		}
 	}
@@ -185,6 +186,9 @@ func unitPath(f inventory.FileChange) []byte {
 func (in Input) digest() string {
 	h := sha256.New()
 	field(h, []byte(PromptVersion), []byte(in.ComparisonID))
+	if in.Search != nil {
+		field(h, []byte(SearchVersion))
+	}
 	field(h, fmt.Appendf(nil, "%d;%d;%d;%s", in.Limits.Units, in.Limits.UnitBytes, in.Limits.Bytes, in.Limits.Duration))
 	for _, u := range in.Units {
 		field(h, []byte(u.ID), u.Path, []byte(u.Kind), u.Patch)

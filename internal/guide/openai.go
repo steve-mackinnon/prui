@@ -110,6 +110,9 @@ func (o *OpenAI) Model() string { return o.model }
 // stated reason; only cancellation and deadlines return an error, so the
 // timeout wording stays with the caller that owns the deadline.
 func (o *OpenAI) Analyze(ctx context.Context, in Input) (Bundle, error) {
+	if in.Search != nil {
+		return o.analyzeSearch(ctx, in)
+	}
 	body, err := o.request(in)
 	if err != nil {
 		return failed(err.Error()), nil

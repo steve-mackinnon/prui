@@ -20,13 +20,14 @@ import (
 )
 
 type application struct {
-	store       *session.Store
-	gh          source.GitHub
-	setupError  error
-	runner      source.Runner
-	limits      source.Limits
-	offline     bool
-	newAnalyzer func() (guide.Analyzer, error)
+	store         *session.Store
+	gh            source.GitHub
+	setupError    error
+	runner        source.Runner
+	limits        source.Limits
+	offline       bool
+	newAnalyzer   func() (guide.Analyzer, error)
+	guideEndpoint string
 }
 
 // timedGitHub measures only the metadata requests made while opening the

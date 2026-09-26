@@ -633,6 +633,9 @@ func (m *Model) lifecycleKey(k string) (tea.Cmd, bool) {
 	case "b":
 		return m.loadRepositories(), true
 	case "g":
+		if m.prepareGuide != nil {
+			return m.startGuidePreparation(), true
+		}
 		if m.generateGuide == nil {
 			return nil, true
 		}
@@ -643,6 +646,9 @@ func (m *Model) lifecycleKey(k string) (tea.Cmd, bool) {
 }
 
 func (m *Model) guideConsentKey(k string) tea.Cmd {
+	if m.guidePreparation != nil {
+		return m.preparedGuideConsentKey(k)
+	}
 	switch k {
 	case "esc":
 		m.pop()

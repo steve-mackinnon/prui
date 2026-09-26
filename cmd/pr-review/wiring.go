@@ -54,6 +54,7 @@ func (a *application) model(ctx context.Context, o options) *tui.Model {
 	// Capture the destination shown by consent for the lifetime of this model.
 	endpoint := os.Getenv("OPENAI_BASE_URL")
 	guideApp := *a
+	guideApp.guideEndpoint = endpoint
 	if guideApp.newAnalyzer == nil {
 		guideApp.newAnalyzer = func() (guide.Analyzer, error) {
 			return guide.NewOpenAI(guide.OpenAIOptions{APIKey: os.Getenv("OPENAI_API_KEY"), Endpoint: endpoint})
@@ -61,6 +62,8 @@ func (a *application) model(ctx context.Context, o options) *tui.Model {
 	}
 	m.SetGuideDestination(endpoint)
 	m.SetGuideLifecycle(guideApp.requestGuide)
+	m.SetGuidePreparation(guideApp.prepareGuide)
+	m.SetPreparedGuideLifecycle(guideApp.requestPreparedGuide)
 	m.SetCommentSubmitter(a.submitReviewComment)
 	m.SetReviewSubmitter(a.submitPullRequestReview)
 	m.SetCommentActionSubmitter(a.submitReviewCommentAction)

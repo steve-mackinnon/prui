@@ -496,18 +496,41 @@ func Plain(s *review.Session) string {
 
 func (m *Model) evidenceView() string {
 	c := m.Session.Context
+	search := m.Session.Guides != nil && m.Session.Guides.RetrievalVersion == guide.SearchVersion
+	if search {
+		c.Evidence = m.Session.Guides.RetrievedEvidence
+		c.OmittedPaths = m.Session.Guides.RetrievalOmissions
+		c.ExhaustedBudgets = nil
+	}
 	lines := []string{m.styleLine(statusClass(m.Session), status(m.Session)), m.styleLine(classTitle, fmt.Sprintf("Evidence scope | retained %d | omitted %d | examined paths %d", len(c.Evidence), len(c.OmittedPaths), len(c.ExaminedPaths))), fmt.Sprintf("budgets: files %d | excerpt %d bytes | retained %d bytes", c.FileBudget, c.ExcerptBudget, c.ByteBudget)}
+	if search {
+		lines = []string{m.styleLine(statusClass(m.Session), status(m.Session)), fmt.Sprintf("Search evidence sent for this guide | excerpts %d", len(c.Evidence)), "This ledger records submitted tool excerpts. Initial patches remain available in the review."}
+	}
+	if search && m.Session.Guides.RetrievalIncomplete {
+		lines = append(lines, m.styleLine(classWarning, "WARNING: search coverage or tool results were incomplete; no match does not prove absence."))
+	}
 	for _, b := range c.ExhaustedBudgets {
 		lines = append(lines, m.styleLine(classWarning, "WARNING budget exhausted: "+Escape(b)))
 	}
 	for _, e := range c.Evidence {
 		lines = append(lines, fmt.Sprintf("[observed] %s @ %.12s %s:%d-%d (%s)", e.Kind, e.CommitSHA, Escape(string(e.Path)), e.LineStart, e.LineEnd, Escape(e.RetrievalReason)))
+		for _, line := range strings.Split(string(e.Excerpt), "\n") {
+			lines = append(lines, strings.Split(ansi.Wrap(Escape(line), max(1, m.Width), ""), "\n")...)
+		}
 	}
 	for _, o := range c.OmittedPaths {
 		lines = append(lines, fmt.Sprintf("[omitted] %s: %s", Escape(string(o.Path)), Escape(o.Reason)))
 	}
-	lines = append(lines, "esc: back | raw inventory remains available | omissions are not missing diff entries")
-	return strings.Join(lines, "\n")
+	if search {
+		for _, o := range m.Session.Guides.WithheldPaths {
+			lines = append(lines, fmt.Sprintf("[withheld] %s: %s", Escape(string(o.Path)), Escape(o.Reason)))
+		}
+	}
+	height := max(1, m.Height-2)
+	m.evidenceScroll = max(0, min(m.evidenceScroll, max(0, len(lines)-height)))
+	visible := append([]string(nil), lines[m.evidenceScroll:min(len(lines), m.evidenceScroll+height)]...)
+	visible = append(visible, "up/down · pgup/pgdown: scroll | home/end | esc: back")
+	return strings.Join(visible, "\n")
 }
 
 func visibleWidth(s string) int { return lipgloss.Width(s) }
@@ -520,4 +543,23 @@ func clip(s string, w int) string {
 	}
 	// ANSI-aware: escape sequences cost no width and are never cut in half.
 	return ansi.Truncate(s, w, "")
+}
+
+func (m *Model) evidenceKey(k string) {
+	switch k {
+	case "esc":
+		m.pop()
+	case "down", "j":
+		m.evidenceScroll++
+	case "up", "k":
+		m.evidenceScroll = max(0, m.evidenceScroll-1)
+	case "pgdown":
+		m.evidenceScroll += max(1, m.Height-2)
+	case "pgup":
+		m.evidenceScroll = max(0, m.evidenceScroll-max(1, m.Height-2))
+	case "home":
+		m.evidenceScroll = 0
+	case "end":
+		m.evidenceScroll = 1 << 30
+	}
 }

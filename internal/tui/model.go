@@ -10,6 +10,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+	"pr-review/internal/guide"
 	"pr-review/internal/inventory"
 	"pr-review/internal/review"
 	"pr-review/internal/session"
@@ -238,6 +239,14 @@ type Model struct {
 	openPullRequest                                      PullRequestOpener
 	refreshPullRequest                                   PullRequestRefresher
 	generateGuide                                        GuideLoader
+	prepareGuide                                         func(context.Context, *review.Session) (*guide.Preparation, error)
+	generatePreparedGuide                                func(context.Context, *review.Session, *guide.Preparation) (*review.Session, error)
+	guidePreparation                                     *guide.Preparation
+	guidePreparationGeneration                           uint64
+	guidePreparationPending                              bool
+	guideInspect                                         string
+	guideSourceIndex, guideSourceScroll                  int
+	evidenceScroll                                       int
 	guideDestination                                     string
 	submitComment                                        CommentSubmitter
 	submitReview                                         ReviewSubmitter
@@ -401,6 +410,24 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if v.Err == nil && v.Session != nil {
 			return m, tea.Batch(m.refreshCommentsInBackground(), m.refreshOpenedPullRequest(m.activeTab, v.Session))
 		}
+	case guidePreparationResult:
+		if v.Generation != m.guidePreparationGeneration || v.Target != m.activeTab || m.Session == nil || m.Session.ID != v.SessionID {
+			return m, nil
+		}
+		m.guidePreparationPending = false
+		v.Err = m.finishAction(v.Err)
+		if v.Err == nil && v.Preparation != nil {
+			m.guidePreparation = v.Preparation
+			m.guideInspect = ""
+			m.guideSourceIndex, m.guideSourceScroll = 0, 0
+			m.push(pageGuideConsent)
+		}
+	case preparedGuideResult:
+		if v.Generation != m.guidePreparationGeneration || v.Target != m.activeTab || m.Session == nil || m.Session.ID != v.SessionID {
+			return m, nil
+		}
+		m.guidePreparationPending = false
+		return m.Update(ActionResult{Session: v.Session, Err: v.Err, Reset: true})
 	case ActionResult:
 		v.Err = m.finishAction(v.Err)
 		if v.Err == nil && v.Session != nil {
@@ -688,6 +715,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.restoreCursorAnchor(target, commentID)
 			}
 		case "e":
+			m.evidenceScroll = 0
 			m.push(pageEvidence)
 			m.Inventory, m.Focus = false, paneList
 		case "esc":
@@ -835,6 +863,7 @@ func (m *Model) registerReviewTab(s *review.Session, activate bool) {
 		m.tabs = append(m.tabs, workspaceTab{identity: identity, title: m.knownPRTitle(identity), review: newReviewTabState(s)})
 		return
 	}
+	m.discardGuidePreparation()
 	m.saveActiveReview()
 	m.tabs = append(m.tabs, workspaceTab{identity: identity, title: m.knownPRTitle(identity), review: newReviewTabState(s)})
 	m.activeTab = len(m.tabs) - 1
@@ -848,6 +877,7 @@ func (m *Model) activateTab(index int) bool {
 	if index == m.activeTab {
 		return true
 	}
+	m.discardGuidePreparation()
 	m.saveActiveReview()
 	m.activeTab = index
 	m.restoreReviewTab(m.tabs[index].review)
@@ -976,7 +1006,9 @@ func (m *Model) pageKey(p page, key tea.KeyPressMsg) tea.Cmd {
 		return m.themePickerKey(k)
 	case pageHelp:
 		m.helpKey(k)
-	case pageURL, pageEvidence:
+	case pageEvidence:
+		m.evidenceKey(k)
+	case pageURL:
 		if k == "esc" {
 			m.pop()
 		}

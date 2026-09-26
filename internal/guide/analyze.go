@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	reviewcontext "pr-review/internal/context"
 	"pr-review/internal/inventory"
 )
 
@@ -30,7 +31,7 @@ type Analyzer interface {
 // error, a timeout, an oversize answer, or an answer that cannot be reconciled
 // with this inventory all produce an explained fallback rather than an error,
 // because raw file review must never depend on analysis succeeding.
-func Analyze(parent context.Context, a Analyzer, inv inventory.Inventory, in Input) Bundle {
+func Analyze(parent context.Context, a Analyzer, inv inventory.Inventory, in Input) (result Bundle) {
 	if a == nil {
 		return Fallback("analysis not requested")
 	}
@@ -41,6 +42,24 @@ func Analyze(parent context.Context, a Analyzer, inv inventory.Inventory, in Inp
 		defer cancel()
 	}
 	candidate, err := a.Analyze(ctx, in)
+	if in.Search != nil {
+		defer func() {
+			result.UploadedEvidence = candidate.UploadedEvidence
+			result.RetrievedEvidence = append([]reviewcontext.Evidence(nil), candidate.UploadedEvidence...)
+			result.RetrievalVersion = SearchVersion
+			result.RetrievalIncomplete = candidate.RetrievalIncomplete || in.Search.Incomplete
+			result.RetrievalOmissions = append([]reviewcontext.Omitted(nil), in.Search.Omissions...)
+			material := in
+			material.Evidence = append(append([]reviewcontext.Evidence(nil), in.Evidence...), candidate.UploadedEvidence...)
+			result.InputDigest = material.digest()
+			result.Limits = in.Limits
+			result.WithheldPaths = in.Withheld
+			result.EvidenceIDs = nil
+			for _, e := range material.Evidence {
+				result.EvidenceIDs = append(result.EvidenceIDs, e.EvidenceID)
+			}
+		}()
+	}
 	if err != nil {
 		if errors.Is(err, context.DeadlineExceeded) || errors.Is(ctx.Err(), context.DeadlineExceeded) {
 			return Fallback(fmt.Sprintf("analysis timed out after %s", in.Limits.Duration))
