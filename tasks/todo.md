@@ -1200,6 +1200,183 @@ screens, then run the complete regression gate against the integrated feature.
 - [ ] Full automated verification passes with no GitHub lifecycle, snapshot,
       source-pin, or link-activation behavior change.
 
+# Mouse Selection and Panel Resizing tasks
+
+Implemented with subagents. See the matching section in `tasks/plan.md`
+for scope, current-code evidence, interaction semantics, and API contracts.
+Existing unchecked tasks above are preserved. All agents must use synthetic fixtures and preserve CONSTRAINTS.md.
+
+## M1: Establish shared screen geometry and input routing
+
+Description: Extract the existing review geometry and visible list calculation
+without changing output, then add a centrally gated mouse dispatch seam. Keep
+capture disabled until supported handlers land. Coordinator owns this slice.
+
+Acceptance criteria:
+- [x] Rendering and hit testing share body/rail/detail/divider rectangles and
+  visible list rows; duplicate fixed-width rendering math is removed. Normal
+  snapshots and narrow fallback remain unchanged.
+- [x] Rectangles use clipped half-open terminal-cell bounds; negative/outside
+  coordinates, empty comparisons, headers/footers, and description rows have
+  no item target. Label spans account for ANSI-free display width.
+- [x] Central routing enforces modal/loading/editor ownership and defines the
+  workspace width/drag fields and handler signatures used by downstream agents.
+
+Verification: Add geometry/routing tests, run `go test ./internal/tui -count=1`,
+`go build ./...`, and `git diff --check`. Inspect unchanged wide/narrow frames.
+Dependencies: None. Scope: Medium.
+Files likely touched: `internal/tui/model.go`, new `workspace_geometry.go`,
+`workspace_geometry_test.go`, `mouse.go`, `mouse_test.go` in `internal/tui`.
+
+## M2: Select review navigation items and visible tabs
+
+Description: Implement click-to-select for Files, Inventory, and Guides plus
+existing visible context/mode tabs. Own `mouse_review.go`; request shared model
+integration from the coordinator rather than editing it concurrently.
+
+Acceptance criteria:
+- [x] Left press on a visible item selects its semantic row and focuses the
+  rail, reusing existing navigation effects (unit synchronization, offsets,
+  horizontal reset, path-scroll restart). Wrapped explanation/padding rows
+  and hidden panes are no-ops; selection never marks progress or opens editors.
+- [x] Clicking visible context/mode labels invokes the corresponding existing
+  transition; clipped labels have only their visible cells clickable. Guide
+  expansion and activation retain their existing keyboard actions.
+- [x] Real Bubble Tea click messages route through Update with cell-motion
+  capture enabled on supported review surfaces; repeated clicks do not
+  activate items, write data, or generate guides. Keyboard behavior still works.
+
+Verification: Add state tests for scrolled lists, repeated guide file portions,
+99/100 columns, clipping/Unicode, and tab transitions. Run
+`go test ./internal/tui -count=1` and `go build ./...`; inspect selection in a
+synthetic review frame. Dependencies: M1. Scope: Medium.
+Files likely touched: `mouse_review.go`, `mouse_review_test.go`, `guides.go`,
+plus coordinator edits to `model.go` and `mouse.go` in `internal/tui`.
+
+## M3: Select visible picker results
+
+Description: Share picker viewport math and implement mouse selection for
+repository, session, PR browser, filtered switcher, and theme pickers. This
+agent owns the picker-specific helper and handler; keep shared integration
+with the coordinator.
+
+Acceptance criteria:
+- [x] Renderer and handler use one picker-window calculation including truncated
+  headers, optional details, footer, and selected-dependent capacity. Clicking
+  a filtered switcher row selects the displayed result identity/index.
+- [x] Left press only changes picker selection. Enter still opens/switches or
+  applies a theme. Empty/loading/error/details/footer rows have no item target;
+  filter text and off-screen items are unaffected.
+- [x] Short and long lists, changing detail reservations, Unicode, tiny heights,
+  and independent picker cursors retain correct selection and keyboard behavior.
+
+Verification: Add focused picker mouse tests and run
+`go test ./internal/tui -count=1`, `go build ./...`. Inspect a filtered switcher
+and tiny picker fixture. Dependencies: M1; can run alongside M2/M5. Scope: Medium.
+Files likely touched: `internal/tui/picker.go`, new `picker_geometry.go`,
+`mouse_picker.go`, `mouse_picker_test.go`, coordinator-owned `mouse.go`.
+
+## Checkpoint: M1–M3
+
+- [x] Geometry contract reviewed, focused tests/build pass, existing snapshots
+  still agree, and no shared-file changes were overwritten.
+- [x] Selection-only handlers produce no source/network/storage writes and do
+  not bypass loading, composer, consent, or review-confirmation ownership.
+
+## M4: Select semantic diff cells and comment cards
+
+Description: Extend review selection to unified and split details using the
+existing split-cursor work's complete-target selection contract. This is a
+sequential follow-up by the review-selection agent, not a second cursor rewrite.
+
+Acceptance criteria:
+- [x] Clicked visible detail row includes its viewport offset; unified rows and
+  comment cards resolve to immutable source targets or stable comment IDs.
+  Structural rows, empty paired cells, and separators do not select a neighbor.
+- [x] Split clicks select the actual old/new cell using shared rendered cell
+  bounds (including cursor/line gutters). Context retains the existing
+  right-only commentability rule; the old context cell cannot invent LEFT.
+- [x] Selection survives layout toggles/reflow and subsequent Enter opens the
+  correct existing composer/action menu. A click itself opens neither and
+  cannot post a comment. Horizontal clipping cannot alter target identity.
+
+Verification: Add synthetic paired deletion/addition, context, overlay,
+159/160-column, and horizontal-scroll tests. Assert exact target equality and
+zero submitter calls after clicks. Run `go test ./internal/tui -count=1` and
+`go build ./...`. Dependencies: M2 and completion/reconciliation of the earlier
+Split-Diff Pane Cursor semantic-state tasks. Scope: Medium.
+Files likely touched: `internal/tui/mouse_review.go`, `mouse_review_test.go`,
+`render.go`, `render_test.go`, coordinator-owned `model.go`.
+
+## M5: Drag the navigation/detail divider
+
+Description: Implement bounded workspace rail width and a transient divider
+drag lifecycle through the established geometry/dispatch contracts.
+
+Acceptance criteria:
+- [x] Press on the three-column divider starts drag; motion adjusts effective
+  width with preserved grab offset and main’s shared 18-column rail/40-column detail
+  minimums. Default widths stay unchanged until
+  dragged. Release ends drag without selecting/activating an item.
+- [x] No drag exists below 100 columns or outside Changes. Resize, keyboard,
+  page/tab/view changes, loading/editor entry, stale fresh presses, and lost-left
+  motion cancel drag. Requested width survives narrow mode and is saved per review
+  in memory, never persisted. The inner split divider is unchanged.
+- [x] Reflow preserves semantic selection and progress, clamps offsets,
+  maintains editor visibility, and refreshes guide wrapping/path scrolling.
+  Odd widths, edge clamps, and repeated motion produce no overflow or panic.
+
+Verification: Add press/motion/release and cancellation sequences, boundary
+width tests, default-render parity, and anchor-retention assertions. Run
+`go test ./internal/tui -count=1`, `go build ./...`; inspect both drag extremes.
+Dependencies: M1; can run alongside M2/M3 using coordinator integration.
+Scope: Medium. Files likely touched: `internal/tui/mouse_resize.go`,
+`mouse_resize_test.go`, coordinator-owned `model.go`, `mouse.go`, and
+`workspace_geometry.go`.
+
+## Checkpoint: M4–M5
+
+- [x] Full TUI tests/build pass with exact source-side targets after drag and
+  split/unified fallback; verify a drag cannot finish as a background click.
+- [x] Coordinator integrates all handlers and rechecks modal precedence,
+  preference ownership, visible bounds, and mouse capture policy together.
+
+## M6: Verify terminal behavior and document controls
+
+Description: Coordinator integrates the completed slices, adds real protocol
+coverage, and publishes accurate mouse help and compatibility limitations.
+
+Acceptance criteria:
+- [x] A bounded synthetic PTY journey sends SGR click/drag/release sequences,
+  observes selection and panel width changes, verifies keyboard input still
+  works, and checks terminal capture cleanup on exit. No live service is used.
+- [x] README and Health & help explain selection vs Enter activation, supported
+  divider, bounds/narrow behavior, memory-only width, and terminal-native text
+  selection behavior. Annotate the old no-mouse boundary in the layout spec.
+- [x] Full verification and diff checks pass or unrelated baseline failures are
+  reported accurately; human terminal usability inspection is recorded as done
+  or pending, never inferred from automated render tests.
+
+Verification: Run focused PTY tests (`go test ./cmd/pr-review -run PTY -count=1`),
+then `./scripts/verify.sh` and `git diff --check`. Inspect mouse use in a real
+terminal and a terminal multiplexer where available, including releasing a
+button outside the terminal and modifier-based text copying.
+Dependencies: M2, M3, M4, M5. Scope: Medium.
+Files likely touched: `cmd/pr-review/testdata/pty_smoke.py`,
+`cmd/pr-review/pty_test.go`, `internal/tui/help.go`, `README.md`,
+`SPEC-tui-review-layout.md`. If help content belongs in `bindings.go`, use that
+instead of `help.go`; do not add a fake keyboard shortcut for mouse actions.
+
+## Completion checkpoint
+
+- [x] All M1–M6 acceptance criteria satisfied and reviewed against the proposed
+  interaction contract; any changed scope is reflected in the plan.
+- [x] Existing keyboard, frozen-target, offline, plain-output, and tab-isolation
+  behavior preserved; no new dependency, schema, or implicit write path.
+- [ ] Human terminal/multiplexer usability check completed (text copying and
+  release outside the window); automated checks do not establish usability.
+
+
 # SQLite Storage — Fresh Start tasks
 
 Status: Completed on 2026-09-26.

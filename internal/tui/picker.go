@@ -104,20 +104,9 @@ func (m *Model) pickerScreenDetail(p *pickerState, header, rows, detail []string
 		footer = "! Action failed: " + Escape(m.ActionError.Error())
 	}
 	footer = clip(footer+" · ?: Health & help", m.Width)
-	// Preserve one picker content row even in a tiny terminal.
-	height := max(1, m.Height)
-	header = header[:min(len(header), max(0, height-1))]
-	footerRows := 0
-	if height > len(header)+1 {
-		footerRows = 1
-	}
-	capacity := max(1, height-len(header)-footerRows)
-	// Reserve detail only when at least three choices still fit. Tiny terminals
-	// prioritize the cursor and controls over supplementary metadata.
-	if len(rows) == 0 || capacity < len(detail)+3 {
-		detail = nil
-	}
-	capacity -= len(detail)
+	window := layoutPicker(m.Height, len(header), len(rows), len(detail), p.Index)
+	header = header[:window.headerRows]
+	detail = detail[:window.detailRows]
 	lines := append([]string(nil), header...)
 	if len(rows) == 0 {
 		if m.Busy {
@@ -128,8 +117,7 @@ func (m *Model) pickerScreenDetail(p *pickerState, header, rows, detail []string
 		lines = append(lines, empty)
 	} else {
 		selected := max(0, min(p.Index, len(rows)-1))
-		start := max(0, selected-capacity+1)
-		for i := start; i < min(len(rows), start+capacity); i++ {
+		for i := window.start; i < window.end; i++ {
 			line := clip(selectionMarker(i == selected)+rows[i], m.Width)
 			if i == selected {
 				line = m.styleLine(selectedClass(true), line)
@@ -140,7 +128,7 @@ func (m *Model) pickerScreenDetail(p *pickerState, header, rows, detail []string
 	for _, line := range detail {
 		lines = append(lines, m.styleLine(classMetadata, clip(line, m.Width)))
 	}
-	if footerRows > 0 {
+	if window.footerRows > 0 {
 		lines = append(lines, footer)
 	}
 	return strings.Join(lines, "\n")

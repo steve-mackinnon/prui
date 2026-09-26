@@ -165,3 +165,24 @@ its requirements are in the [reference](docs/REFERENCE.md#acceptance-and-guide-e
 
 A license has not been selected or included yet. This is an outstanding step
 before the planned open-source release.
+
+
+### Mouse selection and panel resizing
+
+Click a file, guide row, inventory unit, picker item, diff source cell, or
+comment card to select it. Click the visible view tabs to switch views.
+Selection does not activate an item: Enter still opens a PR, applies a theme,
+or opens the selected comment editor/menu. Existing keyboard controls remain
+available. In split diffs, click the old or new source cell to select that
+cell's exact comment target; old context cells are not comment targets.
+
+At terminal widths of 100 columns or more, drag the separator between the
+navigation list and diff horizontally. The navigation list stays at least
+18 columns wide, with at least 40 columns for detail. Mouse dragging and the
+`[` / `]` keys share the same per-review width, remembered for this run and restored after
+returning from a narrow terminal. The inner old/new diff divider stays equal.
+
+Mouse input is disabled during loading, editors, and confirmation forms.
+Wheel scrolling and double-click activation are not supported. Mouse capture
+may affect native terminal text selection; use your terminal's selection
+modifier (often Shift, depending on the terminal or multiplexer) to copy text.

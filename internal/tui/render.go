@@ -273,8 +273,15 @@ func projectSideBySideDetail(lines []diffLine) []diffLine {
 // cursor and overlays share the same row indices as the visible split view.
 func (m *Model) renderProjectedSideBySideDetail(lines []diffLine, width, horizontal int) []diffLine {
 	rendered := make([]diffLine, 0, len(lines))
-	cellWidth := max(1, (max(1, width)-visibleWidth(" │ "))/2)
-	for _, line := range lines {
+	oldBounds, _ := splitCellBounds(width)
+	cellWidth := oldBounds.Dx()
+	var selected *source.ReviewCommentTarget
+	selectedRow := -1
+	if m.cursorActive {
+		selected = m.selectedDiffTarget()
+		selectedRow = m.cursor()
+	}
+	for index, line := range lines {
 		if line.sideBySide == nil {
 			rendered = append(rendered, diffLine{styledLine: styledLine{
 				Class: line.Class,
@@ -290,14 +297,24 @@ func (m *Model) renderProjectedSideBySideDetail(lines []diffLine, width, horizon
 			}, target: line.target, commentID: line.commentID})
 			continue
 		}
-		old := m.renderSideBySideCell(row.old, cellWidth, horizontal)
-		new := m.renderSideBySideCell(row.new, cellWidth, horizontal)
-		rendered = append(rendered, diffLine{styledLine: styledLine{Class: classPlain, Text: old + " │ " + new}, target: line.target, commentID: line.commentID})
+		renderCell := func(cell *diffCell) string {
+			if !m.cursorActive {
+				return m.renderSideBySideCell(cell, cellWidth, horizontal)
+			}
+			active := index == selectedRow && selected != nil && cell != nil && cell.line != nil && cell.line.target != nil && *cell.line.target == *selected
+			return cursorMarker(active) + m.renderSideBySideCell(cell, max(0, cellWidth-2), horizontal)
+		}
+		old := renderCell(row.old)
+		new := renderCell(row.new)
+		rendered = append(rendered, diffLine{styledLine: styledLine{Class: classPlain, Text: old + " │ " + new}, target: line.target, commentID: line.commentID, sideBySide: line.sideBySide})
 	}
 	return rendered
 }
 
 func (m *Model) renderSideBySideCell(cell *diffCell, width, horizontal int) string {
+	if width <= 0 {
+		return ""
+	}
 	if cell == nil || cell.line == nil {
 		return strings.Repeat(" ", width)
 	}
@@ -306,7 +323,7 @@ func (m *Model) renderSideBySideCell(cell *diffCell, width, horizontal int) stri
 	runes := []rune(text)
 	text = string(runes[min(max(0, horizontal), len(runes)):])
 	text = clip(text, max(0, width-visibleWidth(gutter)))
-	value := gutter + text
+	value := clip(gutter+text, width)
 	value += strings.Repeat(" ", max(0, width-visibleWidth(value)))
 	return m.styleLine(cell.line.Class, value)
 }

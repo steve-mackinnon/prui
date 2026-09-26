@@ -102,11 +102,11 @@ func (m *Model) applySelectedTheme() {
 func (m *Model) themePickerView() string {
 	names := theme.BuiltInNames()
 	m.ThemePicker.clamp(len(names))
-	if m.Width < 20 || m.Height < 6 {
+	_, _, modalWidth, available := themePickerBounds(m.Width, m.Height)
+	if !available {
 		return m.compactThemePickerView(names)
 	}
 
-	modalWidth := min(58, max(36, m.Width-4))
 	inside := max(1, modalWidth-4)
 	content := []string{
 		"╭" + strings.Repeat("─", modalWidth-2) + "╮",
@@ -160,8 +160,7 @@ func (m *Model) compactThemePickerView(names []string) string {
 
 func placeThemeModal(width, height, modalWidth int, content []string) string {
 	lines := make([]string, height)
-	startRow := max(0, (height-len(content))/2)
-	left := max(0, (width-modalWidth)/2)
+	left, startRow := themeModalOrigin(width, height, modalWidth, len(content))
 	for i, line := range content {
 		if startRow+i >= len(lines) {
 			break

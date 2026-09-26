@@ -760,6 +760,222 @@ and snapshots follow the completed interactive path.
 None. Raw HTML literal rendering is approved; link activation, remote images,
 and manual description refresh remain out of scope.
 
+# Implementation Plan: Mouse Selection and Panel Resizing
+
+Status: implemented with subagents; automated verification is recorded below.
+The matching section of `tasks/todo.md` tracks completion and manual checks.
+The user requested appending these documents, preserving earlier plans.
+
+## Objective and proposed interaction contract
+
+Add mouse selection to the existing keyboard-driven review workspace and let
+reviewers drag the navigation/detail divider. Keep all existing keys, frozen
+source/comment provenance, explicit write confirmations, and plain output.
+
+Initial scope:
+
+- Left press selects a visible file, inventory unit, guide/section/portion, or
+  repository/session/PR/switcher/theme picker item. It focuses the selected
+  pane but does not synthesize Enter, open a PR, apply a theme, mark progress,
+  generate a guide, open a composer, or submit anything. Enter retains its
+  existing activation semantics. Guide expansion remains on the existing key.
+- Clicking visible Diff/Description/Commits or File/Guide tabs invokes their
+  existing navigation transition. Only the displayed label span is clickable.
+- Clicking a selectable diff line or comment card focuses the detail pane and
+  selects its existing semantic source target or stable comment ID. In split
+  view the actual clicked source cell determines the target. Blank cells,
+  structural rows, description continuations, padding, and clipped content
+  never map to a neighboring item or fabricate a comment target.
+- Drag the existing three-column ` │ ` navigation/detail separator horizontally
+  on the Changes screen at widths >=100. No divider exists in narrow mode or
+  in Description/Commits. The inner old/new diff separator is not resizable in
+  this release; both source cells retain equal widths.
+- Proposed rail bounds: 20 columns minimum, at most half of usable width,
+  while reserving at least 40 detail columns. Until the first drag preserve
+  `min(36, terminalWidth/3)` exactly. Store the requested rail width as a
+  process-local workspace preference; clamp the effective width on resize
+  without discarding the preference. Returning from narrow mode restores it.
+- No hover actions, double-click activation, text-range selection, persistence,
+  or new CLI flags. Wheel scrolling is a follow-up, not part of these tasks.
+  Capture may change terminal-native scrolling/text selection; document and
+  manually check the terminal's modifier-based selection escape hatch.
+
+These defaults make “select” distinct from activation and “panels” mean the
+existing navigation/detail pair. Broader mouse actions can be planned separately.
+The user's request supersedes the old no-mouse-capture restriction in
+`SPEC-tui-review-layout.md`; implementation must annotate that obsolete boundary.
+
+## Investigation evidence
+
+| Area | Current implementation | Consequence |
+| --- | --- | --- |
+| Input | `Model.Update` in `internal/tui/model.go` handles keys/window size, no mouse branch. `View` sets AltScreen only. | Wire Bubble Tea v2 mouse messages centrally and explicitly enable capture. |
+| Framework | `go.mod` pins `charm.land/bubbletea/v2 v2.0.9`; its installed `tea.go` and `mouse.go` expose `View.MouseMode`, `MouseModeCellMotion`, `MouseClickMsg`, `MouseMotionMsg`, `MouseReleaseMsg`, and zero-based coordinates. | No new dependency or terminal escape writer needed. Cell motion includes drag; all-motion is unnecessary. |
+| Review geometry | `listWidth`, `detailWidth`, `bodyHeight`, and `reviewViewForLayout` determine pane geometry. The render loop independently repeats `min(36, m.Width/3)`. | Replace both width computations with one geometry contract; otherwise rendering and hit testing diverge. |
+| Review chrome | Normal Changes body begins after three rows; status/hints consume one or two footer rows. `View` clips to terminal dimensions. | Intersect hit regions with final visible bounds, including tiny terminals and empty comparisons. |
+| Lists | `guideList` emits `listLine.row`; descriptions use negative row IDs. `firstDisplayLine` and context-aware `start` select the viewport. | Hit test the same visible list slice, not `Y + selectedIndex`. |
+| Pickers | `pickerScreenDetail` truncates headers, reserves optional details/footer, then derives capacity and start. Switcher has two header rows and filtered results. | Share its viewport calculation and resolve the visible filtered item, never the unfiltered PR index. |
+| Detail | `displayDetail`, `offset`, `cursorAnchor`, and `restoreCursorAnchor` coordinate projected rows and overlays. `renderProjectedSideBySideDetail` has cell widths and fixed gutters. | Mouse targets come from typed rows/cells, not text or displayed line numbers. |
+| Existing cursor work | The earlier Split-Diff Pane Cursor plan is unchecked. Current `cursorAnchor` still reads one `line.target`; split rendering selects row-priority targets. | Diff-cell mouse selection depends on finishing/reconciling that semantic-target work; do not recreate it independently. |
+| Modal ownership | Loading, Busy, Composer, CommentMenu, review submit, consent, and quit confirmation already gate keyboard navigation. | Add matching mouse gating before hit testing so clicks cannot reach the background. |
+| Verification | `program_test.go` offers event-loop observations; `cmd/pr-review/testdata/pty_smoke.py` and `pty_test.go` cover real terminal protocol. | Use state tests plus a bounded synthetic PTY journey, not screenshots alone. |
+
+API reference: [Bubble Tea v2 official upgrade guide](https://github.com/charmbracelet/bubbletea/blob/main/UPGRADE_GUIDE_V2.md).
+The installed v2.0.9 sources were also checked so newer online docs do not
+implicitly authorize an upgrade.
+
+## Architecture and boundary contracts
+
+Use small package-private helpers, not a component framework or zone library.
+The integrating agent establishes these contracts before parallel work:
+
+1. `workspaceGeometry` (suggested name) returns clipped half-open rectangles
+   for rail, detail, and divider plus effective widths/body bounds. Rendering,
+   hit testing, clipping, guide wrapping, overlay widths, and path scrolling
+   consume the same values. Pure rectangle containment uses terminal cells.
+2. A review-list presentation helper returns the same visible `[]listLine`
+   used for rendering, retaining semantic row IDs and viewport origin. A
+   picker-window helper returns header height, start index, and visible count
+   after detail/footer reservations. Do not duplicate either algorithm.
+3. Chrome rendering exposes label spans in terminal cells before ANSI styling.
+   Hit regions are intersections with the actual rendered screen. Unicode,
+   ANSI, current selection prefixes, and clipping must not change identity.
+4. A single mouse router in `Update` consumes typed events. Priority is blocked
+   surface -> active drag -> divider press -> supported tab/list/detail target.
+   Unsupported buttons/modifiers and wheel events are explicit no-ops. Avoid
+   `View.OnMouse` closures that mutate state outside the normal update path.
+5. Use `tea.MouseLeft` and `View.MouseMode = tea.MouseModeCellMotion` for eligible
+   interactive views. Disable capture for unsupported/modal views and errors;
+   defensively reject mouse messages there even if still queued. Theme picker
+   permits selection only. No mouse path calls submission or storage APIs.
+6. Drag state is transient workspace state: active flag plus pointer-to-divider
+   grab offset, not a session field. Start only on the visible separator. Apply
+   horizontal motion through the shared clamp; ignore vertical displacement.
+   Release ends the drag and never turns into a click. Cancel on keyboard
+   input, window resize, tab/page/view change, loading/editor entry, and loss of
+   eligibility. A fresh press cancels any stale drag before handling its target;
+   motion without the left button cancels it. Handle unknown-button release
+   conservatively for terminals with weaker reporting. Lost release while
+   outside the terminal remains a manual compatibility case.
+7. Before width changes, save the semantic cursor anchor; after reflow restore
+   it, clamp viewport offsets, maintain editor visibility, and restart guide
+   path scrolling without accumulating timers. Selection/reading progress must
+   not change merely because the divider moved.
+8. Preserve the existing 100-column single-pane and 160-column split eligibility
+   rules. Wide rails can reduce code-cell space; shared geometry must budget
+   cursor gutters and separator before clipping. No negative width, overflow,
+   or hidden alternate hit target is allowed. Final manual review should assess
+   whether a later detail-width-based split breakpoint is warranted.
+
+## Delegation and dependency graph
+
+Task IDs are scoped as M1–M6 in `tasks/todo.md`.
+
+```text
+M1 shared geometry + mouse routing contract
+  |-- M2 review list/tab selection -- M4 semantic diff-cell selection
+  |-- M3 picker selection                 ^
+  |-- M5 divider resizing                 |
+existing split-cursor semantic work ------+
+M2 + M3 + M4 + M5 -> M6 integration, terminal checks, docs
+```
+
+M1 is sequential and owns `model.go` integration seams. After its tests pass,
+subagents can own review selection (`mouse_review.go`), picker selection
+(`mouse_picker.go`), and resizing (`mouse_resize.go`) independently. The
+coordinator alone edits shared `model.go`, the central router, and shared
+geometry after M1, applying small patches requested by subagents. M4 follows
+M2 and the earlier split-cursor work. Do not launch two writers for the same
+file or let each agent invent its own coordinates/state fields. Each handoff
+includes these documents, CONSTRAINTS.md, owned files, dependency status,
+focused tests, and an explicit prohibition on unrelated cursor refactoring.
+
+## Risks and verification
+
+Highest risks are off-by-one clicks after viewport reflow, wrong-side comment
+anchors, background interaction during overlays, and shared-file collisions.
+Mitigate with shared geometry, immutable target fixtures, routing precedence,
+and coordinator ownership. New mouse behavior must preserve keyboard state
+transitions, tab isolation, offline refusal, and explicit GitHub write actions.
+
+Test dimensions include 1-row terminals, 99/100 and 159/160 columns, odd split
+widths, min/max drag clamps, long guide descriptions, filtered/empty pickers,
+CJK/emoji/ANSI text, horizontal scrolling, comment/reply cards, and resize/tab
+changes between press and release. Test zero submit/generate/save calls on
+selection. Run `go test ./internal/tui -count=1` per slice, then
+`./scripts/verify.sh` and `git diff --check` at integration. Existing unrelated
+failures must be reported without changing checks or marking them passed.
+
+A synthetic PTY test must send real SGR press/motion/release sequences and
+verify changed selection/divider position, continued keyboard input, and
+capture cleanup on exit. Program tests alone do not exercise the decoder.
+Human terminal usability verification remains required by CONSTRAINTS.md;
+inspect dragging, text-copy modifier behavior, and terminal/multiplexer handling.
+No real GitHub/provider requests are needed.
+
+### Investigation validation record
+
+Only `tasks/plan.md` and `tasks/todo.md` changed. `git diff --check` passed.
+The baseline command initially could not write the sandboxed default Go build
+cache. Retrying with `GOCACHE=/private/tmp/pr-review-mouse-go-cache go test
+./internal/tui -count=1` compiled but failed in
+`TestDescriptionViewKeepsGlobalActionsAndDisablesProgressCommentActions`:
+`fakeGitHub.Token` panicked with `no live network allowed` through the
+`guidedSession` fixture and `source.PinWithTiming`. The cause was not diagnosed
+in this planning task; do not claim the baseline suite is green or assume it
+is a mouse regression. No full verification or manual mouse test was run.
+
+
+### Implementation record (2026-09-26)
+
+Implemented shared geometry, centrally gated Bubble Tea mouse capture, picker
+and review selection, exact split-cell source targets, and divider dragging.
+No dependency was added. Shared model integration remained coordinator-owned;
+three subagents implemented picker, review, and resize handlers. Independent
+review identified inactive-tab reflow losing source-side identity; tab save now
+captures a semantic target/comment ID and restoration resolves it against the
+current projection. Regression tests cover both identities and Enter behavior.
+
+The existing split-cursor prerequisite was addressed only as needed for mouse
+selection: semantic per-tab targets and visible per-cell cursors. This does not
+claim completion of the separate earlier plan (including its P shortcut).
+
+The original fixture panic was avoided using bundled Git 2.53.0 via
+`PATH=/Users/steve/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/fallback:$PATH`.
+The exact Apple Git 2.39.5 incompatibility was not established. Verification
+uses `GOCACHE=/private/tmp/pr-review-mouse-go-cache`; local httptest listeners
+require sandbox escalation. Neither production source retrieval nor fixtures
+were weakened. Real SGR press/motion/release, continued keyboard navigation,
+and capture cleanup are covered by the compiled-binary PTY test.
+
+Human terminal/multiplexer usability, modifier-based text copying, and releasing
+outside the window remain manual acceptance checks. No live-service requests
+were made. Width remains workspace-local; the inner split divider is unchanged.
+
+Final automated result: `./scripts/verify.sh` passed with the environment above
+and local test-server access: `go vet ./...`, race-enabled full tests (including
+compiled-binary PTY mouse coverage), and `go build ./...`. `git diff --check`
+also passed. Independent review's required fix is resolved. Implementation and
+automated tasks are complete; the human usability checklist remains pending.
+
+
+### Landing integration with current main
+
+Main added bracket-key panel resizing while mouse support was in progress.
+Mouse dragging now shares main's `listWidthPreference` and width clamp:
+18-column rail minimum, 40-column detail minimum, per-review in-memory width.
+This supersedes this plan's earlier 20-column/half-width/workspace-wide proposal
+and preserves the existing keyboard feature and its tests. Semantic tab anchors
+continue to restore after terminal resize. Main's audit, dependency, and loading
+modal changes are retained. The integration adds a mixed keyboard/mouse and
+per-tab-width regression test and repeats full verification on the merged tree.
+
+Landing validation: full `./scripts/verify.sh` passed on the integrated main
+changes, including race tests and PTY coverage; `golangci-lint run ./...`
+reported zero issues. Independent merge review passed. Human terminal usability
+checks remain pending as recorded above.
+
+
 # Implementation Plan: SQLite Storage — Fresh Start
 
 Status: Completed on 2026-09-26 with Sol implementation agents.

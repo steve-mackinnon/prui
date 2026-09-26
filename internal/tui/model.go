@@ -84,6 +84,9 @@ type descriptionRenderCache struct {
 // reviewTabState is the reviewer-visible state that must travel with an open
 // review. Window dimensions and services remain shared by the workspace.
 type reviewTabState struct {
+	savedCursorTarget                                    *source.ReviewCommentTarget
+	savedCursorCommentID                                 int64
+	CursorTarget, GuideCursorTarget                      map[int]source.ReviewCommentTarget
 	Session                                              *review.Session
 	ContextView                                          reviewView
 	DescriptionScroll                                    int
@@ -172,6 +175,9 @@ const (
 )
 
 type Model struct {
+	CursorTarget, GuideCursorTarget map[int]source.ReviewCommentTarget
+	drag                            dividerDrag
+
 	Session                                              *review.Session
 	ContextView                                          reviewView
 	DescriptionScroll                                    int
@@ -342,6 +348,11 @@ func (m *Model) Init() tea.Cmd {
 	})
 }
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	defer func() {
+		if !m.mouseAvailable() {
+			m.cancelMouseDrag()
+		}
+	}()
 	switch v := msg.(type) {
 	case guidePathTick:
 		if v.generation != m.guidePathGeneration || !m.guidePathScrollEligible() {
@@ -404,6 +415,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.GuideScroll = map[int]int{}
 				m.Cursor = map[int]int{}
 				m.GuideCursor = map[int]int{}
+				m.CursorTarget, m.GuideCursorTarget = nil, nil
 				m.cursorActive = false
 				m.Stack = []page{pageReview}
 				m.Focus = paneList
@@ -552,7 +564,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	case Notice:
 		m.notice = string(v)
+	case tea.MouseMsg:
+		return m, m.mouseUpdate(v)
 	case tea.WindowSizeMsg:
+		m.cancelMouseDrag()
 		cursorTarget, cursorCommentID := m.cursorAnchor()
 		m.Width = max(1, v.Width)
 		m.Height = max(1, v.Height)
@@ -566,6 +581,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.ensureReplyEditorVisible()
 		return m, m.restartGuidePathScroll()
 	case tea.KeyPressMsg:
+		m.cancelMouseDrag()
 		pendingCenter := m.pendingCenter
 		m.pendingCenter = false
 		if m.Busy && v.String() == "esc" && m.cancelAction != nil {
@@ -849,8 +865,11 @@ func (m *Model) saveActiveReview() {
 	if m.activeTab < 0 || m.activeTab >= len(m.tabs) {
 		return
 	}
+	target, commentID := m.cursorAnchor()
 	m.tabs[m.activeTab].review = &reviewTabState{
+		savedCursorTarget: target, savedCursorCommentID: commentID,
 		Session: m.Session, ContextView: m.ContextView, DescriptionScroll: m.DescriptionScroll, descriptionCache: m.descriptionCache, Err: m.Err, Selected: m.Selected, Row: m.Row, Files: m.Files,
+		CursorTarget: m.CursorTarget, GuideCursorTarget: m.GuideCursorTarget,
 		collapsed: m.collapsed, Scroll: m.Scroll, GuideScroll: m.GuideScroll, Cursor: m.Cursor, GuideCursor: m.GuideCursor,
 		Horizontal: m.Horizontal, listWidthPreference: m.listWidthPreference, layout: m.layout, Inventory: m.Inventory, Focus: m.Focus, cursorActive: m.cursorActive,
 		guidePathOffset: m.guidePathOffset, guidePathPause: m.guidePathPause, guidePathGeneration: m.guidePathGeneration,
@@ -863,10 +882,12 @@ func (m *Model) saveActiveReview() {
 
 func (m *Model) restoreReviewTab(state *reviewTabState) {
 	m.pendingCenter = false
+	m.cancelMouseDrag()
 	if state == nil {
 		return
 	}
 	m.Session, m.ContextView, m.DescriptionScroll, m.descriptionCache, m.Err = state.Session, state.ContextView, state.DescriptionScroll, state.descriptionCache, state.Err
+	m.CursorTarget, m.GuideCursorTarget = state.CursorTarget, state.GuideCursorTarget
 	m.Selected, m.Row, m.Files = state.Selected, state.Row, state.Files
 	m.collapsed, m.Scroll, m.GuideScroll, m.Cursor, m.GuideCursor = state.collapsed, state.Scroll, state.GuideScroll, state.Cursor, state.GuideCursor
 	m.Horizontal, m.listWidthPreference, m.layout, m.Inventory, m.Focus = state.Horizontal, state.listWidthPreference, state.layout, state.Inventory, state.Focus
@@ -876,6 +897,7 @@ func (m *Model) restoreReviewTab(state *reviewTabState) {
 	m.ActionError, m.notice, m.loadingFrame = state.ActionError, state.notice, state.loadingFrame
 	m.Composer, m.Pending, m.ReviewForm, m.ReviewSubmitted, m.CommentMenu, m.Comments, m.CommentReactions, m.Viewer, m.commentGeneration = state.Composer, state.Pending, state.ReviewForm, state.ReviewSubmitted, state.CommentMenu, state.Comments, state.CommentReactions, state.Viewer, state.commentGeneration
 	m.editorCursorVisible, m.editorCursorGeneration = state.editorCursorVisible, state.editorCursorGeneration
+	m.restoreCursorAnchor(state.savedCursorTarget, state.savedCursorCommentID)
 }
 
 func (m *Model) selectedReviewView() reviewView {
@@ -886,6 +908,7 @@ func (m *Model) selectedReviewView() reviewView {
 }
 
 func (m *Model) cycleReviewView(delta int) {
+	m.cancelMouseDrag()
 	if m.activeTab < 0 || m.activeTab >= len(m.tabs) {
 		return
 	}
@@ -894,6 +917,7 @@ func (m *Model) cycleReviewView(delta int) {
 }
 
 func (m *Model) selectReviewView(view reviewView) {
+	m.cancelMouseDrag()
 	if m.activeTab < 0 || m.activeTab >= len(m.tabs) {
 		return
 	}
@@ -901,6 +925,7 @@ func (m *Model) selectReviewView(view reviewView) {
 }
 
 func (m *Model) push(p page) {
+	m.cancelMouseDrag()
 	if m.top() != p {
 		if p == pageHelp {
 			m.helpScroll = 0
@@ -909,6 +934,7 @@ func (m *Model) push(p page) {
 	}
 }
 func (m *Model) pop() {
+	m.cancelMouseDrag()
 	if len(m.Stack) > 1 {
 		m.Stack = m.Stack[:len(m.Stack)-1]
 	}
@@ -966,7 +992,7 @@ func (m *Model) openCommentComposer() tea.Cmd {
 	if cursor < 0 {
 		return nil
 	}
-	target := m.displayDetail()[cursor].target
+	target := m.selectedDiffTarget()
 	if target == nil || target.Path == "" || !utf8.ValidString(target.Path) {
 		return nil
 	}
@@ -1093,6 +1119,10 @@ func (m *Model) listWidth() int {
 	if width == 0 {
 		width = min(36, m.Width/3)
 	}
+	return m.clampListWidth(width)
+}
+
+func (m *Model) clampListWidth(width int) int {
 	return min(max(18, width), m.Width-3-40)
 }
 
@@ -1101,7 +1131,7 @@ func (m *Model) resizeList(delta int) {
 		return
 	}
 	target, commentID := m.cursorAnchor()
-	m.listWidthPreference = min(max(18, m.listWidth()+delta), m.Width-3-40)
+	m.listWidthPreference = m.clampListWidth(m.listWidth() + delta)
 	m.restoreCursorAnchor(target, commentID)
 	if m.diffLayout() != diffLayoutSideBySide {
 		m.cursorInViewport(1)
@@ -1544,6 +1574,7 @@ func (m *Model) cursorValue() (int, bool) {
 }
 
 func (m *Model) setCursor(line int) {
+	m.clearSelectedDiffTarget()
 	if guide, ok := m.activeGuide(); ok {
 		if m.GuideCursor == nil {
 			m.GuideCursor = map[int]int{}
@@ -1567,8 +1598,8 @@ func (m *Model) cursorAnchor() (*source.ReviewCommentTarget, int64) {
 		return nil, 0
 	}
 	line := m.displayDetail()[cursor]
-	if line.target != nil {
-		target := *line.target
+	if selected := m.selectedDiffTarget(); selected != nil {
+		target := *selected
 		return &target, line.commentID
 	}
 	return nil, line.commentID
@@ -1581,8 +1612,9 @@ func (m *Model) restoreCursorAnchor(target *source.ReviewCommentTarget, commentI
 		return
 	}
 	for i, line := range m.displayDetail() {
-		if target != nil && line.target != nil && *line.target == *target {
+		if target != nil && diffLineHasTarget(line, *target) {
 			m.setCursor(i)
+			m.setSelectedDiffTarget(target)
 			return
 		}
 		if target == nil && commentID > 0 && line.commentID == commentID {
@@ -1755,6 +1787,9 @@ func (m *Model) View() tea.View {
 	}
 	v := tea.NewView(strings.Join(lines, "\n"))
 	v.AltScreen = true
+	if m.mouseAvailable() {
+		v.MouseMode = tea.MouseModeCellMotion
+	}
 	return v
 }
 
@@ -1838,44 +1873,7 @@ func (m *Model) reviewViewForLayout(preferSideBySide bool) string {
 	}
 	header := m.reviewListTabs() + " · focus: " + focus + " · " + m.styleLine(headerClass, text)
 	bodyHeight := m.bodyHeight()
-	leftWidth := m.listWidth()
-	list := []listLine{}
-	var selectedRow int
-	switch {
-	case m.Inventory:
-		selectedRow = m.Selected
-		for i, u := range s.Inventory.Units {
-			marker := selectionMarker(i == m.Selected)
-			list = append(list, listLine{row: i, text: marker + pathLabel(s.Inventory.Files[s.UnitFiles[i]]) + " [" + string(u.Kind) + "]"})
-		}
-	case rows != nil:
-		selectedRow = max(0, min(len(rows)-1, m.Row))
-		list = guideList(s, rows, selectedRow, leftWidth, m.Focus == paneList, m.guidePathOffset)
-	case !m.Files && !m.Inventory:
-		list = append(list, listLine{row: -1, text: "No guide yet. Press g to generate."})
-	default:
-		selectedRow = s.UnitFiles[m.Selected]
-		for i, f := range s.Inventory.Files {
-			marker := selectionMarker(i == selectedRow)
-			prefix := marker + readMarker(s, f.ID)
-			path := pathLabel(f)
-			width := leftWidth - visibleWidth(prefix)
-			if i == selectedRow && m.Focus == paneList && visibleWidth(path) > width {
-				path = ansi.Cut(path, m.guidePathOffset, m.guidePathOffset+max(0, width))
-			} else {
-				path = middleTruncate(path, width)
-			}
-			list = append(list, listLine{row: i, text: prefix + path})
-		}
-	}
-	selectedLine := firstDisplayLine(list, selectedRow)
-	contextEnd := selectedLine + 1
-	for contextEnd < len(list) && list[contextEnd].row < 0 {
-		contextEnd++
-	}
-	// Keep the selection and its explanation together when navigating down.
-	start := max(0, min(selectedLine, contextEnd-bodyHeight))
-	list = list[start:min(len(list), start+bodyHeight)]
+	list, selectedRow := m.reviewListPresentation()
 	detail := m.detail()
 	if useSideBySide {
 		if m.sideBySideEnabled() {
@@ -1895,6 +1893,9 @@ func (m *Model) reviewViewForLayout(preferSideBySide bool) string {
 			marker = cursorMarker(offset+i == m.cursor())
 		}
 		if useSideBySide {
+			if line.sideBySide != nil && line.sideBySide.full == nil {
+				marker = ""
+			}
 			detail[i].Text = marker + line.Text
 			if line.commentID > 0 && offset+i == m.cursor() {
 				detail[i].Class = selectedClass(true)
@@ -1970,23 +1971,23 @@ func (m *Model) knownPRTitle(identity source.Identity) string {
 }
 
 func (m *Model) reviewListTabs() string {
-	file, guide := "File (F)", "Guide (G)"
+	labels := m.reviewTabLabels()
+	selected := 1
 	if m.Files || m.Inventory {
-		file = m.styleLine(selectedClass(m.Focus == paneList), "["+file+"]")
-	} else {
-		guide = m.styleLine(selectedClass(m.Focus == paneList), "["+guide+"]")
+		selected = 0
 	}
-	return file + "  " + guide
+	labels[selected] = m.styleLine(selectedClass(m.Focus == paneList), labels[selected])
+	return strings.Join(labels, "  ")
 }
 
 func (m *Model) contextViewTabs() string {
-	tabs := []string{"Diff [1]", "Description [2]", "Commits [3]"}
+	tabs := m.contextTabLabels()
 	for i, tab := range tabs {
+		class := classTitle
 		if reviewView(i) == m.selectedReviewView() {
-			tabs[i] = m.styleLine(selectedClass(true), "› "+tab)
-		} else {
-			tabs[i] = m.styleLine(classTitle, "  "+tab)
+			class = selectedClass(true)
 		}
+		tabs[i] = m.styleLine(class, tab)
 	}
 	return strings.Join(tabs, "  ")
 }

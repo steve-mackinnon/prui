@@ -130,7 +130,7 @@ func (m *Model) healthHelpView() string {
 			text += "\n! Action failed: " + Escape(m.ActionError.Error())
 		}
 	}
-	text += "\n\n" + renderHealth() + "\n\nControls and invalid bytes escaped. No mouse capture.\nReading progress is local, not GitHub approval.\nGuides interpret the diff; the raw inventory remains the complete source view.\nMarking any portion of a file marks its whole slice, under every guide.\nEvidence is pinned, bounded, and omissions are reported. Analysis is optional and consent-bound."
+	text += "\n\n" + renderHealth() + "\n\nControls and invalid bytes escaped. Mouse selects; Enter activates.\nReading progress is local, not GitHub approval.\nGuides interpret the diff; the raw inventory remains the complete source view.\nMarking any portion of a file marks its whole slice, under every guide.\nEvidence is pinned, bounded, and omissions are reported. Analysis is optional and consent-bound."
 	if m.store != nil && m.Session != nil {
 		text += "\nStorage: " + Escape(m.store.Path()) + "\nSession: " + Escape(m.Session.ID)
 	}
