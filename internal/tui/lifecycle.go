@@ -116,14 +116,29 @@ type PullRequestOpenResult struct {
 	Err      error
 }
 
+// PullRequestRefreshRequest contains only immutable values, never live UI state.
+type PullRequestRefreshRequest struct {
+	Metadata source.Metadata
+	Checkout string
+}
+
+// PullRequestFreshness is metadata for the existing comparison, or a new frozen
+// session when the revision changed. Workers never persist existing progress.
+type PullRequestFreshness struct {
+	Status  session.RevisionStatus
+	Session *review.Session
+}
+
 // PullRequestRefreshResult updates a review that was initially shown from a
 // local frozen snapshot. It is intentionally separate from opening so the
 // revision check never blocks the review surface.
 type PullRequestRefreshResult struct {
-	Target    int
-	SessionID string
-	Session   *review.Session
-	Err       error
+	Generation uint64
+	Foreground bool
+	Target     int
+	SessionID  string
+	Freshness  PullRequestFreshness
+	Err        error
 }
 
 type switcherResult struct {
@@ -151,14 +166,17 @@ func (m *Model) refreshOpenedPullRequest(target int, opened *review.Session) tea
 	if m.refreshPullRequest == nil || opened == nil || opened.RevisionStatus != session.Unchecked {
 		return nil
 	}
+	m.tabs[target].freshnessGeneration++
+	generation := m.tabs[target].freshnessGeneration
 	refresh, sessionID := m.refreshPullRequest, opened.ID
+	request := PullRequestRefreshRequest{Metadata: opened.Inventory.Comparison.Metadata, Checkout: string(opened.Checkout)}
+	ctx, notify := m.ctx, m.notify
+	if notify == nil {
+		notify = func(string) {}
+	}
 	return func() tea.Msg {
-		notify := m.notify
-		if notify == nil {
-			notify = func(string) {}
-		}
-		s, err := refresh(m.ctx, opened, notify)
-		return PullRequestRefreshResult{Target: target, SessionID: sessionID, Session: s, Err: err}
+		freshness, err := refresh(ctx, request, notify)
+		return PullRequestRefreshResult{Target: target, SessionID: sessionID, Generation: generation, Freshness: freshness, Err: err}
 	}
 }
 
@@ -559,20 +577,36 @@ func (m *Model) lifecycleKey(k string) (tea.Cmd, bool) {
 		// marked, including the units this file contributes to other guides.
 		id := s.Slices[s.UnitFiles[m.Selected]].FileID
 		m.notice = "Saving local reading progress..."
-		return m.start(func() tea.Msg {
-			err := review.Mark(m.store, &s, id, !slices.Contains(s.ReviewedSliceIDs, id))
-			return ActionResult{Session: &s, Err: err}
-		}), true
+		m.ActionError = review.Mark(m.store, m.Session, id, !slices.Contains(s.ReviewedSliceIDs, id))
+		m.notice = ""
+		return nil, true
 	case "r":
 		if m.reader == nil {
 			m.ActionError = errors.New("offline mode: metadata refresh is unavailable")
 			return nil, true
 		}
+		// Persist an unknown/failed check before cancellable work, on the owner.
+		s.RevisionStatus = session.CheckFailed
+		if err := m.store.Save(&s); err != nil {
+			m.ActionError = err
+			return nil, true
+		}
+		m.Session.State = s.State
+		target := m.activeTab
+		reader, metadata := m.reader, s.Inventory.Comparison.Metadata
 		m.notice = "Checking GitHub metadata only; source stays local..."
 		ctx := m.beginAction()
+		generation := m.tabs[target].freshnessGeneration
 		return m.start(func() tea.Msg {
-			err := review.Refresh(ctx, m.store, &s, m.reader)
-			return ActionResult{Session: &s, Err: err}
+			current, err := reader.Metadata(ctx, metadata.Identity)
+			status := session.CheckFailed
+			if err == nil {
+				status = session.Stale
+				if source.SamePinnedRevision(current, metadata) {
+					status = session.Current
+				}
+			}
+			return PullRequestRefreshResult{Target: target, SessionID: s.ID, Generation: generation, Foreground: true, Freshness: PullRequestFreshness{Status: status}, Err: ctx.Err()}
 		}), true
 	case "c":
 		if m.readComments == nil {
@@ -617,7 +651,7 @@ func (m *Model) guideConsentKey(k string) tea.Cmd {
 			return nil
 		}
 		m.pop()
-		m.notice = "Sending bounded pinned source and evidence to OpenAI..."
+		m.notice = "Sending bounded pinned source and evidence to " + Escape(m.guideRecipient()) + "..."
 		ctx := m.beginAction()
 		s := *m.Session
 		return m.start(func() tea.Msg {

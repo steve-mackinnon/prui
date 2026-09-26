@@ -1315,12 +1315,12 @@ drag lifecycle through the established geometry/dispatch contracts.
 
 Acceptance criteria:
 - [x] Press on the three-column divider starts drag; motion adjusts effective
-  width with preserved grab offset and proposed 20-column rail/40-column detail
-  minimums plus half-usable-width rail cap. Default widths stay unchanged until
+  width with preserved grab offset and main’s shared 18-column rail/40-column detail
+  minimums. Default widths stay unchanged until
   dragged. Release ends drag without selecting/activating an item.
 - [x] No drag exists below 100 columns or outside Changes. Resize, keyboard,
   page/tab/view changes, loading/editor entry, stale fresh presses, and lost-left
-  motion cancel drag. Requested width survives narrow mode and tab switches
+  motion cancel drag. Requested width survives narrow mode and is saved per review
   in memory, never persisted. The inner split divider is unchanged.
 - [x] Reflow preserves semantic selection and progress, clamps offsets,
   maintains editor visibility, and refreshes guide wrapping/path scrolling.

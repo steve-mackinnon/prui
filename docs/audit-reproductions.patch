@@ -1,0 +1,83 @@
+--- /dev/null
++++ b/internal/guide/audit_probe_test.go
+@@ -0,0 +1,17 @@
++package guide
++
++import (
++	reviewcontext "pr-review/internal/context"
++	"pr-review/internal/inventory"
++	"pr-review/internal/privacy"
++	"testing"
++)
++
++func TestAuditJSONCredential(t *testing.T) {
++	b := &builder{}
++	id := b.unit("config.json", "@@ -0,0 +1 @@\n+{\"api_key\": \"synthetic-value\"}\n", inventory.TextHunk)
++	in := InputFrom(b.build(), reviewcontext.ContextBundle{}, privacy.Policy{}, Defaults)
++	if sent(in, id) {
++		t.Fatal("JSON api_key reached upload input")
++	}
++}
+--- /dev/null
++++ b/internal/source/audit_probe_test.go
+@@ -0,0 +1,17 @@
++package source
++
++import (
++	"context"
++	"strings"
++	"testing"
++)
++
++func TestAuditFileCommentDoesNotHideLineComments(t *testing.T) {
++	sha := strings.Repeat("a", 40)
++	payload := `[{"id":1,"body":"file comment","commit_id":"` + sha + `","path":"a.go","subject_type":"file","line":null,"side":"RIGHT","user":{"login":"alice"}},{"id":2,"body":"line comment","commit_id":"` + sha + `","path":"a.go","line":1,"side":"RIGHT","user":{"login":"alice"}}]`
++	g := GH{Limits: Defaults(), Runner: listRunner(func(context.Context, Request) ([]byte, error) { return []byte(payload), nil })}
++	comments, err := g.ListReviewComments(context.Background(), Identity{Repository: "owner/repo", Number: 1})
++	if err != nil || len(comments) != 1 {
++		t.Fatalf("supported line comment lost: comments=%d err=%v", len(comments), err)
++	}
++}
+--- /dev/null
++++ b/cmd/pr-review/audit_probe_test.go
+@@ -0,0 +1,40 @@
++package main
++
++import (
++	"context"
++	"pr-review/internal/session"
++	"pr-review/internal/source"
++	"pr-review/internal/tui"
++	"runtime"
++	"testing"
++)
++
++func TestAuditDescriptionEditAllowsComment(t *testing.T) {
++	app, saved := wiringFixture(t)
++	frozen := saved.Inventory.Comparison.Metadata
++	app.gh.(*fixtureGH).value.Description = "edited description"
++	_, err := app.submitReviewComment(context.Background(), tui.CommentSubmission{Metadata: frozen, Comment: source.ReviewComment{Body: "hello", Target: source.ReviewCommentTarget{Identity: frozen.Identity, CommitID: frozen.HeadSHA, Path: "a", Side: "RIGHT", Line: 1}}})
++	if err != nil {
++		t.Fatal(err)
++	}
++}
++func TestAuditBackgroundRefreshRace(t *testing.T) {
++	app, saved := wiringFixture(t)
++	saved.RevisionStatus = session.Unchecked
++	done := make(chan error, 1)
++	go func() { _, err := app.refreshOpenedPullRequest(context.Background(), saved, nil); done <- err }()
++	for {
++		select {
++		case err := <-done:
++			if err != nil {
++				t.Fatal(err)
++			}
++			return
++		default:
++			if saved.RevisionStatus == session.Current {
++				runtime.Gosched()
++			}
++			runtime.Gosched()
++		}
++	}
++}

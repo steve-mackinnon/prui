@@ -15,8 +15,8 @@ func TestWorkspaceGeometryBounds(t *testing.T) {
 	if g.Rail != image.Rect(0, 3, 33, 22) || g.Divider != image.Rect(33, 3, 36, 22) || g.Detail != image.Rect(36, 3, 100, 22) {
 		t.Fatalf("geometry: %+v", g)
 	}
-	m.railWidth = 1000
-	if m.listWidth() != 48 || m.detailWidth() != 49 {
+	m.listWidthPreference = 1000
+	if m.listWidth() != 57 || m.detailWidth() != 40 {
 		t.Fatalf("clamp: %d %d", m.listWidth(), m.detailWidth())
 	}
 	m.Width = 99

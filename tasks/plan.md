@@ -957,3 +957,20 @@ and local test-server access: `go vet ./...`, race-enabled full tests (including
 compiled-binary PTY mouse coverage), and `go build ./...`. `git diff --check`
 also passed. Independent review's required fix is resolved. Implementation and
 automated tasks are complete; the human usability checklist remains pending.
+
+
+### Landing integration with current main
+
+Main added bracket-key panel resizing while mouse support was in progress.
+Mouse dragging now shares main's `listWidthPreference` and width clamp:
+18-column rail minimum, 40-column detail minimum, per-review in-memory width.
+This supersedes this plan's earlier 20-column/half-width/workspace-wide proposal
+and preserves the existing keyboard feature and its tests. Semantic tab anchors
+continue to restore after terminal resize. Main's audit, dependency, and loading
+modal changes are retained. The integration adds a mixed keyboard/mouse and
+per-tab-width regression test and repeats full verification on the merged tree.
+
+Landing validation: full `./scripts/verify.sh` passed on the integrated main
+changes, including race tests and PTY coverage; `golangci-lint run ./...`
+reported zero issues. Independent merge review passed. Human terminal usability
+checks remain pending as recorded above.

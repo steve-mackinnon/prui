@@ -48,12 +48,12 @@ func (m *Model) mouseResize(msg tea.MouseMsg) (tea.Cmd, bool) {
 			m.cancelMouseDrag()
 			return nil, true
 		}
-		width := max(20, min(event.X-m.drag.grabOffset, min((m.Width-3)/2, m.Width-3-40)))
+		width := m.clampListWidth(event.X - m.drag.grabOffset)
 		if width == m.listWidth() {
 			return nil, true
 		}
 		target, commentID := m.cursorAnchor()
-		m.railWidth = width
+		m.listWidthPreference = width
 		m.restoreCursorAnchor(target, commentID)
 		m.setOffset(m.clampOffset(m.offset()))
 		if m.cursorActive {

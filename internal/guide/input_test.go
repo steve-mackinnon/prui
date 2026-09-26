@@ -180,3 +180,127 @@ func TestInputDigestTracksMaterial(t *testing.T) {
 		t.Fatal("different bounds kept the same digest")
 	}
 }
+
+func TestInputWithholdsCredentialPatchesAndEvidence(t *testing.T) {
+	for name, content := range map[string]string{
+		"JSON":           `{"api_key": "synthetic-value"}`,
+		"YAML":           `'access_token': 'synthetic-value'`,
+		"assignment":     `clientSecret := "synthetic-value"`,
+		"private key":    "-----BEGIN OPENSSH PRIVATE KEY-----",
+		"token material": `value = "ghp_012345678901234567890123456789012345"`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			b := &builder{}
+			metadata := b.unit("config.json", "", inventory.FileMetadata)
+			sibling := b.unit("config.json", "@@ -10 +10 @@\n+ordinary setting\n", inventory.TextHunk)
+			blocked := b.unit("config.json", "@@ -0,0 +1 @@\n+"+content+"\n", inventory.TextHunk)
+			allowed := b.unit("main.go", "@@ -0,0 +1 @@\n+func main() {}\n", inventory.TextHunk)
+			c := reviewcontext.ContextBundle{Evidence: []reviewcontext.Evidence{
+				{EvidenceID: "blocked", Path: []byte("settings.yml"), Excerpt: []byte(content)},
+				{EvidenceID: "allowed", Path: []byte("README.md"), Excerpt: []byte("Configure your API key.")},
+			}}
+			in := InputFrom(b.build(), c, privacy.Policy{}, Defaults)
+			if sent(in, blocked) || sent(in, metadata) || sent(in, sibling) || !sent(in, allowed) || strings.Contains(material(in), content) {
+				t.Fatal("request did not withhold only credential material")
+			}
+			if len(in.Evidence) != 1 || in.Evidence[0].EvidenceID != "allowed" {
+				t.Fatal("evidence not filtered at upload boundary")
+			}
+			if withheldFor(in, "config.json") != "credential-like content" || len(in.Omissions) != 1 || in.Omissions[0].Reason != "credential-like content" {
+				t.Fatal("withheld content not recorded")
+			}
+		})
+	}
+}
+
+func TestInputPrivacyExclusionCoversWholeFileAndEvidence(t *testing.T) {
+	for _, credentialInEvidence := range []bool{false, true} {
+		t.Run(fmt.Sprint(credentialInEvidence), func(t *testing.T) {
+			b := &builder{}
+			b.unit("config.json", "", inventory.FileMetadata)
+			b.unit("config.json", "@@ -1 +1 @@\n+ordinary setting\n", inventory.TextHunk)
+			secret := `{"password": "synthetic-value"}`
+			c := reviewcontext.ContextBundle{Evidence: []reviewcontext.Evidence{
+				{EvidenceID: "ordinary", Path: []byte("config.json"), Excerpt: []byte("ordinary setting")},
+			}}
+			if credentialInEvidence {
+				c.Evidence = append(c.Evidence, reviewcontext.Evidence{EvidenceID: "credential", Path: []byte("config.json"), Excerpt: []byte(secret)})
+			} else {
+				b.unit("config.json", "+"+secret, inventory.TextHunk)
+			}
+			in := InputFrom(b.build(), c, privacy.Policy{}, Defaults)
+			if len(in.Units) != 0 || len(in.Evidence) != 0 {
+				t.Fatal("withheld file still represented in provider input")
+			}
+			if len(in.Withheld) != len(b.inv.Units) || len(in.Omissions) != len(c.Evidence) {
+				t.Fatal("privacy omissions not accounted for")
+			}
+		})
+	}
+}
+
+func TestInputPrivacyExclusionCoversRenameEvidenceAliases(t *testing.T) {
+	b := &builder{}
+	b.unit("new-config.json", "", inventory.FileMetadata)
+	b.unit("new-config.json", `+{"api_key": "synthetic-value"}`, inventory.TextHunk)
+	inv := b.build()
+	inv.Files[0].OldPath = []byte("old-config.json")
+	inv.Files[0].Status = "R"
+	c := reviewcontext.ContextBundle{Evidence: []reviewcontext.Evidence{
+		{EvidenceID: "old", Path: []byte("old-config.json"), Excerpt: []byte("ordinary setting")},
+		{EvidenceID: "new", Path: []byte("new-config.json"), Excerpt: []byte("ordinary setting")},
+	}}
+	in := InputFrom(inv, c, privacy.Policy{}, Defaults)
+	if len(in.Units) != 0 || len(in.Evidence) != 0 || len(in.Omissions) != 2 {
+		t.Fatal("excluded rename aliases leaked through evidence")
+	}
+}
+
+func TestInputPrivacyExclusionPropagatesAcrossSharedRenamePaths(t *testing.T) {
+	b := &builder{}
+	b.unit("b.json", "", inventory.FileMetadata)
+	b.unit("b.json", `+{"api_key": "synthetic-value"}`, inventory.TextHunk)
+	b.unit("c.json", "+ordinary setting", inventory.TextHunk)
+	b.unit("a.json", "+ordinary replacement", inventory.TextHunk)
+	inv := b.build()
+	inv.Files[0].OldPath = []byte("a.json")
+	inv.Files[0].Status = "R"
+	inv.Files[1].OldPath = []byte("b.json")
+	inv.Files[1].Status = "R"
+	inv.Files[2].OldPath = nil
+	inv.Files[2].Status = "A"
+	c := reviewcontext.ContextBundle{Evidence: []reviewcontext.Evidence{
+		{EvidenceID: "a", Path: []byte("a.json"), Excerpt: []byte("ordinary setting")},
+		{EvidenceID: "b", Path: []byte("b.json"), Excerpt: []byte("ordinary setting")},
+		{EvidenceID: "c", Path: []byte("c.json"), Excerpt: []byte("ordinary setting")},
+	}}
+	in := InputFrom(inv, c, privacy.Policy{}, Defaults)
+	if len(in.Units) != 0 || len(in.Evidence) != 0 {
+		t.Fatal("shared rename alias leaked through another file or evidence")
+	}
+	if len(in.Withheld) != len(inv.Units) || len(in.Omissions) != len(c.Evidence) {
+		t.Fatal("shared-path omissions were not accounted for")
+	}
+}
+
+func TestInputHonorsPrivacyOmissionsFromFullBlobRetrieval(t *testing.T) {
+	for _, reason := range []string{"credential-like content", "credential-like filename", "binary content", "user exclusion: config.json", "excerpt byte budget exhausted"} {
+		t.Run(reason, func(t *testing.T) {
+			b := &builder{}
+			b.unit("config.json", "", inventory.FileMetadata)
+			b.unit("config.json", "+ordinary setting", inventory.TextHunk)
+			c := reviewcontext.ContextBundle{
+				OmittedPaths: []reviewcontext.Omitted{{Path: []byte("config.json"), Reason: reason}},
+				Evidence:     []reviewcontext.Evidence{{EvidenceID: "ordinary", Path: []byte("config.json"), Excerpt: []byte("ordinary setting")}},
+			}
+			in := InputFrom(b.build(), c, privacy.Policy{}, Defaults)
+			if reason == "excerpt byte budget exhausted" {
+				if len(in.Units) != 2 || len(in.Evidence) != 1 {
+					t.Fatal("retrieval budget omission excluded eligible source")
+				}
+			} else if len(in.Units) != 0 || len(in.Evidence) != 0 {
+				t.Fatal("full-blob privacy omission did not exclude file")
+			}
+		})
+	}
+}

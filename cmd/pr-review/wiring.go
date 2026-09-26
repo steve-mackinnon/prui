@@ -51,7 +51,16 @@ func (a *application) model(ctx context.Context, o options) *tui.Model {
 	if o.Command == "prs" || o.Command == "current" || o.Command == "open" {
 		m.SetPullRequestRefresh(a.refreshOpenedPullRequest)
 	}
-	m.SetGuideLifecycle(a.requestGuide)
+	// Capture the destination shown by consent for the lifetime of this model.
+	endpoint := os.Getenv("OPENAI_BASE_URL")
+	guideApp := *a
+	if guideApp.newAnalyzer == nil {
+		guideApp.newAnalyzer = func() (guide.Analyzer, error) {
+			return guide.NewOpenAI(guide.OpenAIOptions{APIKey: os.Getenv("OPENAI_API_KEY"), Endpoint: endpoint})
+		}
+	}
+	m.SetGuideDestination(endpoint)
+	m.SetGuideLifecycle(guideApp.requestGuide)
 	m.SetCommentSubmitter(a.submitReviewComment)
 	m.SetReviewSubmitter(a.submitPullRequestReview)
 	m.SetCommentActionSubmitter(a.submitReviewCommentAction)
@@ -89,7 +98,7 @@ func (a *application) requestGuide(ctx context.Context, original *review.Session
 		return nil, err
 	}
 	if notify != nil {
-		notify("Creating OpenAI analyzer for this confirmed guide request...")
+		notify("Creating analyzer for this confirmed guide request...")
 	}
 	analyzer, err := a.createGuideAnalyzer()
 	if err != nil {

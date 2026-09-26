@@ -80,7 +80,7 @@ func (a *application) submitReviewComment(ctx context.Context, submission tui.Co
 	if err != nil {
 		return source.ReviewComment{}, err
 	}
-	if current != submission.Metadata {
+	if !source.SamePinnedRevision(current, submission.Metadata) {
 		return source.ReviewComment{}, errors.New("pull request changed; open a new comparison before posting a comment")
 	}
 	return commenter.CreateReviewComment(ctx, submission.Comment)
@@ -108,7 +108,7 @@ func (a *application) submitPullRequestReview(ctx context.Context, submission tu
 	if err != nil {
 		return err
 	}
-	if current.Identity != frozen.Identity || current.BaseRepository != frozen.BaseRepository || current.HeadRepository != frozen.HeadRepository || current.BaseSHA != frozen.BaseSHA || current.HeadSHA != frozen.HeadSHA {
+	if !source.SamePinnedRevision(current, frozen) {
 		return errors.New("pull request changed; open a new comparison before submitting a review")
 	}
 	return writer.CreatePullRequestReview(ctx, review)
@@ -159,7 +159,7 @@ func (a *application) submitReviewCommentAction(ctx context.Context, action tui.
 	if err != nil {
 		return source.ReviewComment{}, source.ReviewCommentReaction{}, err
 	}
-	if current != action.Metadata {
+	if !source.SamePinnedRevision(current, action.Metadata) {
 		return source.ReviewComment{}, source.ReviewCommentReaction{}, errors.New("pull request changed; open a new comparison before changing a comment")
 	}
 	if action.Delete {
@@ -422,38 +422,31 @@ func (a *application) cachedPullRequestSnapshot(ctx context.Context, checkout st
 // refreshOpenedPullRequest checks an immediately opened frozen session. A
 // changed immutable comparison is rebuilt; an unchanged one simply becomes
 // current without refetching Git objects.
-func (a *application) refreshOpenedPullRequest(ctx context.Context, opened *review.Session, notify func(string)) (*review.Session, error) {
-	if opened == nil {
-		return nil, errors.New("opened pull request session is required")
-	}
+func (a *application) refreshOpenedPullRequest(ctx context.Context, opened tui.PullRequestRefreshRequest, notify func(string)) (tui.PullRequestFreshness, error) {
 	if notify != nil {
 		notify("Checking current PR revision in the background...")
 	}
-	metadata, err := a.Metadata(ctx, opened.Inventory.Comparison.Metadata.Identity)
+	metadata, err := a.Metadata(ctx, opened.Metadata.Identity)
+	if ctx.Err() != nil {
+		return tui.PullRequestFreshness{}, ctx.Err()
+	}
 	if err != nil {
-		opened.RevisionStatus = session.CheckFailed
-		if saveErr := a.store.Save(opened); saveErr != nil {
-			return nil, saveErr
-		}
 		if notify != nil {
 			notify("Could not check PR freshness; showing the local frozen comparison.")
 		}
-		return opened, nil
+		return tui.PullRequestFreshness{Status: session.CheckFailed}, nil
 	}
-	if source.SamePinnedRevision(metadata, opened.Inventory.Comparison.Metadata) {
-		opened.RevisionStatus = session.Current
-		if err := a.store.Save(opened); err != nil {
-			return nil, err
-		}
+	if source.SamePinnedRevision(metadata, opened.Metadata) {
 		if notify != nil {
 			notify("Local frozen comparison is current.")
 		}
-		return opened, nil
+		return tui.PullRequestFreshness{Status: session.Current}, nil
 	}
 	if notify != nil {
 		notify("PR changed; fetching the new pinned comparison...")
 	}
-	return a.open(ctx, string(opened.Checkout), opened.Inventory.Comparison.Metadata.Identity, notify)
+	fresh, err := a.open(ctx, opened.Checkout, opened.Metadata.Identity, notify)
+	return tui.PullRequestFreshness{Session: fresh}, err
 }
 
 // openFromPullRequestList reuses a saved guide when present. Generation is

@@ -480,3 +480,119 @@ func TestLifecyclePRListOpenRetriesUnavailableGuides(t *testing.T) {
 		t.Fatalf("PR-list analyzer calls = %d, want none", calls)
 	}
 }
+
+func TestBackgroundRefreshDoesNotMutateOrPersistOpenedState(t *testing.T) {
+	app, saved := wiringFixture(t)
+	before := saved.State
+	if _, err := app.refreshOpenedPullRequest(context.Background(), tui.PullRequestRefreshRequest{Metadata: saved.Inventory.Comparison.Metadata, Checkout: string(saved.Checkout)}, nil); err != nil {
+		t.Fatal(err)
+	}
+	if saved.RevisionStatus != before.RevisionStatus || saved.Generation != before.Generation {
+		t.Fatal("background refresh mutated UI-owned state")
+	}
+	reopened, err := app.store.Load(saved.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reopened.Generation != before.Generation {
+		t.Fatal("background refresh persisted stale progress")
+	}
+}
+
+func TestSubmitCommentAllowsDescriptionOnlyChange(t *testing.T) {
+	app, saved := wiringFixture(t)
+	frozen := saved.Inventory.Comparison.Metadata
+	app.gh.(*fixtureGH).value.Description = "edited description"
+	comment := source.ReviewComment{Target: source.ReviewCommentTarget{Identity: frozen.Identity, CommitID: frozen.HeadSHA, Path: "a", Side: "RIGHT", Line: 1}, Body: "body"}
+	if _, err := app.submitReviewComment(context.Background(), tui.CommentSubmission{Metadata: frozen, Comment: comment}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+type actionFixtureGH struct {
+	*fixtureGH
+	comment source.ReviewComment
+	writes  int
+}
+
+func (g *actionFixtureGH) Viewer(context.Context) (source.Viewer, error) {
+	return source.Viewer{Login: g.comment.Author}, nil
+}
+func (g *actionFixtureGH) ReplyToReviewComment(context.Context, source.Identity, int64, string) (source.ReviewComment, error) {
+	g.writes++
+	return g.comment, nil
+}
+func (g *actionFixtureGH) DeleteReviewComment(context.Context, source.Identity, int64) error {
+	g.writes++
+	return nil
+}
+func (g *actionFixtureGH) AddReviewCommentReaction(context.Context, source.Identity, int64, string) (source.ReviewCommentReaction, error) {
+	g.writes++
+	return source.ReviewCommentReaction{}, nil
+}
+
+func TestCommentActionPreflightUsesPinnedRevision(t *testing.T) {
+	app, saved := wiringFixture(t)
+	frozen := saved.Inventory.Comparison.Metadata
+	gh := &actionFixtureGH{fixtureGH: app.gh.(*fixtureGH), comment: source.ReviewComment{ID: 42, Author: "reviewer", Target: source.ReviewCommentTarget{Identity: frozen.Identity, CommitID: frozen.HeadSHA, Path: "a", Side: "RIGHT", Line: 1}, Body: "existing"}}
+	app.gh = gh
+	for _, kind := range []string{"reply", "reaction", "delete"} {
+		for _, change := range []string{"description", "identity", "base repository", "head repository", "base SHA", "head SHA"} {
+			t.Run(kind+"/"+change, func(t *testing.T) {
+				gh.value = frozen
+				gh.writes = 0
+				switch change {
+				case "description":
+					gh.value.Description = "edited"
+				case "identity":
+					gh.value.Identity.Number++
+				case "base repository":
+					gh.value.BaseRepository = "other/repo"
+				case "head repository":
+					gh.value.HeadRepository = "other/repo"
+				case "base SHA":
+					gh.value.BaseSHA = strings.Repeat("a", 40)
+				case "head SHA":
+					gh.value.HeadSHA = strings.Repeat("b", 40)
+				}
+				action := tui.CommentAction{Metadata: frozen, Comment: gh.comment}
+				switch kind {
+				case "reply":
+					action.Body = "reply"
+				case "reaction":
+					action.Reaction = "+1"
+				case "delete":
+					action.Delete = true
+				}
+				_, _, err := app.submitReviewCommentAction(context.Background(), action)
+				if change == "description" {
+					if err != nil || gh.writes != 1 {
+						t.Fatalf("description edit blocked action: %v (%d writes)", err, gh.writes)
+					}
+				} else if err == nil || gh.writes != 0 {
+					t.Fatalf("revision mismatch allowed action: %v (%d writes)", err, gh.writes)
+				}
+			})
+		}
+	}
+}
+
+func TestBackgroundRefreshFailureReturnsFreshnessWithoutWriting(t *testing.T) {
+	app, saved := wiringFixture(t)
+	app.gh.(*fixtureGH).err = errors.New("metadata unavailable")
+	request := tui.PullRequestRefreshRequest{Metadata: saved.Inventory.Comparison.Metadata, Checkout: string(saved.Checkout)}
+	before := saved.Generation
+	result, err := app.refreshOpenedPullRequest(context.Background(), request, nil)
+	if err != nil || result.Status != session.CheckFailed || result.Session != nil {
+		t.Fatalf("failure freshness = %#v, %v", result, err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := app.refreshOpenedPullRequest(ctx, request, nil); !errors.Is(err, context.Canceled) {
+		t.Fatal("canceled refresh returned usable result", err)
+	}
+	reopened, err := app.store.Load(saved.ID)
+	if err != nil || reopened.Generation != before {
+		t.Fatal("worker wrote existing state", err)
+	}
+}

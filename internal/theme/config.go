@@ -68,7 +68,8 @@ func invalidConfig(err error) error {
 // are normal and return exists=false. Any present but invalid file is returned
 // as an InvalidConfigError and must not be replaced by persistence.
 func LoadConfig(path string) (config Config, exists bool, err error) {
-	contents, err := os.ReadFile(path)
+	// The caller selects the global user configuration, never a reviewed path.
+	contents, err := os.ReadFile(filepath.Clean(path))
 	if errors.Is(err, os.ErrNotExist) {
 		return Config{}, false, nil
 	}
@@ -239,12 +240,12 @@ func writeConfigAtomically(path string, contents []byte, syncDirectory func(stri
 }
 
 func syncConfigDirectory(directory string) error {
-	dir, err := os.Open(directory)
+	// This is the parent of the caller-selected global configuration file.
+	dir, err := os.Open(filepath.Clean(directory))
 	if err != nil {
 		return err
 	}
-	defer dir.Close()
-	return dir.Sync()
+	return errors.Join(dir.Sync(), dir.Close())
 }
 
 func requireEOF(decoder *json.Decoder) error {

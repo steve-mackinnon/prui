@@ -12,6 +12,18 @@ Run the expanded static-analysis gate locally with:
 golangci-lint run ./...
 ```
 
+Check dependencies against the Go vulnerability database with the same pinned
+tool as CI:
+
+```sh
+go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 ./...
+```
+
+This check needs network access to the public vulnerability database. It analyzes
+the pinned dependency graph and fails on identified reachable vulnerabilities;
+it does not upload repository source. CI runs it as a separate `Vulnerabilities`
+job alongside lint and platform verification.
+
 CI installs the pinned GolangCI-Lint release and runs this check separately
 from the platform verification matrix. Its configuration deliberately focuses
 on correctness and bug detection; the full all-linters audit is not a merge

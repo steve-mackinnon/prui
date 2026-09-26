@@ -84,10 +84,11 @@ headers and footers:
 
 ### Review surface
 
-At width `>= 100`, render a two-pane workspace. The left rail is at most one
-third of the width and no more than 36 columns; the remainder belongs to the
-detail pane. The separator is visually quiet. The selected item and detail
-title agree on the active file/guide.
+At width `>= 100`, render a two-pane workspace. The left rail starts at one
+third of the width, capped at 36 columns; `[` and `]` adjust it in two-column
+steps between 18 columns and a width that leaves at least 40 columns for detail.
+The width preference belongs to the open review tab. The separator is visually
+quiet. The selected item and detail title agree on the active file/guide.
 
 At width `< 100`, render one active pane at a time. The section header names
 the current pane and selection; the bottom status bar remains visible. No
@@ -99,7 +100,8 @@ The active mode controls only the left-rail hierarchy:
 - **Files:** deterministic file plan.
 - **Inventory:** every raw review unit.
 
-No mode changes its existing keyboard behavior or progress model.
+Guide and file jumps use `{` and `}`; width adjustment uses `[` and `]`.
+Progress remains file-slice based.
 
 ### Status priority and compactness
 

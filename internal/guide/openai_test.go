@@ -338,3 +338,44 @@ func TestOpenAIPromptBoundsAndLabelsItsScope(t *testing.T) {
 		t.Fatal("withheld content appeared in the prompt body")
 	}
 }
+
+func TestOpenAIUploadOmitsCredentialMaterial(t *testing.T) {
+	b := &builder{}
+	allowed := b.unit("main.go", "@@ -0,0 +1 @@\n+func main() {}\n", inventory.TextHunk)
+	b.unit("config.json", "", inventory.FileMetadata)
+	b.unit("config.json", "@@ -10 +10 @@\n+ordinary setting\n", inventory.TextHunk)
+	b.unit("config.json", "@@ -1 +1 @@\n-{}\n+{\"api_key\": \"synthetic-json-value\"}\n", inventory.TextHunk)
+	b.unit("old-config.yml", "@@ -1 +0,0 @@\n-'password': 'synthetic-removed-value'\n", inventory.TextHunk)
+	c := reviewcontext.ContextBundle{Evidence: []reviewcontext.Evidence{
+		{EvidenceID: "e1", Path: []byte("settings.yml"), Excerpt: []byte("'access_token': 'synthetic-evidence-value'")},
+		{EvidenceID: "e2", Path: []byte("README.md"), Excerpt: []byte("ordinary documentation")},
+	}}
+	r := newRecorder(t, func(w http.ResponseWriter, _ []byte) { answer(w, oneGuide(allowed)) })
+	inv := b.build()
+	bundle := Analyze(context.Background(), r.analyzer(t, ""), inv, InputFrom(inv, c, privacy.Policy{}, Defaults))
+	if bundle.Status != Generated || len(r.requests) != 1 {
+		t.Fatal("expected one successful synthetic provider request")
+	}
+	body := string(r.requests[0])
+	for _, blocked := range []string{"synthetic-json-value", "synthetic-removed-value", "synthetic-evidence-value", "config.json", "old-config.yml", "settings.yml"} {
+		if strings.Contains(body, blocked) {
+			t.Fatal("withheld content or path reached provider")
+		}
+	}
+	if !strings.Contains(body, "func main()") || !strings.Contains(body, "ordinary documentation") {
+		t.Fatal("ordinary source or evidence did not reach provider")
+	}
+}
+
+func TestOpenAIPromptDoesNotExposeUserExclusionPatterns(t *testing.T) {
+	b := &builder{}
+	b.unit("sensitive-design.json", "", inventory.FileMetadata)
+	in := InputFrom(b.build(), reviewcontext.ContextBundle{}, privacy.Policy{Excluded: []string{"sensitive-design.json"}}, Defaults)
+	p := prompt(in)
+	if strings.Contains(p, "sensitive-design.json") || !strings.Contains(p, "user exclusion") {
+		t.Fatal("outgoing omission reason exposed the user exclusion pattern")
+	}
+	if len(in.Withheld) != 1 || in.Withheld[0].Reason != "user exclusion: sensitive-design.json" {
+		t.Fatal("local ledger lost its detailed omission reason")
+	}
+}

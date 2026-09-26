@@ -19,11 +19,11 @@ func TestMouseResizeGrabOffsetAndBounds(t *testing.T) {
 			t.Fatalf("width %d: grab offset lost: got %d want %d", width, m.listWidth(), original+5)
 		}
 		m.mouseResize(tea.MouseMotionMsg{X: 0, Y: d.Min.Y, Button: tea.MouseLeft})
-		if m.listWidth() != 20 {
+		if m.listWidth() != 18 {
 			t.Fatalf("minimum width = %d", m.listWidth())
 		}
 		m.mouseResize(tea.MouseMotionMsg{X: width - 1, Y: d.Min.Y, Button: tea.MouseLeft})
-		if m.listWidth() != min((width-3)/2, width-43) {
+		if m.listWidth() != width-43 {
 			t.Fatalf("maximum width = %d", m.listWidth())
 		}
 		_, handled = m.mouseResize(tea.MouseReleaseMsg{X: 0, Y: 0, Button: tea.MouseLeft})
@@ -111,12 +111,35 @@ func TestMouseResizeNarrowAndContextCancel(t *testing.T) {
 		}
 		m.mouseResize(tea.MouseClickMsg{X: 55, Y: d.Min.Y, Button: tea.MouseLeft})
 		m.mouseResize(tea.MouseMotionMsg{X: 25, Y: d.Min.Y, Button: tea.MouseLeft})
-		if m.railWidth != 55 {
+		if m.listWidthPreference != 55 {
 			t.Fatal("hidden divider changes preference")
 		}
 	}
 	m.ContextView = viewChanges
 	if m.listWidth() != 55 {
 		t.Fatal("width preference lost across narrow/context view")
+	}
+}
+
+func TestMouseAndKeyboardResizeShareTabPreference(t *testing.T) {
+	m := largeModel(screenSession(), 160, 24)
+	m.openReviewTab(m.Session)
+	d := m.workspaceGeometry().Divider
+	m.Update(tea.MouseClickMsg{Button: tea.MouseLeft, X: d.Min.X, Y: d.Min.Y})
+	m.Update(tea.MouseMotionMsg{Button: tea.MouseLeft, X: 60, Y: d.Min.Y})
+	m.Update(tea.MouseReleaseMsg{Button: tea.MouseLeft, X: 60, Y: d.Min.Y})
+	key(m, ']')
+	if m.listWidth() != 62 {
+		t.Fatalf("keyboard did not use dragged width: %d", m.listWidth())
+	}
+	other := screenSession()
+	other.Inventory.Comparison.Metadata.Identity.Number = 43
+	m.openReviewTab(other)
+	if m.listWidth() != 36 {
+		t.Fatal("width leaked to other review")
+	}
+	m.activateTab(0)
+	if m.listWidth() != 62 {
+		t.Fatal("width not restored")
 	}
 }

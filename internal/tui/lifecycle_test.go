@@ -3,6 +3,7 @@ package tui
 import (
 	"context"
 	"errors"
+	"fmt"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -444,16 +445,16 @@ func TestPullRequestRefreshKeepsCachedReviewInteractive(t *testing.T) {
 	release := make(chan struct{})
 	m := newModel(context.Background())
 	m.openReviewTab(cached)
-	m.SetPullRequestRefresh(func(ctx context.Context, opened *review.Session, _ func(string)) (*review.Session, error) {
-		if opened != cached {
-			t.Fatalf("opened session = %p, want cached %p", opened, cached)
+	m.SetPullRequestRefresh(func(ctx context.Context, opened PullRequestRefreshRequest, _ func(string)) (PullRequestFreshness, error) {
+		if opened.Metadata != cached.Inventory.Comparison.Metadata {
+			t.Fatal("wrong frozen metadata")
 		}
 		close(started)
 		select {
 		case <-release:
-			return &current, nil
+			return PullRequestFreshness{Status: current.RevisionStatus}, nil
 		case <-ctx.Done():
-			return nil, ctx.Err()
+			return PullRequestFreshness{}, ctx.Err()
 		}
 	})
 	defer m.Close()
@@ -470,7 +471,7 @@ func TestPullRequestRefreshKeepsCachedReviewInteractive(t *testing.T) {
 	}
 	close(release)
 	m.Update(<-done)
-	if m.Session != &current || m.Session.RevisionStatus != session.Current {
+	if m.Session != cached || m.Session.RevisionStatus != session.Current {
 		t.Fatalf("refreshed session = %#v, want current cached review", m.Session)
 	}
 }
@@ -549,5 +550,159 @@ func TestGuideConsentCancelsOrSwitchesToDerivedSession(t *testing.T) {
 	m.Update(cmd())
 	if calls != 1 || m.Session.ID == original.ID || m.Session.DerivedFrom != original.ID || len(m.Session.ReviewedSliceIDs) != 0 {
 		t.Fatal("confirmed guide generation did not switch to a new unread session")
+	}
+}
+
+func TestManualRefreshSupersedesPendingBackgroundRefresh(t *testing.T) {
+	store, saved := programStore(t)
+	m := newModel(context.Background())
+	defer m.Close()
+	m.openReviewTab(saved)
+	newer := saved.Inventory.Comparison.Metadata
+	newer.HeadSHA = strings.Repeat("f", 40)
+	m.SetLifecycle(store, fakeGitHub{newer}, nil)
+	m.SetPullRequestRefresh(func(context.Context, PullRequestRefreshRequest, func(string)) (PullRequestFreshness, error) {
+		return PullRequestFreshness{Status: session.Current}, nil
+	})
+	background := m.refreshOpenedPullRequest(0, saved)
+	action(t, m, 'r')
+	if m.Session.RevisionStatus != session.Stale {
+		t.Fatal("manual check did not detect changed revision")
+	}
+	m.Update(background())
+	if m.Session.RevisionStatus != session.Stale {
+		t.Fatal("older background result replaced newer manual check")
+	}
+	reopened, err := store.Load(saved.ID)
+	if err != nil || reopened.RevisionStatus != session.Stale {
+		t.Fatal("newer freshness was not durable", err)
+	}
+}
+
+func TestBackgroundRefreshIgnoresReplacedSessionAndCanceledModel(t *testing.T) {
+	for _, cancel := range []bool{false, true} {
+		t.Run(fmt.Sprint(cancel), func(t *testing.T) {
+			store, saved := programStore(t)
+			m := newModel(context.Background())
+			defer m.Close()
+			m.openReviewTab(saved)
+			m.SetLifecycle(store, nil, nil)
+			m.SetPullRequestRefresh(func(context.Context, PullRequestRefreshRequest, func(string)) (PullRequestFreshness, error) {
+				return PullRequestFreshness{Status: session.Current}, nil
+			})
+			background := m.refreshOpenedPullRequest(0, saved)
+			if cancel {
+				m.cancel()
+			} else {
+				replacement := *saved
+				replacement.ID = "replacement"
+				m.Session = &replacement
+			}
+			m.Update(background())
+			reopened, err := store.Load(saved.ID)
+			if err != nil || reopened.RevisionStatus != session.Unchecked {
+				t.Fatal("obsolete result persisted freshness", err)
+			}
+		})
+	}
+}
+
+func TestBackgroundReplacementCannotInterruptForegroundReviewAction(t *testing.T) {
+	for _, kind := range []string{"new comparison", "guide", "comment"} {
+		t.Run(kind, func(t *testing.T) {
+			store, saved := programStore(t)
+			m := newModel(context.Background())
+			defer m.Close()
+			m.openReviewTab(saved)
+			m.Loading = false
+			m.SetLifecycle(store, nil, nil)
+			replacement := *saved
+			replacement.ID = "replacement"
+			m.SetPullRequestRefresh(func(context.Context, PullRequestRefreshRequest, func(string)) (PullRequestFreshness, error) {
+				return PullRequestFreshness{Session: &replacement}, nil
+			})
+			background := m.refreshOpenedPullRequest(0, saved)
+			blocked := func(ctx context.Context, _ *review.Session, _ func(string)) (*review.Session, error) {
+				<-ctx.Done()
+				return nil, ctx.Err()
+			}
+			switch kind {
+			case "new comparison":
+				m.fresh = blocked
+				m.lifecycleKey("N")
+			case "guide":
+				m.generateGuide = blocked
+				m.push(pageGuideConsent)
+				m.guideConsentKey("enter")
+			case "comment":
+				m.Composer = &commentComposer{Draft: "keep draft", Target: source.ReviewCommentTarget{Path: "a", Line: 1, Side: "RIGHT"}}
+				m.submitComment = func(ctx context.Context, _ CommentSubmission) (source.ReviewComment, error) {
+					<-ctx.Done()
+					return source.ReviewComment{}, ctx.Err()
+				}
+				m.commentComposerKey(tea.KeyPressMsg{Code: tea.KeyEnter})
+			}
+			ctx := m.actionCtx
+			if ctx == nil || !m.Busy {
+				t.Fatal("foreground action not started")
+			}
+			m.Update(background())
+			if m.Session != saved || !m.Busy || m.actionCtx != ctx {
+				t.Fatal("background replacement interrupted foreground owner")
+			}
+			if kind == "comment" && (m.Composer == nil || m.Composer.Draft != "keep draft") {
+				t.Fatal("background discarded submitted draft")
+			}
+		})
+	}
+}
+
+func TestBackgroundReplacementPreservesUnsubmittedDrafts(t *testing.T) {
+	m := newModel(context.Background())
+	defer m.Close()
+	saved := largeSession(1, 1)
+	saved.ID = "saved"
+	saved.RevisionStatus = session.Unchecked
+	m.openReviewTab(saved)
+	replacement := *saved
+	replacement.ID = "replacement"
+	m.SetPullRequestRefresh(func(context.Context, PullRequestRefreshRequest, func(string)) (PullRequestFreshness, error) {
+		return PullRequestFreshness{Session: &replacement}, nil
+	})
+	background := m.refreshOpenedPullRequest(0, saved)
+	m.Composer = &commentComposer{Draft: "unsent"}
+	m.Pending = []source.ReviewComment{{Body: "queued"}}
+	m.Update(background())
+	if m.Session != saved || m.Composer == nil || m.Composer.Draft != "unsent" || len(m.Pending) != 1 {
+		t.Fatal("background discarded local drafts")
+	}
+	if m.Session.RevisionStatus != session.Stale {
+		t.Fatal("retained comparison must disclose changed revision")
+	}
+}
+
+func TestBackgroundReplacementKeepsInactiveTabDraftsAndPersistsStale(t *testing.T) {
+	store, saved := programStore(t)
+	m := newModel(context.Background())
+	defer m.Close()
+	m.openReviewTab(saved)
+	m.SetLifecycle(store, nil, nil)
+	replacement := *saved
+	replacement.ID = "replacement"
+	m.SetPullRequestRefresh(func(context.Context, PullRequestRefreshRequest, func(string)) (PullRequestFreshness, error) {
+		return PullRequestFreshness{Session: &replacement}, nil
+	})
+	background := m.refreshOpenedPullRequest(0, saved)
+	m.Pending = []source.ReviewComment{{Body: "queued"}}
+	other := largeSession(1, 1)
+	other.Inventory.Comparison.Metadata.Identity.Number = 99
+	m.openReviewTab(other)
+	m.Update(background())
+	if m.Session != other || m.tabs[0].review.Session != saved || len(m.tabs[0].review.Pending) != 1 {
+		t.Fatal("background changed active tab or discarded inactive draft")
+	}
+	reopened, err := store.Load(saved.ID)
+	if err != nil || reopened.RevisionStatus != session.Stale {
+		t.Fatal("retained comparison freshness not persisted", err)
 	}
 }

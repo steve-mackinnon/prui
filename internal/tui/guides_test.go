@@ -122,17 +122,17 @@ func TestGuideNavigation(t *testing.T) {
 		t.Fatalf("a file split across two sections is reachable from %d guides", len(guides))
 	}
 
-	// ]/[ move between guides.
+	// }/{ move between guides.
 	for m.Row > 0 {
 		key(m, 'p')
 	}
-	m.Update(tea.KeyPressMsg{Code: ']', Text: "]"})
+	m.Update(tea.KeyPressMsg{Code: '}', Text: "}"})
 	if rows[m.Row].kind != guideRow || rows[m.Row].guide != 1 {
-		t.Fatal("] did not move to the next guide")
+		t.Fatal("} did not move to the next guide")
 	}
-	m.Update(tea.KeyPressMsg{Code: '[', Text: "["})
+	m.Update(tea.KeyPressMsg{Code: '{', Text: "{"})
 	if rows[m.Row].kind != guideRow || rows[m.Row].guide != 0 {
-		t.Fatal("[ did not move to the previous guide")
+		t.Fatal("{ did not move to the previous guide")
 	}
 
 	// Collapsing must hide the subtree without losing the selected unit.
@@ -311,12 +311,12 @@ func TestGuideDetailAndScroll(t *testing.T) {
 		t.Fatal("J did not scroll the active guide")
 	}
 	firstOffset := m.GuideScroll[guide]
-	m.Update(tea.KeyPressMsg{Code: ']', Text: "]"})
+	m.Update(tea.KeyPressMsg{Code: '}', Text: "}"})
 	second := m.rows()[m.Row].guide
 	if m.GuideScroll[second] != 0 {
 		t.Fatal("next guide did not start at offset zero")
 	}
-	m.Update(tea.KeyPressMsg{Code: '[', Text: "["})
+	m.Update(tea.KeyPressMsg{Code: '{', Text: "{"})
 	if m.GuideScroll[guide] != firstOffset {
 		t.Fatalf("guide offset = %d, want restored %d", m.GuideScroll[guide], firstOffset)
 	}

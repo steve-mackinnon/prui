@@ -159,7 +159,7 @@ func TestThemePickerPersistenceFailureKeepsThemeAndShowsSafeFeedback(t *testing.
 	if m.ActionError == nil || strings.Contains(m.ActionError.Error(), "private config") {
 		t.Fatalf("failed save did not provide safe feedback: %v", m.ActionError)
 	}
-	if view := ansi.Strip(m.View().Content); !strings.Contains(view, "Theme selection was not saved") {
+	if view := ansi.Strip(m.View().Content); !strings.Contains(view, "theme selection was not saved") {
 		t.Fatalf("failed save feedback not visible:\n%s", view)
 	}
 }

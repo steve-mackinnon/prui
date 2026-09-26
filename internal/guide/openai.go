@@ -22,8 +22,8 @@ const (
 	// stated fallback rather than a local allowlist error.
 	DefaultModel = "gpt-5.6-terra"
 
-	// DefaultEndpoint is the provider origin. Only this host, or a loopback
-	// address for tests, may receive the request material.
+	// DefaultEndpoint is the default provider origin. An explicitly configured
+	// HTTPS endpoint may receive source and credentials instead.
 	DefaultEndpoint = "https://api.openai.com"
 
 	provider = "openai"
@@ -44,8 +44,8 @@ type OpenAI struct {
 	client               *http.Client
 }
 
-// OpenAIOptions configures the analyzer. Endpoint and Client exist so tests can
-// aim the same code at a local server; neither is persisted.
+// OpenAIOptions configures the analyzer. Endpoint supports a custom HTTPS
+// provider or a loopback test server; Endpoint and Client are not persisted.
 type OpenAIOptions struct {
 	APIKey   string
 	Model    string
@@ -53,9 +53,8 @@ type OpenAIOptions struct {
 	Client   *http.Client
 }
 
-// NewOpenAI fails closed: without a credential or with an endpoint that could
-// carry the Authorization header off the provider host, no analyzer exists and
-// the caller keeps the upload-free review.
+// NewOpenAI requires a credential and a valid HTTPS endpoint (or loopback HTTP
+// for tests). The caller obtains consent before sending source to that endpoint.
 func NewOpenAI(o OpenAIOptions) (*OpenAI, error) {
 	key := strings.TrimSpace(o.APIKey)
 	if key == "" {
@@ -394,10 +393,14 @@ func prompt(in Input) string {
 		counts := map[string]int{}
 		var order []string
 		for _, w := range in.Withheld {
-			if counts[w.Reason] == 0 {
-				order = append(order, w.Reason)
+			reason := w.Reason
+			if strings.HasPrefix(reason, "user exclusion: ") {
+				reason = "user exclusion"
 			}
-			counts[w.Reason]++
+			if counts[reason] == 0 {
+				order = append(order, reason)
+			}
+			counts[reason]++
 		}
 		for _, reason := range order {
 			fmt.Fprintf(&b, "%d: %s\n", counts[reason], reason)
