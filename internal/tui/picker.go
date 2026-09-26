@@ -28,6 +28,11 @@ type RepositoryListResult struct {
 }
 
 func (m *Model) beginAction() context.Context {
+	// An explicit foreground action owns its frozen comparison until completion.
+	// Older background freshness must not replace that tab or reset its Busy state.
+	if m.activeTab >= 0 && m.activeTab < len(m.tabs) {
+		m.tabs[m.activeTab].freshnessGeneration++
+	}
 	m.actionCtx, m.cancelAction = context.WithCancel(m.ctx)
 	m.ActionError = nil
 	return m.actionCtx

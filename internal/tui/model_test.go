@@ -238,8 +238,8 @@ func TestBackgroundComparisonRefreshPreservesReadingAndTabOwnership(t *testing.T
 	m.Selected = 1
 	fresh := *old
 	fresh.RevisionStatus = session.Current
-	m.Update(PullRequestRefreshResult{Target: 0, SessionID: old.ID, Session: &fresh})
-	if m.Session != &fresh || m.Selected != 1 || len(m.Session.ReviewedSliceIDs) != 1 || m.Session.RevisionStatus != session.Current {
+	m.Update(PullRequestRefreshResult{Target: 0, SessionID: old.ID, Freshness: PullRequestFreshness{Status: fresh.RevisionStatus}})
+	if m.Session != old || m.Selected != 1 || len(m.Session.ReviewedSliceIDs) != 1 || m.Session.RevisionStatus != session.Current {
 		t.Fatal("same-revision refresh lost selection or progress")
 	}
 	other := largeSession(1, 1)
@@ -249,7 +249,7 @@ func TestBackgroundComparisonRefreshPreservesReadingAndTabOwnership(t *testing.T
 	changed.Inventory.Comparison.Metadata = old.Inventory.Comparison.Metadata
 	changed.Inventory.Comparison.Metadata.HeadSHA = strings.Repeat("c", 40)
 	changed.Inventory.Comparison.InventoryID = "changed"
-	m.Update(PullRequestRefreshResult{Target: 0, SessionID: old.ID, Session: changed})
+	m.Update(PullRequestRefreshResult{Target: 0, SessionID: old.ID, Freshness: PullRequestFreshness{Session: changed}})
 	if m.Session != other || m.tabs[0].review.Session != changed || m.tabs[0].review.Selected != 0 {
 		t.Fatal("late refresh changed the active review or kept a stale selection")
 	}

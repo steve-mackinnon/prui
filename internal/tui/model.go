@@ -3,6 +3,7 @@ package tui
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"unicode/utf8"
 
@@ -62,9 +63,10 @@ func (l diffLayout) toggled() diffLayout {
 const maxTabs = 9
 
 type workspaceTab struct {
-	identity source.Identity
-	title    string
-	review   *reviewTabState
+	freshnessGeneration uint64
+	identity            source.Identity
+	title               string
+	review              *reviewTabState
 }
 
 // descriptionRenderCache is tab-owned because each frozen review can have a
@@ -228,6 +230,7 @@ type Model struct {
 	openPullRequest                                      PullRequestOpener
 	refreshPullRequest                                   PullRequestRefresher
 	generateGuide                                        GuideLoader
+	guideDestination                                     string
 	submitComment                                        CommentSubmitter
 	submitReview                                         ReviewSubmitter
 	readComments                                         CommentReader
@@ -250,7 +253,7 @@ type Model struct {
 
 type PullRequestLoader func(context.Context, string) ([]source.PullRequest, error)
 type PullRequestOpener func(context.Context, string, source.Identity, func(string)) (*review.Session, error)
-type PullRequestRefresher func(context.Context, *review.Session, func(string)) (*review.Session, error)
+type PullRequestRefresher func(context.Context, PullRequestRefreshRequest, func(string)) (PullRequestFreshness, error)
 
 func newModel(parent context.Context) *Model {
 	ctx, cancel := context.WithCancel(parent)
@@ -471,27 +474,55 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.Busy, m.ActionError, m.notice = busy, actionErr, notice
 		}
 	case PullRequestRefreshResult:
-		if v.Err != nil || v.Session == nil || v.Target < 0 || v.Target >= len(m.tabs) {
+		if v.Foreground {
+			v.Err = m.finishAction(v.Err)
+		}
+		if v.Err != nil || m.ctx.Err() != nil || v.Target < 0 || v.Target >= len(m.tabs) {
 			return m, nil
 		}
 		state := m.tabs[v.Target].review
-		if state == nil || state.Session == nil || state.Session.ID != v.SessionID {
+		if state == nil || state.Session == nil || m.tabs[v.Target].freshnessGeneration != v.Generation {
 			return m, nil
 		}
-		if state.Session.Inventory.Comparison.InventoryID == v.Session.Inventory.Comparison.InventoryID {
-			state.Session = v.Session
-			if v.Target == m.activeTab {
-				m.Session = v.Session
+		current := state.Session
+		if v.Target == m.activeTab {
+			current = m.Session
+		}
+		if current == nil || current.ID != v.SessionID {
+			return m, nil
+		}
+		keepDrafts := state.Composer != nil || len(state.Pending) > 0 || state.ReviewForm != nil || state.CommentMenu != nil || slices.Contains(state.Stack, pageGuideConsent)
+		if v.Target == m.activeTab {
+			keepDrafts = m.Composer != nil || len(m.Pending) > 0 || m.ReviewForm != nil || m.CommentMenu != nil || m.top() == pageGuideConsent
+		}
+		if v.Freshness.Session != nil && keepDrafts {
+			// Keep local editing anchored to its frozen source; write preflights
+			// still reject the stale comparison. Opening a new one stays explicit.
+			v.Freshness = PullRequestFreshness{Status: session.Stale}
+		}
+		if v.Freshness.Session == nil {
+			// Merge only freshness into the latest progress on its event-loop owner.
+			next := *current
+			next.RevisionStatus = v.Freshness.Status
+			if m.store != nil {
+				if err := m.store.Save(&next); err != nil {
+					state.ActionError = err
+					if v.Target == m.activeTab {
+						m.ActionError = err
+					}
+					return m, nil
+				}
 			}
+			current.State = next.State
 			return m, nil
 		}
-		// A changed immutable comparison has a fresh session and must not inherit
-		// reading progress or detail offsets from the old source.
-		m.tabs[v.Target].review = newReviewTabState(v.Session)
+		// Changed comparisons never inherit progress or offsets from old source.
+		m.tabs[v.Target].review = newReviewTabState(v.Freshness.Session)
 		if v.Target == m.activeTab {
 			m.restoreReviewTab(m.tabs[v.Target].review)
+			return m, m.refreshCommentsInBackground()
 		}
-		return m, m.refreshCommentsInBackground()
+		return m, nil
 	case PullRequestListResult:
 		active := m.activeTab
 		busy, actionErr, notice := m.Busy, m.ActionError, m.notice
@@ -698,21 +729,23 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.move(-1)
 			}
 		case "j":
-			if m.fileView() {
+			switch {
+			case m.fileView():
 				m.file(1)
-			} else if m.Focus == paneDiff {
+			case m.Focus == paneDiff:
 				m.cursorActive = true
 				m.moveCursor(1)
-			} else {
+			default:
 				m.move(1)
 			}
 		case "k":
-			if m.fileView() {
+			switch {
+			case m.fileView():
 				m.file(-1)
-			} else if m.Focus == paneDiff {
+			case m.Focus == paneDiff:
 				m.cursorActive = true
 				m.moveCursor(-1)
-			} else {
+			default:
 				m.move(-1)
 			}
 		case "J":
@@ -849,7 +882,8 @@ func (m *Model) cycleReviewView(delta int) {
 	if m.activeTab < 0 || m.activeTab >= len(m.tabs) {
 		return
 	}
-	m.ContextView = reviewView((int(m.selectedReviewView()) + delta + 3) % 3)
+	views := [...]reviewView{viewChanges, viewDescription, viewCommits}
+	m.ContextView = views[(int(m.selectedReviewView())+delta%len(views)+len(views))%len(views)]
 }
 
 func (m *Model) selectReviewView(view reviewView) {
@@ -897,9 +931,10 @@ func (m *Model) pageKey(p page, key tea.KeyPressMsg) tea.Cmd {
 	case pageReviewSubmit:
 		return m.reviewFormKey(key)
 	case pageQuitPending:
-		if k == "esc" {
+		switch k {
+		case "esc":
 			m.pop()
-		} else if k == "enter" {
+		case "enter":
 			m.cancel()
 			return tea.Quit
 		}
@@ -1713,9 +1748,6 @@ func (m *Model) loadingModal() loadingModal {
 	}
 }
 
-func (m *Model) guideConsentView() string {
-	return "Generate OpenAI guide?\n\nThis sends bounded pinned patches and repository evidence to OpenAI. Exclusions and credential-like content are withheld. The request uses store:false; your API key is not persisted.\n\nenter: send source and generate a new guided session | esc: cancel | q: quit"
-}
 func (m *Model) reviewView() string {
 	return m.reviewViewForLayout(m.diffLayout() == diffLayoutSideBySide)
 }
@@ -1979,7 +2011,7 @@ func (m *Model) descriptionLines() []string {
 func (m *Model) descriptionBodyHeight() int { return max(1, m.Height-4-m.reviewFooterRows()) }
 
 func (m *Model) descriptionKey(key string) bool {
-	delta := 0
+	var delta int
 	switch key {
 	case "esc":
 		return true

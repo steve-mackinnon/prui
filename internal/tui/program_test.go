@@ -305,3 +305,35 @@ func TestProgramCommentComposerSubmitErrorAndCancellation(t *testing.T) {
 		h.quit()
 	})
 }
+
+func TestProgramBackgroundRefreshPreservesPendingProgress(t *testing.T) {
+	store, saved := programStore(t)
+	released := make(chan struct{})
+	m := New(context.Background(), func(context.Context, func(string)) (*review.Session, error) { return store.Load(saved.ID) })
+	m.SetLifecycle(store, nil, nil)
+	m.SetPullRequestRefresh(func(ctx context.Context, _ PullRequestRefreshRequest, _ func(string)) (PullRequestFreshness, error) {
+		select {
+		case <-released:
+		case <-ctx.Done():
+			return PullRequestFreshness{}, ctx.Err()
+		}
+		return PullRequestFreshness{Status: session.Current}, nil
+	})
+	h := runProgram(t, m)
+	h.expect("loaded", func(f programFrame) bool { return f.sessionID == saved.ID })
+	h.key('m')
+	h.expect("marked", func(f programFrame) bool { return f.read == 1 })
+	close(released)
+	h.expect("refreshed", func(f programFrame) bool { return strings.Contains(f.text, "current") })
+	if h.last.read != 1 {
+		t.Fatal("refresh lost reading progress")
+	}
+	h.quit()
+	reopened, err := store.Load(saved.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(reopened.ReviewedSliceIDs) != 1 || reopened.RevisionStatus != session.Current {
+		t.Fatalf("reopened state = %#v", reopened.State)
+	}
+}
