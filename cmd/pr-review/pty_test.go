@@ -34,7 +34,7 @@ func TestPTYSmoke(t *testing.T) {
 	snapshot := session.Snapshot{
 		Inventory: inventory.Inventory{
 			Comparison: source.PinnedComparison{InventoryID: "pty-inventory", Metadata: source.Metadata{
-				Identity: source.Identity{Repository: "owner/alpha", Number: 42}, HeadSHA: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+				Identity: source.Identity{Repository: "owner/alpha", Number: 42}, BaseRepository: "owner/alpha", HeadRepository: "owner/alpha", BaseSHA: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", HeadSHA: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 			}},
 			Complete: true,
 		},

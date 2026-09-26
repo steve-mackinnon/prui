@@ -23,12 +23,14 @@ func TestStoreRejectsUnownedRootsAndSymlinks(t *testing.T) {
 	if b, err := os.ReadFile(sentinel); err != nil || string(b) != "untouched" {
 		t.Fatal("unrelated data modified")
 	}
-	path := filepath.Join(parent, "sessions")
-	s, err := Open(path)
+	path := filepath.Join(parent, "storage")
+	store, err := Open(path)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer s.Close()
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
 	link := filepath.Join(parent, "linked")
 	if err := os.Symlink(path, link); err != nil {
 		t.Fatal(err)
@@ -37,41 +39,56 @@ func TestStoreRejectsUnownedRootsAndSymlinks(t *testing.T) {
 		store.Close()
 		t.Fatal("symlink root accepted")
 	}
-	registry := filepath.Join(path, "repositories.json")
-	if err := os.Symlink(sentinel, registry); err != nil {
+	dbPath := filepath.Join(path, "store.sqlite3")
+	if err := os.Rename(dbPath, filepath.Join(parent, "saved.sqlite3")); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.LookupRepository("owner/repo"); err == nil {
-		t.Fatal("external registry followed")
-	}
-	if err := os.Remove(registry); err != nil {
+	if err := os.Symlink(sentinel, dbPath); err != nil {
 		t.Fatal(err)
 	}
-	id := "0123456789abcdef0123456789abcdef"
-	if err := os.Symlink(unrelated, filepath.Join(path, id)); err != nil {
-		t.Fatal(err)
+	if store, err := Open(path); err == nil {
+		store.Close()
+		t.Fatal("symlink database accepted")
 	}
-	if err := s.Delete(id); err == nil {
-		t.Fatal("symlink session deleted")
+	if b, err := os.ReadFile(sentinel); err != nil || string(b) != "untouched" {
+		t.Fatal("external target modified")
 	}
-	r, err := s.Create(fixture())
-	if err != nil {
-		t.Fatal(err)
-	}
-	state := filepath.Join(path, r.ID, "state.json")
-	if err := os.Remove(state); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Symlink(sentinel, state); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := s.Load(r.ID); err == nil {
-		t.Fatal("external state followed")
-	}
-	if err := s.Delete(r.ID); err != nil {
-		t.Fatal(err)
-	}
-	if b, _ := os.ReadFile(sentinel); string(b) != "untouched" {
-		t.Fatal("deletion followed internal symlink")
+}
+
+func TestStoreRejectsSymlinkControlAndJournalFiles(t *testing.T) {
+	for _, name := range []string{".sqlite-owner", ".sqlite-init.lock", "store.sqlite3-journal"} {
+		t.Run(name, func(t *testing.T) {
+			parent := t.TempDir()
+			path := filepath.Join(parent, "storage")
+			store, err := Open(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := store.Close(); err != nil {
+				t.Fatal(err)
+			}
+			target := filepath.Join(parent, "untouched")
+			if err := os.WriteFile(target, []byte("sentinel"), 0600); err != nil {
+				t.Fatal(err)
+			}
+			control := filepath.Join(path, name)
+			if err := os.Remove(control); err != nil && !os.IsNotExist(err) {
+				t.Fatal(err)
+			}
+			if err := os.Symlink(target, control); err != nil {
+				t.Fatal(err)
+			}
+			if got, err := Open(path); err == nil {
+				_ = got.Close()
+				t.Fatal("writable open followed symlink")
+			}
+			if got, err := OpenReadOnly(path); err == nil {
+				_ = got.Close()
+				t.Fatal("read-only open followed symlink")
+			}
+			if b, err := os.ReadFile(target); err != nil || string(b) != "sentinel" {
+				t.Fatalf("target changed: %q %v", b, err)
+			}
+		})
 	}
 }

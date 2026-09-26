@@ -140,6 +140,7 @@ func programStore(t *testing.T) (*session.Store, *review.Session) {
 	}
 	t.Cleanup(func() { store.Close() })
 	s := largeSession(2, 2)
+	s.Inventory.Comparison.Metadata = source.Metadata{Identity: source.Identity{Repository: "owner/repo", Number: 1}, BaseRepository: "owner/repo", HeadRepository: "owner/repo", BaseSHA: strings.Repeat("a", 40), HeadSHA: strings.Repeat("b", 40)}
 	saved, err := store.Create(s.Snapshot)
 	if err != nil {
 		t.Fatal(err)

@@ -577,7 +577,7 @@ func (m *Model) lifecycleKey(k string) (tea.Cmd, bool) {
 		// marked, including the units this file contributes to other guides.
 		id := s.Slices[s.UnitFiles[m.Selected]].FileID
 		m.notice = "Saving local reading progress..."
-		m.ActionError = review.Mark(m.store, m.Session, id, !slices.Contains(s.ReviewedSliceIDs, id))
+		m.ActionError = review.Mark(m.ctx, m.store, m.Session, id, !slices.Contains(s.ReviewedSliceIDs, id))
 		m.notice = ""
 		return nil, true
 	case "r":
@@ -586,12 +586,12 @@ func (m *Model) lifecycleKey(k string) (tea.Cmd, bool) {
 			return nil, true
 		}
 		// Persist an unknown/failed check before cancellable work, on the owner.
-		s.RevisionStatus = session.CheckFailed
-		if err := m.store.Save(&s); err != nil {
+		state, err := m.store.UpdateState(m.ctx, s.ID, s.Generation, s.SnapshotReference, session.StateUpdate{ReviewedSliceIDs: s.ReviewedSliceIDs, RevisionStatus: session.CheckFailed})
+		if err != nil {
 			m.ActionError = err
 			return nil, true
 		}
-		m.Session.State = s.State
+		m.Session.State = state
 		target := m.activeTab
 		reader, metadata := m.reader, s.Inventory.Comparison.Metadata
 		m.notice = "Checking GitHub metadata only; source stays local..."
@@ -929,8 +929,7 @@ func (m *Model) pickerView() string {
 		if entry.Err != nil {
 			text += " UNREADABLE: " + entry.Err.Error()
 		} else {
-			meta := entry.Record.Inventory.Comparison.Metadata
-			text += fmt.Sprintf(" %s #%d %d/%d read", meta.Identity.Repository, meta.Identity.Number, len(entry.Record.ReviewedSliceIDs), len(entry.Record.Slices))
+			text += fmt.Sprintf(" %s #%d %d/%d read", entry.Repository, entry.Number, entry.ReviewedCount, entry.SliceCount)
 		}
 		rows[i] = Escape(text)
 	}

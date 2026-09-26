@@ -1,13 +1,14 @@
 package session
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
 )
 
 func TestOpenReadOnlyLoadsExistingStoreWithoutWriting(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "sessions")
+	path := filepath.Join(t.TempDir(), "storage")
 	writable, err := Open(path)
 	if err != nil {
 		t.Fatal(err)
@@ -17,7 +18,8 @@ func TestOpenReadOnlyLoadsExistingStoreWithoutWriting(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer writable.Close()
-	before, err := os.ReadFile(filepath.Join(path, ".format"))
+	owner := filepath.Join(path, ".sqlite-owner")
+	before, err := os.ReadFile(owner)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -29,28 +31,32 @@ func TestOpenReadOnlyLoadsExistingStoreWithoutWriting(t *testing.T) {
 	if got, err := store.Load(record.ID); err != nil || got.ID != record.ID {
 		t.Fatalf("Load() = %#v, %v", got, err)
 	}
-	after, err := os.ReadFile(filepath.Join(path, ".format"))
+	after, err := os.ReadFile(owner)
 	if err != nil || string(after) != string(before) {
-		t.Fatalf("read-only open changed marker: %q, %v", after, err)
+		t.Fatalf("read-only open changed owner marker: %q, %v", after, err)
 	}
 	if _, err := store.Create(fixture()); err == nil {
 		t.Fatal("read-only store accepted Create")
+	}
+	if _, err := store.UpdateState(context.Background(), record.ID, record.Generation, record.SnapshotReference,
+		StateUpdate{RevisionStatus: Current}); err == nil {
+		t.Fatal("read-only store accepted UpdateState")
 	}
 }
 
 func TestOpenReadOnlyRequiresExistingAppOwnedStore(t *testing.T) {
 	missing := filepath.Join(t.TempDir(), "missing")
 	if _, err := OpenReadOnly(missing); err == nil {
-		t.Fatal("read-only open created a missing store")
+		t.Fatal("read-only open created missing store")
 	}
 	if _, err := os.Stat(missing); !os.IsNotExist(err) {
 		t.Fatalf("missing store was created: %v", err)
 	}
-	unowned := filepath.Join(t.TempDir(), "unowned")
-	if err := os.Mkdir(unowned, 0700); err != nil {
+	unrelated := filepath.Join(t.TempDir(), "unrelated")
+	if err := os.Mkdir(unrelated, 0700); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := OpenReadOnly(unowned); err == nil {
-		t.Fatal("read-only open accepted a store without the format marker")
+	if _, err := OpenReadOnly(unrelated); err == nil {
+		t.Fatal("read-only open accepted unowned directory")
 	}
 }

@@ -233,7 +233,7 @@ func TestLifecycleOpenResumeNewAndOfflineCLI(t *testing.T) {
 	if saved.ID == "" || saved.RevisionStatus != session.Current {
 		t.Fatal("open did not persist/check")
 	}
-	if err := review.Mark(store, saved, saved.Slices[0].FileID, true); err != nil {
+	if err := review.Mark(context.Background(), store, saved, saved.Slices[0].FileID, true); err != nil {
 		t.Fatal(err)
 	}
 	r.Write("a", "third\n")
@@ -333,7 +333,7 @@ func TestLifecycleCreatesDerivedGuideSession(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := review.Mark(store, original, original.Slices[0].FileID, true); err != nil {
+	if err := review.Mark(context.Background(), store, original, original.Slices[0].FileID, true); err != nil {
 		t.Fatal(err)
 	}
 	derived, err := app.generateGuide(context.Background(), original, unavailableGuideAnalyzer{})
@@ -374,10 +374,11 @@ func TestLifecyclePRListOpenCachesOnlyGeneratedGuides(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	guided.ReviewedSliceIDs = []string{guided.Slices[0].FileID}
-	if err := store.Save(guided); err != nil {
+	state, err := store.UpdateState(context.Background(), guided.ID, guided.Generation, guided.SnapshotReference, session.StateUpdate{ReviewedSliceIDs: []string{guided.Slices[0].FileID}, RevisionStatus: guided.RevisionStatus})
+	if err != nil {
 		t.Fatal(err)
 	}
+	guided.State = state
 	app.newAnalyzer = func() (guide.Analyzer, error) {
 		calls++
 		return nil, errors.New("cache hit must not create analyzer")

@@ -504,18 +504,19 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if v.Freshness.Session == nil {
 			// Merge only freshness into the latest progress on its event-loop owner.
-			next := *current
-			next.RevisionStatus = v.Freshness.Status
 			if m.store != nil {
-				if err := m.store.Save(&next); err != nil {
+				updated, err := m.store.UpdateState(m.ctx, current.ID, current.Generation, current.SnapshotReference, session.StateUpdate{ReviewedSliceIDs: current.ReviewedSliceIDs, RevisionStatus: v.Freshness.Status})
+				if err != nil {
 					state.ActionError = err
 					if v.Target == m.activeTab {
 						m.ActionError = err
 					}
 					return m, nil
 				}
+				current.State = updated
+			} else {
+				current.RevisionStatus = v.Freshness.Status
 			}
-			current.State = next.State
 			return m, nil
 		}
 		// Changed comparisons never inherit progress or offsets from old source.

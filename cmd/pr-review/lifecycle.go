@@ -405,11 +405,11 @@ func (a *application) cachedPullRequestSnapshot(ctx context.Context, checkout st
 	if err != nil {
 		return nil, err
 	}
-	saved.ReviewedSliceIDs = append([]string(nil), latest.ReviewedSliceIDs...)
-	saved.RevisionStatus = session.Unchecked
-	if err := a.store.Save(saved); err != nil {
+	state, err := a.store.UpdateState(ctx, saved.ID, saved.Generation, saved.SnapshotReference, session.StateUpdate{ReviewedSliceIDs: append([]string(nil), latest.ReviewedSliceIDs...), RevisionStatus: session.Unchecked})
+	if err != nil {
 		return nil, err
 	}
+	saved.State = state
 	if err := a.store.RememberRepository(saved.Inventory.Comparison.Metadata.BaseRepository, checkout); err != nil {
 		return nil, err
 	}
@@ -472,11 +472,11 @@ func (a *application) openFromPullRequestList(ctx context.Context, checkout stri
 		if err != nil {
 			return nil, err
 		}
-		guided.ReviewedSliceIDs = append([]string(nil), raw.ReviewedSliceIDs...)
-		guided.RevisionStatus = raw.RevisionStatus
-		if err := a.store.Save(guided); err != nil {
+		state, err := a.store.UpdateState(ctx, guided.ID, guided.Generation, guided.SnapshotReference, session.StateUpdate{ReviewedSliceIDs: append([]string(nil), raw.ReviewedSliceIDs...), RevisionStatus: raw.RevisionStatus})
+		if err != nil {
 			return nil, err
 		}
+		guided.State = state
 		return guided, nil
 	}
 	return raw, nil
@@ -528,8 +528,7 @@ func listSessions(store *session.Store, out io.Writer) int {
 			code = 1
 			continue
 		}
-		s := entry.Record
-		_, _ = fmt.Fprintf(out, "%s %s #%d head %.12s %d/%d read | last check: %s | updated %s\n", entry.ID, tui.Escape(s.Inventory.Comparison.Metadata.Identity.Repository), s.Inventory.Comparison.Metadata.Identity.Number, s.Inventory.Comparison.Metadata.HeadSHA, len(s.ReviewedSliceIDs), len(s.Slices), s.RevisionStatus, s.UpdatedAt.Format("2006-01-02T15:04:05Z"))
+		_, _ = fmt.Fprintf(out, "%s %s #%d head %.12s %d/%d read | last check: %s | updated %s\n", entry.ID, tui.Escape(entry.Repository), entry.Number, entry.HeadSHA, entry.ReviewedCount, entry.SliceCount, entry.RevisionStatus, entry.UpdatedAt.Format("2006-01-02T15:04:05Z"))
 	}
 	if len(entries) == 0 {
 		_, _ = fmt.Fprintln(out, "No saved sessions.")

@@ -42,7 +42,7 @@ func TestLifecycleResumeAfterRepositoryDeletion(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := Mark(store, saved, saved.Slices[0].FileID, true); err != nil {
+	if err := Mark(context.Background(), store, saved, saved.Slices[0].FileID, true); err != nil {
 		t.Fatal(err)
 	}
 	if err := store.Close(); err != nil {
@@ -89,13 +89,13 @@ func TestLifecycleResumeAfterRepositoryDeletion(t *testing.T) {
 	if fresh.ID == saved.ID || len(fresh.ReviewedSliceIDs) != 0 {
 		t.Fatal("plan carried completion")
 	}
-	if err := Mark(store, resumed, resumed.Slices[0].FileID, false); err != nil {
+	if err := Mark(context.Background(), store, resumed, resumed.Slices[0].FileID, false); err != nil {
 		t.Fatal(err)
 	}
 	if len(resumed.ReviewedSliceIDs) != 0 {
 		t.Fatal("unmark failed")
 	}
-	if err := Mark(store, resumed, "fabricated", true); err == nil {
+	if err := Mark(context.Background(), store, resumed, "fabricated", true); err == nil {
 		t.Fatal("unknown slice accepted")
 	}
 }

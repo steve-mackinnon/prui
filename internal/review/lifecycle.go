@@ -13,7 +13,7 @@ type MetadataReader interface {
 	Metadata(context.Context, source.Identity) (source.Metadata, error)
 }
 
-func Mark(store *session.Store, s *Session, sliceID string, reviewed bool) error {
+func Mark(ctx context.Context, store *session.Store, s *Session, sliceID string, reviewed bool) error {
 	if !slices.ContainsFunc(s.Slices, func(slice Slice) bool { return slice.FileID == sliceID }) {
 		return errors.New("unknown slice")
 	}
@@ -26,10 +26,11 @@ func Mark(store *session.Store, s *Session, sliceID string, reviewed bool) error
 	if !reviewed && i >= 0 {
 		next.ReviewedSliceIDs = slices.Delete(next.ReviewedSliceIDs, i, i+1)
 	}
-	if err := store.Save(&next); err != nil {
+	state, err := store.UpdateState(ctx, s.ID, s.Generation, s.SnapshotReference, session.StateUpdate{ReviewedSliceIDs: next.ReviewedSliceIDs, RevisionStatus: next.RevisionStatus})
+	if err != nil {
 		return err
 	}
-	s.State = next.State
+	s.State = state
 	return nil
 }
 
@@ -46,10 +47,11 @@ func Refresh(ctx context.Context, store *session.Store, s *Session, gh MetadataR
 			}
 		}
 	}
-	if err := store.Save(&next); err != nil {
+	state, err := store.UpdateState(ctx, s.ID, s.Generation, s.SnapshotReference, session.StateUpdate{ReviewedSliceIDs: next.ReviewedSliceIDs, RevisionStatus: next.RevisionStatus})
+	if err != nil {
 		return err
 	}
-	s.State = next.State
+	s.State = state
 	return nil
 }
 
@@ -59,10 +61,11 @@ func Resume(ctx context.Context, store *session.Store, id string, gh MetadataRea
 		return nil, err
 	}
 	// Persist unknown freshness before any cancellable network work.
-	s.RevisionStatus = session.Unchecked
-	if err = store.Save(s); err != nil {
+	state, err := store.UpdateState(ctx, s.ID, s.Generation, s.SnapshotReference, session.StateUpdate{ReviewedSliceIDs: s.ReviewedSliceIDs, RevisionStatus: session.Unchecked})
+	if err != nil {
 		return nil, err
 	}
+	s.State = state
 	if gh != nil {
 		err = Refresh(ctx, store, s, gh)
 	}

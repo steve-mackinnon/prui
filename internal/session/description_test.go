@@ -5,8 +5,8 @@ import (
 	"testing"
 )
 
-func TestSnapshotDescriptionRoundTripsAndLegacySnapshotsRemainReadable(t *testing.T) {
-	dir := filepath.Join(t.TempDir(), "sessions")
+func TestSnapshotDescriptionRoundTripsAndAbsentDescriptionRemainsReadable(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "storage")
 	s, err := Open(dir)
 	if err != nil {
 		t.Fatal(err)
@@ -18,7 +18,7 @@ func TestSnapshotDescriptionRoundTripsAndLegacySnapshotsRemainReadable(t *testin
 	if err != nil {
 		t.Fatal(err)
 	}
-	legacy, err := s.Create(fixture())
+	withoutDescription, err := s.Create(fixture())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -34,9 +34,9 @@ func TestSnapshotDescriptionRoundTripsAndLegacySnapshotsRemainReadable(t *testin
 	if err != nil || got.PullRequestDescription == nil || *got.PullRequestDescription != description {
 		t.Fatalf("stored description = %#v, %v", got, err)
 	}
-	old, err := s.Load(legacy.ID)
+	old, err := s.Load(withoutDescription.ID)
 	if err != nil || old.PullRequestDescription != nil {
-		t.Fatalf("legacy snapshot description = %#v, %v", old.PullRequestDescription, err)
+		t.Fatalf("absent snapshot description = %#v, %v", old.PullRequestDescription, err)
 	}
 }
 

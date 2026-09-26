@@ -201,7 +201,7 @@ func TestGuideCancellationDoesNotCreateDerivedSession(t *testing.T) {
 		}
 		t.Run(name, func(t *testing.T) {
 			app, original := wiringFixture(t)
-			if err := review.Mark(app.store, original, original.Slices[0].FileID, true); err != nil {
+			if err := review.Mark(context.Background(), app.store, original, original.Slices[0].FileID, true); err != nil {
 				t.Fatal(err)
 			}
 			ctx, cancel := context.WithCancel(context.Background())
