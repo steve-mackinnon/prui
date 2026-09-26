@@ -160,9 +160,10 @@ func TestSideBySideRenderAtMinimumWidth(t *testing.T) {
 	m.Session = screenSession()
 	m.Width, m.Height = 160, 12
 	m.Focus, m.cursorActive = paneDiff, true
+	m.layout = diffLayoutSideBySide
 
 	view := ansi.Strip(m.reviewViewForLayout(true))
-	for _, want := range []string{"@@ -1 +1 @@", "    1 - old greeting", "│     1 + hello world"} {
+	for _, want := range []string{"@@ -1 +1 @@", "    1 - old greeting", "│ ›     1 + hello world"} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("split view missing %q:\n%s", want, view)
 		}
@@ -205,4 +206,31 @@ func containsLine(text string, parts ...string) bool {
 		}
 	}
 	return false
+}
+
+func TestSplitMouseSelectionMarksOnlySelectedCell(t *testing.T) {
+	s := screenSession()
+	s.Inventory.Files[0].OldPath = []byte("main.go")
+	m := largeModel(s, 160, 16)
+	m.layout = diffLayoutSideBySide
+	g := m.workspaceGeometry()
+	for index, line := range m.displayDetail() {
+		if line.sideBySide == nil || len(rowTargets(*line.sideBySide)) != 2 {
+			continue
+		}
+		m.mouseReviewClick(g.Detail.Min.X, g.Detail.Min.Y+index)
+		rendered := m.renderProjectedSideBySideDetail(m.displayDetail(), m.detailWidth(), 0)[index].Text
+		old, new := splitCellBounds(m.detailWidth())
+		if !strings.HasPrefix(rendered, cursorMarker(true)) {
+			t.Fatalf("old marker absent: %q", rendered)
+		}
+		if strings.Contains(rendered[new.Min.X:], cursorMarker(true)) {
+			t.Fatalf("new cell marked: %q", rendered)
+		}
+		if visibleWidth(rendered) > m.detailWidth() || old.Dx() != new.Dx() {
+			t.Fatal("split bounds overflow")
+		}
+		return
+	}
+	t.Fatal("missing paired row")
 }

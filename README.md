@@ -115,7 +115,7 @@ columns. Plain output is always unified.
 | Escape during a cancellable action | Cancel the operation and retain the current review |
 | `?`, `q`, Ctrl+C | Help, quit, cancel loading |
 
-Selection, expansion, and diff scroll offsets survive resizing; navigation positions and expansion state are not persisted across processes, and they are rebuilt from the immutable bundle so navigation cannot drift from the stored guides. No mouse capture, so terminal-native text selection remains available. Textual markers and labels are primary: the selected row is marked `› ` whether or not its pane is focused; a muted background reinforces it when unfocused and reverse video reinforces the focused row. The interactive view additionally colors diff structure — file headers, hunk locations, additions, removals — and unit states such as metadata, binary, gitlink, unavailable, and warning chrome. Color is presentation only: no wording, label, or ordering depends on it, and terminals without color show the same text. Extremely small terminals clip controls; enlarge or use plain output. The user approved Phase 1 terminal behavior; broad theme/platform/accessibility coverage is not established.
+Selection, expansion, and diff scroll offsets survive resizing; navigation positions and expansion state are not persisted across processes, and they are rebuilt from the immutable bundle so navigation cannot drift from the stored guides. Mouse selection is supported; use the terminal selection modifier for native text copying (see Mouse selection and panel resizing below). Textual markers and labels are primary: the selected row is marked `› ` whether or not its pane is focused; a muted background reinforces it when unfocused and reverse video reinforces the focused row. The interactive view additionally colors diff structure — file headers, hunk locations, additions, removals — and unit states such as metadata, binary, gitlink, unavailable, and warning chrome. Color is presentation only: no wording, label, or ordering depends on it, and terminals without color show the same text. Extremely small terminals clip controls; enlarge or use plain output. The user approved Phase 1 terminal behavior; broad theme/platform/accessibility coverage is not established.
 
 Every interactive PR has `Changes`, `Description`, and `Commits` context views. Description is display-only GitHub-flavored Markdown frozen from GitHub when the session opened; it is available after an offline resume and does not refresh when selected. Raw HTML remains literal text, links are not activated, and images never load. Empty captured descriptions and older sessions that did not capture one are labeled explicitly. Context views are not included in `--plain` output.
 
@@ -250,3 +250,24 @@ go test ./internal/guide -run 'Test(OpenAI|Analyze|Input|Validate)'
 ```
 
 Tests construct disposable trusted Git fixtures, including byte-only paths that macOS cannot materialize. Lifecycle tests cover process restart/interruption, deleted checkouts, concurrent writers, stale revisions, offline/auth failures, corruption, permissions, deletion, and keyboard actions. Analysis tests drive a local `httptest` provider endpoint with a fake key and cover valid, malformed, schema-violating, refused, unauthorized, rate-limited, failing, hung, and oversize responses. They never execute reviewed scripts, contact a real provider, or use live credentials. See `CONSTRAINTS.md` for the correctness contract. Guide navigation tests drive a fake analyzer and walk every row, so the hierarchy is proven against real frozen units. Editable contextual slices and guide-level completion are intentionally absent.
+
+
+### Mouse selection and panel resizing
+
+Click a file, guide row, inventory unit, picker item, diff source cell, or
+comment card to select it. Click the visible view tabs to switch views.
+Selection does not activate an item: Enter still opens a PR, applies a theme,
+or opens the selected comment editor/menu. Existing keyboard controls remain
+available. In split diffs, click the old or new source cell to select that
+cell's exact comment target; old context cells are not comment targets.
+
+At terminal widths of 100 columns or more, drag the separator between the
+navigation list and diff horizontally. The navigation list stays at least
+20 columns wide, at most half the usable width, with at least 40 columns for
+detail. Width is remembered for this run across review tabs and restored after
+returning from a narrow terminal. The inner old/new diff divider stays equal.
+
+Mouse input is disabled during loading, editors, and confirmation forms.
+Wheel scrolling and double-click activation are not supported. Mouse capture
+may affect native terminal text selection; use your terminal's selection
+modifier (often Shift, depending on the terminal or multiplexer) to copy text.

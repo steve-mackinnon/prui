@@ -232,7 +232,8 @@ class Terminal:
         restored[3] &= ~getattr(termios, "PENDIN", 0)
         if restored != expected:
             self.fail(f"terminal modes were not restored: before={self.original!r}, after={restored!r}")
-        for sequence in (b"\x1b[?1049h", b"\x1b[?1049l", b"\x1b[?25h"):
+        for sequence in (b"\x1b[?1049h", b"\x1b[?1049l", b"\x1b[?25h",
+                         b"\x1b[?1002h", b"\x1b[?1002l"):
             if sequence not in self.output:
                 self.fail(f"missing terminal setup/restoration sequence {sequence!r}")
 
@@ -275,6 +276,15 @@ def main():
     resume = ["resume", session_id, "--store", store, "--offline"]
     with Terminal(binary, resume, environment) as terminal:
         terminal.wait_for("0/2 read")
+        # SGR coordinates are one-based. Select the second file without an
+        # activation key, then drag the existing divider from column 38 to 50.
+        terminal.key(b"\x1b[<0;5;5M\x1b[<0;5;5m", "› [ ] b.go")
+        start = len(terminal.output)
+        os.write(terminal.master, b"\x1b[<0;38;4M\x1b[<32;50;4M\x1b[<0;50;4m")
+        terminal.wait_until(lambda screen: len(screen.splitlines()) > 3 and
+                            screen.splitlines()[3].find("│") == 49,
+                            "mouse divider resize", start)
+        terminal.key(b"\x1b[A", "› [ ] a.go")
         terminal.key(b"\x10", "Switch pull requests")
         terminal.key(b"\x1b", "0/2 read")
         terminal.key(b"\x1b[B", "› [ ] b.go")

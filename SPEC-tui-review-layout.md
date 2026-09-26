@@ -1,3 +1,7 @@
+> Mouse boundary update (2026-09-26): the user-authorized Mouse Selection and
+> Panel Resizing plan in tasks/plan.md supersedes the historical prohibition
+> on mouse capture below. Keyboard and source/progress contracts still apply.
+
 > Superseded visual arrangement (2026-09-25): option A, Quiet workspace, is
 > tracked in tasks/quiet-workspace-plan.md and tasks/quiet-workspace-todo.md.
 > The implemented review now has a PR identity row, context-tab row and
