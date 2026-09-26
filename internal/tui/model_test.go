@@ -742,6 +742,10 @@ func TestSideBySideResizePreservesPreferenceScrollCursorAndDraft(t *testing.T) {
 	key(m, 'j')
 	wantTarget := *m.displayDetail()[m.cursor()].target
 	m.setOffset(1)
+	key(m, ']')
+	if got := m.displayDetail()[m.cursor()].target; got == nil || *got != wantTarget {
+		t.Fatalf("pane width change cursor target = %#v, want %#v", got, wantTarget)
+	}
 	m.Composer = &commentComposer{Target: wantTarget, Draft: "keep this draft", Cursor: 4}
 
 	m.Update(tea.WindowSizeMsg{Width: sideBySideMinimumWidth - 1, Height: 5})

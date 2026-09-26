@@ -63,6 +63,8 @@ Local reading progress and exit success do not constitute GitHub approval.
 | `h` / `l` | Focus the list / diff pane |
 | Up / down, `J` / `K` | Scroll diff by one / five lines |
 | `F` / `G` | Select Files / Guide |
+| `]` / `[` | Widen / narrow the left pane |
+| `}` / `{` | Next / previous guide or file slice |
 | `S` | Toggle side-by-side diff (requires 160 columns) |
 | `1` / `2` | Show Diff / frozen PR Description |
 | `m` | Mark or unmark the selected file as read; saves immediately |

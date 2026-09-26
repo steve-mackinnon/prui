@@ -99,6 +99,7 @@ type reviewTabState struct {
 	GuideCursor                                          map[int]int
 	cursorActive                                         bool
 	Horizontal                                           int
+	listWidthPreference                                  int
 	layout                                               diffLayout
 	guidePathOffset, guidePathPause, guidePathGeneration int
 	Inventory                                            bool
@@ -188,6 +189,7 @@ type Model struct {
 	pendingCenter                                        bool
 	helpScroll                                           int
 	Width, Height, Horizontal                            int
+	listWidthPreference                                  int
 	layout                                               diffLayout
 	guidePathOffset, guidePathPause, guidePathGeneration int
 	Inventory                                            bool
@@ -712,10 +714,14 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			} else {
 				m.move(-1)
 			}
-		case "]":
+		case "}":
 			m.file(1)
-		case "[":
+		case "{":
 			m.file(-1)
+		case "]":
+			m.resizeList(2)
+		case "[":
+			m.resizeList(-2)
 		case "down":
 			if m.Focus == paneDiff {
 				m.scroll(1)
@@ -845,7 +851,7 @@ func (m *Model) saveActiveReview() {
 	m.tabs[m.activeTab].review = &reviewTabState{
 		Session: m.Session, ContextView: m.ContextView, DescriptionScroll: m.DescriptionScroll, descriptionCache: m.descriptionCache, Err: m.Err, Selected: m.Selected, Row: m.Row, Files: m.Files,
 		collapsed: m.collapsed, Scroll: m.Scroll, GuideScroll: m.GuideScroll, Cursor: m.Cursor, GuideCursor: m.GuideCursor,
-		Horizontal: m.Horizontal, layout: m.layout, Inventory: m.Inventory, Focus: m.Focus, cursorActive: m.cursorActive,
+		Horizontal: m.Horizontal, listWidthPreference: m.listWidthPreference, layout: m.layout, Inventory: m.Inventory, Focus: m.Focus, cursorActive: m.cursorActive,
 		guidePathOffset: m.guidePathOffset, guidePathPause: m.guidePathPause, guidePathGeneration: m.guidePathGeneration,
 		Stack: m.Stack, Loading: m.Loading, Busy: m.Busy,
 		ActionError: m.ActionError, notice: m.notice, loadingFrame: m.loadingFrame,
@@ -862,7 +868,7 @@ func (m *Model) restoreReviewTab(state *reviewTabState) {
 	m.Session, m.ContextView, m.DescriptionScroll, m.descriptionCache, m.Err = state.Session, state.ContextView, state.DescriptionScroll, state.descriptionCache, state.Err
 	m.Selected, m.Row, m.Files = state.Selected, state.Row, state.Files
 	m.collapsed, m.Scroll, m.GuideScroll, m.Cursor, m.GuideCursor = state.collapsed, state.Scroll, state.GuideScroll, state.Cursor, state.GuideCursor
-	m.Horizontal, m.layout, m.Inventory, m.Focus = state.Horizontal, state.layout, state.Inventory, state.Focus
+	m.Horizontal, m.listWidthPreference, m.layout, m.Inventory, m.Focus = state.Horizontal, state.listWidthPreference, state.layout, state.Inventory, state.Focus
 	m.cursorActive = state.cursorActive
 	m.guidePathOffset, m.guidePathPause, m.guidePathGeneration = state.guidePathOffset, state.guidePathPause, state.guidePathGeneration
 	m.Stack, m.Loading, m.Busy = state.Stack, state.Loading, state.Busy
@@ -1079,10 +1085,27 @@ func (m *Model) guidePathScrollTarget() (row, string, int, string) {
 }
 
 func (m *Model) listWidth() int {
-	if m.Width >= 100 {
-		return min(36, m.Width/3)
+	if m.Width < 100 {
+		return m.Width
 	}
-	return m.Width
+	width := m.listWidthPreference
+	if width == 0 {
+		width = min(36, m.Width/3)
+	}
+	return min(max(18, width), m.Width-3-40)
+}
+
+func (m *Model) resizeList(delta int) {
+	if m.Width < 100 || m.Session == nil || m.selectedReviewView() != viewChanges {
+		return
+	}
+	target, commentID := m.cursorAnchor()
+	m.listWidthPreference = min(max(18, m.listWidth()+delta), m.Width-3-40)
+	m.restoreCursorAnchor(target, commentID)
+	if m.diffLayout() != diffLayoutSideBySide {
+		m.cursorInViewport(1)
+	}
+	m.ensureReplyEditorVisible()
 }
 func (m *Model) file(delta int) {
 	if rows := m.navigable(); rows != nil {
@@ -1903,7 +1926,7 @@ func (m *Model) reviewViewForLayout(preferSideBySide bool) string {
 				body = append(body, m.styleLine(leftClass, clip(left, m.Width)))
 			}
 		} else {
-			leftWidth := min(36, m.Width/3)
+			leftWidth := m.listWidth()
 			left = clip(left, leftWidth)
 			// Padding is measured on the clipped plain row, then the row is styled.
 			padding := strings.Repeat(" ", max(0, leftWidth-visibleWidth(left)))

@@ -14,7 +14,7 @@ What leaves the machine is only the assembled request package: pinned patches an
 
 Failure is cheap and explicit. A transport error, non-2xx status, refusal, deadline, oversize payload, or unusable structured output produces an `analysis_unavailable` bundle with a stated reason, a durable session, and the unchanged deterministic file plan. Only a structurally valid generated bundle is persisted as a reusable local cache entry; unavailable bundles never suppress a later retry. Retrying cannot modify a stored snapshot; a later successful attempt is a new session. Generated text is model interpretation of the bounded input, not source truth, approval, security findings, or complete architectural documentation, and it can be wrong about anything it was not shown.
 
-The left pane opens on Files. Its right pane shows every changed file in order, with all of each file's hunks together. Scroll through the whole PR or press `j`/`k` to jump between file boundaries. Press `F` for Files or `G` for Guide. When a session has generated guides, Guide shows each guide, section, and covered file portion, with the selected guide's combined diff in the right pane. Enter on a section or file jumps to its position in that diff. A file appears under every section that owns part of it. `n` walks guide rows, `]`/`[` jump between guides, and `tab` expands or collapses the selected guide or section. `i` lists every raw unit. `m` marks the whole file slice of the selected unit. A fallback, absent, or empty bundle leaves Files available.
+The left pane opens on Files. Its right pane shows every changed file in order, with all of each file's hunks together. Scroll through the whole PR or press `j`/`k` to jump between file boundaries. Press `F` for Files or `G` for Guide. When a session has generated guides, Guide shows each guide, section, and covered file portion, with the selected guide's combined diff in the right pane. Enter on a section or file jumps to its position in that diff. A file appears under every section that owns part of it. `n` walks guide rows, `}`/`{` jump between guides, and `tab` expands or collapses the selected guide or section. `]`/`[` widen or narrow the left pane by two columns. `i` lists every raw unit. `m` marks the whole file slice of the selected unit. A fallback, absent, or empty bundle leaves Files available.
 
 Reviews opened in one process keep independent in-memory reading positions, hierarchy expansion, pane focus, scroll offsets, notices, and errors. `ctrl+p` (or `p` where control-key reporting is unreliable) opens a keyboard-only PR switcher over the current review. It lists already-open reviews first, then open PRs for the active repository; typing filters, Enter switches or starts a new read-only pinned review, and Escape leaves the current review unchanged. The overlay never takes a permanent column or changes plain output.
 
@@ -51,7 +51,8 @@ columns. Plain output is always unified.
 | --- | --- |
 | `ctrl+p` / `p` | Open the PR switcher; type to filter, Enter switches/opens, Escape cancels |
 | `n` / `p` | Move between comment targets in a focused Files diff; move through files, guide rows, or inventory units in the list |
-| `]` / `[` | Next / previous guide, or file slice without guides |
+| `}` / `{` | Next / previous guide, or file slice without guides |
+| `]` / `[` | Widen / narrow the left file and guide pane by two columns |
 | `F` / `G` | Select Files or Guide in the left pane |
 | `S` | Toggle side-by-side detail; unified is the default and narrow terminals fall back below 160 columns |
 | `v` / `V` | Next / previous PR context view: Diff, Description, or Commits (placeholder) |
