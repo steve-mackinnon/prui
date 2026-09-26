@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 	"pr-review/internal/source"
 )
@@ -23,6 +24,72 @@ func TestWorkspaceIdentityPersistsAcrossContextViews(t *testing.T) {
 		if !strings.Contains(first, `owner/repo #42 · Fix\x1b]52;unsafe\a title`) || !strings.Contains(first, "ctrl+p: switch PR") {
 			t.Fatalf("view %d identity = %q", view, first)
 		}
+	}
+}
+
+func TestKeyboardResizesReviewPaneAndKeepsTabPreference(t *testing.T) {
+	m := New(context.Background(), nil)
+	t.Cleanup(m.Close)
+	first := screenSession()
+	first.Inventory.Comparison.Metadata.Identity = source.Identity{Repository: "owner/repo", Number: 1}
+	second := screenSession()
+	second.Inventory.Comparison.Metadata.Identity = source.Identity{Repository: "owner/repo", Number: 2}
+	m.openReviewTab(first)
+	m.Update(tea.WindowSizeMsg{Width: 120, Height: 24})
+	initial := m.listWidth()
+	key(m, ']')
+	if got := m.listWidth(); got != initial+2 {
+		t.Fatalf("] width = %d, want %d", got, initial+2)
+	}
+	line := strings.Split(ansi.Strip(m.View().Content), "\n")[3]
+	if got := visibleWidth(strings.SplitN(line, " │ ", 2)[0]); got != m.listWidth() {
+		t.Fatalf("divider at %d, list width %d", got, m.listWidth())
+	}
+	m.openReviewTab(second)
+	if got := m.listWidth(); got != initial {
+		t.Fatalf("new tab width = %d, want %d", got, initial)
+	}
+	m.activateTab(0)
+	if got := m.listWidth(); got != initial+2 {
+		t.Fatalf("restored tab width = %d, want %d", got, initial+2)
+	}
+	key(m, '[')
+	if got := m.listWidth(); got != initial {
+		t.Fatalf("[ width = %d, want %d", got, initial)
+	}
+	for range 100 {
+		key(m, '[')
+	}
+	if got := m.listWidth(); got != 18 {
+		t.Fatalf("minimum list width = %d, want 18", got)
+	}
+	for range 100 {
+		key(m, ']')
+	}
+	if got := m.detailWidth(); got < 40 {
+		t.Fatalf("detail narrowed to %d columns", got)
+	}
+	m.Update(tea.WindowSizeMsg{Width: 100, Height: 24})
+	if got := m.listWidth(); got != 57 {
+		t.Fatalf("temporary width clamp = %d, want 57", got)
+	}
+	m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+	if got := m.listWidth(); got != 80 {
+		t.Fatalf("narrow single pane width = %d", got)
+	}
+	preferred := m.listWidthPreference
+	key(m, '[')
+	if m.listWidthPreference != preferred {
+		t.Fatal("narrow view changed hidden pane width preference")
+	}
+	m.Update(tea.WindowSizeMsg{Width: 120, Height: 24})
+	if got := m.detailWidth(); got != 40 {
+		t.Fatalf("wide resize lost preferred width: detail = %d", got)
+	}
+	m.selectReviewView(viewDescription)
+	key(m, '[')
+	if m.listWidthPreference != preferred {
+		t.Fatal("description view changed pane width preference")
 	}
 }
 
