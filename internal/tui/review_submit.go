@@ -178,9 +178,10 @@ func (m *Model) reviewFormView() string {
 		lines = append(lines, "Check GitHub before retrying; delivery may have succeeded.")
 	}
 	footer := "j/k or ↑/↓: choose · tab/enter: comment · esc: back"
-	if f.Focus == 1 {
+	switch f.Focus {
+	case 1:
 		footer = "enter: confirm · shift+enter: newline · esc: back"
-	} else if f.Focus == 2 {
+	case 2:
 		footer = "j/k: select · enter: edit · d: remove · esc: back"
 	}
 	if f.Confirm {
@@ -236,19 +237,21 @@ func (m *Model) reviewFormKey(key tea.KeyPressMsg) tea.Cmd {
 	case "tab":
 		f.Focus = (f.Focus + 1) % 3
 	case "up", "k":
-		if f.Focus == 0 {
+		switch {
+		case f.Focus == 0:
 			f.Event = (f.Event + len(reviewEvents) - 1) % len(reviewEvents)
-		} else if f.Focus == 2 && len(m.Pending) > 0 {
+		case f.Focus == 2 && len(m.Pending) > 0:
 			f.Selected = (f.Selected + len(m.Pending) - 1) % len(m.Pending)
-		} else if f.Focus == 1 {
+		case f.Focus == 1:
 			m.insertReviewSummary(key.Text)
 		}
 	case "down", "j":
-		if f.Focus == 0 {
+		switch {
+		case f.Focus == 0:
 			f.Event = (f.Event + 1) % len(reviewEvents)
-		} else if f.Focus == 2 && len(m.Pending) > 0 {
+		case f.Focus == 2 && len(m.Pending) > 0:
 			f.Selected = (f.Selected + 1) % len(m.Pending)
-		} else if f.Focus == 1 {
+		case f.Focus == 1:
 			m.insertReviewSummary(key.Text)
 		}
 	case "enter":

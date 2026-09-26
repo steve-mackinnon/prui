@@ -8,7 +8,7 @@ import (
 	"pr-review/internal/theme"
 )
 
-var errThemeSelectionNotSaved = errors.New("Theme selection was not saved; active theme unchanged")
+var errThemeSelectionNotSaved = errors.New("theme selection was not saved; active theme unchanged")
 
 var themeDescriptions = map[string]string{
 	theme.Terminal:     "Use terminal palette",
