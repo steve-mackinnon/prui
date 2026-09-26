@@ -13,7 +13,12 @@ type Policy struct {
 }
 
 var credentialName = regexp.MustCompile(`(?i)(^|[._-])(env|secret|credential|token|password|passwd|private|id_rsa)([._-]|$)`)
-var credentialContent = regexp.MustCompile(`(?i)(api[_-]?key|access[_-]?token|secret|password|private[_-]?key)\s*[:=]\s*[^\s]+`)
+
+// These heuristics are defense in depth, not exhaustive secret detection. Scan
+// source text rather than parsing a format: patches can contain partial JSON,
+// YAML, or assignments and must be checked on both added and removed lines.
+var credentialContent = regexp.MustCompile(`(?i)(api[_-]?key|(?:access|refresh|auth)[_-]?token|secret|password|passwd|private[_-]?key)["']?\s*(?::=|:|=)\s*[^\s]+`)
+var credentialMaterial = regexp.MustCompile(`-----BEGIN (?:[A-Z0-9]+ )?PRIVATE KEY-----|\bgh[pousr]_[A-Za-z0-9]{36}\b|\bgithub_pat_[A-Za-z0-9_]{82}\b|\b(?:AKIA|ASIA)[A-Z0-9]{16}\b`)
 
 func (p Policy) ExcludedPath(path []byte) (bool, string) {
 	s := filepath.ToSlash(string(path))
@@ -36,7 +41,7 @@ func (p Policy) ExcludedContent(b []byte) (bool, string) {
 	if bytes.IndexByte(b, 0) >= 0 {
 		return true, "binary content"
 	}
-	if credentialContent.Match(b) {
+	if credentialContent.Match(b) || credentialMaterial.Match(b) {
 		return true, "credential-like content"
 	}
 	return false, ""

@@ -180,3 +180,33 @@ func TestInputDigestTracksMaterial(t *testing.T) {
 		t.Fatal("different bounds kept the same digest")
 	}
 }
+
+func TestInputWithholdsCredentialPatchesAndEvidence(t *testing.T) {
+	for name, content := range map[string]string{
+		"JSON":           `{"api_key": "synthetic-value"}`,
+		"YAML":           `'access_token': 'synthetic-value'`,
+		"assignment":     `clientSecret := "synthetic-value"`,
+		"private key":    "-----BEGIN OPENSSH PRIVATE KEY-----",
+		"token material": `value = "ghp_012345678901234567890123456789012345"`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			b := &builder{}
+			blocked := b.unit("config.json", "@@ -0,0 +1 @@\n+"+content+"\n", inventory.TextHunk)
+			allowed := b.unit("main.go", "@@ -0,0 +1 @@\n+func main() {}\n", inventory.TextHunk)
+			c := reviewcontext.ContextBundle{Evidence: []reviewcontext.Evidence{
+				{EvidenceID: "blocked", Path: []byte("settings.yml"), Excerpt: []byte(content)},
+				{EvidenceID: "allowed", Path: []byte("README.md"), Excerpt: []byte("Configure your API key.")},
+			}}
+			in := InputFrom(b.build(), c, privacy.Policy{}, Defaults)
+			if sent(in, blocked) || !sent(in, allowed) || strings.Contains(material(in), content) {
+				t.Fatal("request did not withhold only credential material")
+			}
+			if len(in.Evidence) != 1 || in.Evidence[0].EvidenceID != "allowed" {
+				t.Fatal("evidence not filtered at upload boundary")
+			}
+			if withheldFor(in, "config.json") != "credential-like content" || len(in.Omissions) != 1 || in.Omissions[0].Reason != "credential-like content" {
+				t.Fatal("withheld content not recorded")
+			}
+		})
+	}
+}
