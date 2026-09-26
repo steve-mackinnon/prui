@@ -1987,9 +1987,9 @@ func (m *Model) descriptionKey(key string) bool {
 		delta = 1
 	case "k", "up", "p":
 		delta = -1
-	case "J":
+	case "J", "shift+j":
 		delta = diffStep
-	case "K":
+	case "K", "shift+k":
 		delta = -diffStep
 	case "d", "pgdown":
 		delta = m.descriptionBodyHeight()
