@@ -213,7 +213,7 @@ func TestReviewHeaderExposesSwitcherAndFitsViewport(t *testing.T) {
 func TestReviewStartsWithFilesAndGuideTabNeedsOptIn(t *testing.T) {
 	m := New(context.Background(), nil)
 	m.openReviewTab(screenSession())
-	if !m.Files || !strings.Contains(ansi.Strip(m.View().Content), "[Files F]") {
+	if !m.Files || !strings.Contains(ansi.Strip(m.View().Content), "[File (F)]") {
 		t.Fatal("review did not open on Files")
 	}
 	key(m, 'G')
@@ -267,28 +267,25 @@ func TestReviewSelectionUsesPersistentChevronOutsideFocusedPane(t *testing.T) {
 	}
 }
 
-func TestWideReviewFramesBothPanesAndHighlightsTheFocusedPane(t *testing.T) {
+func TestWideReviewSeparatesPanesAndIdentifiesFocus(t *testing.T) {
 	m := New(context.Background(), nil)
+	t.Cleanup(m.Close)
 	m.Loading = false
 	m.Session = screenSession()
-	m.Width, m.Height, m.Focus = 120, 12, paneList
-
-	view := m.View().Content
-	lines := strings.Split(ansi.Strip(view), "\n")
-	if !strings.HasPrefix(lines[2], "┌─ File (F)  Guide (G)") || !strings.Contains(lines[2], "┐ ┌") || !strings.HasSuffix(lines[2], "┐") {
-		t.Fatalf("wide review lacks pane top borders:\n%s", strings.Join(lines, "\n"))
-	}
-	if strings.Contains(ansi.Strip(view), "focus:") || !strings.Contains(view, m.styleLine(selectedClass(true), " File (F) ")) {
-		t.Fatalf("file tab is not selected in the list panel or focus text remains:\n%s", view)
-	}
-	if !strings.HasPrefix(lines[3], "│› main.go") || !strings.Contains(lines[3], "│ │") || !strings.HasSuffix(lines[3], "│") {
-		t.Fatalf("wide review content is not enclosed by both pane borders:\n%s", strings.Join(lines, "\n"))
-	}
-	if !strings.Contains(view, m.styleLine(paneBorderClass(true), "│")) {
-		t.Fatalf("focused list pane border was not styled:\n%q", view)
-	}
-	if !strings.Contains(view, m.styleLine(paneBorderClass(false), "│")) {
-		t.Fatalf("unfocused diff pane border was not styled:\n%q", view)
+	m.Width, m.Height = 120, 12
+	for _, tc := range []struct {
+		focus pane
+		label string
+	}{{paneList, "files"}, {paneDiff, "diff"}} {
+		m.Focus = tc.focus
+		view := ansi.Strip(m.View().Content)
+		lines := strings.Split(view, "\n")
+		if !strings.Contains(lines[2], "[File (F)]  Guide (G) · focus: "+tc.label) {
+			t.Fatalf("missing selected list tab or focus cue:\n%s", view)
+		}
+		if !strings.HasPrefix(lines[3], "› main.go") || !strings.Contains(lines[3], " │ ") || strings.ContainsAny(view, "┌┐└┘") {
+			t.Fatalf("wide review should use a single divider:\n%s", view)
+		}
 	}
 }
 
@@ -328,7 +325,7 @@ func TestReviewWorkspaceUsesCompactHealthStatusInsteadOfShortcutFooter(t *testin
 	m.Width, m.Height, m.Focus = 120, 12, paneDiff
 
 	view := ansi.Strip(m.View().Content)
-	if !strings.Contains(view, "0/2 read") || !strings.Contains(view, "Inventory complete") || !strings.Contains(view, "?: Health & help") {
+	if !strings.Contains(view, "0/2 read") || !strings.Contains(view, "Freshness unknown") || !strings.Contains(view, "?: Health & help") {
 		t.Fatalf("review lacks compact health status:\n%s", view)
 	}
 	if strings.Contains(view, "ctrl+h/ctrl+l: focus list/diff") {
@@ -354,10 +351,10 @@ func TestHealthHelpGroupsEveryBinding(t *testing.T) {
 	m := New(context.Background(), nil)
 	m.Loading = false
 	m.Session = screenSession()
-	m.Width, m.Height = 160, 60
+	m.Width, m.Height = 160, 90
 	key(m, '?')
 
-	view := ansi.Strip(m.View().Content)
+	view := ansi.Strip(m.healthHelpView())
 	for _, heading := range []string{"Navigate", "Review", "Views", "Diagnostics", "App"} {
 		if !strings.Contains(view, heading) {
 			t.Fatalf("Health & help is missing %q:\n%s", heading, view)
@@ -390,6 +387,7 @@ func TestRawReviewMockedEndToEnd(t *testing.T) {
 		t.Fatal("load failed", m.Err)
 	}
 	m.Update(tea.WindowSizeMsg{Width: 120, Height: 24})
+	key(m, 'i') // Raw-unit traversal belongs to full inventory, not Files.
 	for i := range m.Session.Inventory.Units {
 		if m.Selected != i {
 			t.Fatal("unit inaccessible", i)
@@ -399,6 +397,7 @@ func TestRawReviewMockedEndToEnd(t *testing.T) {
 		}
 		key(m, 'n')
 	}
+	key(m, 'i') // Return to the continuous Files workspace.
 	key(m, 'n')
 	key(m, 'j')
 	selected, scroll := m.Selected, m.Scroll[m.Selected]
@@ -425,9 +424,11 @@ func TestRawReviewMockedEndToEnd(t *testing.T) {
 		t.Fatal("status missing")
 	}
 	m.Update(tea.WindowSizeMsg{Width: 120, Height: 24})
+	key(m, '?')
 	if !strings.Contains(ansi.Strip(m.View().Content), "Guide available with g") {
-		t.Fatal("terminal status hides the analysis decision")
+		t.Fatal("health help hides the analysis decision")
 	}
+	namedKey(m, tea.KeyEscape)
 	hunk := -1
 	for i, u := range m.Session.Inventory.Units {
 		if u.Kind == inventory.TextHunk {
@@ -531,7 +532,7 @@ func TestDiffCursorMovesBetweenCommentTargetsAndKeepsThemVisible(t *testing.T) {
 	m.Loading = false
 	m.Session = kindsSession()
 	m.Selected, m.Focus = 1, paneDiff
-	m.Width, m.Height = 120, 5 // two detail rows: force cursor-following scroll.
+	m.Width, m.Height = 120, 6 // two detail rows: force cursor-following scroll.
 	m.cursorActive = true
 	m.ensureCursorVisible()
 
@@ -543,7 +544,7 @@ func TestDiffCursorMovesBetweenCommentTargetsAndKeepsThemVisible(t *testing.T) {
 	if !strings.Contains(view, "›  context") {
 		t.Fatalf("initial comment target is not visibly marked:\n%s", view)
 	}
-	if !strings.Contains(view, "|   @@ -1,2 +1,2 @@") {
+	if !strings.Contains(view, "│   @@ -1,2 +1,2 @@") {
 		t.Fatalf("unselected detail line does not retain the cursor gutter:\n%s", view)
 	}
 
@@ -621,7 +622,7 @@ func TestZZRequiresConsecutiveKeysInFocusedChangesDiff(t *testing.T) {
 	m.setOffset(m.cursor() - 1)
 	initial := m.offset()
 	key(m, 'z')
-	key(m, 'j')
+	namedKey(m, tea.KeyRight) // Interrupt without moving the file or vertical cursor.
 	key(m, 'z')
 	if got := m.offset(); got != initial {
 		t.Fatalf("interrupted z sequence changed offset to %d", got)
@@ -803,7 +804,8 @@ func TestDiffEnterOpensACommentComposerOnlyForTheCursorTarget(t *testing.T) {
 	m = New(context.Background(), nil)
 	m.Loading = false
 	m.Session = kindsSession()
-	m.Selected, m.Focus = 0, paneDiff // file metadata has no commentable target.
+	m.Selected, m.Focus = 0, paneDiff // Full inventory isolates the metadata unit.
+	m.Inventory = true
 	namedKey(m, tea.KeyEnter)
 	if m.top() != pageReview || m.Composer != nil {
 		t.Fatalf("non-commentable detail opened composer: page=%v composer=%#v", m.top(), m.Composer)
@@ -978,8 +980,11 @@ func TestCommentCursorOpensLocalActionMenuAndEscapeDoesNotWrite(t *testing.T) {
 	}
 	m.Comments = []source.ReviewComment{{ID: 7, Author: "other", Target: target, Body: "note"}}
 	m.cursorActive = true
-	for m.detail()[m.cursor()].commentID == 0 {
-		key(m, 'j')
+	for attempts := 0; attempts < len(m.detail()) && m.detail()[m.cursor()].commentID == 0; attempts++ {
+		key(m, 'n')
+	}
+	if m.detail()[m.cursor()].commentID != 7 {
+		t.Fatal("comment navigation did not reach the loaded comment")
 	}
 	namedKey(m, tea.KeyEnter)
 	if m.CommentMenu == nil || m.Composer != nil || m.CommentMenu.CommentID != 7 {
@@ -1124,6 +1129,7 @@ func TestReactionPickerDigitsAndBottomBorderCounts(t *testing.T) {
 func TestReactionEmojiDisplayFallsBackForASCII(t *testing.T) {
 	m := New(context.Background(), nil)
 	m.Loading = false
+	m.Session = kindsSession()
 	m.reactionEmoji = true
 	m.CommentReactions = map[int64][]source.ReviewCommentReaction{7: {
 		{Content: "+1"}, {Content: "-1"}, {Content: "laugh"}, {Content: "confused"},
@@ -1285,7 +1291,7 @@ func TestModalPagesOwnInputAndBack(t *testing.T) {
 func TestBindingsRenderHelpAndFooter(t *testing.T) {
 	help := renderBindings(groupHelp)
 	footer := renderBindings(groupFooter)
-	for _, wording := range []string{"focus the diff; open a line editor or selected-comment action menu", "reset selected guide scroll, or selected unit's without guides"} {
+	for _, wording := range []string{"focus the diff; open a line editor or selected-comment action menu", "reset active diff scroll"} {
 		if !strings.Contains(help, wording) {
 			t.Fatalf("updated help wording missing %q", wording)
 		}
@@ -1513,7 +1519,7 @@ func TestRawReviewGuideHierarchy(t *testing.T) {
 	if strings.ContainsAny(content, "\x1b\a") || !strings.Contains(content, `1. Greeting flow\x1b]52`) {
 		t.Fatal("guide titles are not escaped like patch content", content)
 	}
-	if !strings.Contains(content, "Guides") || !strings.Contains(content, `1.1 Add greeting\x1b]52`) {
+	if !strings.Contains(content, "GUIDES") || !strings.Contains(content, `1.1 Add greeting\x1b]52`) {
 		t.Fatal("guide hierarchy missing from the left pane", content)
 	}
 	for _, w := range []int{1, 20, 60, 99, 100, 120} {
@@ -1539,8 +1545,11 @@ func TestRawReviewGuideHierarchy(t *testing.T) {
 	// hands it to the diff, while tab on a guide or section expands it. esc is
 	// the way back, exactly as it is for the file plan.
 	m.Update(tea.WindowSizeMsg{Width: 60, Height: 24})
-	for m.rows()[m.Row].kind != portionRow {
+	for steps := 0; steps < len(m.rows()) && m.rows()[m.Row].kind != portionRow; steps++ {
 		key(m, 'n')
+	}
+	if m.rows()[m.Row].kind != portionRow {
+		t.Fatal("guide navigation did not reach a portion row")
 	}
 	m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
 	if m.Focus != paneDiff || !strings.Contains(ansi.Strip(m.View().Content), "focus: diff") {
@@ -1550,8 +1559,11 @@ func TestRawReviewGuideHierarchy(t *testing.T) {
 	if m.Focus != paneList {
 		t.Fatal("esc did not switch back to the hierarchy")
 	}
-	for m.Row > 0 {
+	for steps := 0; steps < len(m.rows()) && m.Row > 0; steps++ {
 		key(m, 'p')
+	}
+	if m.Row != 0 {
+		t.Fatal("guide navigation did not return to the first row")
 	}
 	before := len(m.rows())
 	m.Update(tea.KeyPressMsg{Code: tea.KeyTab})

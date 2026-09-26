@@ -918,17 +918,29 @@ func (m *Model) repositoryPickerView() string {
 func (m *Model) switcherView() string {
 	results := m.switcherResults()
 	m.PullRequestPicker.clamp(len(results))
+	available := make(map[source.Identity]source.PullRequest, len(m.PullRequests))
+	for _, pr := range m.PullRequests {
+		available[pr.Identity] = pr
+	}
 	rows := make([]string, len(results))
+	var detail []string
 	for i, result := range results {
+		pr, known := available[result.identity]
 		if result.open {
 			rows[i] = "open " + Escape(result.title)
+			if known {
+				rows[i] = m.compactPullRequestRow(rows[i]+"  "+Escape(pr.Title), pullRequestChecks(pr))
+			}
 		} else {
-			rows[i] = fmt.Sprintf("#%d %s", result.identity.Number, Escape(result.title))
+			rows[i] = m.pullRequestRow(pr)
+		}
+		if i == m.PullRequestPicker.Index && known {
+			detail = m.pullRequestDetail(pr)
 		}
 	}
 	header := []string{appHeader("Switch pull requests", "type to filter"), "filter: " + Escape(m.SwitcherQuery)}
 	footer := "type: filter · enter: switch/open · esc: cancel"
-	return m.pickerScreen(&m.PullRequestPicker, header, rows, "No matching open reviews or pull requests.", footer)
+	return m.pickerScreenDetail(&m.PullRequestPicker, header, rows, detail, "No matching open reviews or pull requests.", footer)
 }
 
 func (m *Model) footer() string {

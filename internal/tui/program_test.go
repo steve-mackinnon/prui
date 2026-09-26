@@ -204,7 +204,7 @@ func TestProgramBrowserCancelFailureRetryAndBack(t *testing.T) {
 	h.expect("successful retry", func(f programFrame) bool { return !f.busy && strings.Contains(f.text, "First PR") })
 	h.key(tea.KeyDown)
 	h.expect("second PR", func(f programFrame) bool {
-		return strings.Contains(f.text, "› ╭") && strings.Contains(f.text, "#2  Second PR")
+		return strings.Contains(f.text, "› #2  Second PR")
 	})
 	h.key(tea.KeyEscape)
 	h.expect("repository restored", func(f programFrame) bool { return f.page == pageRepositoryPicker })

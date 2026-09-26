@@ -52,13 +52,25 @@ The left pane opens on Files. Its right pane shows every changed file in order, 
 
 Reviews opened in one process keep independent in-memory reading positions, hierarchy expansion, pane focus, scroll offsets, notices, and errors. `ctrl+p` (or `p` where control-key reporting is unreliable) opens a keyboard-only PR switcher over the current review. It lists already-open reviews first, then open PRs for the active repository; typing filters, Enter switches or starts a new read-only pinned review, and Escape leaves the current review unchanged. The overlay never takes a permanent column or changes plain output.
 
-The interactive review uses a compact workspace: an identity header, a mode and
-selection header, the file/guide rail and detail pane, and a one-line health
-status. The status line keeps `R Submit review` and the pending count visible
-alongside local reading progress, inventory, guides, freshness, and unavailable
-content. Narrow terminals abbreviate the action and retain the highest-severity
-state. `?` opens **Health & help**, which groups shortcuts under Navigate,
-Review, Views, Diagnostics, and App.
+The interactive review uses a quiet workspace: a persistent repository/PR
+identity (and title when available from the PR browser), understated context
+tabs, and a file/guide rail separated from the detail by one divider. The
+selected row, active context tab, and pane focus remain explicit without color.
+Below 100 columns, the focused pane uses the full width.
+
+The status line keeps `R Submit review` and the pending count visible alongside
+local reading progress and freshness. Warnings take priority over routine
+health information. At heights of 10 rows or more, a second footer line shows
+shortcuts for the current pane, context view, or comment editor; shorter
+terminals use one footer row. `?` opens **Health & help**, with complete review
+health and shortcuts grouped under Navigate, Review, Views, Diagnostics, and App.
+Use arrows or j/k to scroll help, Page Up/Down to page, and Escape to return.
+The editor explicitly labels Enter as **post now** and Ctrl+P as **save pending**;
+these actions keep their existing behavior.
+
+PR browsing and switching use compact rows. The selected PR's available author,
+opened date, last contributor, and checks appear below the list when space
+permits. Short terminals prioritize visible choices and selection.
 
 Diff detail opens in unified layout. Press `S` to prefer side-by-side source
 rows for the active review tab; that preference stays in memory only and is not
@@ -124,8 +136,9 @@ Immediately before posting a comment or submitting a review, pr-review re-reads 
 ## Color
 
 The interactive TUI supports four built-in semantic palettes: `terminal` (the
-default), `light`, `dark`, and `high-contrast`. `terminal` preserves the
-existing ANSI/256-color mapping, so it follows the terminal's palette. Choose
+default), `light`, `dark`, and `high-contrast`. `terminal` uses the terminal's foreground for routine chrome and ANSI/256-color
+accents for focus, changes, and attention states. Light and dark palettes use
+neutral secondary text; high-contrast retains stronger semantic colors. Choose
 a palette for one invocation with `--theme NAME` on `pr-review`, `open`,
 `resume`, or `prs`; an invalid name exits before normal work begins. The flag
 is accepted with `--plain` but has no visible effect. `verify` does not accept

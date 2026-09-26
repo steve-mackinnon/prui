@@ -79,9 +79,8 @@ func stylesFor(t theme.Theme) map[lineClass]lipgloss.Style {
 		// The selection in the focused pane adds reverse video, also colorless, so
 		// the two selection states differ without either depending on color.
 		classSelectionFocused: lipgloss.NewStyle().Bold(true).Reverse(true).TabWidth(lipgloss.NoTabConversion),
-		// Wide review panes keep a quiet outline until selected. The active pane
-		// uses the same warm accent as the review chrome, with bold retained as a
-		// color-independent focus cue.
+		// Pane boundaries stay neutral until focused. The active boundary carries
+		// the workspace accent, with bold retained as a color-independent cue.
 		classPaneBorder:        semantic(colorFor(theme.Border), false),
 		classPaneBorderFocused: semantic(colorFor(theme.FocusedBorder), true),
 	}

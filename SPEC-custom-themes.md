@@ -1,3 +1,9 @@
+> Quiet workspace update (2026-09-25): the approved option A refresh changes
+> terminal/light/dark default chrome colors to neutral text with restrained
+> focus accents. Earlier promises below of preserving the exact original
+> palette are historical; token names, overrides, capability handling and the
+> high-contrast palette remain unchanged.
+
 # Spec: Interactive TUI Themes
 
 ## Status

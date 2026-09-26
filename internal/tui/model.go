@@ -63,6 +63,7 @@ const maxTabs = 9
 
 type workspaceTab struct {
 	identity source.Identity
+	title    string
 	review   *reviewTabState
 }
 
@@ -183,6 +184,7 @@ type Model struct {
 	GuideCursor                                          map[int]int
 	cursorActive                                         bool
 	pendingCenter                                        bool
+	helpScroll                                           int
 	Width, Height, Horizontal                            int
 	layout                                               diffLayout
 	guidePathOffset, guidePathPause, guidePathGeneration int
@@ -774,11 +776,11 @@ func (m *Model) registerReviewTab(s *review.Session, activate bool) {
 		return
 	}
 	if !activate {
-		m.tabs = append(m.tabs, workspaceTab{identity: identity, review: newReviewTabState(s)})
+		m.tabs = append(m.tabs, workspaceTab{identity: identity, title: m.knownPRTitle(identity), review: newReviewTabState(s)})
 		return
 	}
 	m.saveActiveReview()
-	m.tabs = append(m.tabs, workspaceTab{identity: identity, review: newReviewTabState(s)})
+	m.tabs = append(m.tabs, workspaceTab{identity: identity, title: m.knownPRTitle(identity), review: newReviewTabState(s)})
 	m.activeTab = len(m.tabs) - 1
 	m.restoreReviewTab(m.tabs[m.activeTab].review)
 }
@@ -859,6 +861,9 @@ func (m *Model) selectReviewView(view reviewView) {
 
 func (m *Model) push(p page) {
 	if m.top() != p {
+		if p == pageHelp {
+			m.helpScroll = 0
+		}
 		m.Stack = append(m.Stack, p)
 	}
 }
@@ -901,7 +906,9 @@ func (m *Model) pageKey(p page, key tea.KeyPressMsg) tea.Cmd {
 		return nil
 	case pageThemePicker:
 		return m.themePickerKey(k)
-	case pageHelp, pageURL, pageEvidence:
+	case pageHelp:
+		m.helpKey(k)
+	case pageURL, pageEvidence:
 		if k == "esc" {
 			m.pop()
 		}
@@ -1123,7 +1130,7 @@ func (m *Model) fileView() bool {
 func (m *Model) fileOffset(file int) int {
 	seen := 0
 	for i, line := range m.displayDetail() {
-		if line.Class != classFileHeader || !strings.HasPrefix(line.Text, "━━━ FILE · ") {
+		if line.Class != classFileHeader || !strings.HasPrefix(line.Text, "── ") {
 			continue
 		}
 		if seen == file {
@@ -1144,7 +1151,7 @@ func (m *Model) syncFileToLine(index int) {
 		if i > index {
 			break
 		}
-		if line.Class == classFileHeader && strings.HasPrefix(line.Text, "━━━ FILE · ") {
+		if line.Class == classFileHeader && strings.HasPrefix(line.Text, "── ") {
 			file++
 		}
 	}
@@ -1403,23 +1410,14 @@ func (m *Model) inlineEditorLinesFor(draft string, editorCursor, indent int) []d
 	return lines
 }
 
-// overlayInnerWidth leaves room for the detail cursor gutter, an overlay's
-// indent and its own border. Framed wide panes have two fewer detail columns,
-// so this prevents deeply nested comments from losing their closing border.
+// overlayInnerWidth reserves the detail cursor gutter, indent, and overlay border.
 func (m *Model) overlayInnerWidth(indent int) int {
-	reserved := 6 // cursor gutter plus the overlay's own border
-	if m.reviewUsesPaneFrames() {
-		reserved++ // keep nested overlay borders visually clear of the pane edge
-	}
-	return max(8, m.detailWidth()-(2+indent)-reserved)
+	return max(8, m.detailWidth()-(2+indent)-6)
 }
 
 func (m *Model) detailWidth() int {
 	if m.Width < 100 {
 		return m.Width
-	}
-	if m.reviewUsesPaneFrames() {
-		return m.Width - m.listWidth() - 5
 	}
 	return m.Width - m.listWidth() - 3
 }
@@ -1636,17 +1634,16 @@ func (m *Model) centerCursor() {
 	}
 }
 
-func (m *Model) bodyHeight() int {
-	if m.reviewUsesPaneFrames() {
-		return max(1, m.Height-5)
+// reviewFooterRows keeps viewport geometry in sync with status and shortcut rows.
+func (m *Model) reviewFooterRows() int {
+	if m.Session != nil && m.Height >= 10 {
+		return 2
 	}
-	return max(1, m.Height-3)
+	return 1
 }
 
-// reviewUsesPaneFrames keeps the established narrow one-pane layout intact.
-// Wide terminals get a complete outline around each workspace pane.
-func (m *Model) reviewUsesPaneFrames() bool {
-	return m.Width >= 100 && m.Height >= 6
+func (m *Model) bodyHeight() int {
+	return max(1, m.Height-3-m.reviewFooterRows())
 }
 
 func (m *Model) pageStep() int { return max(1, m.bodyHeight()-1) }
@@ -1666,10 +1663,7 @@ func (m *Model) View() tea.View {
 		case pagePullRequestPicker:
 			text = m.pullRequestPickerView()
 		case pageHelp:
-			text = "Health & help\n" + renderHealth() + "\n\nControls and invalid bytes escaped. No mouse capture.\nReading progress is local, not GitHub approval.\nGuides interpret the diff; the raw inventory remains the complete source view.\nMarking any portion of a file marks its whole slice, under every guide.\nEvidence is pinned, bounded, and omissions are reported. Analysis is optional and consent-bound."
-			if m.store != nil && m.Session != nil {
-				text += "\nStorage: " + Escape(m.store.Path()) + "\nSession: " + m.Session.ID
-			}
+			text = m.helpViewport()
 		case pageURL:
 			text = m.Session.Inventory.Comparison.Metadata.Identity.URL() + "\nOpen this URL in your browser.\nesc: back | q: quit"
 		case pageGuideConsent:
@@ -1731,7 +1725,7 @@ func (m *Model) reviewView() string {
 // stateless while making its responsive fallback directly testable.
 func (m *Model) reviewViewForLayout(preferSideBySide bool) string {
 	s := m.Session
-	title := m.contextViewTabs()
+	title := m.workspaceIdentity() + "\n" + m.contextViewTabs()
 	if m.selectedReviewView() != viewChanges {
 		if m.selectedReviewView() == viewDescription {
 			return title + "\n" + m.descriptionView() + "\n" + m.reviewStatus()
@@ -1772,19 +1766,21 @@ func (m *Model) reviewViewForLayout(preferSideBySide bool) string {
 	if rows != nil {
 		// The hierarchy interprets the change; progress does not follow it, and
 		// saying so here keeps a section from looking independently completable.
-		text += " · marking: whole files · guide detail"
 		guide, _ := m.activeGuide()
-		text += fmt.Sprintf(" %d/%d", guide+1, len(s.Guides.Items))
+		text = fmt.Sprintf("GUIDES %d · guide %d/%d · marking: whole files", len(s.Guides.Items), guide+1, len(s.Guides.Items))
 	}
 	useSideBySide := preferSideBySide && m.Width >= sideBySideMinimumWidth
 	if preferSideBySide && !useSideBySide {
 		text += " · side-by-side needs 160 columns"
 	}
-	framed := m.reviewUsesPaneFrames()
-	header := m.styleLine(headerClass, text)
-	if !framed {
-		header = m.reviewListTabs() + " · " + header
+	focus := "files"
+	if !m.Files && !m.Inventory {
+		focus = "guides"
 	}
+	if m.Focus == paneDiff {
+		focus = "diff"
+	}
+	header := m.reviewListTabs() + " · focus: " + focus + " · " + m.styleLine(headerClass, text)
 	bodyHeight := m.bodyHeight()
 	leftWidth := m.listWidth()
 	list := []listLine{}
@@ -1816,7 +1812,13 @@ func (m *Model) reviewViewForLayout(preferSideBySide bool) string {
 			list = append(list, listLine{row: i, text: prefix + path})
 		}
 	}
-	start := max(0, firstDisplayLine(list, selectedRow)-bodyHeight+1)
+	selectedLine := firstDisplayLine(list, selectedRow)
+	contextEnd := selectedLine + 1
+	for contextEnd < len(list) && list[contextEnd].row < 0 {
+		contextEnd++
+	}
+	// Keep the selection and its explanation together when navigating down.
+	start := max(0, min(selectedLine, contextEnd-bodyHeight))
 	list = list[start:min(len(list), start+bodyHeight)]
 	detail := m.detail()
 	if useSideBySide {
@@ -1850,15 +1852,6 @@ func (m *Model) reviewViewForLayout(preferSideBySide bool) string {
 		}
 	}
 	body := []string{}
-	leftBorder, rightBorder := paneBorderClass(m.Focus == paneList), paneBorderClass(m.Focus == paneDiff)
-	if framed {
-		leftOuterWidth := leftWidth + 2
-		rightOuterWidth := m.Width - leftOuterWidth - 1
-		body = append(body,
-			m.reviewListTabBorder(leftOuterWidth, leftBorder)+" "+
-				m.styleLine(rightBorder, "┌"+strings.Repeat("─", rightOuterWidth-2)+"┐"),
-		)
-	}
 	for row := 0; row < bodyHeight; row++ {
 		left, right := "", ""
 		class, leftClass := classPlain, classPlain
@@ -1877,58 +1870,66 @@ func (m *Model) reviewViewForLayout(preferSideBySide bool) string {
 			} else {
 				body = append(body, m.styleLine(leftClass, clip(left, m.Width)))
 			}
-		} else if framed {
-			left = clip(left, leftWidth)
-			leftPadding := strings.Repeat(" ", max(0, leftWidth-visibleWidth(left)))
-			rightWidth := m.Width - leftWidth - 5
-			right = clip(right, rightWidth)
-			rightPadding := strings.Repeat(" ", max(0, rightWidth-visibleWidth(right)))
-			body = append(body,
-				m.styleLine(leftBorder, "│")+m.styleLine(leftClass, left)+leftPadding+m.styleLine(leftBorder, "│")+" "+
-					m.styleLine(rightBorder, "│")+m.styleLine(class, right)+rightPadding+m.styleLine(rightBorder, "│"),
-			)
 		} else {
 			leftWidth := min(36, m.Width/3)
 			left = clip(left, leftWidth)
 			// Padding is measured on the clipped plain row, then the row is styled.
 			padding := strings.Repeat(" ", max(0, leftWidth-visibleWidth(left)))
-			body = append(body, m.styleLine(leftClass, left)+padding+" | "+m.styleLine(class, clip(right, m.Width-leftWidth-3)))
+			body = append(body, m.styleLine(leftClass, left)+padding+m.styleLine(paneBorderClass(m.Focus == paneDiff), " │ ")+m.styleLine(class, clip(right, m.Width-leftWidth-3)))
 		}
-	}
-	if framed {
-		leftOuterWidth := leftWidth + 2
-		rightOuterWidth := m.Width - leftOuterWidth - 1
-		body = append(body,
-			m.styleLine(leftBorder, "└"+strings.Repeat("─", leftOuterWidth-2)+"┘")+" "+
-				m.styleLine(rightBorder, "└"+strings.Repeat("─", rightOuterWidth-2)+"┘"),
-		)
 	}
 	return title + "\n" + header + "\n" + strings.Join(body, "\n") + "\n" + m.reviewStatus()
 }
 
-func (m *Model) reviewListTabs() string {
-	file, guide := " File (F) ", " Guide (G) "
-	if m.Files || m.Inventory {
-		file = m.styleLine(selectedClass(true), file)
+// workspaceIdentity uses titles already fetched by the PR browser. Direct and
+// offline opens still show their frozen repository and PR number without a fetch.
+func (m *Model) workspaceIdentity() string {
+	identity := m.Session.Inventory.Comparison.Metadata.Identity
+	text := fmt.Sprintf("%s #%d", Escape(identity.Repository), identity.Number)
+	if title := m.knownPRTitle(identity); title != "" {
+		text += " · " + Escape(title)
 	} else {
-		guide = m.styleLine(selectedClass(true), guide)
+		for _, tab := range m.tabs {
+			if tab.identity == identity && tab.title != "" {
+				text += " · " + Escape(tab.title)
+				break
+			}
+		}
 	}
-	return file + guide
+	hint := "ctrl+p: switch PR"
+	if m.Width >= 60 {
+		text = clip(text, m.Width-visibleWidth(hint)-3)
+		text += strings.Repeat(" ", max(1, m.Width-visibleWidth(text)-visibleWidth(hint))) + hint
+	}
+	return m.styleLine(classTitle, clip(text, m.Width))
 }
 
-func (m *Model) reviewListTabBorder(width int, border lineClass) string {
-	tabs := m.reviewListTabs()
-	return m.styleLine(border, "┌─") + tabs + m.styleLine(border, strings.Repeat("─", max(0, width-3-visibleWidth(tabs)))+"┐")
+func (m *Model) knownPRTitle(identity source.Identity) string {
+	for _, pr := range m.PullRequests {
+		if pr.Identity == identity {
+			return pr.Title
+		}
+	}
+	return ""
+}
+
+func (m *Model) reviewListTabs() string {
+	file, guide := "File (F)", "Guide (G)"
+	if m.Files || m.Inventory {
+		file = m.styleLine(selectedClass(m.Focus == paneList), "["+file+"]")
+	} else {
+		guide = m.styleLine(selectedClass(m.Focus == paneList), "["+guide+"]")
+	}
+	return file + "  " + guide
 }
 
 func (m *Model) contextViewTabs() string {
 	tabs := []string{"Diff [1]", "Description [2]", "Commits [3]"}
 	for i, tab := range tabs {
-		framed := "╭ " + tab + " ╮"
 		if reviewView(i) == m.selectedReviewView() {
-			tabs[i] = m.styleLine(selectedClass(true), framed)
+			tabs[i] = m.styleLine(selectedClass(true), "› "+tab)
 		} else {
-			tabs[i] = m.styleLine(classTitle, framed)
+			tabs[i] = m.styleLine(classTitle, "  "+tab)
 		}
 	}
 	return strings.Join(tabs, "  ")
@@ -1975,7 +1976,7 @@ func (m *Model) descriptionLines() []string {
 	return lines
 }
 
-func (m *Model) descriptionBodyHeight() int { return max(1, m.Height-4) }
+func (m *Model) descriptionBodyHeight() int { return max(1, m.Height-4-m.reviewFooterRows()) }
 
 func (m *Model) descriptionKey(key string) bool {
 	delta := 0

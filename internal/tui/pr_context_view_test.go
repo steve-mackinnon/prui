@@ -69,7 +69,7 @@ func TestPRContextViewRendersTextualTabStripAndContextPlaceholder(t *testing.T) 
 			m.Width, m.Height = width, 12
 			m.Update(tea.KeyPressMsg{Code: 'v', Text: "v"})
 			view := ansi.Strip(m.View().Content)
-			wantTab := "╭ Description [2] ╮"
+			wantTab := "› Description [2]"
 			if !strings.Contains(view, wantTab) {
 				t.Fatalf("context tab strip does not identify active Description:\n%s", view)
 			}
@@ -83,16 +83,17 @@ func TestPRContextViewRendersTextualTabStripAndContextPlaceholder(t *testing.T) 
 	}
 }
 
-func TestPRContextTabsAreTheQuietTopRowAndHaveDirectNumberKeys(t *testing.T) {
+func TestPRContextTabsFollowIdentityAndHaveDirectNumberKeys(t *testing.T) {
 	m := New(context.Background(), nil)
 	t.Cleanup(m.Close)
 	m.openReviewTab(screenSession())
 	m.Width, m.Height = 120, 12
 
 	view := ansi.Strip(m.View().Content)
-	first, _, _ := strings.Cut(view, "\n")
-	if first != "╭ Diff [1] ╮  ╭ Description [2] ╮  ╭ Commits [3] ╮" {
-		t.Fatalf("top row = %q, want bordered direct tab strip", first)
+	_, tabsAndBody, _ := strings.Cut(view, "\n")
+	first, _, _ := strings.Cut(tabsAndBody, "\n")
+	if first != "› Diff [1]    Description [2]    Commits [3]" {
+		t.Fatalf("top row = %q, want direct tab strip below identity", first)
 	}
 	if strings.Contains(first, "review ·") || strings.Contains(first, "ctrl+p") {
 		t.Fatalf("top row retained review chrome: %q", first)
@@ -126,13 +127,13 @@ func TestPRContextTabsHighlightOnlyTheSelectedView(t *testing.T) {
 		{viewCommits, "Commits [3]"},
 	} {
 		m.selectReviewView(tc.view)
-		active := m.styleLine(selectedClass(true), "╭ "+tc.label+" ╮")
+		active := m.styleLine(selectedClass(true), "› "+tc.label)
 		tabs := m.contextViewTabs()
 		if !strings.Contains(tabs, active) {
 			t.Fatalf("selected %s tab is not highlighted", tc.label)
 		}
 		for _, other := range []string{"Diff [1]", "Description [2]", "Commits [3]"} {
-			if other != tc.label && strings.Contains(tabs, m.styleLine(selectedClass(true), "╭ "+other+" ╮")) {
+			if other != tc.label && strings.Contains(tabs, m.styleLine(selectedClass(true), "› "+other)) {
 				t.Fatalf("unselected %s tab is highlighted", other)
 			}
 		}

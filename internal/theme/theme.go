@@ -139,21 +139,21 @@ func ParseColor(s string) (Color, error) {
 }
 
 var builtIns = map[string]map[Token]string{
-	// Terminal exactly preserves the current TUI palette. Keep it expressed in
-	// ANSI names and indices so it continues following the user's terminal.
+	// Terminal inherits the user's foreground for routine chrome. Keep accents
+	// and change colors in ANSI names so they follow the terminal palette too.
 	Terminal: {
-		Title: "cyan", FileHeader: "yellow", Hunk: "magenta", Added: "green",
-		Removed: "red", Metadata: "blue", Warning: "bright-yellow",
-		Unavailable: "bright-red", Selection: "236", FocusedBorder: "208", Border: "240",
+		Title: "default", FileHeader: "default", Hunk: "default", Added: "green",
+		Removed: "red", Metadata: "default", Warning: "bright-yellow",
+		Unavailable: "bright-red", Selection: "236", FocusedBorder: "cyan", Border: "240",
 	},
 	Light: {
-		Title: "#005cc5", FileHeader: "#795e26", Hunk: "#6f42c1", Added: "#116329",
-		Removed: "#cf222e", Metadata: "#0969da", Warning: "#9a6700",
+		Title: "#24292f", FileHeader: "#24292f", Hunk: "#57606a", Added: "#116329",
+		Removed: "#cf222e", Metadata: "#57606a", Warning: "#9a6700",
 		Unavailable: "#cf222e", Selection: "#d0d7de", FocusedBorder: "#0969da", Border: "#8c959f",
 	},
 	Dark: {
-		Title: "#79c0ff", FileHeader: "#e3b341", Hunk: "#d2a8ff", Added: "#7ee787",
-		Removed: "#ff7b72", Metadata: "#58a6ff", Warning: "#e3b341",
+		Title: "#c9d1d9", FileHeader: "#c9d1d9", Hunk: "#8b949e", Added: "#7ee787",
+		Removed: "#ff7b72", Metadata: "#8b949e", Warning: "#e3b341",
 		Unavailable: "#ff7b72", Selection: "#30363d", FocusedBorder: "#58a6ff", Border: "#6e7681",
 	},
 	HighContrast: {

@@ -67,74 +67,93 @@ func reviewHealth(s *review.Session) (string, []healthItem) {
 
 func (m *Model) healthStatus(width int, s *review.Session) string {
 	progress, items := reviewHealth(s)
-	if width < 50 {
-		highest := items[0]
-		for _, item := range items[1:] {
-			if item.severity >= highest.severity {
-				highest = item
-			}
-		}
-		action := "R Review"
-		if len(m.Pending) > 0 {
-			action = fmt.Sprintf("R Review:%d", len(m.Pending))
-		}
-		status := highest.text
-		if status == "! Inventory incomplete" && visibleWidth(strings.Join([]string{strings.TrimSuffix(progress, " read"), action, status}, " · ")) > width {
-			status = "! Inventory gap"
-		}
-		class := classTitle
-		if highest.severity >= 2 {
-			class = classWarning
-		}
-		return m.styleLine(class, clip(strings.Join([]string{strings.TrimSuffix(progress, " read"), action, status}, " · "), width))
-	}
-	help := "?: Health & help"
+	sort.SliceStable(items, func(i, j int) bool { return items[i].severity > items[j].severity })
 	action := fmt.Sprintf("R Submit review (%d)", len(m.Pending))
 	if width < 110 {
 		action = fmt.Sprintf("R Review (%d)", len(m.Pending))
-		help = "?: Help"
 	}
-	parts := []string{progress, action}
 	severity := 0
-	if width >= 100 {
-		sort.SliceStable(items, func(i, j int) bool {
-			priority := func(item healthItem) int {
-				if item.severity >= 2 {
-					return item.severity
-				}
-				return 0
-			}
-			return priority(items[i]) > priority(items[j])
-		})
-		for _, item := range items {
-			candidate := append(append([]string(nil), parts...), item.text, help)
-			if visibleWidth(strings.Join(candidate, " · ")) <= width {
-				parts = append(parts, item.text)
-				severity = max(severity, item.severity)
-			}
+	var states []string
+	for _, item := range items {
+		if item.severity == 0 && item.text != "✓ Freshness current" {
+			continue
 		}
-	} else {
-		highest := items[0]
-		for _, item := range items[1:] {
-			if item.severity >= highest.severity {
-				highest = item
-			}
+		// Once severe warnings exist, reserve status space for those warnings.
+		if severity >= 2 && item.severity < 2 {
+			continue
 		}
-		parts = append(parts, highest.text)
-		severity = highest.severity
+		severity = max(severity, item.severity)
+		states = append(states, item.text)
 	}
-	parts = append(parts, help)
-	line := clip(strings.Join(parts, " · "), width)
-	class := classTitle
+	state := strings.Join(states, " · ")
+	parts := []string{progress, action, state}
+	if visibleWidth(strings.Join(parts, " · ")) > width {
+		state = strings.NewReplacer("Inventory incomplete", "Inventory gap", "Freshness ", "").Replace(state)
+		parts[2] = state
+	}
+	if visibleWidth(strings.Join(parts, " · ")) > width {
+		parts = []string{strings.TrimSuffix(progress, " read"), fmt.Sprintf("R (%d)", len(m.Pending)), state}
+	}
+	if visibleWidth(strings.Join(parts, " · ")) > width && len(states) > 1 {
+		prefix := "?"
+		if severity >= 2 {
+			prefix = "!"
+		}
+		parts[2] = fmt.Sprintf("%s %d issues", prefix, len(states))
+	}
+
+	help := "?: Help"
+	if width >= 110 {
+		help = "?: Health & help"
+	}
+	if visibleWidth(strings.Join(append(append([]string(nil), parts...), help), " · ")) <= width {
+		parts = append(parts, help)
+	}
+	class := classMetadata
 	if severity >= 2 {
 		class = classWarning
 	}
-	return m.styleLine(class, line)
+	return m.styleLine(class, clip(strings.Join(parts, " · "), width))
+}
+
+// healthHelpView keeps routine diagnostics available without filling review chrome.
+func (m *Model) healthHelpView() string {
+	text := "Health & help"
+	if m.Session != nil {
+		progress, items := reviewHealth(m.Session)
+		text += "\n" + progress + fmt.Sprintf(" · %d pending comments", len(m.Pending))
+		for _, item := range items {
+			text += "\n" + item.text
+		}
+		if m.ActionError != nil {
+			text += "\n! Action failed: " + Escape(m.ActionError.Error())
+		}
+	}
+	text += "\n\n" + renderHealth() + "\n\nControls and invalid bytes escaped. No mouse capture.\nReading progress is local, not GitHub approval.\nGuides interpret the diff; the raw inventory remains the complete source view.\nMarking any portion of a file marks its whole slice, under every guide.\nEvidence is pinned, bounded, and omissions are reported. Analysis is optional and consent-bound."
+	if m.store != nil && m.Session != nil {
+		text += "\nStorage: " + Escape(m.store.Path()) + "\nSession: " + Escape(m.Session.ID)
+	}
+	return text
 }
 
 func (m *Model) reviewStatus() string {
+	if m.Session == nil {
+		return ""
+	}
+	status := m.healthStatus(m.Width, m.Session)
+	hints := m.reviewHints()
+	if m.Height < 10 {
+		if m.Composer != nil || m.CommentMenu != nil || m.ActionError != nil {
+			return hints
+		}
+		return status
+	}
+	return status + "\n" + hints
+}
+
+func (m *Model) reviewHints() string {
 	if m.Composer != nil {
-		return m.styleLine(classWarning, clip("enter: post now · ctrl+p: add to pending review · shift+enter: newline · esc: discard", m.Width))
+		return m.styleLine(classWarning, clip("enter: post now · ctrl+p: save pending · esc: discard · shift+enter: newline", m.Width))
 	}
 	if menu := m.CommentMenu; menu != nil {
 		text := "Comment actions: r reply · a react · esc cancel"
@@ -157,12 +176,21 @@ func (m *Model) reviewStatus() string {
 		return m.styleLine(classWarning, clip(text, m.Width))
 	}
 	if m.ActionError != nil {
-		progress, _ := reviewHealth(m.Session)
-		return m.styleLine(classWarning, clip(progress+" · ! Action failed: "+Escape(m.ActionError.Error())+" · ?: Health & help", m.Width))
+		return m.styleLine(classWarning, clip("! Action failed: "+Escape(m.ActionError.Error())+" · ?: Health & help", m.Width))
 	}
 	if m.ReviewSubmitted {
-		progress, _ := reviewHealth(m.Session)
-		return m.styleLine(classTitle, clip("✓ Review submitted on GitHub · "+progress+" · ?: Health & help", m.Width))
+		return m.styleLine(classTitle, clip("✓ Review submitted on GitHub · ?: Health & help", m.Width))
 	}
-	return m.healthStatus(m.Width, m.Session)
+	hints := "j/k: files · enter: diff · m: mark file · ?: Help"
+	switch {
+	case m.selectedReviewView() != viewChanges:
+		hints = "↑/↓: scroll · 1/2/3: views · ?: Help"
+	case m.Focus == paneDiff:
+		hints = "↑/↓: scroll · enter: comment/menu · m: mark file · esc: list · ?: Help"
+	case !m.Files && !m.Inventory:
+		hints = "j/k: guides · tab: expand · enter: diff · ?: Help"
+	case m.Inventory:
+		hints = "j/k: units · enter: diff · m: mark file · ?: Help"
+	}
+	return m.styleLine(classMetadata, clip(hints, m.Width))
 }

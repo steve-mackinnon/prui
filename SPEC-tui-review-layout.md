@@ -1,3 +1,12 @@
+> Superseded visual arrangement (2026-09-25): option A, Quiet workspace, is
+> tracked in tasks/quiet-workspace-plan.md and tasks/quiet-workspace-todo.md.
+> The implemented review now has a PR identity row, context-tab row and
+> mode/focus row, a single pane divider, and a status row plus contextual hints
+> when height permits. Healthy inventory/guide detail is in Health & help;
+> warning states, progress and the review action retain priority. The original
+> one-header/one-footer and single-shortcut rules below are historical.
+> Source, progress, keyboard, plain-output and state-isolation contracts remain.
+
 # Spec: Calm Review Workspace Layout
 
 ## Objective

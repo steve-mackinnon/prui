@@ -89,33 +89,30 @@ func (m *Model) loadRepositories() tea.Cmd {
 }
 
 func (m *Model) pickerScreen(p *pickerState, header, rows []string, empty, footer string) string {
-	items := make([][]string, len(rows))
-	for i, row := range rows {
-		items[i] = []string{row}
-	}
-	return m.pickerScreenRows(p, header, items, empty, footer)
+	return m.pickerScreenDetail(p, header, rows, nil, empty, footer)
 }
 
-func (m *Model) pickerScreenRows(p *pickerState, header []string, rows [][]string, empty, footer string) string {
-	return m.pickerScreenRowsStyled(p, header, rows, empty, footer, false)
-}
-
-func (m *Model) pickerScreenRowsStyled(p *pickerState, header []string, rows [][]string, empty, footer string, styled bool) string {
+func (m *Model) pickerScreenDetail(p *pickerState, header, rows, detail []string, empty, footer string) string {
 	if m.Busy {
 		footer = Escape(m.notice) + " · esc: cancel"
 	} else if m.ActionError != nil {
 		footer = "! Action failed: " + Escape(m.ActionError.Error())
 	}
 	footer = clip(footer+" · ?: Health & help", m.Width)
-	// The workspace tab strip owns the first terminal row. Preserve at least
-	// one picker content row in the remaining space, even in a tiny terminal.
-	height := max(1, m.Height-1)
+	// Preserve one picker content row even in a tiny terminal.
+	height := max(1, m.Height)
 	header = header[:min(len(header), max(0, height-1))]
 	footerRows := 0
 	if height > len(header)+1 {
 		footerRows = 1
 	}
 	capacity := max(1, height-len(header)-footerRows)
+	// Reserve detail only when at least three choices still fit. Tiny terminals
+	// prioritize the cursor and controls over supplementary metadata.
+	if len(rows) == 0 || capacity < len(detail)+3 {
+		detail = nil
+	}
+	capacity -= len(detail)
 	lines := append([]string(nil), header...)
 	if len(rows) == 0 {
 		if m.Busy {
@@ -126,27 +123,17 @@ func (m *Model) pickerScreenRowsStyled(p *pickerState, header []string, rows [][
 		lines = append(lines, empty)
 	} else {
 		selected := max(0, min(p.Index, len(rows)-1))
-		rowHeight := max(1, len(rows[selected]))
-		start := max(0, selected-max(1, capacity/rowHeight)+1)
-		for i, used := start, 0; i < len(rows) && used < capacity; i++ {
-			if used > 0 && len(rows[i]) > capacity-used {
-				break
+		start := max(0, selected-capacity+1)
+		for i := start; i < min(len(rows), start+capacity); i++ {
+			line := clip(selectionMarker(i == selected)+rows[i], m.Width)
+			if i == selected {
+				line = m.styleLine(selectedClass(true), line)
 			}
-			for j, row := range rows[i] {
-				if used >= capacity {
-					break
-				}
-				line := "  " + row
-				if j == 0 {
-					line = selectionMarker(i == selected) + row
-				}
-				if i == selected && !styled {
-					line = m.styleLine(selectedClass(true), line)
-				}
-				lines = append(lines, line)
-				used++
-			}
+			lines = append(lines, line)
 		}
+	}
+	for _, line := range detail {
+		lines = append(lines, m.styleLine(classMetadata, clip(line, m.Width)))
 	}
 	if footerRows > 0 {
 		lines = append(lines, footer)

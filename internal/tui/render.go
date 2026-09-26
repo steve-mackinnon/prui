@@ -31,7 +31,7 @@ func pathLabel(f inventory.FileChange) string {
 // fileDivider makes file boundaries easy to scan without exposing Git object
 // identifiers or extended-header bookkeeping in the interactive diff pane.
 func fileDivider(f inventory.FileChange) string {
-	return "━━━ FILE · " + pathLabel(f) + " ━━━"
+	return "── " + pathLabel(f)
 }
 func status(s *review.Session) string {
 	completeness := "complete"

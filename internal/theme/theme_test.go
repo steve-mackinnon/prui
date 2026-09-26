@@ -23,22 +23,22 @@ func TestResolveBuiltInsProvideEverySemanticToken(t *testing.T) {
 	}
 }
 
-func TestTerminalPreservesCurrentTUIColorMappings(t *testing.T) {
+func TestTerminalUsesInheritedChromeAndSemanticAccents(t *testing.T) {
 	got, err := Resolve(Terminal, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	want := map[Token]string{
-		Title:         "cyan",
-		FileHeader:    "yellow",
-		Hunk:          "magenta",
+		Title:         "default",
+		FileHeader:    "default",
+		Hunk:          "default",
 		Added:         "green",
 		Removed:       "red",
-		Metadata:      "blue",
+		Metadata:      "default",
 		Warning:       "bright-yellow",
 		Unavailable:   "bright-red",
 		Selection:     "236",
-		FocusedBorder: "208",
+		FocusedBorder: "cyan",
 		Border:        "240",
 	}
 	for token, expected := range want {

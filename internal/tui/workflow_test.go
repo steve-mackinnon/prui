@@ -91,19 +91,43 @@ func BenchmarkLargeTextHunkReview(b *testing.B) {
 }
 
 func TestWorkflowLargeViewport(t *testing.T) {
-	for _, s := range []*review.Session{largeSession(1000, 50000), largeTextSession(1000, 50000)} {
-		m := largeModel(s, 80, 20)
-		for i := 0; i < 100; i++ {
-			m.move(1)
-			content := m.View().Content
-			if len(content) == 0 {
-				t.Fatal("large review rendered empty")
-			}
-			for _, line := range strings.Split(content, "\n") {
-				if visibleWidth(line) > m.Width {
-					t.Fatalf("styled large review exceeded %d: %q", m.Width, line)
+	for _, tc := range []struct {
+		name      string
+		session   *review.Session
+		inventory bool
+	}{
+		{"metadata inventory", largeSession(1000, 50000), true},
+		{"text inventory", largeTextSession(1000, 50000), true},
+		{"files", largeSession(1000, 50000), false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			m := largeModel(tc.session, 80, 20)
+			// Unit-by-unit navigation belongs to the inventory view. Files mode
+			// navigates whole files and renders their continuous diff instead.
+			m.Inventory = tc.inventory
+			for i := 0; i < 100; i++ {
+				m.move(1)
+				want := i + 1
+				if !tc.inventory {
+					want = tc.session.Slices[i+1].Units[0]
+				}
+				if m.Selected != want {
+					t.Fatalf("move %d selected unit %d, want %d", i+1, m.Selected, want)
+				}
+				content := m.View().Content
+				if len(content) == 0 {
+					t.Fatal("large review rendered empty")
+				}
+				lines := strings.Split(content, "\n")
+				if len(lines) > m.Height {
+					t.Fatalf("large review rendered %d lines, height %d", len(lines), m.Height)
+				}
+				for _, line := range lines {
+					if visibleWidth(line) > m.Width {
+						t.Fatalf("styled large review exceeded %d: %q", m.Width, line)
+					}
 				}
 			}
-		}
+		})
 	}
 }

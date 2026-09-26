@@ -102,7 +102,11 @@ func TestLifecycleProgressRefreshPickerAndFreshFailure(t *testing.T) {
 		if width < 50 {
 			progress = "0/1"
 		}
-		if width < 100 && (!strings.Contains(view, progress) || !strings.Contains(view, "Freshness unknown")) {
+		freshness := "Freshness unknown"
+		if width < 50 {
+			freshness = "? unknown"
+		}
+		if width < 100 && (!strings.Contains(view, progress) || !strings.Contains(view, freshness)) {
 			t.Fatalf("narrow layout lost compact health status: %q", view)
 		}
 	}

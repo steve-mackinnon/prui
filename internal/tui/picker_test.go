@@ -172,7 +172,7 @@ func TestPullRequestPickerShowsMetadataAndCheckStates(t *testing.T) {
 		{Identity: source.Identity{Number: 4}, Title: "No status", Checks: source.ChecksUnknown},
 	}
 	view := ansi.Strip(m.View().Content)
-	for _, want := range []string{"╭─ ✓ Checks pass", "╰", "#1  Passing", "Author alice  ·  Opened Sep 23, 2026", "Last commit bob", "✗ Checks fail"} {
+	for _, want := range []string{"✓ Checks pass", "#1  Passing", "Author alice  ·  Opened Sep 23, 2026", "Last commit bob", "✗ Checks fail"} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("missing %q in:\n%s", want, view)
 		}
@@ -189,29 +189,40 @@ func TestPullRequestPickerShowsMetadataAndCheckStates(t *testing.T) {
 	if lines := strings.Split(view, "\n"); len(lines) > m.Height {
 		t.Fatalf("picker overflowed: %s", view)
 	}
-	if strings.Count(view, "╭") != strings.Count(view, "╰") {
-		t.Fatalf("partial card rendered:\n%s", view)
+	if strings.ContainsAny(view, "╭╰") || strings.Count(view, "Author ") != 1 {
+		t.Fatalf("expected compact rows and selected detail only:\n%s", view)
 	}
 }
 
-func TestPullRequestCardsKeepBordersAndSemanticColorAtWideWidth(t *testing.T) {
+func TestCompactPullRequestsBoundAndEscapeLongContent(t *testing.T) {
 	m := New(context.Background(), nil)
 	defer m.Close()
 	m.Stack = []page{pagePullRequestPicker}
 	m.Width, m.Height = 120, 10
 	m.PullRequests = []source.PullRequest{{Identity: source.Identity{Number: 42}, Title: "\x1b[31m Colorful change " + strings.Repeat("x", 120), Author: "alice", LastModifier: strings.Repeat("b", 100), Checks: source.ChecksFailed}}
-	colored := m.View().Content
-	if !strings.Contains(colored, m.styleLine(classRemoved, "✗ Checks fail")) || !strings.Contains(colored, m.styleLine(classPaneBorderFocused, "╭─ ")) {
-		t.Fatalf("card lost semantic status or selected border color: %q", colored)
-	}
-	plain := ansi.Strip(colored)
-	if strings.Count(plain, "╭") != 1 || strings.Count(plain, "╰") != 1 || !strings.Contains(plain, `\x1b[31m`) || !strings.Contains(plain, "Last commit b") {
-		t.Fatalf("card border or escaped title missing:\n%s", plain)
+	plain := ansi.Strip(m.View().Content)
+	if strings.ContainsAny(plain, "╭╰") || !strings.Contains(plain, `\x1b[31m`) || !strings.Contains(plain, "Last commit b") || !strings.Contains(plain, "✗ Checks fail") {
+		t.Fatalf("compact row, escaped title, or selected detail missing:\n%s", plain)
 	}
 	for _, line := range strings.Split(plain, "\n") {
 		if visibleWidth(line) > m.Width {
-			t.Fatalf("wide card overflows: %q", line)
+			t.Fatalf("row overflows: %q", line)
 		}
+	}
+}
+
+func TestCompactPullRequestsShowManyChoicesAndSelectedDetail(t *testing.T) {
+	m := New(context.Background(), nil)
+	defer m.Close()
+	m.Stack = []page{pagePullRequestPicker}
+	m.Width, m.Height = 80, 15
+	for i := 1; i <= 30; i++ {
+		m.PullRequests = append(m.PullRequests, source.PullRequest{Identity: source.Identity{Number: i}, Title: fmt.Sprintf("Choice %02d", i), Author: fmt.Sprintf("author-%02d", i)})
+	}
+	m.PullRequestPicker.Index = 20
+	view := ansi.Strip(m.View().Content)
+	if strings.Count(view, "Choice ") < 8 || !strings.Contains(view, "› #21") || !strings.Contains(view, "Author author-21") || strings.Contains(view, "Author author-20") {
+		t.Fatalf("picker did not prioritize compact choices and selected detail:\n%s", view)
 	}
 }
 
@@ -275,10 +286,8 @@ func TestPickerViewportKeepsSelectionVisible(t *testing.T) {
 			for _, height := range []int{10, 4, 2, 1, 8} {
 				m.Update(tea.WindowSizeMsg{Width: 24, Height: height})
 				content := ansi.Strip(m.View().Content)
-				// One-line terminals show the fixed workspace strip; there is no
-				// remaining row for a picker item. At two rows and above, the
-				// selected item must stay visible below that strip.
-				if height >= 2 && (!strings.Contains(content, "› ") || !strings.Contains(content, "20")) {
+				// The selected item takes priority when headers cannot fit.
+				if !strings.Contains(content, "› ") || !strings.Contains(content, "20") {
 					t.Fatalf("selection hidden at height %d: %s", height, content)
 				}
 				if len(strings.Split(content, "\n")) > height {
@@ -291,5 +300,56 @@ func TestPickerViewportKeepsSelectionVisible(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestCompactSwitcherUsesOnlyAvailableSelectedMetadata(t *testing.T) {
+	m := New(context.Background(), nil)
+	defer m.Close()
+	saved := largeSession(1, 1)
+	saved.Inventory.Comparison.Metadata.Identity = source.Identity{Repository: "owner/repo", Number: 1}
+	m.openReviewTab(saved)
+	m.Stack = []page{pageReview, pagePullRequestPicker}
+	m.Width, m.Height = 80, 12
+	m.PullRequests = []source.PullRequest{{Identity: source.Identity{Repository: "owner/repo", Number: 2}, Title: "Available PR", Author: "alice", Checks: source.ChecksFailed}}
+	view := ansi.Strip(m.View().Content)
+	if strings.Contains(view, "Author ") || strings.Contains(view, "Last commit ") || !strings.Contains(view, "open owner/repo#1") {
+		t.Fatalf("saved review got invented metadata: %s", view)
+	}
+	m.PullRequestPicker.Index = 1
+	view = ansi.Strip(m.View().Content)
+	if !strings.Contains(view, "Author alice") || !strings.Contains(view, "✗ Checks fail") {
+		t.Fatalf("selected remote PR lacks available detail: %s", view)
+	}
+}
+
+func TestCompactSwitcherKeepsSelectionVisibleAfterResize(t *testing.T) {
+	m := New(context.Background(), nil)
+	defer m.Close()
+	saved := largeSession(1, 1)
+	saved.Inventory.Comparison.Metadata.Identity = source.Identity{Repository: "owner/repo", Number: 1}
+	m.openReviewTab(saved)
+	m.Stack = []page{pageReview, pagePullRequestPicker}
+	for i := 2; i < 32; i++ {
+		m.PullRequests = append(m.PullRequests, source.PullRequest{Identity: source.Identity{Repository: "owner/repo", Number: i}, Title: "Long title " + strings.Repeat("界", 100), Checks: source.ChecksPending})
+	}
+	m.PullRequestPicker.Index = 20
+	for _, width := range []int{24, 60, 120} {
+		for _, height := range []int{1, 2, 4, 8, 20} {
+			m.Update(tea.WindowSizeMsg{Width: width, Height: height})
+			view := ansi.Strip(m.View().Content)
+			if !strings.Contains(view, "› #21") {
+				t.Fatalf("selection hidden at %dx%d:\\n%s", width, height, view)
+			}
+			lines := strings.Split(view, "\n")
+			if len(lines) > height {
+				t.Fatalf("height overflow at %dx%d", width, height)
+			}
+			for _, line := range lines {
+				if visibleWidth(line) > width {
+					t.Fatalf("width overflow: %q", line)
+				}
+			}
+		}
 	}
 }

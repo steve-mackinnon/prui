@@ -8,6 +8,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 	"pr-review/internal/guide"
+	"pr-review/internal/inventory"
 	"pr-review/internal/review"
 )
 
@@ -118,11 +119,7 @@ func sectionPortions(s *review.Session, index map[string]int, ids []string) ([]i
 }
 
 func portionLabel(s *review.Session, file int, units []int) string {
-	label := pathLabel(s.Inventory.Files[file])
-	if len(units) == 1 {
-		return label + " [" + string(s.Inventory.Units[units[0]].Kind) + "]"
-	}
-	return label + fmt.Sprintf(" [%d units]", len(units))
+	return pathLabel(s.Inventory.Files[file]) + guidePortionSuffix(s, row{units: units})
 }
 
 // middleTruncate keeps enough of each end of a long path to identify both its
@@ -244,14 +241,10 @@ func nextGuidePathTick(generation int) tea.Cmd {
 }
 
 // guideList renders selectable hierarchy rows and non-selectable context for
-// the guide under the cursor. Context lines retain their row identity so
-// windowing and selection styling remain correct after descriptions wrap.
+// the guide or section under the cursor. Description lines are non-selectable;
+// navigation continues to use the unchanged hierarchy row identities.
 func guideList(s *review.Session, rows []row, selected, width int, focused bool, pathOffset int) []listLine {
 	out := make([]listLine, 0, len(rows))
-	selectedGuide := -1
-	if selected >= 0 && selected < len(rows) {
-		selectedGuide = rows[selected].guide
-	}
 	for i, r := range rows {
 		marker := selectionMarker(i == selected)
 		line := marker + strings.Repeat("  ", r.depth)
@@ -262,7 +255,7 @@ func guideList(s *review.Session, rows []row, selected, width int, focused bool,
 			line += r.label
 		}
 		out = append(out, listLine{row: i, text: line})
-		if r.guide != selectedGuide {
+		if i != selected {
 			continue
 		}
 		item := s.Guides.Items[r.guide]
@@ -290,6 +283,9 @@ func guidePortionText(s *review.Session, r row, prefix string, width int, scroll
 
 func guidePortionSuffix(s *review.Session, r row) string {
 	if len(r.units) == 1 {
+		if s.Inventory.Units[r.units[0]].Kind == inventory.TextHunk {
+			return ""
+		}
 		return " [" + string(s.Inventory.Units[r.units[0]].Kind) + "]"
 	}
 	return fmt.Sprintf(" [%d units]", len(r.units))

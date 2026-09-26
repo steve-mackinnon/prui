@@ -103,8 +103,8 @@ func TestGuideNavigation(t *testing.T) {
 		if !contains(rows[i].units, m.Selected) {
 			t.Fatalf("row %d selected a unit it does not contain", i)
 		}
-		if !strings.Contains(m.View().Content, string(s.Inventory.Units[m.Selected].Kind)) {
-			t.Fatalf("row %d renders no raw unit", i)
+		if !strings.Contains(ansi.Strip(m.View().Content), pathLabel(s.Inventory.Files[s.UnitFiles[m.Selected]])) {
+			t.Fatalf("row %d renders no selected file", i)
 		}
 		key(m, 'n')
 	}
@@ -200,7 +200,7 @@ func TestGuideNavigation(t *testing.T) {
 
 	// F selects the deterministic file plan; G restores the guide.
 	m.Update(tea.KeyPressMsg{Code: 'F', Text: "F"})
-	if m.rows() != nil || !strings.Contains(ansi.Strip(m.View().Content), "FILE SLICES") {
+	if m.rows() != nil || !strings.Contains(ansi.Strip(m.View().Content), "FILES") {
 		t.Fatal("F did not expose the deterministic file plan")
 	}
 	m.Update(tea.KeyPressMsg{Code: 'G', Text: "G"})
@@ -388,7 +388,7 @@ func TestGuideDetailFileJumps(t *testing.T) {
 		t.Fatalf("Enter focus/offset = %v/%d, want diff/%d", m.Focus, m.GuideScroll[b.guide], want)
 	}
 	view := strings.Split(ansi.Strip(m.View().Content), "\n")
-	if len(view) < 3 || view[2] != fileDivider(s.Inventory.Files[b.file]) {
+	if len(view) < 4 || view[3] != fileDivider(s.Inventory.Files[b.file]) {
 		t.Fatalf("jumped diff body = %q, want b.go file divider", view)
 	}
 
@@ -527,17 +527,27 @@ func TestGuideFallbackEnterOnlyFocusesDiff(t *testing.T) {
 	}
 }
 
-func TestGuideContextShowsSelectedGuideDescriptions(t *testing.T) {
+func TestGuideContextShowsOnlySelectedRowDescription(t *testing.T) {
 	s, _, _ := guidedSession(t, splitAnalyzer{})
 	m := loaded(t, s, 100, 24)
-	view := ansi.Strip(m.View().Content)
-	for _, want := range []string{"Adds a greeting.", "Changes the greeting text.", "Stores the greeting."} {
-		if !strings.Contains(view, want) {
-			t.Fatalf("selected guide context missing %q: %s", want, view)
+	rows := m.rows()
+	for selected, r := range rows {
+		var want string
+		item := s.Guides.Items[r.guide]
+		if r.kind == guideRow && !item.Ungrouped {
+			want = item.Description
+		} else if r.kind == sectionRow {
+			want = item.Sections[r.section].Description
 		}
-	}
-	if strings.Contains(view, "Mode and identity changes.") {
-		t.Fatal("non-selected guide description rendered")
+		var descriptions []string
+		for _, line := range guideList(s, rows, selected, 100, true, 0) {
+			if line.row == -1 {
+				descriptions = append(descriptions, strings.TrimSpace(line.text))
+			}
+		}
+		if got := strings.Join(descriptions, " "); got != want {
+			t.Fatalf("selected row %d context = %q, want %q", selected, got, want)
+		}
 	}
 }
 
@@ -583,7 +593,7 @@ func TestGuidePathMiddleTruncationPreservesBothEndsAndDisplayWidth(t *testing.T)
 	}
 }
 
-func TestGuideListMiddleTruncatesUnselectedFilePathsWithoutDroppingSuffix(t *testing.T) {
+func TestGuideListMiddleTruncatesUnselectedTextPathsWithoutTechnicalSuffix(t *testing.T) {
 	s, _, _ := guidedSession(t, splitAnalyzer{})
 	file := fileIndex(s, "a.go")
 	s.Inventory.Files[file].NewPath = []byte("internal/very/long/guide/path/overflow_test.go")
@@ -593,8 +603,8 @@ func TestGuideListMiddleTruncatesUnselectedFilePathsWithoutDroppingSuffix(t *tes
 		if line.row < 0 || rows[line.row].kind != portionRow || rows[line.row].file != file {
 			continue
 		}
-		if !strings.Contains(line.text, "…") || !strings.HasSuffix(line.text, " [text_hunk]") {
-			t.Fatalf("guide file row = %q, want middle-truncated path with suffix", line.text)
+		if !strings.Contains(line.text, "…") || !strings.HasSuffix(line.text, "overflow_test.go") || strings.Contains(line.text, "[text_hunk]") {
+			t.Fatalf("guide file row = %q, want middle-truncated path ending in filename", line.text)
 		}
 		if visibleWidth(line.text) > 45 {
 			t.Fatalf("guide file row width = %d, want <= 45: %q", visibleWidth(line.text), line.text)
@@ -642,7 +652,7 @@ func TestGuideContextWindowingAndUngroupedDescription(t *testing.T) {
 		key(m, 'j')
 	}
 	view := ansi.Strip(m.View().Content)
-	if !strings.Contains(view, "a.go [text_hunk]") {
+	if !strings.Contains(view, "a.go") {
 		t.Fatal("selected file row is not visible after long context")
 	}
 	ungrouped := -1
@@ -674,17 +684,17 @@ func TestGuideFallback(t *testing.T) {
 		t.Fatal("a fallback bundle produced guide rows")
 	}
 	view := ansi.Strip(m.View().Content)
-	if !strings.Contains(view, "FILE SLICES") || !strings.Contains(view, "Guide available with g") {
+	if !strings.Contains(view, "FILES") || !strings.Contains(m.healthHelpView(), "Guide available with g") {
 		t.Fatal("fallback does not render the deterministic file plan", view)
 	}
 	key(m, 'n')
-	if m.Selected != 1 {
-		t.Fatal("fallback navigation is not unit-by-unit")
+	if m.Selected != s.Slices[1].Units[0] {
+		t.Fatal("fallback navigation did not select the next file")
 	}
 
 	for _, b := range []*guide.Bundle{nil, {Status: guide.Generated}} {
 		m.Session.Guides = b
-		if m.rows() != nil || !strings.Contains(ansi.Strip(m.View().Content), "FILE SLICES") {
+		if m.rows() != nil || !strings.Contains(ansi.Strip(m.View().Content), "FILES") {
 			t.Fatalf("bundle %v did not fall back to the file plan", b)
 		}
 	}

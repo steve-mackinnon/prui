@@ -1,14 +1,14 @@
-╭ Diff [1] ╮  ╭ Description [2] ╮  ╭ Commits [3] ╮
-GUIDES 2 · main.go [text_hunk] · marking: whole files · guide detail 1/1
-┌─ File (F)  Guide (G) ──────────────┐ ┌───────────────────────────────────────────────────────────────────────────────┐
-│› - 1. Greeting                     │ │━━━ FILE · main.go ━━━                                                         │
-│    Update the greeting and its     │ │@@ -1 +1 @@                                                                    │
-│    documentation.                  │ │-old greeting                                                                  │
-│    - 1.1 Implementation            │ │+hello world                                                                   │
-│      main.go [text_hunk]           │ │                                                                               │
-│    - 1.2 Documentation             │ │━━━ FILE · README.md ━━━                                                       │
-│      README.md [file_metadata]     │ │                                                                               │
-│                                    │ │                                                                               │
-│                                    │ │                                                                               │
-└────────────────────────────────────┘ └───────────────────────────────────────────────────────────────────────────────┘
-0/2 read · R Submit review (0) · ✓ Inventory complete · ? Freshness unknown · ✓ Guides 1 · ?: Health & help
+example/review #42                                                                                     ctrl+p: switch PR
+› Diff [1]    Description [2]    Commits [3]
+File (F)  [Guide (G)] · focus: guides · GUIDES 1 · guide 1/1 · marking: whole files
+› - 1. Greeting                      │ ── main.go
+    Update the greeting and its      │ @@ -1 +1 @@
+    documentation.                   │ -old greeting
+    - 1.1 Implementation             │ +hello world
+      main.go                        │
+    - 1.2 Documentation              │ ── README.md
+      README.md [file_metadata]      │
+                                     │
+                                     │
+0/2 read · R Submit review (0) · ? Freshness unknown · ?: Health & help
+j/k: guides · tab: expand · enter: diff · ?: Help
