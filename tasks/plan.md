@@ -759,3 +759,233 @@ and snapshots follow the completed interactive path.
 
 None. Raw HTML literal rendering is approved; link activation, remote images,
 and manual description refresh remain out of scope.
+
+# Implementation Plan: SQLite Storage — Fresh Start
+
+Status: Approved for implementation on 2026-09-26; Sol agents executing.
+Spec: [SPEC-sqlite-storage.md](../SPEC-sqlite-storage.md), approved for planning.
+Task list: [SQLite Storage — Fresh Start tasks](todo.md#sqlite-storage--fresh-start-tasks).
+The user authorized appending these sections; all earlier work remains intact.
+
+## Outcome and scope
+
+Deliver in-process SQLite persistence for newly created macOS/Linux stores.
+Delete the old session/guide/registry filesystem backend completely. No import,
+legacy reader, compatibility Save, fallback, dual writes, or Windows port.
+Keep theme configuration, temporary Git acquisition, and in-memory rendering
+outside this replacement. Users install only the application executable, with
+no SQLite executable, library, service, or database setup prerequisite.
+
+## Architecture decisions
+
+1. **One concrete backend.** `internal/session` retains domain validation and
+   exposes Store; `internal/session/storage` owns the independent SQL connection,
+   initialization, schema, and transaction helpers. No ORM or generic backend
+   interface. SQL and transaction objects never reach CLI/TUI consumers.
+2. **Embedded driver.** Evaluate and pin `modernc.org/sqlite` (v1.59.0 is the
+   documented starting candidate). SQL-01 verifies the exact dependency graph,
+   target builds, license, and reachable vulnerabilities before accepting it.
+   Record the actual selected version here. The [driver reference](https://pkg.go.dev/modernc.org/sqlite@v1.59.0)
+   documents the CGo-free engine; runtime isolation tests establish the packaging
+   claim for our binary. No driver has been installed during planning.
+3. **Durability.** DELETE journal, EXTRA synchronous, foreign keys enabled, one
+   connection per Store, five-second busy bound, context cancellation, and short
+   explicit write transactions. Verify connection-local settings each time a
+   connection is created. Never retain query rows while requesting the only
+   connection again. Roll back all failed multi-statement operations.
+4. **Deduplicate source, not sessions.** Canonical versioned source JSON blobs
+   omit checkout, guides, and DerivedFrom. Immutable session metadata references
+   source/bundle digests; independent sessions retain independent progress.
+   Logical SnapshotReference includes all immutable session fields, making a
+   wrong reference or generation fail state updates without re-reading source.
+5. **No compatibility API.** Replace all seven production Save calls and the
+   direct CLI test call with UpdateState; delete Save at cutover. Keep the
+   existing Entry callback type but replace its full Record with summary fields.
+6. **Local storage identity.** Fresh defaults use `pr-review/storage`, not
+   `pr-review/sessions`. `--store` remains a directory. An unknown/old nonempty
+   directory is rejected without parsing or changing its records.
+7. **Validation stays layered.** Verify source/bundle digests and domain references
+   on create/load/cache reuse, enforce relational constraints in SQL, and check
+   indexed identities against decoded payloads. Listing is explicitly metadata
+   only; corruption of a source blob is discovered on load, not by loading all
+   patches during a list operation. Database failures are not cache misses.
+
+## Shared contract to freeze in SQL-02
+
+### Session boundary
+
+- `UpdateState(ctx, id, expectedGeneration, snapshotReference, StateUpdate)
+  (State, error)` accepts only progress and freshness. It returns committed state;
+  callers assign it only after success. Retain context through review.Mark by
+  adding a context parameter and changing its callers/tests in the cutover wave.
+- `Entry`: ID, Repository, Number, HeadSHA, ReviewedCount, SliceCount,
+  RevisionStatus, UpdatedAt, Err. No Record pointer or lazy blob-bearing field.
+  Store.List keeps its signature shape, returns ordered summaries, and exposes
+  already known validation failures without claiming every blob was checked.
+- Retain Create/Load/Delete and guide/registry/comparison method semantics;
+  add context to internal SQL operations without spreading database details.
+  Existing context-less public operations use the bounded Store operation policy;
+  cancellable startup/create/query paths should receive context where needed.
+- Typed errors distinguish closed/read-only, not-found, stale generation/reference,
+  invalid record, unsupported schema, busy/canceled, and database corruption/I/O.
+  Invalid individual guide payloads become misses; engine errors propagate.
+
+During staging, freeze equivalent private SQLite contract types without changing
+public Entry.Record or Store signatures used by the still-running application.
+The private test constructor opens the real new implementation directly; it is
+not a production backend selector. SQL-16 publishes the final contract and
+removes those staging names in the coordinated cutover batch.
+
+### Schema v1
+
+Use SQLite application_id `0x50525256` and user_version `1`, separate from payload
+and prompt versions. SQL-02 freezes complete DDL and storage DTOs before delegates
+write queries. Use CHECK/NOT NULL/UNIQUE constraints and enabled foreign keys.
+
+| Table | Primary key / required attributes | Relationships / indexes |
+| --- | --- | --- |
+| snapshots | source digest; payload version, bounded BLOB, normalized repo/PR/base/head, base/head repository, inventory ID, file count | Comparison index on repo/PR/base/head/inventory; identity rechecked on load |
+| snapshot_files | (snapshot digest, file ID); unique ordinal | FK to snapshots, cascade only when unreferenced snapshot is removed |
+| guide_bundles | bundle digest; payload version and bounded BLOB | Both sessions and guide_cache may reference a bundle |
+| sessions | random 32-hex ID; source digest, optional bundle digest, checkout bytes, DerivedFrom, logical reference, repo/PR/head summary, freshness, UTC update time, generation | FKs to source/bundle; index (repo, PR, updated_at DESC, ID ASC) |
+| progress | (session ID, file ID); unique ordinal per session | Session FK with cascade; membership validated transactionally against snapshot_files |
+| guide_cache | (repo, PR, base SHA, head SHA, inventory ID, prompt version); bundle digest | FK to guide_bundles; generated bundles only |
+| repositories | normalized repository; absolute checkout, stable ordinal | Preserve insertion order on checkout replacement |
+
+DerivedFrom is provenance text, not an FK to the parent. Create validates a live
+parent in the same transaction, but deleting a parent does not delete its child.
+Generation is a positive signed 64-bit SQLite integer; reject Go uint64 values
+outside that range and increments beyond its maximum. Timestamps use a uniform
+UTC representation with deterministic chronological ordering, not variable-width
+RFC3339 strings for SQL ordering. Progress ordinals preserve returned order.
+Bounds are checked via length metadata before fetching/allocating payload BLOBs.
+
+### Bootstrap protocol
+
+Use minimal new SQLite ownership control artifacts, not a revived file cache:
+`.sqlite-owner` records format/identity and `initializing` or `ready` phase;
+`.sqlite-init.lock` serializes only opening/initialization checks. They contain no
+sessions, progress, guides, or registry. Their I/O lives in the new bootstrap
+helper, not the deleted JSON store. Normal persistence is SQLite only.
+
+1. Validate private root/recognized artifacts and reject old/unrelated contents.
+   A root containing only the private regular bootstrap lock is an identifiable
+   empty initialization attempt: acquire/wait and recheck, then initialize if
+   still otherwise empty. Either process may acquire the lock first. Test the
+   lock-creation-to-identity-publication interleaving explicitly. Protect
+   artifacts and journal paths against unsafe links and broad permissions.
+2. For a fresh root, durably publish the initializing identity, privately create
+   the database, and transactionally commit schema, application ID/version, and
+   matching identity in an internal store-info row. No user records yet.
+3. Validate committed identity/schema, durably publish ready, and release the
+   lock before returning the Store. Ordinary transactions do not use this lock.
+4. Initializing plus no DB or an empty identifiable initialization attempt can
+   resume under the lock; a committed matching DB can complete ready publication.
+   Pre-identity DB/other artifacts are ambiguous and rejected intact with a
+   choose-new-store error; the otherwise-empty lock-only case above is allowed.
+   Ready plus missing DB is an error. Never repair a foreign/corrupt DB by
+   deleting it or replacing it with an empty database.
+5. Read-only opening validates ready and opens mode=ro without touching the lock,
+   marker, journal, or database. A hot journal requiring recovery is a visible
+   error directing the user to a writable open. Do not use immutable mode.
+
+All phase writes, directory durability, concurrent first-open races, and failures
+are tested in SQL-03/15/18. Existing `.format`, `.lock`, and JSON store helpers are
+removed, not repurposed. The tiny ownership marker is necessary to distinguish a
+missing established DB from a genuinely fresh empty root; it is not a data cache.
+
+## Dependency graph and delivery checkpoints
+
+```text
+SQL-01 driver evidence -> SQL-02 shared contracts -> SQL-03 real DB startup [A]
+                                                   |
+                              SQL-04 source roundtrip -> SQL-05 state [B]
+                                                   |
+                            +-- SQL-06 guides -----+
+                            +-- SQL-07 registry ---+-- SQL-09 delete [D]
+                            +-- SQL-08 summaries --+ [C]
+
+[D] + frozen contracts -> coordinated cutover patches:
+  SQL-10 review callers | SQL-11 CLI callers | SQL-12 TUI state -> SQL-13 picker
+  SQL-14 persistence tests -> SQL-15 safety/read-only/description tests
+  all patches -> SQL-16 production switch + old-backend deletion [E]
+  SQL-17 docs -> SQL-18 final regression/performance/packaging proof [F]
+```
+
+SQL-06/07/08 may proceed in parallel after SQL-04/05; SQL-09 follows all three.
+No agent changes shared DDL after SQL-02 without the coordinator updating the
+contract and notifying dependents. TUI tasks are sequential because they share
+`internal/tui/lifecycle.go`; test replacement tasks have one sequential owner.
+
+**Working-state rule:** SQL-01 through SQL-09 develop and exercise the actual SQL
+implementation with a private construction seam; the existing CLI remains
+working until the switch. There is no runtime backend selector or dual-write
+behavior. SQL-10 through SQL-16 are one coordinated cutover batch, divided into
+small owned patches, not individually releasable partial API changes. Stage
+those patches in isolated scratch checkouts until the batch can compile/test
+as a whole. Do not integrate or mark a cutover task complete while dependents
+are broken. Remove the temporary construction seam and old implementation in
+SQL-16. Every released checkpoint builds and passes its applicable checks.
+
+## Delegation protocol
+
+The coordinator owns the final merge, shared schema/API changes, task status,
+and verification evidence. At most three sub-agents run simultaneously alongside
+the coordinator. User authorization covers delegation after plan review.
+
+| Lane | Ownership / assignments | Concurrency constraint |
+| --- | --- | --- |
+| A — storage | SQL-01..05, SQL-09, SQL-16 | Sole editor of shared contract, schema, store facade and module dependencies |
+| B — guides/registry | SQL-06 then SQL-07; later SQL-11 | No edits to shared schema or monolithic old store_test.go |
+| C — queries/verification | SQL-08; then SQL-14/15; later SQL-18 | Owns replacement session tests; hand off fixture changes explicitly |
+| Integration delegation | SQL-10, SQL-12 then SQL-13 | Dispatch to available lanes only after D; CLI/review/TUI file ownership stays disjoint |
+| Coordinator/documentation | SQL-17, plan/task tracking, all checkpoints | No concurrent overwrite of another agent's files |
+
+Each dispatch names task IDs, prerequisite commit/contract, exact allowed files,
+acceptance tests, excluded work, and required evidence. Agents return a patch,
+commands/results, and unresolved concerns. They must not commit unrelated edits,
+change scope, suppress checks, or write to a real user store. If file scope grows
+past about five implementation/test files, split the work before dispatch.
+
+Each checkpoint requires coordinator review. Pause for human input only if a
+scope/contract choice changes or a blocker requires it; routine verification and
+already authorized work do not require renewed permission.
+
+## Risks and mitigation
+
+| Risk | Mitigation / owning task |
+| --- | --- |
+| Driver adds unexpected runtime or platform dependencies | CGo-disabled build, stripped-environment child test, Linux linkage inspection, dependency audit (01/18) |
+| Initialization mistakes overwrite or recreate a store | Durable identity/phase, brief lock, foreign-store rejection, crash matrix (03/15/18) |
+| Deleting Save breaks every package before callers move | Stage and land the coordinated cutover batch, no compatibility shim (10..16) |
+| Dedup changes corruption-test expectations | Corrupt a session-specific field or use genuinely different source rows; one corrupt shared blob affects every referencing session (14) |
+| Full source still read on small updates | State-only API and query/blob-read assertions (05/08/18) |
+| Parent/session deletion destroys shared data or cached guides | Provenance without parent FK; reference-aware transactional deletion (09) |
+| SQL locks, connection reuse, or retries lose progress | Separate-process CAS tests, close rows, bounded waits, no uncertain replay (05/18) |
+| Old file tests removed without replacing protections | Map privacy, corruption, crash and immutability tests to new backend before deletion (14/15/16) |
+| Native Linux behavior inferred from cross-build | Require Linux CI results; report pending evidence honestly (18) |
+
+## Verification and evidence
+
+Use synthetic data only. Retain existing full macOS/Linux gates. Benchmark the
+same machine before/after: 50 sessions with 256 KiB evidence plus 100 identical
+reopenings and large-payload state updates. Report binary size, allocations,
+payload reads, distinct source-row count, and runtime; do not invent latency
+thresholds. No performance gains are established by this plan.
+
+Required final commands include `./scripts/verify.sh`, `golangci-lint run ./...`,
+`go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 ./...`, and `git diff --check`.
+SQL-18 also builds with `CGO_ENABLED=0`, proves embedded persistence without a
+SQLite executable/shared library, and links actual Linux CI evidence. Existing
+unrelated formatting/test failures must be diagnosed and disclosed, never hidden.
+
+## Review gate and unresolved implementation evidence
+
+The user approved this plan and SQL-01..18 for Sol-agent implementation.
+Two read-only planning agents reviewed storage and call-site boundaries; their
+findings are incorporated above. Implementation follows the dependency gates.
+
+No product decision remains open. Driver version/security/build suitability,
+measured overhead, and native Linux behavior remain evidence to establish in
+SQL-01/18, not assumptions of completed validation. The ownership-marker protocol
+is an implementation refinement for the already approved crash-safety requirement.
