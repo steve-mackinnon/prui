@@ -342,6 +342,8 @@ func TestOpenAIPromptBoundsAndLabelsItsScope(t *testing.T) {
 func TestOpenAIUploadOmitsCredentialMaterial(t *testing.T) {
 	b := &builder{}
 	allowed := b.unit("main.go", "@@ -0,0 +1 @@\n+func main() {}\n", inventory.TextHunk)
+	b.unit("config.json", "", inventory.FileMetadata)
+	b.unit("config.json", "@@ -10 +10 @@\n+ordinary setting\n", inventory.TextHunk)
 	b.unit("config.json", "@@ -1 +1 @@\n-{}\n+{\"api_key\": \"synthetic-json-value\"}\n", inventory.TextHunk)
 	b.unit("old-config.yml", "@@ -1 +0,0 @@\n-'password': 'synthetic-removed-value'\n", inventory.TextHunk)
 	c := reviewcontext.ContextBundle{Evidence: []reviewcontext.Evidence{
@@ -362,5 +364,18 @@ func TestOpenAIUploadOmitsCredentialMaterial(t *testing.T) {
 	}
 	if !strings.Contains(body, "func main()") || !strings.Contains(body, "ordinary documentation") {
 		t.Fatal("ordinary source or evidence did not reach provider")
+	}
+}
+
+func TestOpenAIPromptDoesNotExposeUserExclusionPatterns(t *testing.T) {
+	b := &builder{}
+	b.unit("sensitive-design.json", "", inventory.FileMetadata)
+	in := InputFrom(b.build(), reviewcontext.ContextBundle{}, privacy.Policy{Excluded: []string{"sensitive-design.json"}}, Defaults)
+	p := prompt(in)
+	if strings.Contains(p, "sensitive-design.json") || !strings.Contains(p, "user exclusion") {
+		t.Fatal("outgoing omission reason exposed the user exclusion pattern")
+	}
+	if len(in.Withheld) != 1 || in.Withheld[0].Reason != "user exclusion: sensitive-design.json" {
+		t.Fatal("local ledger lost its detailed omission reason")
 	}
 }

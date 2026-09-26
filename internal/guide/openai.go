@@ -393,10 +393,14 @@ func prompt(in Input) string {
 		counts := map[string]int{}
 		var order []string
 		for _, w := range in.Withheld {
-			if counts[w.Reason] == 0 {
-				order = append(order, w.Reason)
+			reason := w.Reason
+			if strings.HasPrefix(reason, "user exclusion: ") {
+				reason = "user exclusion"
 			}
-			counts[w.Reason]++
+			if counts[reason] == 0 {
+				order = append(order, reason)
+			}
+			counts[reason]++
 		}
 		for _, reason := range order {
 			fmt.Fprintf(&b, "%d: %s\n", counts[reason], reason)

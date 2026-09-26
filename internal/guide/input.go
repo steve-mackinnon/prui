@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"hash"
+	"strings"
 	"time"
 
 	reviewcontext "pr-review/internal/context"
@@ -47,6 +48,72 @@ func InputFrom(inv inventory.Inventory, c reviewcontext.ContextBundle, policy pr
 	for _, f := range inv.Files {
 		files[f.ID] = f
 	}
+	// Decide privacy exclusions before assembling any units. Otherwise a file's
+	// metadata or an earlier ordinary hunk can reveal a later-withheld path.
+	excludedFiles := make(map[string]string)
+	excludedPaths := make(map[string]string)
+	var pendingPaths []string
+	excludePath := func(path []byte, reason string) {
+		if len(path) > 0 && excludedPaths[string(path)] == "" {
+			excludedPaths[string(path)] = reason
+			pendingPaths = append(pendingPaths, string(path))
+		}
+	}
+	// Retrieval checks complete blobs before excerpting. Preserve those privacy
+	// decisions even when the credential lies outside a changed hunk or excerpt.
+	for _, omitted := range c.OmittedPaths {
+		if omitted.Reason == "credential-like content" || omitted.Reason == "credential-like filename" || omitted.Reason == "binary content" || strings.HasPrefix(omitted.Reason, "user exclusion: ") {
+			excludePath(omitted.Path, omitted.Reason)
+		}
+	}
+	for _, e := range c.Evidence {
+		if allowed, reason := policy.Allows(e.Path, e.Excerpt); !allowed {
+			excludePath(e.Path, reason)
+		}
+	}
+	filesByPath := make(map[string][]string)
+	for _, f := range inv.Files {
+		if excluded, reason := excludedPath(policy, f); excluded {
+			excludedFiles[f.ID] = reason
+		}
+		for _, path := range [][]byte{f.OldPath, f.NewPath} {
+			if len(path) > 0 {
+				filesByPath[string(path)] = append(filesByPath[string(path)], f.ID)
+			}
+			if reason := excludedPaths[string(path)]; reason != "" {
+				excludedFiles[f.ID] = reason
+			}
+		}
+	}
+	for _, u := range inv.Units {
+		if excludedFiles[u.FileChangeID] == "" {
+			if excluded, reason := policy.ExcludedContent(inv.Patches[u.PatchReference]); excluded {
+				excludedFiles[u.FileChangeID] = reason
+			}
+		}
+	}
+	for _, f := range inv.Files {
+		if reason := excludedFiles[f.ID]; reason != "" {
+			for _, path := range [][]byte{f.OldPath, f.NewPath} {
+				excludePath(path, reason)
+			}
+		}
+	}
+	// A rename can share its old path with an added file or another rename.
+	// Traverse aliases once so no other file can reveal an excluded path.
+	for i := 0; i < len(pendingPaths); i++ {
+		path := pendingPaths[i]
+		for _, id := range filesByPath[path] {
+			if excludedFiles[id] != "" {
+				continue
+			}
+			reason := excludedPaths[path]
+			excludedFiles[id] = reason
+			f := files[id]
+			excludePath(f.OldPath, reason)
+			excludePath(f.NewPath, reason)
+		}
+	}
 	withhold := func(path []byte, reason string) {
 		in.Withheld = append(in.Withheld, Omitted{Path: bytes.Clone(path), Reason: reason})
 	}
@@ -54,17 +121,11 @@ func InputFrom(inv inventory.Inventory, c reviewcontext.ContextBundle, policy pr
 	for _, u := range inv.Units {
 		f := files[u.FileChangeID]
 		path := unitPath(f)
-		if excluded, reason := excludedPath(policy, f); excluded {
+		if reason := excludedFiles[f.ID]; reason != "" {
 			withhold(path, reason)
 			continue
 		}
 		patch := inv.Patches[u.PatchReference]
-		if len(patch) > 0 {
-			if excluded, reason := policy.ExcludedContent(patch); excluded {
-				withhold(path, reason)
-				continue
-			}
-		}
 		switch {
 		case limits.Units > 0 && len(in.Units) >= limits.Units:
 			withhold(path, "request unit limit reached")
@@ -83,11 +144,7 @@ func InputFrom(inv inventory.Inventory, c reviewcontext.ContextBundle, policy pr
 	// again here because this is the boundary that actually uploads it, and
 	// it shares the aggregate budget with the changed units.
 	for _, e := range c.Evidence {
-		if excluded, reason := policy.ExcludedPath(e.Path); excluded {
-			in.Omissions = append(in.Omissions, reviewcontext.Omitted{Path: bytes.Clone(e.Path), Reason: reason})
-			continue
-		}
-		if excluded, reason := policy.ExcludedContent(e.Excerpt); excluded {
+		if reason := excludedPaths[string(e.Path)]; reason != "" {
 			in.Omissions = append(in.Omissions, reviewcontext.Omitted{Path: bytes.Clone(e.Path), Reason: reason})
 			continue
 		}
