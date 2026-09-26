@@ -89,12 +89,37 @@ from a selected comment's action menu. The Commits tab (`3`) is currently a
 placeholder. See the [user reference](docs/REFERENCE.md) for all controls, theme
 configuration, and current limitations.
 
+### Mouse selection and panel resizing
+
+Click a file, guide row, inventory unit, picker item, diff source cell, or
+comment card to select it. Click the visible view tabs to switch views.
+Selection does not activate an item: Enter still opens a PR, applies a theme,
+or opens the selected comment editor/menu. Existing keyboard controls remain
+available. In split diffs, click the old or new source cell to select that
+cell's exact comment target; old context cells are not comment targets.
+
+At terminal widths of 100 columns or more, drag the separator between the
+navigation list and diff horizontally. The navigation list stays at least
+18 columns wide, with at least 40 columns for detail. Mouse dragging and the
+`[` / `]` keys share the same per-review width, remembered for this run and restored after
+returning from a narrow terminal. The inner old/new diff divider stays equal.
+
+Mouse input is disabled during loading, editors, and confirmation forms.
+Wheel scrolling and double-click activation are not supported. Mouse capture
+may affect native terminal text selection; use your terminal's selection
+modifier (often Shift, depending on the terminal or multiplexer) to copy text.
+
 ## Optional AI guides
 
 Set `OPENAI_API_KEY` in your environment, press `g`, and confirm to send bounded
 pinned patches and repository evidence to the Responses API. The current default
 model is `gpt-5.6-terra`. `OPENAI_BASE_URL` overrides the destination; only use an
 endpoint you trust with both the source and API key.
+
+Repository evidence can include excerpts from unchanged files elsewhere in the
+pinned repository, not just files in the PR. See [what the guide request
+sends](docs/REFERENCE.md#guide-request-contents) for the selection rules and
+limits.
 
 Opening, resuming, and switching PRs never generate guides automatically. Cached
 guides can be reused without uploading. A completed generation saves a derived
@@ -147,15 +172,8 @@ and local HTTP servers; live credentials are unnecessary. CI defines macOS and
 Linux verification jobs. See [TESTING.md](TESTING.md) for the test workflow and
 [CONSTRAINTS.md](CONSTRAINTS.md) for the correctness and safety contract.
 
-| Package | Responsibility |
-| --- | --- |
-| `cmd/pr-review` | CLI wiring, application actions, online/write guards |
-| `internal/source` | Isolated Git access, pinned comparisons, GitHub transport |
-| `internal/inventory` | Deterministic file and hunk inventory |
-| `internal/context`, `internal/privacy`, `internal/guide` | Bounded evidence, upload filtering, optional guides |
-| `internal/session`, `internal/review` | Frozen snapshots, reading progress, review lifecycle |
-| `internal/tui`, `internal/theme` | Bubble Tea interface and appearance |
-| `internal/verify`, `internal/guideeval` | Terminal acceptance artifacts and local guide evaluation |
+See the [architecture guide](docs/ARCHITECTURE.md) for the package map, data
+flow, and persistence boundaries.
 
 For changes, add a focused regression test, preserve the source/privacy
 invariants, and run all three checks. Manual live acceptance uses `pr-review verify`;
@@ -165,24 +183,3 @@ its requirements are in the [reference](docs/REFERENCE.md#acceptance-and-guide-e
 
 A license has not been selected or included yet. This is an outstanding step
 before the planned open-source release.
-
-
-### Mouse selection and panel resizing
-
-Click a file, guide row, inventory unit, picker item, diff source cell, or
-comment card to select it. Click the visible view tabs to switch views.
-Selection does not activate an item: Enter still opens a PR, applies a theme,
-or opens the selected comment editor/menu. Existing keyboard controls remain
-available. In split diffs, click the old or new source cell to select that
-cell's exact comment target; old context cells are not comment targets.
-
-At terminal widths of 100 columns or more, drag the separator between the
-navigation list and diff horizontally. The navigation list stays at least
-18 columns wide, with at least 40 columns for detail. Mouse dragging and the
-`[` / `]` keys share the same per-review width, remembered for this run and restored after
-returning from a narrow terminal. The inner old/new diff divider stays equal.
-
-Mouse input is disabled during loading, editors, and confirmation forms.
-Wheel scrolling and double-click activation are not supported. Mouse capture
-may affect native terminal text selection; use your terminal's selection
-modifier (often Shift, depending on the terminal or multiplexer) to copy text.

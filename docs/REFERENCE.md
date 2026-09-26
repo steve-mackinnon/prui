@@ -10,7 +10,50 @@ Selecting a PR from the interactive PR list or switcher displays the latest vali
 
 A completed guide generation creates a new derived session with empty reading progress, retaining the original frozen snapshot and its progress. Escape cancels an in-flight request; cancellation keeps the current session and does not save a derived session. Missing credentials or invalid provider configuration leave the current session intact.
 
-What leaves the machine is only the assembled request package: pinned patches and pinned-tree evidence that pass the privacy policy a second time at the upload boundary, within 400 units, 32 KiB per unit, 512 KiB total, and 60 seconds. Privacy exclusions withhold the affected file’s metadata, patches, and associated evidence, including old and new names for renames. Budget limits omit individual units; a file’s name may still appear in its included units. Omission ledgers stay local, and the provider receives only scope counts and generic omission reasons. The credential filter recognizes common quoted keys and key material, but remains heuristic and can miss secrets; confirm uploads only for source you are authorized to share. `OPENAI_BASE_URL` selects the recipient of both source and the bearer credential, so use only a trusted endpoint. The request is one non-streaming HTTPS `POST /v1/responses` with `store: false` and a strict `pr_review_guides` JSON schema. Redirects are not followed, so the bearer credential cannot reach another host. Provider transcripts and credentials are never stored; the snapshot keeps the guides, provider, model, prompt version, schema name, input digest, evidence IDs, limits, and withheld ledger.
+### Guide request contents
+
+The request contains a comparison ID and eligible review units from the frozen
+PR inventory. Each included unit carries its ID, file path, kind, and patch
+text, including added and removed lines. File metadata units can carry a path
+without patch text. Units withheld by the privacy policy or request budgets
+are not sent; the provider sees only counts and generic reasons for withheld
+units, not their paths.
+
+The request can also contain excerpts from files **outside the PR diff**. When
+the session opens, the app examines the pinned head tree and the merge-base
+versions of deleted files. Manifests, documentation, and tests in the same
+directories as changed files rank highest. Other files in those directories
+share the next rank with manifests, documentation, and tests elsewhere; other
+source files follow. This ranking covers the repository trees, so unchanged
+files elsewhere in the repository can be selected. Evidence records a path, source
+tree, kind, and line range locally; the provider receives the path, kind, line
+range, and excerpt text. A blob larger than the per-file limit is omitted, not
+partially read. The evidence is frozen with the session, so guide generation
+does not read the live checkout or uncommitted work.
+
+Evidence collection is budgeted at 100 retained files, 32 KiB per blob,
+256 KiB of retained excerpts, and five seconds. The final guide request keeps
+at most 400 units, 32 KiB per unit, and 512 KiB of patches plus evidence,
+with a 60-second analysis deadline. The current consent screen describes these
+categories and the recipient; it does not list the exact paths in the assembled request.
+There is currently no user-configurable path exclusion for guide uploads.
+
+Only the assembled request package leaves the machine. The privacy policy is
+applied again at that boundary. An excluded file's metadata, patches, and
+associated evidence are withheld, including both names of a rename. Built-in
+exclusions cover credential-like filenames (such as `.env` and `.pem` files),
+binary content, and recognized credential-like text. Budget limits can omit
+individual units while retaining other units from the same file. The credential
+filter recognizes common quoted keys and key material, but is heuristic and
+can miss secrets; confirm uploads only for source you are authorized to share.
+
+`OPENAI_BASE_URL` selects the recipient of both source and the bearer
+credential, so use only a trusted endpoint. The request is one non-streaming
+HTTPS `POST /v1/responses` with `store: false` and a strict
+`pr_review_guides` JSON schema. Redirects are not followed. Provider
+transcripts and credentials are never stored; the snapshot keeps the guides,
+provider, model, prompt version, schema name, input digest, evidence IDs,
+limits, and withheld ledger. Omission ledgers stay local.
 
 Failure is cheap and explicit. A transport error, non-2xx status, refusal, deadline, oversize payload, or unusable structured output produces an `analysis_unavailable` bundle with a stated reason, a durable session, and the unchanged deterministic file plan. Only a structurally valid generated bundle is persisted as a reusable local cache entry; unavailable bundles never suppress a later retry. Retrying cannot modify a stored snapshot; a later successful attempt is a new session. Generated text is model interpretation of the bounded input, not source truth, approval, security findings, or complete architectural documentation, and it can be wrong about anything it was not shown.
 
