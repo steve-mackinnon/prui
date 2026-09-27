@@ -169,7 +169,10 @@ func (m *Model) selectedDiffTarget() *source.ReviewCommentTarget {
 	if index < 0 {
 		return nil
 	}
-	line := m.displayDetail()[index]
+	return m.selectedDiffTargetForLine(m.displayDetail()[index])
+}
+
+func (m *Model) selectedDiffTargetForLine(line diffLine) *source.ReviewCommentTarget {
 	var target source.ReviewCommentTarget
 	var ok bool
 	if guide, found := m.activeGuide(); found {

@@ -245,13 +245,6 @@ func projectSideBySideRows(lines []diffLine) []diffRow {
 
 const sideBySideMinimumWidth = 160
 
-// renderSideBySideDetail renders aligned source rows into the current detail
-// pane. Full rows deliberately remain single cards: only source cells get the
-// central separator and shared horizontal code offset.
-func (m *Model) renderSideBySideDetail(lines []diffLine, width, horizontal int) []diffLine {
-	return m.renderProjectedSideBySideDetail(projectSideBySideDetail(lines), width, horizontal)
-}
-
 // projectSideBySideDetail turns source lines into logical split rows. Model
 // uses these rows before it attaches comment overlays so guide anchors and
 // focused-row navigation keep the same coordinate system as rendering.
@@ -272,15 +265,20 @@ func projectSideBySideDetail(lines []diffLine) []diffLine {
 // renderProjectedSideBySideDetail renders logical rows assembled by Model so
 // cursor and overlays share the same row indices as the visible split view.
 func (m *Model) renderProjectedSideBySideDetail(lines []diffLine, width, horizontal int) []diffLine {
-	rendered := make([]diffLine, 0, len(lines))
-	oldBounds, _ := splitCellBounds(width)
-	cellWidth := oldBounds.Dx()
 	var selected *source.ReviewCommentTarget
 	selectedRow := -1
 	if m.cursorActive {
 		selected = m.selectedDiffTarget()
 		selectedRow = m.cursor()
 	}
+	return m.renderSideBySideViewport(lines, width, horizontal, selectedRow, selected)
+}
+
+// selectedRow is relative to the supplied viewport, not the full diff.
+func (m *Model) renderSideBySideViewport(lines []diffLine, width, horizontal, selectedRow int, selected *source.ReviewCommentTarget) []diffLine {
+	rendered := make([]diffLine, 0, len(lines))
+	oldBounds, _ := splitCellBounds(width)
+	cellWidth := oldBounds.Dx()
 	for index, line := range lines {
 		if line.sideBySide == nil {
 			rendered = append(rendered, diffLine{styledLine: styledLine{

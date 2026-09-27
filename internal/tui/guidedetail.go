@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"pr-review/internal/guide"
 	"pr-review/internal/inventory"
 	"pr-review/internal/review"
 )
@@ -79,4 +80,25 @@ func detailFor(s *review.Session, guide int) guideDetail {
 		}
 	}
 	return detail
+}
+
+// Keep only the most recently used guide. Frozen source and guide bundles are
+// immutable; selecting another snapshot or replacing its bundle misses the cache.
+// Overlay/editor rows and styled text are built separately, never cached here.
+type guideDetailCache struct {
+	session *review.Session
+	bundle  *guide.Bundle
+	index   int
+	detail  guideDetail
+}
+
+func (m *Model) cachedGuideDetail(index int) guideDetail {
+	if m.Session == nil {
+		return guideDetail{}
+	}
+	c := &m.guideCache
+	if c.session != m.Session || c.bundle != m.Session.Guides || c.index != index {
+		*c = guideDetailCache{session: m.Session, bundle: m.Session.Guides, index: index, detail: detailFor(m.Session, index)}
+	}
+	return c.detail
 }

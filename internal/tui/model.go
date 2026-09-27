@@ -175,6 +175,7 @@ const (
 )
 
 type Model struct {
+	guideCache                      guideDetailCache
 	CursorTarget, GuideCursorTarget map[int]source.ReviewCommentTarget
 	drag                            dividerDrag
 
@@ -1190,7 +1191,7 @@ func (m *Model) clampOffset(offset int) int {
 func (m *Model) focusDetail(rows []row) {
 	if len(rows) > 0 {
 		r := rows[max(0, min(len(rows)-1, m.Row))]
-		if offset, ok := anchorForLayout(detailFor(m.Session, r.guide), r, m.sideBySideEnabled()); ok {
+		if offset, ok := anchorForLayout(m.cachedGuideDetail(r.guide), r, m.sideBySideEnabled()); ok {
 			m.setOffset(m.clampOffset(offset))
 		}
 	}
@@ -1262,7 +1263,7 @@ func (m *Model) syncFileToLine(index int) {
 
 func (m *Model) baseDetail() []diffLine {
 	if guide, ok := m.activeGuide(); ok {
-		return detailFor(m.Session, guide).lines
+		return m.cachedGuideDetail(guide).lines
 	}
 	if m.fileView() {
 		var lines []diffLine
@@ -1328,11 +1329,11 @@ func (m *Model) sideBySideEnabled() bool {
 func (m *Model) diffLayout() diffLayout { return m.layout }
 
 func (m *Model) sideBySideDetail() []diffLine {
-	base := m.baseDetail()
+	var base []diffLine
 	if guide, ok := m.activeGuide(); ok {
-		base = detailFor(m.Session, guide).splitLines
+		base = m.cachedGuideDetail(guide).splitLines
 	} else {
-		base = projectSideBySideDetail(base)
+		base = projectSideBySideDetail(m.baseDetail())
 	}
 	lines := make([]diffLine, 0, len(base)+len(m.Comments)+2)
 	for _, line := range base {
@@ -1547,7 +1548,10 @@ func (m *Model) setOffset(offset int) {
 // every raw unit and guide so changing tabs or detail modes preserves review
 // context without changing the list selection.
 func (m *Model) cursor() int {
-	detail := m.displayDetail()
+	return m.cursorInDetail(m.displayDetail())
+}
+
+func (m *Model) cursorInDetail(detail []diffLine) int {
 	if len(detail) == 0 {
 		return -1
 	}
@@ -1638,7 +1642,8 @@ func (m *Model) moveCursor(delta int) {
 	if delta == 0 {
 		return
 	}
-	detail, current := m.displayDetail(), m.cursor()
+	detail := m.displayDetail()
+	current := m.cursorInDetail(detail)
 	if current < 0 {
 		return
 	}
@@ -1872,37 +1877,46 @@ func (m *Model) reviewViewForLayout(preferSideBySide bool) string {
 	header := m.paneFrameHeader(leftLabel, rightLabel)
 	bodyHeight := m.bodyHeight()
 	list, selectedRow := m.reviewListPresentation()
-	detail := m.detail()
-	if useSideBySide {
-		if m.sideBySideEnabled() {
-			detail = m.renderProjectedSideBySideDetail(m.displayDetail(), m.detailWidth(), m.Horizontal)
-		} else {
-			detail = m.renderSideBySideDetail(detail, m.detailWidth(), m.Horizontal)
+	var detail []diffLine
+	if useSideBySide && m.sideBySideEnabled() {
+		detail = m.displayDetail()
+	} else {
+		detail = m.detail()
+		if useSideBySide {
+			detail = projectSideBySideDetail(detail)
 		}
+	}
+	cursor := m.cursorInDetail(detail)
+	var selected *source.ReviewCommentTarget
+	if useSideBySide && m.cursorActive && cursor >= 0 {
+		selected = m.selectedDiffTargetForLine(detail[cursor])
 	}
 	offset := min(m.offset(), max(0, len(detail)-1))
 	detail = detail[offset:min(len(detail), offset+bodyHeight)]
+	if useSideBySide {
+		detail = m.renderSideBySideViewport(detail, m.detailWidth(), m.Horizontal, cursor-offset, selected)
+	}
 	// Horizontal scrolling stays on unstyled text; styles are applied after clipping.
 	// Split rows need the same stable cursor gutter as unified rows. Without it,
 	// a focused comment target remains selectable but has no visible location.
 	for i, line := range detail {
 		marker := ""
 		if m.cursorActive {
-			marker = cursorMarker(offset+i == m.cursor())
+			marker = cursorMarker(offset+i == cursor)
 		}
 		if useSideBySide {
 			if line.sideBySide != nil && line.sideBySide.full == nil {
 				marker = ""
 			}
 			detail[i].Text = marker + line.Text
-			if line.commentID > 0 && offset+i == m.cursor() {
+			if line.commentID > 0 && offset+i == cursor {
 				detail[i].Class = selectedClass(true)
 			}
 			continue
 		}
 		runes := []rune(line.Text)
 		detail[i].Text = marker + string(runes[min(m.Horizontal, len(runes)):])
-		if line.commentID > 0 && offset+i == m.cursor() {
+		if line.commentID > 0 && offset+i == cursor {
 			detail[i].Class = selectedClass(true)
 		}
 	}
