@@ -96,26 +96,50 @@ modifier (often Shift, depending on the terminal or multiplexer) to copy text.
 
 ## Optional AI guides
 
-Set `OPENAI_API_KEY` in your environment, press `g`, and confirm to send bounded
-pinned patches and repository evidence to the Responses API. The current default
-model is `gpt-5.6-terra`. `OPENAI_BASE_URL` overrides the destination; only use an
-endpoint you trust with both the source and API key.
+With no guide configuration file, set `OPENAI_API_KEY` in your environment,
+press `g`, and confirm to send bounded pinned patches and repository evidence
+to OpenAI. The default model is `gpt-5.6-terra`; `OPENAI_BASE_URL` can override
+its destination. Use only an endpoint you trust with the source and API key.
+
+To bring your own model, create `~/.config/pr-review/config.json` on macOS or
+Linux. If `XDG_CONFIG_HOME` is an absolute path, use
+`$XDG_CONFIG_HOME/pr-review/config.json` instead. For example:
+
+```json
+{
+  "guide": {
+    "provider": "anthropic",
+    "model": "claude-sonnet-4-20250514"
+  }
+}
+```
+
+Set `ANTHROPIC_API_KEY` for that example. Supported providers are `openai`,
+`anthropic`, `google`, and `openai-compatible`; Google uses `GEMINI_API_KEY`.
+Choose a model ID supported by the selected provider. A custom endpoint needs
+`base_url` and usually `api_key_env`, the *name* of the environment variable
+holding its key. The file never contains the key itself. See the
+[configuration reference](docs/REFERENCE.md#guide-model-configuration) for
+examples and endpoint rules.
 
 Repository evidence can include excerpts from unchanged files elsewhere in the
 pinned repository, not just files in the PR. See [what the guide request
 sends](docs/REFERENCE.md#guide-request-contents) for the selection rules and
 limits.
 
-Opening, resuming, and switching PRs never generate guides automatically. Cached
-guides can be reused without uploading. A completed generation saves a derived
+Opening, resuming, and switching PRs never generate guides automatically. A
+cached guide is reused only when its provider, model, endpoint, prompt, and
+schema match the current selection. A completed generation saves a derived
 session with fresh reading progress and retains the original session. Escape
 cancels generation. Raw diffs remain available if analysis fails.
 
 Uploads have size and time limits and apply a heuristic credential filter.
 **The filter is not a secret scanner and can miss credentials.** Use guides only
-with source you are authorized to share. Requests set `store: false`; credentials
-and full provider transcripts are not saved locally. Generated guidance is an
-interpretation, not a completeness or security verdict.
+with source you are authorized to share. The confirmation shows the selected
+provider, model, and recipient. OpenAI Responses requests set `store: false`;
+other providers have their own retention policies. Credentials and full provider
+transcripts are not saved locally. Generated guidance is an interpretation,
+not a completeness or security verdict.
 
 ## Storage and safety
 

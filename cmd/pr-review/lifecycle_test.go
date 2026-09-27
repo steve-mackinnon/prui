@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"pr-review/internal/guide"
+	"pr-review/internal/guideconfig"
 	"pr-review/internal/review"
 	"pr-review/internal/session"
 	"pr-review/internal/source"
@@ -389,6 +390,16 @@ func TestLifecyclePRListOpenCachesOnlyGeneratedGuides(t *testing.T) {
 	second, err := app.openFromPullRequestList(context.Background(), r.Dir, meta.Identity, nil)
 	if err != nil || second.Guides == nil || second.Guides.Status != guide.Generated || calls != 0 || len(second.ReviewedSliceIDs) != 1 {
 		t.Fatalf("cached PR-list guide = %#v, calls=%d, err=%v", second, calls, err)
+	}
+	app.guideSelectionResolved = true
+	app.guideSelection = guideconfig.Selection{Provider: "anthropic", Model: "claude-test", BaseURL: "https://api.anthropic.com", Destination: "https://api.anthropic.com"}
+	third, err := app.openFromPullRequestList(context.Background(), r.Dir, meta.Identity, nil)
+	if err != nil || third.Guides != nil || calls != 0 {
+		t.Fatalf("different model reused prior guide: guide=%#v, calls=%d, err=%v", third.Guides, calls, err)
+	}
+	resumed, err := store.Load(guided.ID)
+	if err != nil || resumed == nil || resumed.Guides == nil || resumed.Guides.Status != guide.Generated {
+		t.Fatalf("explicit saved guide disappeared after selection change: session=%#v, err=%v", resumed, err)
 	}
 }
 

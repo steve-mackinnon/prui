@@ -29,7 +29,58 @@ private store. Run `pr-review --help` for the full syntax.
 
 Guides group the frozen review units into functional chunks, each with a title, description, and ordered sections that reference specific units. They are an interpretation layer: `Slices` and `UnitFiles` are unchanged, reading progress stays file-slice based, and the raw inventory remains the complete source view. Each unit is assigned to a guide exactly once; anything the model did not group lands in a synthesized `Ungrouped changes` guide.
 
-Selecting a PR from the interactive PR list or switcher displays the latest validated saved review immediately when one exists, with freshness shown as unknown until an asynchronous GitHub check finishes. The check reuses a matching frozen comparison without Git fetching or resource rebuilding; a changed comparison is pinned normally and replaces the displayed review when ready. A previously generated guide for the same repository, PR number, base SHA, and head SHA is reused locally. Press `g` in an interactive review and confirm to generate a guide; Escape cancels an in-flight request. Direct `open`, `resume`, `--plain`, offline mode, and `verify` do not generate guides. `OPENAI_API_KEY` is never written to a snapshot, log, or error string. The default model is `gpt-5.6-terra`; `OPENAI_BASE_URL` may override the provider endpoint. There are no `--send-source-to-openai`, `--model`, or `--exclude` CLI flags. `resume --offline` rejects guide generation and all GitHub operations before accessing clients or credentials; stored guides remain readable.
+Selecting a PR from the interactive PR list or switcher displays the latest validated saved review immediately when one exists, with freshness shown as unknown until an asynchronous GitHub check finishes. The check reuses a matching frozen comparison without Git fetching or resource rebuilding; a changed comparison is pinned normally and replaces the displayed review when ready. A previously generated guide for the same repository, PR number, base SHA, and head SHA is reused locally only when its guide selection also matches. Press `g` in an interactive review and confirm to generate a guide; Escape cancels an in-flight request. Direct `open`, `resume`, `--plain`, offline mode, and `verify` do not generate guides. API keys are never written to a snapshot, log, or error string. With no guide configuration file, OpenAI's default model is `gpt-5.6-terra`, and `OPENAI_BASE_URL` may override its endpoint. There are no guide-generation model or exclusion CLI flags. `resume --offline` rejects guide generation and all GitHub operations before accessing clients or credentials; stored guides remain readable.
+
+### Guide model configuration
+
+The global guide selection is read from `$XDG_CONFIG_HOME/pr-review/config.json`
+when `XDG_CONFIG_HOME` is absolute, or `~/.config/pr-review/config.json`
+otherwise. This rule applies on macOS and Linux. The file is separate from
+`theme.json`, session storage, and the reviewed checkout. An absent file uses
+OpenAI with `gpt-5.6-terra`, `OPENAI_API_KEY`, and the optional legacy
+`OPENAI_BASE_URL` origin override. A present file selects the provider and
+model; `OPENAI_BASE_URL` no longer affects that selection.
+
+```json
+{
+  "guide": {
+    "provider": "google",
+    "model": "<Gemini-model-id>",
+    "api_key_env": "GEMINI_API_KEY"
+  }
+}
+```
+
+`provider` must be `openai`, `anthropic`, `google`, or
+`openai-compatible`, and `model` must be a nonempty model ID. The native
+providers default to `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, and
+`GEMINI_API_KEY` respectively; `api_key_env` can name another variable.
+Store the key in that environment variable, not in the JSON file. The
+configuration is resolved for the interactive session; restart the CLI after
+changing it.
+
+An OpenAI-compatible endpoint needs an explicit API prefix, usually including
+`/v1`, and a key variable:
+
+```json
+{
+  "guide": {
+    "provider": "openai-compatible",
+    "model": "<endpoint-model-id>",
+    "base_url": "https://models.example/v1",
+    "api_key_env": "MY_MODEL_API_KEY"
+  }
+}
+```
+
+For an explicit loopback HTTP endpoint, `api_key_env` may be omitted when
+the endpoint needs no credential. OpenAI also accepts `base_url`; an origin
+gets `/v1` appended, while a path already supplied is retained. Anthropic
+and Google use their fixed provider endpoints. Remote URLs must use HTTPS;
+redirects are refused. Invalid configuration stops a guide request before
+source or credentials are sent. A compatible endpoint must support the
+schema-tool request used for structured guide output; there is no text-mode
+fallback or automatic provider switch.
 
 A completed guide generation creates a new derived session with empty reading progress, retaining the original frozen snapshot and its progress. Escape cancels an in-flight request; cancellation keeps the current session and does not save a derived session. Missing credentials or invalid provider configuration leave the current session intact.
 
@@ -70,13 +121,17 @@ individual units while retaining other units from the same file. The credential
 filter recognizes common quoted keys and key material, but is heuristic and
 can miss secrets; confirm uploads only for source you are authorized to share.
 
-`OPENAI_BASE_URL` selects the recipient of both source and the bearer
-credential, so use only a trusted endpoint. The request is one non-streaming
-HTTPS `POST /v1/responses` with `store: false` and a strict
-`pr_review_guides` JSON schema. Redirects are not followed. Provider
-transcripts and credentials are never stored; the snapshot keeps the guides,
-provider, model, prompt version, schema name, input digest, evidence IDs,
-limits, and withheld ledger. Omission ledgers stay local.
+The selected endpoint receives both source and its credential, if one is
+configured, so use only a trusted endpoint. Guide generation makes at most
+one non-streaming model request with structured `pr_review_guides` output.
+OpenAI uses Responses with `store: false`; other providers use their native
+structured-output protocols, and no shared retention policy is promised.
+Requests are limited to 2 MiB and responses to 4 MiB. Redirects are not
+followed. Provider transcripts and credentials are never stored; the snapshot
+keeps the guides, provider, model, prompt version, schema name, input digest,
+evidence IDs, limits, withheld ledger, and a non-secret selection fingerprint.
+Omission ledgers stay local. A legacy guide without a fingerprint is eligible
+for automatic reuse only under the unchanged default OpenAI selection.
 
 Failure is cheap and explicit. A transport error, non-2xx status, refusal, deadline, oversize payload, or unusable structured output produces an `analysis_unavailable` bundle with a stated reason, a durable session, and the unchanged deterministic file plan. Only a structurally valid generated bundle is persisted as a reusable local cache entry; unavailable bundles never suppress a later retry. Retrying cannot modify a stored snapshot; a later successful attempt is a new session. Generated text is model interpretation of the bounded input, not source truth, approval, security findings, or complete architectural documentation, and it can be wrong about anything it was not shown.
 

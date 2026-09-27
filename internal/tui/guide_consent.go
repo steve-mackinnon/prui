@@ -21,6 +21,20 @@ func (m *Model) SetGuideDestination(endpoint string) {
 		return
 	}
 	m.guideDestination = u.Scheme + "://" + u.Host
+	m.guideProvider = "openai"
+	m.guideModel = guide.DefaultModel
+	m.guideStoreFalse = true
+	m.guideHasCredential = true
+}
+
+// SetGuideSelection captures the selected request identity for the upload
+// notice. The recipient is reduced to an origin before it reaches the view.
+func (m *Model) SetGuideSelection(provider, model, endpoint string, storeFalse, hasCredential bool) {
+	m.SetGuideDestination(endpoint)
+	m.guideProvider = provider
+	m.guideModel = model
+	m.guideStoreFalse = storeFalse
+	m.guideHasCredential = hasCredential
 }
 
 func (m *Model) guideRecipient() string {
@@ -31,11 +45,31 @@ func (m *Model) guideRecipient() string {
 }
 
 func (m *Model) guideConsentView() string {
+	provider, model := m.guideProvider, m.guideModel
+	if provider == "" {
+		provider = "openai"
+	}
+	if model == "" {
+		model = guide.DefaultModel
+	}
+	uploadSuffix := ""
+	if m.guideHasCredential || m.guideProvider == "" {
+		uploadSuffix = " and your API key"
+	}
+	privacy := "Credential filtering can miss secrets. Send only source you are authorized to share. Your API key is not persisted."
+	if m.guideStoreFalse || m.guideProvider == "" {
+		privacy = "Credential filtering can miss secrets. Send only source you are authorized to share. Requests use store:false; your API key is not persisted."
+	}
+	if !m.guideHasCredential && m.guideProvider != "" {
+		privacy = "Credential filtering can miss secrets. Send only source you are authorized to share."
+	}
 	paragraphs := []string{
 		"Generate guide?",
+		"Provider: " + Escape(provider),
+		"Model: " + Escape(model),
 		"Recipient: " + Escape(m.guideRecipient()),
-		"This sends bounded pinned patches, repository evidence, and your API key to this recipient.",
-		"Credential filtering can miss secrets. Send only source you are authorized to share. Requests use store:false; your API key is not persisted.",
+		"This sends bounded pinned patches, repository evidence" + uploadSuffix + " to this recipient.",
+		privacy,
 		"enter: send source and generate | esc: cancel | q: quit",
 	}
 	for i, text := range paragraphs {
