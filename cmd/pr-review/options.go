@@ -22,22 +22,21 @@ pr-review resume <id> [--offline] [--plain] [--new] [--repo <checkout>] [--theme
 pr-review eval-guides <id>
 pr-review delete <id>
 pr-review verify <PR-URL-or-number> --artifacts <output-directory> [--github-repo owner/repo] [--measure-runs N] [--open-timeout DURATION]
-All commands accept --store <private-directory>; defaults to OS user-data storage.
 Resume checks metadata unless --offline. --new creates an unreviewed comparison; retains old session.
 Open and verify must be launched from the root of the local repository checkout.`
 
 type options struct {
-	Command, SessionID, Storage string
-	ThemeName                   string
-	ThemeConfigPath             string
-	Theme                       theme.Theme
-	Identity                    source.Identity
-	Repository                  string
-	Checkout                    string
-	Artifacts                   string
-	MeasureRuns                 int
-	OpenTimeout                 time.Duration
-	Plain, Offline, New         bool
+	Command, SessionID  string
+	ThemeName           string
+	ThemeConfigPath     string
+	Theme               theme.Theme
+	Identity            source.Identity
+	Repository          string
+	Checkout            string
+	Artifacts           string
+	MeasureRuns         int
+	OpenTimeout         time.Duration
+	Plain, Offline, New bool
 }
 
 func parseOptions(args []string) (options, error) {
@@ -54,7 +53,6 @@ func parseOptions(args []string) (options, error) {
 	}
 	f := flag.NewFlagSet(o.Command, flag.ContinueOnError)
 	f.SetOutput(io.Discard)
-	f.StringVar(&o.Storage, "store", "", "private session storage location")
 	if o.Command == "current" || o.Command == "open" || o.Command == "resume" || o.Command == "prs" {
 		f.StringVar(&o.ThemeName, "theme", "", "interactive color theme")
 	}

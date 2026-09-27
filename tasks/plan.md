@@ -1019,7 +1019,7 @@ no SQLite executable, library, service, or database setup prerequisite.
    direct CLI test call with UpdateState; delete Save at cutover. Keep the
    existing Entry callback type but replace its full Record with summary fields.
 6. **Local storage identity.** Fresh defaults use `pr-review/storage`, not
-   `pr-review/sessions`. `--store` remains a directory. An unknown/old nonempty
+   `pr-review/sessions`. An unknown/old nonempty
    directory is rejected without parsing or changing its records.
 7. **Validation stays layered.** Verify source/bundle digests and domain references
    on create/load/cache reuse, enforce relational constraints in SQL, and check

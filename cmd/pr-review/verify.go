@@ -13,10 +13,6 @@ import (
 )
 
 func runVerify(ctx context.Context, o options) int {
-	if o.Storage != "" {
-		fmt.Fprintln(os.Stderr, "verify creates its own private temporary session store; --store is not accepted")
-		return 1
-	}
 	if err := outsideCheckout(o.Artifacts, o.Checkout); err != nil {
 		fmt.Fprintln(os.Stderr, tui.Escape(err.Error()))
 		return 1
@@ -25,12 +21,12 @@ func runVerify(ctx context.Context, o options) int {
 		fmt.Fprintln(os.Stderr, "artifact directory must be a new path:", tui.Escape(err.Error()))
 		return 1
 	}
-	store, err := os.MkdirTemp("", "pr-review-verify-")
+	home, err := os.MkdirTemp("", "pr-review-verify-")
 	if err != nil {
 		fmt.Fprintln(os.Stderr, tui.Escape(err.Error()))
 		return 1
 	}
-	defer func() { _ = os.RemoveAll(store) }()
+	defer func() { _ = os.RemoveAll(home) }()
 	executable, err := os.Executable()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, tui.Escape(err.Error()))
@@ -38,7 +34,7 @@ func runVerify(ctx context.Context, o options) int {
 	}
 	journey, journeyErr := verify.RunJourney(ctx, verify.JourneyConfig{
 		Executable: executable, PRURL: o.Identity.URL(), Checkout: o.Checkout,
-		StoreDir: store, ArtifactDir: o.Artifacts, Runs: o.MeasureRuns,
+		HomeDir: home, ArtifactDir: o.Artifacts, Runs: o.MeasureRuns,
 		OpenTimeout: o.OpenTimeout,
 	})
 	report := journey.Report

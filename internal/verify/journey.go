@@ -35,7 +35,7 @@ type JourneyConfig struct {
 	Executable  string
 	PRURL       string
 	Checkout    string
-	StoreDir    string
+	HomeDir     string
 	ArtifactDir string
 	Runs        int
 	Python      string
@@ -166,10 +166,10 @@ func checks(open, navigate, mark Status) []Check {
 }
 
 func validateJourneyConfig(config JourneyConfig) error {
-	if config.Executable == "" || config.PRURL == "" || config.Checkout == "" || config.StoreDir == "" || config.ArtifactDir == "" || config.Runs < 1 || config.Runs > 10 || config.OpenTimeout < 0 {
-		return errors.New("executable, PR URL, checkout, store, artifacts, and runs are required")
+	if config.Executable == "" || config.PRURL == "" || config.Checkout == "" || config.HomeDir == "" || config.ArtifactDir == "" || config.Runs < 1 || config.Runs > 10 || config.OpenTimeout < 0 {
+		return errors.New("executable, PR URL, checkout, home, artifacts, and runs are required")
 	}
-	for _, path := range []string{config.Checkout, config.StoreDir, config.ArtifactDir} {
+	for _, path := range []string{config.Checkout, config.HomeDir, config.ArtifactDir} {
 		if !filepath.IsAbs(path) {
 			return errors.New("journey paths must be absolute")
 		}
@@ -204,9 +204,10 @@ func runOpenWithTiming(ctx context.Context, config JourneyConfig) ([]byte, OpenT
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	//nolint:gosec // RunJourney validates the local executable and receives its fixed argument layout from the CLI.
-	cmd := exec.CommandContext(ctx, config.Executable, "open", config.PRURL, "--store", config.StoreDir, "--plain")
+	cmd := exec.CommandContext(ctx, config.Executable, "open", config.PRURL, "--plain")
 	cmd.Dir = config.Checkout
-	cmd.Env = openTimingEnvironment(config.Environment)
+	cmd.Env = isolatedEnvironment(config)
+	cmd.Env = openTimingEnvironment(cmd.Env)
 	var stdout, stderr boundedBuffer
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr
 	err := cmd.Run()
@@ -234,6 +235,38 @@ func openTimingEnvironment(environment []string) []string {
 	return append(result, OpenTimingEnvironment+"=1")
 }
 
+// Run the shipped binary with its normal storage path under a temporary home.
+// Keep GitHub CLI authentication at its original location for live verification.
+func isolatedEnvironment(config JourneyConfig) []string {
+	base := config.Environment
+	if base == nil {
+		base = os.Environ()
+	}
+	value := func(key string) string {
+		for i := len(base) - 1; i >= 0; i-- {
+			if strings.HasPrefix(base[i], key+"=") {
+				return strings.TrimPrefix(base[i], key+"=")
+			}
+		}
+		return ""
+	}
+	ghConfig := value("GH_CONFIG_DIR")
+	if ghConfig == "" {
+		configHome := value("XDG_CONFIG_HOME")
+		if !filepath.IsAbs(configHome) {
+			configHome = filepath.Join(value("HOME"), ".config")
+		}
+		ghConfig = filepath.Join(configHome, "gh")
+	}
+	result := make([]string, 0, len(base)+4)
+	for _, entry := range base {
+		if !strings.HasPrefix(entry, "HOME=") && !strings.HasPrefix(entry, "XDG_DATA_HOME=") && !strings.HasPrefix(entry, "GH_CONFIG_DIR=") {
+			result = append(result, entry)
+		}
+	}
+	return append(result, "HOME="+config.HomeDir, "XDG_DATA_HOME="+config.HomeDir, "GH_CONFIG_DIR="+ghConfig)
+}
+
 func runHarness(ctx context.Context, config JourneyConfig, harness, sessionID string) (harnessEvidence, error) {
 	timeout := config.Timeout
 	if timeout == 0 {
@@ -242,10 +275,8 @@ func runHarness(ctx context.Context, config JourneyConfig, harness, sessionID st
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	//nolint:gosec // RunJourney validates the Python executable; the generated harness and remaining arguments are local.
-	cmd := exec.CommandContext(ctx, config.Python, harness, config.Executable, config.StoreDir, sessionID, fmt.Sprintf("%.3f", timeout.Seconds()))
-	if config.Environment != nil {
-		cmd.Env = config.Environment
-	}
+	cmd := exec.CommandContext(ctx, config.Python, harness, config.Executable, sessionID, fmt.Sprintf("%.3f", timeout.Seconds()))
+	cmd.Env = isolatedEnvironment(config)
 	var stdout, stderr boundedBuffer
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr
 	if err := cmd.Run(); err != nil || stdout.exceeded {

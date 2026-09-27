@@ -149,9 +149,9 @@ class Terminal:
         if self.process.returncode: raise RuntimeError("terminal quit with failure")
 
 
-def one_run(binary, store, session, timeout):
+def one_run(binary, session, timeout):
     started = time.monotonic_ns()
-    first = Terminal(binary, ["resume", session, "--store", store, "--offline"], timeout)
+    first = Terminal(binary, ["resume", session, "--offline"], timeout)
     try:
         process_start_ns = time.monotonic_ns() - started
         match = first.wait(r"(\d+)/(\d+) read \(local\)")
@@ -165,7 +165,7 @@ def one_run(binary, store, session, timeout):
         first.quit()
         transcript = bytes(first.output)
     finally: first.close()
-    resumed = Terminal(binary, ["resume", session, "--store", store, "--offline"], timeout)
+    resumed = Terminal(binary, ["resume", session, "--offline"], timeout)
     try:
         resumed.wait(r"%d/%d read \(local\)" % (before + 1, total))
         resumed.wait(r"\[x\]")
@@ -177,8 +177,8 @@ def one_run(binary, store, session, timeout):
 
 
 def main():
-    binary, store, session, timeout = sys.argv[1:]
-    print(json.dumps(one_run(binary, store, session, float(timeout)), separators=(",", ":")))
+    binary, session, timeout = sys.argv[1:]
+    print(json.dumps(one_run(binary, session, float(timeout)), separators=(",", ":")))
 
 
 if __name__ == "__main__": main()

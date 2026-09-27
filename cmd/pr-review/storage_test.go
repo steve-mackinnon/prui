@@ -4,7 +4,20 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"pr-review/internal/session"
 )
+
+func temporaryDefaultStore(t *testing.T, home string) string {
+	t.Helper()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_DATA_HOME", home)
+	path, err := session.DefaultPath()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
 
 func TestStorageCannotMutateReviewedCheckout(t *testing.T) {
 	checkout := t.TempDir()
@@ -12,12 +25,12 @@ func TestStorageCannotMutateReviewedCheckout(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Chdir(checkout)
-	store := filepath.Join(checkout, "new", "sessions")
-	args := []string{"open", "https://github.com/o/r/pull/1", "--store", store, "--plain"}
+	store := temporaryDefaultStore(t, checkout)
+	args := []string{"open", "https://github.com/o/r/pull/1", "--plain"}
 	if code := run(args); code != 1 {
 		t.Fatalf("unsafe store exit %d", code)
 	}
-	if _, err := os.Stat(filepath.Join(checkout, "new")); !os.IsNotExist(err) {
+	if _, err := os.Stat(store); !os.IsNotExist(err) {
 		t.Fatal("storage mutated checkout before rejecting it")
 	}
 	alias := filepath.Join(t.TempDir(), "checkout-link")

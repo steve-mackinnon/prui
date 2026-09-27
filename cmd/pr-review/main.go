@@ -52,24 +52,22 @@ func run(args []string) int {
 	if o.Command == "verify" {
 		return runVerify(ctx, o)
 	}
-	if o.Storage == "" {
-		o.Storage, e = session.DefaultPath()
-		if e != nil {
-			fmt.Fprintln(os.Stderr, tui.Escape(e.Error()))
-			return 1
-		}
+	storagePath, e := session.DefaultPath()
+	if e != nil {
+		fmt.Fprintln(os.Stderr, tui.Escape(e.Error()))
+		return 1
 	}
 	if o.Checkout != "" {
-		if e := outsideCheckout(o.Storage, o.Checkout); e != nil {
+		if e := outsideCheckout(storagePath, o.Checkout); e != nil {
 			fmt.Fprintln(os.Stderr, tui.Escape(e.Error()))
 			return 1
 		}
 	}
 	var store *session.Store
 	if o.Command == "eval-guides" {
-		store, e = session.OpenReadOnly(o.Storage)
+		store, e = session.OpenReadOnly(storagePath)
 	} else {
-		store, e = session.Open(o.Storage)
+		store, e = session.Open(storagePath)
 	}
 	if e != nil {
 		fmt.Fprintln(os.Stderr, tui.Escape(e.Error()))

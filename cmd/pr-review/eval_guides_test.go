@@ -11,12 +11,11 @@ import (
 
 func TestEvalGuidesCLIReadsStoredSessionWithoutGitHub(t *testing.T) {
 	app, saved := wiringFixture(t)
-	path := app.store.Path()
 	if err := app.store.Close(); err != nil {
 		t.Fatal(err)
 	}
 	out, code := captureStdout(t, func() int {
-		return run([]string{"eval-guides", saved.ID, "--store", path})
+		return run([]string{"eval-guides", saved.ID})
 	})
 	if code != 0 {
 		t.Fatalf("exit = %d, output = %q", code, out)
@@ -42,12 +41,11 @@ func TestEvalGuidesCLIReportsStoredGeneratedGuides(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	path := app.store.Path()
 	if err := app.store.Close(); err != nil {
 		t.Fatal(err)
 	}
 	out, code := captureStdout(t, func() int {
-		return run([]string{"eval-guides", derived.ID, "--store", path})
+		return run([]string{"eval-guides", derived.ID})
 	})
 	if code != 0 {
 		t.Fatalf("exit = %d, output = %q", code, out)

@@ -31,6 +31,7 @@ func TestOptions(t *testing.T) {
 		{[]string{"prs", "../r"}, false},
 		{[]string{"prs", "o/r", "extra"}, false},
 		{[]string{"sessions"}, true}, {[]string{"open", "1", "--github-repo", "o/r", "extra"}, false},
+		{[]string{"sessions", "--store", "/tmp/other"}, false},
 		{[]string{"resume", "0123456789abcdef0123456789abcdef", "--offline", "--plain"}, true},
 		{[]string{"eval-guides", "0123456789abcdef0123456789abcdef"}, true},
 		{[]string{"eval-guides", "0123456789abcdef0123456789abcdef", "--plain"}, false},

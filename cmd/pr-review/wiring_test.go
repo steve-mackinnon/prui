@@ -223,7 +223,7 @@ func wiringFixture(t *testing.T) (*application, *review.Session) {
 	repo.Write("a", "new\n")
 	head := repo.Commit()
 	meta := source.Metadata{Identity: source.Identity{Repository: "owner/repo", Number: 42}, BaseRepository: "owner/repo", HeadRepository: "owner/repo", BaseSHA: base, HeadSHA: head}
-	store, err := session.Open(filepath.Join(t.TempDir(), "sessions"))
+	store, err := session.Open(temporaryDefaultStore(t, t.TempDir()))
 	if err != nil {
 		t.Fatal(err)
 	}

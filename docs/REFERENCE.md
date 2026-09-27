@@ -22,8 +22,7 @@ In the TUI, `s` opens saved sessions and `N` starts a new comparison. Direct
 `resume <id>` remains available when you already know the ID. Opening a PR in
 plain mode saves a snapshot. Normal resume checks GitHub; `--offline` disables
 network operations. `--plain` is also selected automatically for redirected
-input or output and `TERM=dumb`. All commands accept `--store` for a separate
-private store. Run `pr-review --help` for the full syntax.
+input or output and `TERM=dumb`. Run `pr-review --help` for the full syntax.
 
 ## Optional review guides
 
@@ -298,7 +297,7 @@ The CLI prints storage location; TUI help shows storage and session ID. Defaults
 - macOS: `~/Library/Application Support/pr-review/storage`
 - Linux: `$XDG_DATA_HOME/pr-review/storage`, or `~/.local/share/pr-review/storage` when unset/non-absolute
 
-All commands accept `--store /private/directory`, outside the reviewed checkout. Use a new empty directory or an existing SQLite app store. Old file caches and unrelated nonempty directories are rejected without import or deletion. Symlink roots and unsafe database/control files are rejected. Directories use 0700 and files 0600. Use a local filesystem with working locks and sync semantics; Windows support is deferred.
+Storage must be outside the reviewed checkout. Old file caches and unrelated nonempty directories are rejected without import or deletion. Symlink roots and unsafe database/control files are rejected. Directories use 0700 and files 0600. Use a local filesystem with working locks and sync semantics; Windows support is deferred.
 
 The application embeds SQLite in process through a CGo-free Go driver. Users do not need a SQLite executable, shared library, or database service. `store.sqlite3` contains immutable, content-addressed source and guide payloads, independent session state, ordered progress, reusable guide references, and remembered repositories. `.sqlite-owner` records storage ownership and initialization phase; `.sqlite-init.lock` protects only initialization. Do not remove these control files. SQLite manages short transaction locks and its rollback journal; several app processes can open the store at once. Operations have bounded waits and report contention rather than silently losing updates.
 

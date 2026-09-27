@@ -11,13 +11,9 @@ import tty
 SESSION = "0123456789abcdef0123456789abcdef"
 
 
-def option(name):
-    return sys.argv[sys.argv.index(name) + 1]
-
-
 def main():
     command = sys.argv[1]
-    store = option("--store")
+    store = os.environ["HOME"]
     if command == "open":
         if "--repo" in sys.argv or os.path.realpath(os.environ.get("PR_REVIEW_EXPECT_CWD", "")) != os.path.realpath(os.getcwd()):
             raise SystemExit(4)

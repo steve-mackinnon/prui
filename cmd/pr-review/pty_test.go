@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
@@ -25,7 +26,8 @@ func TestPTYSmoke(t *testing.T) {
 		t.Fatal("PTY smoke tests require Python 3 (standard library only):", err)
 	}
 	root := t.TempDir()
-	storePath := filepath.Join(root, "sessions")
+	buildHome := os.Getenv("HOME")
+	storePath := temporaryDefaultStore(t, root)
 	store, err := session.Open(storePath)
 	if err != nil {
 		t.Fatal(err)
@@ -61,10 +63,12 @@ func TestPTYSmoke(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
 	binary := filepath.Join(root, "pr-review")
-	if out, err := exec.CommandContext(ctx, "go", "build", "-o", binary, ".").CombinedOutput(); err != nil {
+	build := exec.CommandContext(ctx, "go", "build", "-o", binary, ".")
+	build.Env = append(os.Environ(), "HOME="+buildHome)
+	if out, err := build.CombinedOutput(); err != nil {
 		t.Fatalf("build PTY executable: %v\n%s", err, out)
 	}
-	cmd := exec.CommandContext(ctx, python, "testdata/pty_smoke.py", binary, storePath, saved.ID)
+	cmd := exec.CommandContext(ctx, python, "testdata/pty_smoke.py", binary, root, saved.ID)
 	// Give the harness a chance to kill its terminal process groups on timeout.
 	cmd.Cancel = func() error { return cmd.Process.Signal(syscall.SIGTERM) }
 	cmd.WaitDelay = 3 * time.Second

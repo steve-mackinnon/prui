@@ -31,7 +31,6 @@ from the list and press `ctrl+p` to switch PRs or `s` to browse saved sessions.
 Reopening a cached PR preserves reading progress. Fetching and reviewing do not
 switch branches or modify the checkout.
 
-All commands accept `--store /path/to/private-directory` for a separate store.
 Use `pr-review --help` for command syntax and the
 [CLI reference](docs/REFERENCE.md#command-line) for less common tasks such as
 plain output, offline review, and deletion. `--plain` is automatic when input

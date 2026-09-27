@@ -252,8 +252,8 @@ def main():
         if "alpha" in screen.text() or "beta" in screen.text():
             raise AssertionError("erased content remained visible")
 
-    binary, store, session_id = sys.argv[1:]
-    root = pathlib.Path(store).parent
+    binary, home, session_id = sys.argv[1:]
+    root = pathlib.Path(home)
     bin_dir = root / "fake-bin"
     bin_dir.mkdir()
     gh_called = root / "gh-called"
@@ -264,16 +264,16 @@ def main():
     gh.chmod(0o700)
     environment = {
         "TERM": "xterm-256color", "PATH": str(bin_dir), "HOME": str(root),
-        "XDG_CONFIG_HOME": str(root), "GH_CONFIG_DIR": str(root), "LC_ALL": "C",
+        "XDG_CONFIG_HOME": str(root), "XDG_DATA_HOME": str(root), "GH_CONFIG_DIR": str(root), "LC_ALL": "C",
     }
-    with Terminal(binary, ["prs", "--store", store], environment) as terminal:
+    with Terminal(binary, ["prs"], environment) as terminal:
         terminal.wait_for("Repositories")
         terminal.key(b"\x1b[B", "› owner/beta")
         terminal.key(b"\x1b[A", "› owner/alpha")
         terminal.quit(b"q")
     print("PASS browser startup, arrow keys, q, terminal restoration")
 
-    resume = ["resume", session_id, "--store", store, "--offline"]
+    resume = ["resume", session_id, "--offline"]
     with Terminal(binary, resume, environment) as terminal:
         terminal.wait_for("0/2 read")
         # SGR coordinates are one-based. Select the second file without an

@@ -221,7 +221,7 @@ func TestLifecycleOpenResumeNewAndOfflineCLI(t *testing.T) {
 	r.Write("a", "new\n")
 	head := r.Commit()
 	g := &fixtureGH{value: source.Metadata{Identity: source.Identity{Repository: "o/r", Number: 1}, BaseRepository: "o/r", HeadRepository: "o/r", BaseSHA: base, HeadSHA: head}}
-	path := filepath.Join(t.TempDir(), "sessions")
+	path := temporaryDefaultStore(t, t.TempDir())
 	store, err := session.Open(path)
 	if err != nil {
 		t.Fatal(err)
@@ -263,9 +263,9 @@ func TestLifecycleOpenResumeNewAndOfflineCLI(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, args := range [][]string{
-		{"sessions", "--store", path},
-		{"resume", saved.ID, "--store", path, "--offline", "--plain"},
-		{"delete", saved.ID, "--store", path},
+		{"sessions"},
+		{"resume", saved.ID, "--offline", "--plain"},
+		{"delete", saved.ID},
 	} {
 		out, code := captureStdout(t, func() int { return run(args) })
 		if code != 0 {

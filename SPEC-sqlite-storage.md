@@ -28,13 +28,12 @@ this change ships on macOS and Linux.
   registry persistence code. SQLite is the only persistence backend for those
   records; no file-backend switch, fallback, compatibility adapter, or obsolete
   read/write helper remains in the delivered implementation.
-- Keep the current CLI commands and `--store <directory>` meaning. Writable
+- Keep the current CLI commands with their default storage location. Writable
   opening of a new empty location initializes SQLite; read-only opening requires
   an existing initialized SQLite store and never creates one.
 - Use a fresh default storage directory, separate from the old `sessions`
   directory. Old caches are ignored and left untouched, not automatically deleted.
-  Explicit `--store` pointing at an old or unrelated nonempty directory fails
-  with an instruction to choose a new empty directory.
+  An old or unrelated nonempty default directory fails without import or deletion.
 - Keep SQLite and platform-specific file operations behind a narrow storage
   boundary so Windows can be added later. Windows paths, ACLs, runtime tests,
   and CI are outside this change.
@@ -204,7 +203,6 @@ The default paths are:
 - macOS: `~/Library/Application Support/pr-review/storage/store.sqlite3`.
 - Linux: `$XDG_DATA_HOME/pr-review/storage/store.sqlite3` when XDG_DATA_HOME is
   absolute; otherwise `~/.local/share/pr-review/storage/store.sqlite3`.
-- With `--store <directory>`: `<directory>/store.sqlite3`.
 
 These defaults deliberately use `storage` instead of the former `sessions`
 subdirectory. There is no scan, fallback read, or transfer from the old location.
@@ -239,7 +237,7 @@ this first version. Unsupported newer schema versions are rejected unchanged.
 ## Portability and privacy
 
 - Use the fresh macOS/Linux paths above; resolve a valid Linux XDG data path
-  without unnecessarily requiring HOME. `--store` stays a directory. Windows
+  without unnecessarily requiring HOME. Windows
   path selection will be specified in the separate Windows effort.
 - Keep data outside the checkout and in private local storage. Protect database,
   journal and any initialization artifacts. Retain 0700/0600 checks and
