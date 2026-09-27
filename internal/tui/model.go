@@ -239,6 +239,10 @@ type Model struct {
 	refreshPullRequest                                   PullRequestRefresher
 	generateGuide                                        GuideLoader
 	guideDestination                                     string
+	guideProvider                                        string
+	guideModel                                           string
+	guideStoreFalse                                      bool
+	guideHasCredential                                   bool
 	submitComment                                        CommentSubmitter
 	submitReview                                         ReviewSubmitter
 	readComments                                         CommentReader

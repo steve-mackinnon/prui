@@ -3,9 +3,11 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 
 	"pr-review/internal/guide"
+	"pr-review/internal/guideconfig"
 	"pr-review/internal/review"
 	"pr-review/internal/source"
 	"pr-review/internal/theme"
@@ -25,6 +27,7 @@ func (a *application) online(ctx context.Context) error {
 // Every entry screen receives the same operations. Only its initial destination
 // differs, so arriving through the browser cannot silently lose capabilities.
 func (a *application) model(ctx context.Context, o options) *tui.Model {
+	a.resolveGuideSelection()
 	var m *tui.Model
 	switch o.Command {
 	case "prs":
@@ -51,15 +54,13 @@ func (a *application) model(ctx context.Context, o options) *tui.Model {
 	if o.Command == "prs" || o.Command == "current" || o.Command == "open" {
 		m.SetPullRequestRefresh(a.refreshOpenedPullRequest)
 	}
-	// Capture the destination shown by consent for the lifetime of this model.
-	endpoint := os.Getenv("OPENAI_BASE_URL")
 	guideApp := *a
-	if guideApp.newAnalyzer == nil {
-		guideApp.newAnalyzer = func() (guide.Analyzer, error) {
-			return guide.NewOpenAI(guide.OpenAIOptions{APIKey: os.Getenv("OPENAI_API_KEY"), Endpoint: endpoint})
-		}
+	if a.guideSelectionError != nil {
+		m.SetGuideSelection("invalid configuration", "unavailable", "invalid", false, false)
+	} else {
+		s := a.guideSelection
+		m.SetGuideSelection(s.Provider, s.Model, s.Destination, s.Provider == "openai", s.APIKeyEnv != "")
 	}
-	m.SetGuideDestination(endpoint)
 	m.SetGuideLifecycle(guideApp.requestGuide)
 	m.SetCommentSubmitter(a.submitReviewComment)
 	m.SetReviewSubmitter(a.submitPullRequestReview)
@@ -84,13 +85,71 @@ func (a *application) model(ctx context.Context, o options) *tui.Model {
 }
 
 func (a *application) createGuideAnalyzer() (guide.Analyzer, error) {
+	if a.guideSelectionError != nil {
+		return nil, a.guideSelectionError
+	}
 	create := a.newAnalyzer
 	if create == nil {
 		create = func() (guide.Analyzer, error) {
-			return guide.NewOpenAI(guide.OpenAIOptions{APIKey: os.Getenv("OPENAI_API_KEY"), Endpoint: os.Getenv("OPENAI_BASE_URL")})
+			s := a.activeGuideSelection()
+			key := ""
+			if s.APIKeyEnv != "" {
+				key = os.Getenv(s.APIKeyEnv)
+				if key == "" {
+					return nil, fmt.Errorf("%s is required to send source for analysis", s.APIKeyEnv)
+				}
+			}
+			o := guide.FantasyOptions{APIKey: key, Model: s.Model, BaseURL: s.BaseURL, Client: a.guideClient}
+			switch s.Provider {
+			case "openai":
+				return guide.NewFantasyOpenAI(o)
+			case "anthropic":
+				return guide.NewFantasyAnthropic(o)
+			case "google":
+				return guide.NewFantasyGoogle(o)
+			case "openai-compatible":
+				return guide.NewFantasyCompatible(o)
+			default:
+				return nil, errors.New("invalid guide provider")
+			}
 		}
 	}
 	return create()
+}
+
+func (a *application) resolveGuideSelection() {
+	if a.guideSelectionResolved {
+		return
+	}
+	a.guideSelectionResolved = true
+	home, _ := os.UserHomeDir()
+	var err error
+	path, err := guideconfig.ConfigPath(guideconfig.PathInputs{Home: home, XDGConfigHome: os.Getenv("XDG_CONFIG_HOME")})
+	if err != nil {
+		a.guideSelectionError = err
+		return
+	}
+	a.guideSelection, a.guideSelectionError = guideconfig.Load(path, os.Getenv("OPENAI_BASE_URL"))
+}
+
+func (a *application) activeGuideSelection() guideconfig.Selection {
+	if a.guideSelectionResolved {
+		return a.guideSelection
+	}
+	// Direct application helpers in tests retain the historical default. The
+	// interactive model resolves the real user selection before any callbacks.
+	return guideconfig.Selection{Provider: "openai", Model: guide.DefaultModel, BaseURL: "https://api.openai.com/v1", APIKeyEnv: guideconfig.OpenAIEnvVariable, Destination: guide.DefaultEndpoint, LegacyDefault: true}
+}
+
+func (a *application) guideCacheEligible(b guide.Bundle) bool {
+	if a.guideSelectionError != nil {
+		return false
+	}
+	s := a.activeGuideSelection()
+	if b.SelectionFingerprint != "" {
+		return b.SelectionFingerprint == s.Fingerprint(guide.PromptVersion, guide.SchemaName)
+	}
+	return s.LegacyDefault && b.Provider == "openai" && b.Model == guide.DefaultModel && b.PromptVersion == guide.PromptVersion && b.SchemaName == guide.SchemaName
 }
 
 func (a *application) requestGuide(ctx context.Context, original *review.Session, notify func(string)) (*review.Session, error) {

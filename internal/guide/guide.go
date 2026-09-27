@@ -48,17 +48,18 @@ type Item struct {
 // Bundle is immutable snapshot data: the guides plus the provenance and scope
 // needed to explain how they were produced and what was withheld.
 type Bundle struct {
-	Status        Status    `json:"status"`
-	Items         []Item    `json:"items,omitempty"`
-	Reason        string    `json:"reason,omitempty"` // set when Status is Unavailable
-	Provider      string    `json:"provider,omitempty"`
-	Model         string    `json:"model,omitempty"`
-	PromptVersion string    `json:"prompt_version,omitempty"`
-	SchemaName    string    `json:"schema_name,omitempty"`
-	InputDigest   string    `json:"input_digest,omitempty"`
-	EvidenceIDs   []string  `json:"evidence_ids,omitempty"`
-	WithheldPaths []Omitted `json:"withheld_paths,omitempty"` // inputs excluded from the request
-	Limits        Limits    `json:"limits,omitzero"`
+	Status               Status    `json:"status"`
+	Items                []Item    `json:"items,omitempty"`
+	Reason               string    `json:"reason,omitempty"` // set when Status is Unavailable
+	Provider             string    `json:"provider,omitempty"`
+	Model                string    `json:"model,omitempty"`
+	PromptVersion        string    `json:"prompt_version,omitempty"`
+	SchemaName           string    `json:"schema_name,omitempty"`
+	SelectionFingerprint string    `json:"selection_fingerprint,omitempty"` // provider, model, endpoint, prompt and schema; never a credential
+	InputDigest          string    `json:"input_digest,omitempty"`
+	EvidenceIDs          []string  `json:"evidence_ids,omitempty"`
+	WithheldPaths        []Omitted `json:"withheld_paths,omitempty"` // inputs excluded from the request
+	Limits               Limits    `json:"limits,omitzero"`
 }
 
 // Fallback is the durable statement that no guides exist and why.

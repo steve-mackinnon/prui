@@ -16,6 +16,7 @@ and boundaries for contributors.
 | `internal/context` | Retrieve bounded repository evidence for optional guide generation |
 | `internal/privacy` | Apply path and content exclusions to material considered for upload |
 | `internal/guide` | Build bounded guide input, call an optional analyzer, and validate its output |
+| `internal/guideconfig` | Resolve the global provider, model, endpoint, and credential variable without reading credentials |
 | `internal/review` | Compose a review from source, inventory, evidence, and guides; manage progress and freshness |
 | `internal/session` and `internal/session/storage` | Define snapshots and mutable state; persist and validate them in SQLite |
 | `internal/tui`, `internal/theme` | Render and operate the terminal workspace and its appearance |
@@ -70,11 +71,18 @@ from `cmd/pr-review`, so the command layer remains the boundary for external
 effects. Plain output uses the same loaded review data without starting the
 interactive program.
 
-Guide generation requires an explicit user action. `internal/guide` applies
-limits and privacy policy to frozen patches and evidence before sending input
-to the configured analyzer. A successful guide creates a derived session that
-shares the original source snapshot; it does not change file ownership or the
-original session's reading progress.
+Guide generation requires an explicit user action. `cmd/pr-review/wiring.go`
+resolves one selection from the XDG guide configuration for the interactive
+model. That selection supplies the consent identity, analyzer factory, and
+guide-cache check. Credentials are read from the selected environment variable
+only after confirmation. `internal/guide` applies limits and privacy policy to
+frozen patches and evidence before invoking a Fantasy-backed analyzer for
+OpenAI, Anthropic, Google, or an OpenAI-compatible endpoint. The HTTP boundary
+caps request and response bodies and refuses redirects. A successful guide
+creates a derived session that shares the original source snapshot; it does
+not change file ownership or the original session's reading progress. Its
+non-secret selection fingerprint prevents automatic reuse after a provider,
+model, or endpoint change, while old sessions remain readable.
 
 Review comments and review submissions pass through the command layer. Before
 a write, it validates the target and compares current GitHub metadata with the
@@ -87,7 +95,8 @@ blocks network actions at the same boundary.
 - For file identity, patch construction, or incomplete inventory, start in
   `internal/inventory`.
 - For guide inputs and exclusions, inspect `internal/context`, `internal/privacy`,
-  and `internal/guide` together.
+  and `internal/guide` together. For provider selection, inspect
+  `internal/guideconfig` and `cmd/pr-review/wiring.go`.
 - For stored data or reading progress, start in `internal/session` and
   `internal/review`.
 - For controls and rendering, start in `internal/tui`; keep external actions in

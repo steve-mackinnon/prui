@@ -3,12 +3,14 @@ package main
 import (
 	"context"
 	"errors"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
 	"pr-review/internal/guide"
+	"pr-review/internal/guideconfig"
 	"pr-review/internal/review"
 	"pr-review/internal/session"
 	"pr-review/internal/source"
@@ -114,6 +116,46 @@ func TestOfflineOperationsRejectBeforeDependencies(t *testing.T) {
 	}
 }
 
+func TestGuideSelectionUsesAbsoluteXDGWithoutHome(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("HOME", "")
+	t.Setenv("XDG_CONFIG_HOME", root)
+	path := filepath.Join(root, "pr-review")
+	if err := os.MkdirAll(path, 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(path, "config.json"), []byte(`{"guide":{"provider":"google","model":"gemini-test"}}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	a := &application{}
+	a.resolveGuideSelection()
+	if a.guideSelectionError != nil || a.guideSelection.Provider != "google" || a.guideSelection.Model != "gemini-test" {
+		t.Fatalf("selection=%+v error=%v", a.guideSelection, a.guideSelectionError)
+	}
+}
+
+func TestConfiguredGuideAnalyzerConstruction(t *testing.T) {
+	for _, tc := range []struct {
+		provider, keyEnv, base string
+	}{
+		{"openai", "OPENAI_API_KEY", "https://api.openai.com/v1"},
+		{"anthropic", "ANTHROPIC_API_KEY", "https://api.anthropic.com"},
+		{"google", "GEMINI_API_KEY", "https://generativelanguage.googleapis.com"},
+		{"openai-compatible", "", "http://127.0.0.1:1111/v1"},
+	} {
+		t.Run(tc.provider, func(t *testing.T) {
+			if tc.keyEnv != "" {
+				t.Setenv(tc.keyEnv, "fake-key")
+			}
+			a := application{guideSelectionResolved: true, guideSelection: guideconfig.Selection{Provider: tc.provider, Model: "fixture-model", BaseURL: tc.base, APIKeyEnv: tc.keyEnv}}
+			analyzer, err := a.createGuideAnalyzer()
+			if err != nil || analyzer == nil {
+				t.Fatalf("%s analyzer unavailable: %v", tc.provider, err)
+			}
+		})
+	}
+}
+
 func TestOfflineModelKeepsSavedSessionsUsable(t *testing.T) {
 	app, original := wiringFixture(t)
 	app.offline, app.gh = true, forbiddenGitHub{}
@@ -174,6 +216,7 @@ func (f guideAnalyzerFunc) Analyze(ctx context.Context, input guide.Input) (guid
 
 func wiringFixture(t *testing.T) (*application, *review.Session) {
 	t.Helper()
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	repo := testutil.NewRepo(t)
 	repo.Write("a", "old\n")
 	base := repo.Commit()

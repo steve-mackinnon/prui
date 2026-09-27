@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"strconv"
 	"strings"
@@ -12,6 +13,7 @@ import (
 	"unicode/utf8"
 
 	"pr-review/internal/guide"
+	"pr-review/internal/guideconfig"
 	"pr-review/internal/review"
 	"pr-review/internal/session"
 	"pr-review/internal/source"
@@ -20,13 +22,17 @@ import (
 )
 
 type application struct {
-	store       *session.Store
-	gh          source.GitHub
-	setupError  error
-	runner      source.Runner
-	limits      source.Limits
-	offline     bool
-	newAnalyzer func() (guide.Analyzer, error)
+	store                  *session.Store
+	gh                     source.GitHub
+	setupError             error
+	runner                 source.Runner
+	limits                 source.Limits
+	offline                bool
+	newAnalyzer            func() (guide.Analyzer, error)
+	guideClient            *http.Client
+	guideSelection         guideconfig.Selection
+	guideSelectionError    error
+	guideSelectionResolved bool
 }
 
 // timedGitHub measures only the metadata requests made while opening the
@@ -360,6 +366,8 @@ func (a *application) generateGuide(ctx context.Context, original *review.Sessio
 		return nil, err
 	}
 	if derived.Guides != nil && derived.Guides.Status == guide.Generated {
+		selection := a.activeGuideSelection()
+		derived.Guides.SelectionFingerprint = selection.Fingerprint(guide.PromptVersion, guide.SchemaName)
 		if err := a.store.SaveGeneratedGuide(guideCacheKey(original), *derived.Guides, original.Inventory); err != nil {
 			return nil, err
 		}
@@ -464,7 +472,7 @@ func (a *application) openFromPullRequestList(ctx context.Context, checkout stri
 	}
 	if cached, err := a.store.LoadGeneratedGuide(guideCacheKey(raw), raw.Inventory); err != nil {
 		return nil, err
-	} else if cached != nil {
+	} else if cached != nil && a.guideCacheEligible(*cached) {
 		derived := raw.Snapshot
 		derived.Guides = cached
 		derived.DerivedFrom = raw.ID
