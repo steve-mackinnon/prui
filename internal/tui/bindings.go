@@ -19,7 +19,7 @@ type binding struct {
 
 var bindings = []binding{
 	{keys: "ctrl+p", desc: "open the pull-request switcher", groups: groupFooter | groupHelp, section: "App"},
-	{keys: "j/k", desc: "move the focused list, or scroll the File diff", groups: groupNav | groupHelp, section: "Navigate"},
+	{keys: "j/k", desc: "move the focused list or diff cursor", groups: groupNav | groupHelp, section: "Navigate"},
 	{keys: "up/down", desc: "move list selection or scroll continuous diff", groups: groupNav | groupHelp, section: "Navigate"},
 	{keys: "J/K", desc: "scroll diff by 5", groups: groupNav | groupHelp, section: "Navigate"},
 	{keys: "zz", desc: "center the focused diff on its line cursor", groups: groupNav | groupHelp, section: "Navigate"},

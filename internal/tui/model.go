@@ -758,7 +758,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "j":
 			switch {
 			case m.fileView() && m.Focus == paneDiff:
-				m.scroll(1)
+				m.cursorActive = true
+				m.moveCursor(1)
 			case m.fileView():
 				m.file(1)
 			case m.Focus == paneDiff:
@@ -770,7 +771,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "k":
 			switch {
 			case m.fileView() && m.Focus == paneDiff:
-				m.scroll(-1)
+				m.cursorActive = true
+				m.moveCursor(-1)
 			case m.fileView():
 				m.file(-1)
 			case m.Focus == paneDiff:

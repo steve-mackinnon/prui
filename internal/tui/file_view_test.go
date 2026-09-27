@@ -63,20 +63,36 @@ func TestFileViewNavigationHasOneStopPerFile(t *testing.T) {
 	}
 }
 
-func TestFileViewJKScrollFocusedDiffWithoutJumpingFiles(t *testing.T) {
-	m := largeModel(largeTextSession(2, 4), 120, 8)
+func TestFileViewJKMovesCursorBeforeScrollingFocusedDiff(t *testing.T) {
+	m := largeModel(largeTextSession(2, 4), 120, 12)
 	m.Focus = paneDiff
+	m.cursorActive = true
+	m.setOffset(m.cursor())
 	firstFile := m.Selected
+	firstCursor, firstOffset := m.cursor(), m.offset()
 	key(m, 'j')
-	if got := m.offset(); got != 1 {
-		t.Fatalf("j scrolled diff to %d, want 1", got)
+	if m.cursor() <= firstCursor || m.offset() != firstOffset {
+		t.Fatalf("j moved cursor/offset to %d/%d, want cursor past %d with offset %d", m.cursor(), m.offset(), firstCursor, firstOffset)
 	}
 	if m.Selected != firstFile {
 		t.Fatalf("j jumped from file %d to %d", firstFile, m.Selected)
 	}
+	for m.cursor() < firstOffset+m.bodyHeight() {
+		key(m, 'j')
+	}
+	if m.offset() == firstOffset {
+		t.Fatal("j did not scroll after cursor passed the bottom visible row")
+	}
+	boundaryOffset := m.offset()
 	key(m, 'k')
-	if got := m.offset(); got != 0 {
-		t.Fatalf("k scrolled diff to %d, want 0", got)
+	if m.offset() != boundaryOffset {
+		t.Fatalf("k scrolled before cursor passed the top visible row: %d", m.offset())
+	}
+	for m.cursor() >= boundaryOffset {
+		key(m, 'k')
+	}
+	if m.offset() >= boundaryOffset {
+		t.Fatal("k did not scroll after cursor passed the top visible row")
 	}
 }
 
