@@ -9,6 +9,7 @@ These documents preserve requirements, acceptance criteria, and the reasoning be
 - [Spec: Interactive TUI Themes](SPEC-custom-themes.md)
 - [Spec: Guide Cache](SPEC-guide-cache.md)
 - [Spec: Guide Evaluation](SPEC-guide-evaluation.md)
+- [Spec: Guide generation modal and remembered model selection](SPEC-GUIDE-GENERATION-MODAL.md)
 - [Spec: Guide Path Overflow](SPEC-guide-path-overflow.md)
 - [Spec: Live PR Verifier](SPEC-live-pr-verifier.md)
 - [Spec: Performance Reporting](SPEC-performance-reporting.md)
