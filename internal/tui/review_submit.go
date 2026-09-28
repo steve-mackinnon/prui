@@ -53,40 +53,57 @@ func (m *Model) reviewFormView() string {
 	metadata := m.Session.Inventory.Comparison.Metadata
 	lines := []string{
 		fmt.Sprintf("Submit review · %s#%d · head %.12s", Escape(metadata.Identity.Repository), metadata.Identity.Number, metadata.HeadSHA),
-		fmt.Sprintf("%d/%d file slices read · %d pending comments", len(m.Session.ReviewedSliceIDs), len(m.Session.Slices), len(m.Pending)),
+	}
+	if m.Height >= 9 {
+		lines = append(lines, fmt.Sprintf("%d/%d file slices read · %d pending comments", len(m.Session.ReviewedSliceIDs), len(m.Session.Slices), len(m.Pending)))
+	}
+	if m.Height >= 12 && !f.Confirm {
+		lines = append(lines, "")
+	}
+	decisionHeading := "Review decision (j/k or ↑/↓)"
+	if f.Confirm {
+		decisionHeading = "Review decision"
+	}
+	lines = append(lines, decisionHeading)
+	for i, option := range reviewEvents {
+		marker, radio := "  ", "○"
+		if i == f.Event {
+			radio = "◉"
+			if f.Focus == 0 && !f.Confirm {
+				marker = "› "
+			}
+		}
+		row := marker + radio + " " + option.label
+		if m.Width >= 75 {
+			row += " · " + option.description
+		}
+		lines = append(lines, row)
+	}
+	if m.Height <= 8 {
+		return m.compactReviewFormView(lines, f)
 	}
 	if f.Confirm {
-		lines = append(lines, "", "Confirm GitHub review submission", reviewEvents[f.Event].label+" · "+fmt.Sprintf("%d pending comments", len(m.Pending)))
-		if f.Body != "" {
-			lines = append(lines, "Summary:")
+		lines = append(lines, fmt.Sprintf("Confirm submission · %d pending comments", len(m.Pending)))
+		reserved := 1 // submit footer
+		if !m.Session.Inventory.Complete {
+			reserved++
+		}
+		if m.ActionError != nil {
+			reserved += 2
+		}
+		available := max(0, m.Height-len(lines)-reserved)
+		if f.Body != "" && available > 0 {
 			bodyLines := strings.Split(f.Body, "\n")
-			limit := max(1, m.Height-len(lines)-3)
-			if len(bodyLines) > limit {
-				bodyLines = bodyLines[:limit]
-			}
-			for _, line := range bodyLines {
-				lines = append(lines, "  "+Escape(line))
+			if available == 1 {
+				lines = append(lines, "Comment: "+Escape(bodyLines[0]))
+			} else {
+				lines = append(lines, "Comment:")
+				for _, line := range bodyLines[:min(len(bodyLines), available-1)] {
+					lines = append(lines, "  "+Escape(line))
+				}
 			}
 		}
 	} else {
-		if m.Height >= 12 {
-			lines = append(lines, "")
-		}
-		lines = append(lines, "Review decision (j/k or ↑/↓)")
-		for i, option := range reviewEvents {
-			marker, radio := "  ", "○"
-			if i == f.Event {
-				radio = "◉"
-				if f.Focus == 0 {
-					marker = "› "
-				}
-			}
-			row := marker + radio + " " + option.label
-			if m.Width >= 75 {
-				row += " · " + option.description
-			}
-			lines = append(lines, row)
-		}
 		if m.Height >= 13 {
 			lines = append(lines, "")
 		}
@@ -177,16 +194,7 @@ func (m *Model) reviewFormView() string {
 		lines = append(lines, "! "+Escape(m.ActionError.Error()))
 		lines = append(lines, "Check GitHub before retrying; delivery may have succeeded.")
 	}
-	footer := "j/k or ↑/↓: choose · tab/enter: comment · esc: back"
-	switch f.Focus {
-	case 1:
-		footer = "enter: confirm · shift+enter: newline · esc: back"
-	case 2:
-		footer = "j/k: select · enter: edit · d: remove · esc: back"
-	}
-	if f.Confirm {
-		footer = "enter: submit review and pending comments · esc: edit"
-	}
+	footer := reviewFormFooter(f)
 	if len(lines) >= m.Height {
 		// Keep the latest actionable error or warning beside the submit hint.
 		if m.ActionError != nil {
@@ -196,6 +204,68 @@ func (m *Model) reviewFormView() string {
 		}
 	}
 	lines = append(lines, footer)
+	for i := range lines {
+		lines[i] = clip(lines[i], m.Width)
+	}
+	return strings.Join(lines, "\n")
+}
+
+func reviewFormFooter(f *reviewForm) string {
+	if f.Confirm {
+		return "enter: submit review and pending comments · esc: edit"
+	}
+	switch f.Focus {
+	case 1:
+		return "enter: confirm · shift+enter: newline · esc: back"
+	case 2:
+		return "j/k: select · enter: edit · d: remove · esc: back"
+	default:
+		return "j/k or ↑/↓: choose · tab/enter: comment · esc: back"
+	}
+}
+
+// On short terminals the decision stays visible, including while an error is
+// shown. Supplementary text uses only the rows left after the three choices.
+func (m *Model) compactReviewFormView(full []string, f *reviewForm) string {
+	choices := full[len(full)-len(reviewEvents):]
+	lines := make([]string, 0, m.Height)
+	if m.Height >= 7 {
+		lines = append(lines, full[0])
+	}
+	if m.Height >= 6 || m.Height == 5 && m.ActionError == nil {
+		lines = append(lines, full[len(full)-len(reviewEvents)-1])
+	}
+	lines = append(lines, choices...)
+	if m.Height <= len(lines) {
+		lines = lines[:max(0, m.Height)]
+	} else {
+		footer := "j/k: choose · tab: comment · esc: back"
+		if f.Confirm {
+			footer = "enter: submit · esc: edit"
+		} else if f.Focus == 1 {
+			footer = "enter: confirm · esc: back"
+		} else if f.Focus == 2 {
+			footer = "enter: edit · d: remove · tab: choices"
+		}
+		if m.Height-len(lines) > 1 {
+			switch {
+			case m.ActionError != nil:
+				lines = append(lines, "! "+Escape(m.ActionError.Error()))
+			case f.Confirm:
+				lines = append(lines, fmt.Sprintf("Confirm submission · %d pending comments", len(m.Pending)))
+			case f.Focus == 1:
+				body := []rune(f.Body)
+				cursor := max(0, min(len(body), f.Cursor))
+				lines = append(lines, "Comment: "+Escape(string(body[:cursor]))+"▏"+Escape(string(body[cursor:])))
+			default:
+				lines = append(lines, fmt.Sprintf("%d pending comments", len(m.Pending)))
+			}
+		}
+		if m.ActionError != nil && m.Height-len(lines) > 1 {
+			lines = append(lines, "Check GitHub before retrying.")
+		}
+		lines = append(lines, footer)
+	}
 	for i := range lines {
 		lines[i] = clip(lines[i], m.Width)
 	}

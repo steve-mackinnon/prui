@@ -62,8 +62,9 @@ Local reading progress and exit success do not constitute GitHub approval.
 
 **Inside a line editor, Enter posts immediately.** Ctrl+P instead queues a local
 pending comment; Shift+Enter adds a newline and Escape discards the editor.
-`R` submits Comment, Approve, or Request changes, with the summary and pending
-comments, after a separate confirmation. Posting requires GitHub Pull requests
+`R` shows Comment, Approve, and Request changes as a three-choice radio list
+through selection and confirmation. It submits the comment and pending line
+comments after a separate confirmation. Posting requires GitHub Pull requests
 write permission. Pending comments and review summaries are memory-only and are
 lost on exit or replacement with a new comparison. Check GitHub before retrying
 an uncertain write.

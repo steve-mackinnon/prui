@@ -98,6 +98,60 @@ func TestReviewDecisionRadioAndCommentFocus(t *testing.T) {
 	}
 }
 
+func TestReviewDecisionListRemainsVisibleDuringConfirmation(t *testing.T) {
+	m := New(context.Background(), nil)
+	m.Loading = false
+	m.Session, m.Width, m.Height = screenSession(), 60, 10
+	m.openReviewForm()
+	m.ReviewForm.Event, m.ReviewForm.Body, m.ReviewForm.Confirm = 2, "Please address the edge case.", true
+	for _, actionError := range []error{nil, errors.New("synthetic submit failure")} {
+		m.ActionError = actionError
+		view := m.reviewFormView()
+		for _, choice := range []string{"  ○ Comment", "  ○ Approve", "  ◉ Request changes"} {
+			if !strings.Contains(view, choice) {
+				t.Fatalf("confirmation hid radio choice %q:\n%s", choice, view)
+			}
+		}
+		if !strings.Contains(view, "enter: submit review") {
+			t.Fatalf("confirmation lost submit control:\n%s", view)
+		}
+	}
+}
+
+func TestReviewDecisionListTakesPriorityOnShortTerminals(t *testing.T) {
+	for _, height := range []int{5, 6, 8} {
+		for _, confirm := range []bool{false, true} {
+			m := New(context.Background(), nil)
+			m.Loading = false
+			m.Session, m.Width, m.Height = screenSession(), 50, height
+			m.openReviewForm()
+			m.ReviewForm.Event, m.ReviewForm.Confirm = 1, confirm
+			m.ActionError = errors.New("synthetic failure")
+			view := m.reviewFormView()
+			for _, choice := range []string{"○ Comment", "◉ Approve", "○ Request changes"} {
+				if !strings.Contains(view, choice) {
+					t.Fatalf("height=%d confirm=%v hid %q:\n%s", height, confirm, choice, view)
+				}
+			}
+			if got := len(strings.Split(view, "\n")); got > height {
+				t.Fatalf("height=%d confirm=%v rendered %d lines", height, confirm, got)
+			}
+		}
+	}
+}
+
+func TestCompactReviewCommentKeepsCaretVisible(t *testing.T) {
+	m := New(context.Background(), nil)
+	m.Loading = false
+	m.Session, m.Width, m.Height = screenSession(), 50, 8
+	m.openReviewForm()
+	m.ReviewForm.Focus, m.ReviewForm.Body, m.ReviewForm.Cursor = 1, "note", 2
+	view := m.reviewFormView()
+	if !strings.Contains(view, "Comment: no▏te") {
+		t.Fatalf("compact editor hid the caret:\n%s", view)
+	}
+}
+
 func TestPendingCommentCanBeEditedFromReviewScreen(t *testing.T) {
 	m := New(context.Background(), nil)
 	m.Loading = false
