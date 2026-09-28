@@ -8,7 +8,7 @@ import (
 
 func (m *Model) helpLines() []string {
 	_, body, _ := strings.Cut(m.healthHelpView(), "\n")
-	body += "\n\nMouse\nClick: select item or diff cell; Enter: activate.\nClick view tabs to switch. Drag the file/diff divider to resize (wide terminals).\nWheel scrolling is not supported. Use your terminal selection modifier to copy text.\nPanel width lasts for this run only."
+	body += "\n\nMouse\nClick: select item or diff cell; Enter: activate.\nClick view tabs to switch. Drag the file/diff divider to resize (wide terminals).\nScroll over the file/guide list or diff to move that pane. Use your terminal selection modifier to copy text.\nPanel width lasts for this run only."
 	return strings.Split(ansi.Wrap(body, max(1, m.Width), ""), "\n")
 }
 
