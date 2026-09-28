@@ -670,6 +670,34 @@ func TestDiffCursorTracksScrollingAndTabStateWithoutChangingReviewSelection(t *t
 	}
 }
 
+func TestInactiveTabRestoresCursorTargetAfterWorkspaceResize(t *testing.T) {
+	m := New(context.Background(), nil)
+	first, second := kindsSession(), kindsSession()
+	first.Inventory.Comparison.Metadata.Identity.Number = 1
+	second.Inventory.Comparison.Metadata.Identity.Number = 2
+	m.Width, m.Height = 160, 30
+	m.openReviewTab(first)
+	m.Selected, m.Focus = 1, paneDiff
+	var target *source.ReviewCommentTarget
+	for i, line := range m.displayDetail() {
+		if line.target != nil {
+			m.setCursor(i)
+			target, _ = m.cursorAnchor()
+			break
+		}
+	}
+	if target == nil {
+		t.Fatal("fixture has no commentable cursor target")
+	}
+	m.openReviewTab(second)
+	m.Update(tea.WindowSizeMsg{Width: 70, Height: 18})
+	m.activateTab(0)
+	got, _ := m.cursorAnchor()
+	if got == nil || *got != *target {
+		t.Fatalf("resized inactive tab cursor = %#v, want %#v", got, target)
+	}
+}
+
 func TestSideBySideTabPreferenceIsIsolatedAcrossOpenReviews(t *testing.T) {
 	m := New(context.Background(), nil)
 	first, second := kindsSession(), kindsSession()

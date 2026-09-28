@@ -228,7 +228,7 @@ func TestLateCommentResultOnlyChangesItsOriginatingTab(t *testing.T) {
 	m.Selected, m.Focus = 1, paneDiff
 	namedKey(m, tea.KeyEnter)
 	m.Composer.Draft, m.Composer.generation = "first draft", 1
-	m.saveActiveReview()
+	m.saveActiveCursorAnchor()
 
 	m.openReviewTab(second)
 	m.Selected, m.Focus = 1, paneDiff
@@ -242,6 +242,75 @@ func TestLateCommentResultOnlyChangesItsOriginatingTab(t *testing.T) {
 	}
 	if got := m.tabs[0].review.Composer; got != nil {
 		t.Fatalf("successful first-tab result did not clear its composer: %#v", got)
+	}
+}
+
+func TestInactiveReviewResultIsVisibleOnlyWhenOriginTabReturns(t *testing.T) {
+	m := New(context.Background(), nil)
+	first, second := kindsSession(), kindsSession()
+	first.Inventory.Comparison.Metadata.Identity.Number = 1
+	second.Inventory.Comparison.Metadata.Identity.Number = 2
+	m.openReviewTab(first)
+	m.ReviewForm = &reviewForm{Body: "first review", Confirm: true, generation: 3}
+	m.Pending = []source.ReviewComment{{Body: "first pending"}}
+	m.Stack = []page{pageReview, pageReviewSubmit}
+	m.Busy = true
+	m.openReviewTab(second)
+	m.ReviewForm = &reviewForm{Body: "second review"}
+	m.Pending = []source.ReviewComment{{Body: "second pending"}}
+	m.ActionError = errors.New("second tab error")
+	m.Busy = true
+
+	m.Update(ReviewResult{Target: 0, Generation: 3})
+	if m.Session != second || m.ReviewForm.Body != "second review" || len(m.Pending) != 1 || !m.Busy || m.ActionError.Error() != "second tab error" {
+		t.Fatal("inactive review result changed the visible tab")
+	}
+	m.activateTab(0)
+	if m.ReviewForm != nil || len(m.Pending) != 0 || !m.ReviewSubmitted || m.Busy || m.top() != pageReview {
+		t.Fatal("completed review was not retained in its originating tab")
+	}
+	m.activateTab(1)
+	if m.ReviewForm == nil || m.ReviewForm.Body != "second review" || len(m.Pending) != 1 {
+		t.Fatal("second tab draft changed after revisiting it")
+	}
+}
+
+func TestPreTabCommentResultUsesInitialReviewState(t *testing.T) {
+	m := New(context.Background(), nil)
+	m.Session = kindsSession()
+	m.Composer = &commentComposer{Draft: "initial draft", generation: 4}
+	m.Busy = true
+	m.Update(CommentResult{Target: -1, Generation: 4, Comment: source.ReviewComment{ID: 9}})
+	if m.Composer != nil || m.Busy || len(m.Comments) != 1 || m.Comments[0].ID != 9 {
+		t.Fatal("result for initial review state was lost")
+	}
+}
+
+func TestInactiveViewerResultKeepsVisibleActionState(t *testing.T) {
+	m := New(context.Background(), nil)
+	first, second := kindsSession(), kindsSession()
+	first.Inventory.Comparison.Metadata.Identity.Number = 1
+	second.Inventory.Comparison.Metadata.Identity.Number = 2
+	m.openReviewTab(first)
+	m.Busy = true
+	m.openReviewTab(second)
+	visibleErr := errors.New("second tab action")
+	m.Busy, m.ActionError = true, visibleErr
+	m.Update(ViewerResult{Target: 0, Viewer: source.Viewer{Login: "alice"}})
+	if m.Session != second || !m.Busy || m.ActionError != visibleErr || m.Viewer != "" {
+		t.Fatal("inactive viewer result changed visible tab action state")
+	}
+	m.activateTab(0)
+	if m.Viewer != "alice" || m.Busy || m.ActionError != nil {
+		t.Fatal("originating tab did not finish viewer lookup")
+	}
+	m.Busy = true
+	m.activateTab(1)
+	lookupErr := errors.New("viewer unavailable")
+	m.Update(ViewerResult{Target: 0, Err: lookupErr})
+	m.activateTab(0)
+	if m.Busy || m.ActionError != lookupErr || m.Viewer != "alice" {
+		t.Fatal("failed viewer lookup did not retain origin error and prior identity")
 	}
 }
 

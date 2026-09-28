@@ -221,23 +221,15 @@ func (m *Model) refreshCommentsInBackground() tea.Cmd {
 }
 
 func (m *Model) applyCommentListResult(target int, generation uint64, comments []source.ReviewComment, err error) {
-	apply := func(state *reviewTabState) {
-		if state == nil || state.commentGeneration != generation {
-			return
-		}
-		if err != nil {
-			state.ActionError = err
-			return
-		}
-		state.Comments = commentOverlay(comments, state.Session)
+	state := m.reviewStateForTarget(target)
+	if state == nil || state.commentGeneration != generation {
+		return
 	}
-	if target == m.activeTab {
-		state := &reviewTabState{Session: m.Session, Comments: m.Comments, commentGeneration: m.commentGeneration, ActionError: m.ActionError}
-		apply(state)
-		m.Comments, m.ActionError = state.Comments, state.ActionError
-	} else if target >= 0 && target < len(m.tabs) {
-		apply(m.tabs[target].review)
+	if err != nil {
+		state.ActionError = err
+		return
 	}
+	state.Comments = commentOverlay(comments, state.Session)
 }
 
 func (m *Model) refreshViewer() tea.Cmd {
@@ -471,67 +463,47 @@ func (m *Model) commentActionKey(key tea.KeyPressMsg) tea.Cmd {
 }
 
 func (m *Model) applyCommentResult(result CommentResult) {
-	apply := func(state *reviewTabState) {
-		if state == nil || state.Composer == nil || state.Composer.generation != result.Generation {
-			return
-		}
-		state.Busy = false
-		state.ActionError = result.Err
-		if result.Err == nil {
-			state.Comments = append(state.Comments, result.Comment)
-			if i := state.Composer.PendingIndex; i >= 0 && i < len(state.Pending) && state.Pending[i].Target == state.Composer.Target {
-				state.Pending = append(state.Pending[:i], state.Pending[i+1:]...)
-			}
-			state.Composer = nil
-		}
-	}
-	if result.Target == m.activeTab {
-		state := &reviewTabState{Composer: m.Composer, Pending: m.Pending, Comments: m.Comments, Stack: m.Stack, Busy: m.Busy, ActionError: m.ActionError}
-		apply(state)
-		m.Composer, m.Pending, m.Comments, m.Stack, m.Busy, m.ActionError = state.Composer, state.Pending, state.Comments, state.Stack, state.Busy, state.ActionError
+	state := m.reviewStateForTarget(result.Target)
+	if state == nil || state.Composer == nil || state.Composer.generation != result.Generation {
 		return
 	}
-	if result.Target >= 0 && result.Target < len(m.tabs) {
-		apply(m.tabs[result.Target].review)
+	state.Busy = false
+	state.ActionError = result.Err
+	if result.Err == nil {
+		state.Comments = append(state.Comments, result.Comment)
+		if i := state.Composer.PendingIndex; i >= 0 && i < len(state.Pending) && state.Pending[i].Target == state.Composer.Target {
+			state.Pending = append(state.Pending[:i], state.Pending[i+1:]...)
+		}
+		state.Composer = nil
 	}
 }
 
 func (m *Model) applyCommentActionResult(result CommentActionResult) {
-	apply := func(state *reviewTabState) {
-		if state == nil || state.CommentMenu == nil || state.CommentMenu.CommentID != result.CommentID || state.CommentMenu.generation != result.Generation {
-			return
-		}
-		state.Busy, state.ActionError = false, result.Err
-		if result.Err != nil {
-			return
-		}
-		switch {
-		case result.Delete:
-			for i, comment := range state.Comments {
-				if comment.ID == result.CommentID {
-					state.Comments = append(state.Comments[:i], state.Comments[i+1:]...)
-					break
-				}
-			}
-		case result.Reply.ID > 0:
-			state.Comments = append(state.Comments, result.Reply)
-		case result.Reaction.ID > 0:
-			if state.CommentReactions == nil {
-				state.CommentReactions = map[int64][]source.ReviewCommentReaction{}
-			}
-			state.CommentReactions[result.CommentID] = append(state.CommentReactions[result.CommentID], result.Reaction)
-		}
-		state.CommentMenu = nil
-	}
-	if result.Target == m.activeTab {
-		state := &reviewTabState{CommentMenu: m.CommentMenu, Comments: m.Comments, CommentReactions: m.CommentReactions, Busy: m.Busy, ActionError: m.ActionError}
-		apply(state)
-		m.CommentMenu, m.Comments, m.CommentReactions, m.Busy, m.ActionError = state.CommentMenu, state.Comments, state.CommentReactions, state.Busy, state.ActionError
+	state := m.reviewStateForTarget(result.Target)
+	if state == nil || state.CommentMenu == nil || state.CommentMenu.CommentID != result.CommentID || state.CommentMenu.generation != result.Generation {
 		return
 	}
-	if result.Target >= 0 && result.Target < len(m.tabs) {
-		apply(m.tabs[result.Target].review)
+	state.Busy, state.ActionError = false, result.Err
+	if result.Err != nil {
+		return
 	}
+	switch {
+	case result.Delete:
+		for i, comment := range state.Comments {
+			if comment.ID == result.CommentID {
+				state.Comments = append(state.Comments[:i], state.Comments[i+1:]...)
+				break
+			}
+		}
+	case result.Reply.ID > 0:
+		state.Comments = append(state.Comments, result.Reply)
+	case result.Reaction.ID > 0:
+		if state.CommentReactions == nil {
+			state.CommentReactions = map[int64][]source.ReviewCommentReaction{}
+		}
+		state.CommentReactions[result.CommentID] = append(state.CommentReactions[result.CommentID], result.Reaction)
+	}
+	state.CommentMenu = nil
 }
 
 func (m *Model) start(work func() tea.Msg) tea.Cmd {

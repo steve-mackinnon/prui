@@ -362,28 +362,20 @@ func (m *Model) pendingLines(target source.ReviewCommentTarget) []diffLine {
 }
 
 func (m *Model) applyReviewResult(result ReviewResult) {
-	apply := func(state *reviewTabState) {
-		if state == nil || state.ReviewForm == nil || state.ReviewForm.generation != result.Generation {
-			return
-		}
-		state.Busy = false
-		state.ActionError = result.Err
-		if result.Err == nil {
-			state.Pending = nil
-			state.ReviewForm = nil
-			state.ReviewSubmitted = true
-			if len(state.Stack) > 1 && state.Stack[len(state.Stack)-1] == pageReviewSubmit {
-				state.Stack = state.Stack[:len(state.Stack)-1]
-			}
-		} else {
-			state.ReviewForm.Confirm = false
-		}
+	state := m.reviewStateForTarget(result.Target)
+	if state == nil || state.ReviewForm == nil || state.ReviewForm.generation != result.Generation {
+		return
 	}
-	if result.Target == m.activeTab {
-		state := &reviewTabState{ReviewForm: m.ReviewForm, Pending: m.Pending, ReviewSubmitted: m.ReviewSubmitted, Stack: m.Stack, Busy: m.Busy, ActionError: m.ActionError, notice: m.notice}
-		apply(state)
-		m.ReviewForm, m.Pending, m.ReviewSubmitted, m.Stack, m.Busy, m.ActionError, m.notice = state.ReviewForm, state.Pending, state.ReviewSubmitted, state.Stack, state.Busy, state.ActionError, state.notice
-	} else if result.Target >= 0 && result.Target < len(m.tabs) {
-		apply(m.tabs[result.Target].review)
+	state.Busy = false
+	state.ActionError = result.Err
+	if result.Err == nil {
+		state.Pending = nil
+		state.ReviewForm = nil
+		state.ReviewSubmitted = true
+		if len(state.Stack) > 1 && state.Stack[len(state.Stack)-1] == pageReviewSubmit {
+			state.Stack = state.Stack[:len(state.Stack)-1]
+		}
+	} else {
+		state.ReviewForm.Confirm = false
 	}
 }

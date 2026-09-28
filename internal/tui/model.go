@@ -175,94 +175,57 @@ const (
 )
 
 type Model struct {
-	guideCache                      guideDetailCache
-	fileCache                       fileDetailCache
-	CursorTarget, GuideCursorTarget map[int]source.ReviewCommentTarget
-	drag                            dividerDrag
-
-	Session                                              *review.Session
-	ContextView                                          reviewView
-	DescriptionScroll                                    int
-	descriptionCache                                     descriptionRenderCache
-	Err                                                  error
-	Selected                                             int
-	Row                                                  int  // selected guide hierarchy row
-	Files                                                bool // F: navigate the deterministic file plan instead of guides
-	collapsed                                            expansion
-	Scroll                                               map[int]int
-	GuideScroll                                          map[int]int
-	Cursor                                               map[int]int
-	GuideCursor                                          map[int]int
-	cursorActive                                         bool
-	pendingCenter                                        bool
-	helpScroll                                           int
-	Width, Height, Horizontal                            int
-	listWidthPreference                                  int
-	layout                                               diffLayout
-	guidePathOffset, guidePathPause, guidePathGeneration int
-	Inventory                                            bool
-	Focus                                                pane
-	Stack                                                []page
-	Loading                                              bool
-	Busy                                                 bool
-	SessionPicker                                        pickerState
-	RepositoryPicker                                     pickerState
-	PullRequestPicker                                    pickerState
-	ThemePicker                                          pickerState
-	Entries                                              []session.Entry
-	Repositories                                         []session.Repository
-	PullRequests                                         []source.PullRequest
-	SwitcherQuery                                        string
-	ActionError                                          error
-	Composer                                             *commentComposer
-	Pending                                              []source.ReviewComment
-	ReviewForm                                           *reviewForm
-	ReviewSubmitted                                      bool
-	CommentMenu                                          *commentActionMenu
-	Comments                                             []source.ReviewComment
-	CommentReactions                                     map[int64][]source.ReviewCommentReaction
-	Viewer                                               string
-	commentGeneration                                    uint64
-	reactionEmoji                                        bool
-	editorCursorVisible                                  bool
-	editorCursorGeneration                               uint64
-	store                                                *session.Store
-	reader                                               review.MetadataReader
-	fresh                                                FreshLoader
-	worker                                               <-chan struct{}
-	notice                                               string
-	loadingFrame                                         int
-	ctx                                                  context.Context
-	cancel                                               context.CancelFunc
-	load                                                 Loader
-	notify                                               func(string)
-	listPullRequests                                     PullRequestLoader
-	openPullRequest                                      PullRequestOpener
-	refreshPullRequest                                   PullRequestRefresher
-	generateGuide                                        GuideLoader
-	guideDestination                                     string
-	guideProvider                                        string
-	guideModel                                           string
-	guideStoreFalse                                      bool
-	guideHasCredential                                   bool
-	submitComment                                        CommentSubmitter
-	submitReview                                         ReviewSubmitter
-	readComments                                         CommentReader
-	readViewer                                           ViewerReader
-	submitCommentAction                                  CommentActionSubmitter
-	cancelAction                                         context.CancelFunc
-	actionCtx                                            context.Context
-	listSessions                                         func() ([]session.Entry, error)
-	listRepositories                                     func() ([]session.Repository, error)
-	currentRepository                                    string
-	currentCheckout                                      string
-	tabs                                                 []workspaceTab
-	activeTab                                            int
-	theme                                                theme.Theme
-	themeOverrides                                       map[theme.Token]string
-	styles                                               map[lineClass]lipgloss.Style
-	saveTheme                                            func(string) (theme.PersistResult, error)
-	themeSelectionLocked                                 bool
+	guideCache guideDetailCache
+	fileCache  fileDetailCache
+	*reviewTabState
+	drag                 dividerDrag
+	pendingCenter        bool
+	helpScroll           int
+	Width, Height        int
+	SessionPicker        pickerState
+	RepositoryPicker     pickerState
+	PullRequestPicker    pickerState
+	ThemePicker          pickerState
+	Entries              []session.Entry
+	Repositories         []session.Repository
+	PullRequests         []source.PullRequest
+	SwitcherQuery        string
+	reactionEmoji        bool
+	store                *session.Store
+	reader               review.MetadataReader
+	fresh                FreshLoader
+	worker               <-chan struct{}
+	ctx                  context.Context
+	cancel               context.CancelFunc
+	load                 Loader
+	notify               func(string)
+	listPullRequests     PullRequestLoader
+	openPullRequest      PullRequestOpener
+	refreshPullRequest   PullRequestRefresher
+	generateGuide        GuideLoader
+	guideDestination     string
+	guideProvider        string
+	guideModel           string
+	guideStoreFalse      bool
+	guideHasCredential   bool
+	submitComment        CommentSubmitter
+	submitReview         ReviewSubmitter
+	readComments         CommentReader
+	readViewer           ViewerReader
+	submitCommentAction  CommentActionSubmitter
+	cancelAction         context.CancelFunc
+	actionCtx            context.Context
+	listSessions         func() ([]session.Entry, error)
+	listRepositories     func() ([]session.Repository, error)
+	currentRepository    string
+	currentCheckout      string
+	tabs                 []workspaceTab
+	activeTab            int
+	theme                theme.Theme
+	themeOverrides       map[theme.Token]string
+	styles               map[lineClass]lipgloss.Style
+	saveTheme            func(string) (theme.PersistResult, error)
+	themeSelectionLocked bool
 }
 
 type PullRequestLoader func(context.Context, string) ([]source.PullRequest, error)
@@ -275,7 +238,7 @@ func newModel(parent context.Context) *Model {
 	if err != nil {
 		panic(err)
 	}
-	m := &Model{ctx: ctx, cancel: cancel, Scroll: map[int]int{}, GuideScroll: map[int]int{}, Cursor: map[int]int{}, GuideCursor: map[int]int{}, Files: true, collapsed: newExpansion(), Stack: []page{pageReview}, Width: 100, Height: 24, activeTab: -1, reactionEmoji: defaultEmojiSupport()}
+	m := &Model{ctx: ctx, cancel: cancel, reviewTabState: newReviewTabState(nil), Width: 100, Height: 24, activeTab: -1, reactionEmoji: defaultEmojiSupport()}
 	m.SetTheme(terminal)
 	return m
 }
@@ -287,9 +250,13 @@ func (m *Model) SetTheme(t theme.Theme) {
 	m.theme = t
 	m.themeOverrides = t.Overrides()
 	m.styles = stylesFor(t)
-	m.descriptionCache = descriptionRenderCache{}
+	if m.reviewTabState != nil {
+		m.descriptionCache = descriptionRenderCache{}
+	}
 	for i := range m.tabs {
-		m.tabs[i].review.descriptionCache = descriptionRenderCache{}
+		if m.tabs[i].review != nil {
+			m.tabs[i].review.descriptionCache = descriptionRenderCache{}
+		}
 	}
 }
 
@@ -467,13 +434,17 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case BackgroundCommentListResult:
 		m.applyCommentListResult(v.Target, v.Generation, v.Comments, v.Err)
 	case ViewerResult:
+		active := m.activeTab
+		busy, actionErr := m.Busy, m.ActionError
 		v.Err = m.finishAction(v.Err)
-		if v.Target == m.activeTab {
+		if active != v.Target {
+			m.Busy, m.ActionError = busy, actionErr
+		}
+		if state := m.reviewStateForTarget(v.Target); state != nil {
+			state.Busy, state.ActionError = false, v.Err
 			if v.Err == nil {
-				m.Viewer = v.Viewer.Login
+				state.Viewer = v.Viewer.Login
 			}
-		} else if v.Target >= 0 && v.Target < len(m.tabs) && v.Err == nil {
-			m.tabs[v.Target].review.Viewer = v.Viewer.Login
 		}
 	case PullRequestOpenResult:
 		// Opening always starts in the fixed browser. If the reviewer changes
@@ -506,16 +477,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		current := state.Session
-		if v.Target == m.activeTab {
-			current = m.Session
-		}
 		if current == nil || current.ID != v.SessionID {
 			return m, nil
 		}
 		keepDrafts := state.Composer != nil || len(state.Pending) > 0 || state.ReviewForm != nil || state.CommentMenu != nil || slices.Contains(state.Stack, pageGuideConsent)
-		if v.Target == m.activeTab {
-			keepDrafts = m.Composer != nil || len(m.Pending) > 0 || m.ReviewForm != nil || m.CommentMenu != nil || m.top() == pageGuideConsent
-		}
 		if v.Freshness.Session != nil && keepDrafts {
 			// Keep local editing anchored to its frozen source; write preflights
 			// still reject the stale comparison. Opening a new one stays explicit.
@@ -527,9 +492,6 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				updated, err := m.store.UpdateState(m.ctx, current.ID, current.Generation, current.SnapshotReference, session.StateUpdate{ReviewedSliceIDs: current.ReviewedSliceIDs, RevisionStatus: v.Freshness.Status})
 				if err != nil {
 					state.ActionError = err
-					if v.Target == m.activeTab {
-						m.ActionError = err
-					}
 					return m, nil
 				}
 				current.State = updated
@@ -848,7 +810,7 @@ func (m *Model) registerReviewTab(s *review.Session, activate bool) {
 		m.tabs = append(m.tabs, workspaceTab{identity: identity, title: m.knownPRTitle(identity), review: newReviewTabState(s)})
 		return
 	}
-	m.saveActiveReview()
+	m.saveActiveCursorAnchor()
 	m.tabs = append(m.tabs, workspaceTab{identity: identity, title: m.knownPRTitle(identity), review: newReviewTabState(s)})
 	m.activeTab = len(m.tabs) - 1
 	m.restoreReviewTab(m.tabs[m.activeTab].review)
@@ -861,10 +823,22 @@ func (m *Model) activateTab(index int) bool {
 	if index == m.activeTab {
 		return true
 	}
-	m.saveActiveReview()
+	m.saveActiveCursorAnchor()
 	m.activeTab = index
 	m.restoreReviewTab(m.tabs[index].review)
 	return true
+}
+
+// reviewStateForTarget resolves an asynchronous result to its originating
+// review, including the initial state before a review has been registered.
+func (m *Model) reviewStateForTarget(target int) *reviewTabState {
+	if target == m.activeTab {
+		return m.reviewTabState
+	}
+	if target >= 0 && target < len(m.tabs) {
+		return m.tabs[target].review
+	}
+	return nil
 }
 
 func newReviewTabState(s *review.Session) *reviewTabState {
@@ -874,23 +848,13 @@ func newReviewTabState(s *review.Session) *reviewTabState {
 	}
 }
 
-func (m *Model) saveActiveReview() {
+// saveActiveCursorAnchor preserves the selected source line while the shared
+// workspace width may change before this tab is visited again.
+func (m *Model) saveActiveCursorAnchor() {
 	if m.activeTab < 0 || m.activeTab >= len(m.tabs) {
 		return
 	}
-	target, commentID := m.cursorAnchor()
-	m.tabs[m.activeTab].review = &reviewTabState{
-		savedCursorTarget: target, savedCursorCommentID: commentID,
-		Session: m.Session, ContextView: m.ContextView, DescriptionScroll: m.DescriptionScroll, descriptionCache: m.descriptionCache, Err: m.Err, Selected: m.Selected, Row: m.Row, Files: m.Files,
-		CursorTarget: m.CursorTarget, GuideCursorTarget: m.GuideCursorTarget,
-		collapsed: m.collapsed, Scroll: m.Scroll, GuideScroll: m.GuideScroll, Cursor: m.Cursor, GuideCursor: m.GuideCursor,
-		Horizontal: m.Horizontal, listWidthPreference: m.listWidthPreference, layout: m.layout, Inventory: m.Inventory, Focus: m.Focus, cursorActive: m.cursorActive,
-		guidePathOffset: m.guidePathOffset, guidePathPause: m.guidePathPause, guidePathGeneration: m.guidePathGeneration,
-		Stack: m.Stack, Loading: m.Loading, Busy: m.Busy,
-		ActionError: m.ActionError, notice: m.notice, loadingFrame: m.loadingFrame,
-		Composer: m.Composer, Pending: m.Pending, ReviewForm: m.ReviewForm, ReviewSubmitted: m.ReviewSubmitted, CommentMenu: m.CommentMenu, Comments: m.Comments, CommentReactions: m.CommentReactions, Viewer: m.Viewer, commentGeneration: m.commentGeneration,
-		editorCursorVisible: m.editorCursorVisible, editorCursorGeneration: m.editorCursorGeneration,
-	}
+	m.savedCursorTarget, m.savedCursorCommentID = m.cursorAnchor()
 }
 
 func (m *Model) restoreReviewTab(state *reviewTabState) {
@@ -899,20 +863,10 @@ func (m *Model) restoreReviewTab(state *reviewTabState) {
 	if state == nil {
 		return
 	}
-	m.Session, m.ContextView, m.DescriptionScroll, m.descriptionCache, m.Err = state.Session, state.ContextView, state.DescriptionScroll, state.descriptionCache, state.Err
+	m.reviewTabState = state
 	if m.fileCache.session != m.Session {
 		m.fileCache = fileDetailCache{}
 	}
-	m.CursorTarget, m.GuideCursorTarget = state.CursorTarget, state.GuideCursorTarget
-	m.Selected, m.Row, m.Files = state.Selected, state.Row, state.Files
-	m.collapsed, m.Scroll, m.GuideScroll, m.Cursor, m.GuideCursor = state.collapsed, state.Scroll, state.GuideScroll, state.Cursor, state.GuideCursor
-	m.Horizontal, m.listWidthPreference, m.layout, m.Inventory, m.Focus = state.Horizontal, state.listWidthPreference, state.layout, state.Inventory, state.Focus
-	m.cursorActive = state.cursorActive
-	m.guidePathOffset, m.guidePathPause, m.guidePathGeneration = state.guidePathOffset, state.guidePathPause, state.guidePathGeneration
-	m.Stack, m.Loading, m.Busy = state.Stack, state.Loading, state.Busy
-	m.ActionError, m.notice, m.loadingFrame = state.ActionError, state.notice, state.loadingFrame
-	m.Composer, m.Pending, m.ReviewForm, m.ReviewSubmitted, m.CommentMenu, m.Comments, m.CommentReactions, m.Viewer, m.commentGeneration = state.Composer, state.Pending, state.ReviewForm, state.ReviewSubmitted, state.CommentMenu, state.Comments, state.CommentReactions, state.Viewer, state.commentGeneration
-	m.editorCursorVisible, m.editorCursorGeneration = state.editorCursorVisible, state.editorCursorGeneration
 	m.restoreCursorAnchor(state.savedCursorTarget, state.savedCursorCommentID)
 }
 

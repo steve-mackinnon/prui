@@ -71,6 +71,16 @@ from `cmd/pr-review`, so the command layer remains the boundary for external
 effects. Plain output uses the same loaded review data without starting the
 interactive program.
 
+Each open review tab owns one `reviewTabState`. `Model` points to the active
+tab's state, so navigation, drafts, overlays, and review results update that
+state directly. Asynchronous results use their origin tab and generation to
+reject stale work, including when another tab is visible. Before any tab is
+opened, the model has an initial state for loading and browser screens. Window
+dimensions, service callbacks, picker data, theme, and the bounded Files render
+cache belong to the workspace; the Files cache is invalidated when the active
+session changes. Tab switches save a semantic cursor anchor so a later resize
+can restore the selected source line.
+
 Guide generation requires an explicit user action. `cmd/pr-review/wiring.go`
 resolves one selection from the XDG guide configuration for the interactive
 model. That selection supplies the consent identity, analyzer factory, and
