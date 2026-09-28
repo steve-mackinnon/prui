@@ -388,7 +388,8 @@ func TestGuideDetailFileJumps(t *testing.T) {
 		t.Fatalf("Enter focus/offset = %v/%d, want diff/%d", m.Focus, m.GuideScroll[b.guide], want)
 	}
 	view := strings.Split(ansi.Strip(m.View().Content), "\n")
-	if len(view) < 4 || view[3] != fileDivider(s.Inventory.Files[b.file]) {
+	if len(view) < 4 || !strings.HasPrefix(view[3], "│") || !strings.HasSuffix(view[3], "│") ||
+		strings.TrimSpace(strings.TrimSuffix(strings.TrimPrefix(view[3], "│"), "│")) != fileDivider(s.Inventory.Files[b.file]) {
 		t.Fatalf("jumped diff body = %q, want b.go file divider", view)
 	}
 

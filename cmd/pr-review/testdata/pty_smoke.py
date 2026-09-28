@@ -282,7 +282,7 @@ def main():
         start = len(terminal.output)
         os.write(terminal.master, b"\x1b[<0;38;4M\x1b[<32;50;4M\x1b[<0;50;4m")
         terminal.wait_until(lambda screen: len(screen.splitlines()) > 3 and
-                            screen.splitlines()[3].find("│") == 49,
+                            [i for i, char in enumerate(screen.splitlines()[3]) if char == "│"] == [0, 49, 119],
                             "mouse divider resize", start)
         terminal.key(b"\x1b[A", "› [ ] a.go")
         terminal.key(b"\x10", "Switch pull requests")

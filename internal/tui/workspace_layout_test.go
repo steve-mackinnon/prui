@@ -42,7 +42,13 @@ func TestKeyboardResizesReviewPaneAndKeepsTabPreference(t *testing.T) {
 		t.Fatalf("] width = %d, want %d", got, initial+2)
 	}
 	line := strings.Split(ansi.Strip(m.View().Content), "\n")[3]
-	if got := visibleWidth(strings.SplitN(line, " │ ", 2)[0]); got != m.listWidth() {
+	inner := strings.TrimPrefix(line, "│")
+	if inner == line || !strings.HasSuffix(line, "│") {
+		t.Fatalf("missing pane frame: %q", line)
+	}
+	left, _, found := strings.Cut(inner, "│")
+	if !found || visibleWidth(left) != m.listWidth() {
+		got := visibleWidth(left)
 		t.Fatalf("divider at %d, list width %d", got, m.listWidth())
 	}
 	m.openReviewTab(second)
@@ -74,8 +80,8 @@ func TestKeyboardResizesReviewPaneAndKeepsTabPreference(t *testing.T) {
 		t.Fatalf("temporary width clamp = %d, want 57", got)
 	}
 	m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
-	if got := m.listWidth(); got != 80 {
-		t.Fatalf("narrow single pane width = %d", got)
+	if got := m.listWidth(); got != 78 {
+		t.Fatalf("narrow single pane width = %d, want 78 interior columns", got)
 	}
 	preferred := m.listWidthPreference
 	key(m, '[')

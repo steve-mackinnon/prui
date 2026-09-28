@@ -46,7 +46,7 @@ func TestQuietGuideViewportShowsSelectedLowerExplanation(t *testing.T) {
 				}
 				selectedVisible := false
 				for _, line := range strings.Split(view, "\n") {
-					if strings.HasPrefix(line, "› ") && strings.Contains(line, label) {
+					if strings.HasPrefix(line, "│› ") && strings.Contains(line, label) {
 						selectedVisible = true
 					}
 				}

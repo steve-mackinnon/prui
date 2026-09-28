@@ -412,8 +412,8 @@ func TestRawReviewMockedEndToEnd(t *testing.T) {
 		t.Fatal("resize lost reading position")
 	}
 	key(m, 'i')
-	if !strings.Contains(m.View().Content, "INVENTORY") {
-		t.Fatal("inventory unavailable")
+	if !strings.Contains(m.View().Content, "Full inventory (i)") {
+		t.Fatalf("inventory unavailable: %q", ansi.Strip(m.View().Content))
 	}
 	key(m, 'i')
 	key(m, '?')
@@ -538,7 +538,7 @@ func TestDiffCursorMovesBetweenCommentTargetsAndKeepsThemVisible(t *testing.T) {
 	m.Loading = false
 	m.Session = kindsSession()
 	m.Selected, m.Focus = 1, paneDiff
-	m.Width, m.Height = 120, 6 // two detail rows: force cursor-following scroll.
+	m.Width, m.Height = 120, 7 // two framed detail rows: force cursor-following scroll.
 	m.cursorActive = true
 	m.ensureCursorVisible()
 
@@ -550,7 +550,7 @@ func TestDiffCursorMovesBetweenCommentTargetsAndKeepsThemVisible(t *testing.T) {
 	if !strings.Contains(view, "›  context") {
 		t.Fatalf("initial comment target is not visibly marked:\n%s", view)
 	}
-	if !strings.Contains(view, "│   @@ -1,2 +1,2 @@") {
+	if !strings.Contains(view, "│  @@ -1,2 +1,2 @@") {
 		t.Fatalf("unselected detail line does not retain the cursor gutter:\n%s", view)
 	}
 
@@ -1562,7 +1562,7 @@ func TestRawReviewGuideHierarchy(t *testing.T) {
 		t.Fatal("guide navigation did not reach a portion row")
 	}
 	m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
-	if m.Focus != paneDiff || !strings.Contains(ansi.Strip(m.View().Content), "focus: diff") {
+	if m.Focus != paneDiff || !strings.Contains(ansi.Strip(m.View().Content), "· Diff") || !strings.Contains(ansi.Strip(m.View().Content), fileDivider(s.Inventory.Files[m.Session.UnitFiles[m.Selected]])) {
 		t.Fatal("narrow tab did not switch to the diff pane")
 	}
 	namedKey(m, tea.KeyEscape)
