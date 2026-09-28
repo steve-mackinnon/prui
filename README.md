@@ -173,6 +173,7 @@ is 1 MiB. PR browsing and comment overlays are bounded to 100 items. See the
 ./scripts/verify.sh       # formatting, vet, race tests, PTY tests, build
 golangci-lint run ./...   # use v2.13.2, as pinned in CI
 go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 ./...
+go run github.com/zricethezav/gitleaks/v8@v8.30.1 git --redact --no-banner --log-opts='--all' .
 ```
 
 Tests also require Python 3. They use synthetic repositories, fake GitHub clients,
@@ -183,8 +184,13 @@ Linux verification jobs. See [TESTING.md](TESTING.md) for the test workflow and
 See the [architecture guide](docs/ARCHITECTURE.md) for the package map, data
 flow, and persistence boundaries.
 
+The secret scan examines all local Git refs. Its three fingerprint exceptions
+identify historical synthetic test fixtures, not entire files or directories.
+CI fetches complete history for that check. Dependabot tracks Go module and
+GitHub Action updates weekly; CI action references are pinned to commit SHAs.
+
 For changes, add a focused regression test, preserve the source/privacy
-invariants, and run all three checks. Manual live acceptance uses `pr-review verify`;
+invariants, and run all four checks. Manual live acceptance uses `pr-review verify`;
 its requirements are in the [reference](docs/REFERENCE.md#acceptance-and-guide-evaluation).
 
 ## License
