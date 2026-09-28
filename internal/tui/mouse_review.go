@@ -205,11 +205,21 @@ func (m *Model) contextTabLabels() []string {
 	return labels
 }
 func (m *Model) reviewTabLabels() []string {
-	labels := []string{"File (F)", "Guide (G)"}
+	labels := []string{"  File (F)", "  Guide (G)"}
 	selected := 1
 	if m.Files || m.Inventory {
 		selected = 0
 	}
-	labels[selected] = "[" + labels[selected] + "]"
+	labels[selected] = "› " + strings.TrimPrefix(labels[selected], "  ")
 	return labels
+}
+
+func (m *Model) reviewTabStrip() string {
+	labels := m.reviewTabLabels()
+	selected := 1
+	if m.Files || m.Inventory {
+		selected = 0
+	}
+	labels[selected] = m.styleLine(selectedClass(true), labels[selected])
+	return strings.Join(labels, "  ")
 }

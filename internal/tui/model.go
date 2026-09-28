@@ -1821,7 +1821,7 @@ func (m *Model) reviewViewForLayout(preferSideBySide bool) string {
 	if preferSideBySide && !useSideBySide {
 		text += " · side-by-side needs 160 columns"
 	}
-	leftLabel := strings.Join(m.reviewTabLabels(), "  ")
+	leftLabel := m.reviewTabStrip()
 	if m.Inventory {
 		leftLabel = "Full inventory (i)"
 	}

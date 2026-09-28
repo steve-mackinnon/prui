@@ -139,3 +139,28 @@ func TestPRContextTabsHighlightOnlyTheSelectedView(t *testing.T) {
 		}
 	}
 }
+
+func TestReviewTabsHighlightOnlySelectedFileOrGuide(t *testing.T) {
+	m := New(context.Background(), nil)
+	t.Cleanup(m.Close)
+	m.openReviewTab(screenSession())
+	m.Width, m.Height = 120, 12
+
+	for _, tc := range []struct {
+		files  bool
+		active string
+		other  string
+	}{
+		{true, "File (F)", "Guide (G)"},
+		{false, "Guide (G)", "File (F)"},
+	} {
+		m.Files = tc.files
+		header := strings.Split(m.View().Content, "\n")[2]
+		if !strings.Contains(header, m.styleLine(selectedClass(true), "› "+tc.active)) {
+			t.Fatalf("selected %s tab is not highlighted", tc.active)
+		}
+		if strings.Contains(header, m.styleLine(selectedClass(true), "› "+tc.other)) {
+			t.Fatalf("unselected %s tab is highlighted", tc.other)
+		}
+	}
+}
