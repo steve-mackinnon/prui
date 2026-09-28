@@ -176,6 +176,7 @@ const (
 
 type Model struct {
 	guideCache                      guideDetailCache
+	fileCache                       fileDetailCache
 	CursorTarget, GuideCursorTarget map[int]source.ReviewCommentTarget
 	drag                            dividerDrag
 
@@ -411,6 +412,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if v.Err == nil && v.Session != nil {
 			m.Session = v.Session
 			if v.Reset {
+				m.fileCache = fileDetailCache{}
 				m.Composer, m.ReviewForm, m.CommentMenu = nil, nil, nil
 				m.Pending, m.Comments = nil, nil
 				m.ReviewSubmitted = false
@@ -898,6 +900,9 @@ func (m *Model) restoreReviewTab(state *reviewTabState) {
 		return
 	}
 	m.Session, m.ContextView, m.DescriptionScroll, m.descriptionCache, m.Err = state.Session, state.ContextView, state.DescriptionScroll, state.descriptionCache, state.Err
+	if m.fileCache.session != m.Session {
+		m.fileCache = fileDetailCache{}
+	}
 	m.CursorTarget, m.GuideCursorTarget = state.CursorTarget, state.GuideCursorTarget
 	m.Selected, m.Row, m.Files = state.Selected, state.Row, state.Files
 	m.collapsed, m.Scroll, m.GuideScroll, m.Cursor, m.GuideCursor = state.collapsed, state.Scroll, state.GuideScroll, state.Cursor, state.GuideCursor
@@ -1266,16 +1271,7 @@ func (m *Model) baseDetail() []diffLine {
 		return m.cachedGuideDetail(guide).lines
 	}
 	if m.fileView() {
-		var lines []diffLine
-		for f, slice := range m.Session.Slices {
-			lines = append(lines, diffLine{styledLine: styledLine{Class: classFileHeader, Text: fileDivider(m.Session.Inventory.Files[f])}})
-			for _, unit := range slice.Units {
-				if m.Session.Inventory.Units[unit].Kind != inventory.FileMetadata {
-					lines = append(lines, unitLines(m.Session, unit)...)
-				}
-			}
-		}
-		return lines
+		return m.cachedFileDetail(false)
 	}
 	if m.Session == nil || m.Selected < 0 || m.Selected >= len(m.Session.Inventory.Units) {
 		return nil
@@ -1332,6 +1328,8 @@ func (m *Model) sideBySideDetail() []diffLine {
 	var base []diffLine
 	if guide, ok := m.activeGuide(); ok {
 		base = m.cachedGuideDetail(guide).splitLines
+	} else if m.fileView() {
+		base = m.cachedFileDetail(true)
 	} else {
 		base = projectSideBySideDetail(m.baseDetail())
 	}
