@@ -195,5 +195,4 @@ its requirements are in the [reference](docs/REFERENCE.md#acceptance-and-guide-e
 
 ## License
 
-A license has not been selected or included yet. This is an outstanding step
-before the planned open-source release.
+Licensed under the [MIT License](LICENSE).
