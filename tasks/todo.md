@@ -21,7 +21,7 @@ retaining `RIGHT`, then `LEFT` as the initial/fallback preference.
 - [ ] Add focused table/model regressions, then run
       `go test ./internal/tui -run 'Test(SideBySideCursor|DiffCursor|CommentCursor)' -count=1`.
 
-**Dependencies:** approved `SPEC-split-diff-pane-cursor.md`.
+**Dependencies:** approved `docs/spec/SPEC-split-diff-pane-cursor.md`.
 
 **Files likely touched:**
 - `internal/tui/model.go`
@@ -127,7 +127,7 @@ deterministic screen baselines if their documented renderer requires it.
 
 ## Completion checkpoint
 
-- [ ] All success criteria in `SPEC-split-diff-pane-cursor.md` are met.
+- [ ] All success criteria in `docs/spec/SPEC-split-diff-pane-cursor.md` are met.
 - [ ] Full automated verification passes with no GitHub contract, persistence,
       or plain-output change.
 - [ ] The 160-column split interaction is manually inspected before release.
@@ -145,7 +145,7 @@ deterministic screen baselines if their documented renderer requires it.
       `RIGHT` target equivalence.
 - Verify: write focused failing tests, then run
       `go test ./internal/tui -run 'TestSideBySideProjection' -count=1`.
-- Depends on: approved `SPEC-side-by-side-diff.md`.
+- Depends on: approved `docs/spec/SPEC-side-by-side-diff.md`.
 - Files: `internal/tui/{render,render_test}.go`.
 - Estimated scope: Small (2 files).
 
@@ -207,7 +207,7 @@ deterministic screen baselines if their documented renderer requires it.
 
 ## Completion checkpoint
 
-- [x] All automated success criteria in `SPEC-side-by-side-diff.md` are met.
+- [x] All automated success criteria in `docs/spec/SPEC-side-by-side-diff.md` are met.
 - [ ] Wide split / narrow fallback are manually inspected in a real terminal
       before a release; automated rendering coverage passes without a TTY.
 - [x] Full automated verification passes without changing frozen source,
@@ -229,7 +229,7 @@ deterministic screen baselines if their documented renderer requires it.
       preserve every visible marker and label.
 - Verify: write focused failing tests, then run
       `go test ./internal/tui -run 'Test(Chrome|Selection|Color)' -count=1`.
-- Depends on: approved `SPEC-tui-review-layout.md`.
+- Depends on: approved `docs/spec/SPEC-tui-review-layout.md`.
 - Files: `internal/tui/{style,render}_test.go`, `internal/tui/{style,render}.go`.
 
 ## 2. Review workspace layout
@@ -504,7 +504,7 @@ deterministic screen baselines if their documented renderer requires it.
       space permits.
 - Verify: write failing focused tests, then run
       `go test -race ./internal/tui -run 'TestGuide.*Path|Test.*Truncat' -count=1`.
-- Depends on: approved `SPEC-guide-path-overflow.md`.
+- Depends on: approved `docs/spec/SPEC-guide-path-overflow.md`.
 - Files: `internal/tui/guides.go`, `internal/tui/guides_test.go`.
 - Estimated scope: Small (2 files).
 
@@ -536,7 +536,7 @@ deterministic screen baselines if their documented renderer requires it.
       changing file/inventory/plain views or detail-pane scrolling.
 - [x] Update a fixed screen baseline only if the approved static label output
       changes it; review the textual baseline diff manually.
-- Acceptance: every success criterion in `SPEC-guide-path-overflow.md` is
+- Acceptance: every success criterion in `docs/spec/SPEC-guide-path-overflow.md` is
       covered by focused tests; no unrelated dirty worktree changes are
       modified.
 - Verify: `go test -race ./internal/tui -count=1`,
@@ -1020,7 +1020,7 @@ verify reply/delete/reaction journeys without persisting remote data.
 - [x] Start with focused failing TUI model/render tests.
 - [x] Run `go test ./internal/tui -run 'Test(PRContextView|ReviewTab|Snapshot)' -count=1`.
 
-**Dependencies:** Approved `SPEC-pr-view-tabs.md`.
+**Dependencies:** Approved `docs/spec/SPEC-pr-view-tabs.md`.
 
 **Files likely touched:** `internal/tui/{model,render,bindings}.go`, matching
 tests and screen baselines. **Estimated scope:** Medium.
@@ -1129,7 +1129,7 @@ uses a configured terminal style and width, and returns ANSI-rendered lines.
       `go test ./internal/tui -run 'TestDescriptionMarkdown' -count=1`.
 - [x] Glamour module metadata contains only Glamour and its transitive dependencies.
 
-**Dependencies:** Approved `SPEC-pr-description.md`.
+**Dependencies:** Approved `docs/spec/SPEC-pr-description.md`.
 
 **Files likely touched:** `go.mod`, `go.sum`, new `internal/tui/description_markdown.go`,
 new `internal/tui/description_markdown_test.go`.
@@ -1196,7 +1196,7 @@ screens, then run the complete regression gate against the integrated feature.
 
 ## Completion checkpoint
 
-- [ ] All success criteria in `SPEC-pr-description.md` are met.
+- [ ] All success criteria in `docs/spec/SPEC-pr-description.md` are met.
 - [ ] Full automated verification passes with no GitHub lifecycle, snapshot,
       source-pin, or link-activation behavior change.
 
@@ -1364,7 +1364,7 @@ button outside the terminal and modifier-based text copying.
 Dependencies: M2, M3, M4, M5. Scope: Medium.
 Files likely touched: `cmd/pr-review/testdata/pty_smoke.py`,
 `cmd/pr-review/pty_test.go`, `internal/tui/help.go`, `README.md`,
-`SPEC-tui-review-layout.md`. If help content belongs in `bindings.go`, use that
+`docs/spec/SPEC-tui-review-layout.md`. If help content belongs in `bindings.go`, use that
 instead of `help.go`; do not add a fake keyboard shortcut for mouse actions.
 
 ## Completion checkpoint
@@ -1382,7 +1382,7 @@ instead of `help.go`; do not add a fake keyboard shortcut for mouse actions.
 Status: Completed on 2026-09-26.
 Evidence: [SQLite verification](../docs/SQLITE-VERIFICATION.md).
 
-Spec: [SPEC-sqlite-storage.md](../SPEC-sqlite-storage.md).
+Spec: [SPEC-sqlite-storage.md](../docs/spec/SPEC-sqlite-storage.md).
 Plan: [SQLite Storage — Fresh Start](plan.md#implementation-plan-sqlite-storage--fresh-start).
 User authorized appending; preceding task sections remain unchanged.
 

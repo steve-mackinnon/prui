@@ -1,6 +1,6 @@
 # Implementation Plan: Configurable Guide Models with Charm Fantasy
 
-Spec: [SPEC-MULTI-PROVIDER-GUIDES.md](../docs/SPEC-MULTI-PROVIDER-GUIDES.md).
+Spec: [SPEC-MULTI-PROVIDER-GUIDES.md](../docs/spec/SPEC-MULTI-PROVIDER-GUIDES.md).
 Task checklist: [multi-provider-guides-todo.md](multi-provider-guides-todo.md).
 These task-specific files preserve the unrelated unfinished work in
 `tasks/plan.md` and `tasks/todo.md`.

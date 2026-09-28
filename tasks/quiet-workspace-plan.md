@@ -16,7 +16,7 @@ threshold. Budget header/footer rows centrally; narrow/short screens prioritize
 identity, content, severe health states, pending count and Review. Color remains
 supplemental; all untrusted text is escaped. High-contrast remains supported.
 
-This supersedes the visual arrangement in SPEC-tui-review-layout.md, including
+This supersedes the visual arrangement in docs/spec/SPEC-tui-review-layout.md, including
 its single-header and single persistent shortcut choices, only for the approved
 option A. It does not authorize the unrelated unfinished PR-state redesign.
 

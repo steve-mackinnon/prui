@@ -1,7 +1,7 @@
 # Spec: SQLite Storage — Fresh Start
 
 Status: Implemented and verified on macOS/Linux on 2026-09-26.
-Evidence: [SQLite verification](docs/SQLITE-VERIFICATION.md).
+Evidence: [SQLite verification](../SQLITE-VERIFICATION.md).
 Date: 2026-09-26
 Scope id: sqlite-storage
 

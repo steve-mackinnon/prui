@@ -199,7 +199,7 @@ manual terminal checks.
 
 - `README.md`
 - `CONSTRAINTS.md`
-- `SPEC-custom-themes.md`
+- `docs/spec/SPEC-custom-themes.md`
 
 **Estimated scope:** Small (3 files).
 

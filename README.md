@@ -198,6 +198,8 @@ Linux verification jobs. See [TESTING.md](TESTING.md) for the test workflow and
 
 See the [architecture guide](docs/ARCHITECTURE.md) for the package map, data
 flow, and persistence boundaries.
+The [spec archive](docs/spec/README.md) preserves feature requirements and
+design decisions; check current code and user documentation for present behavior.
 
 The secret scan examines all local Git refs. Its three fingerprint exceptions
 identify historical synthetic test fixtures, not entire files or directories.

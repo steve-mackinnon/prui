@@ -5,7 +5,7 @@ keeping pull-request switching out of the normal review layout. When the
 switcher is closed, the left rail presents the existing guide hierarchy; the
 selected guide owns the right-side diff context.
 
-![Guide view mockup](assets/command-switcher-guide-mockup.svg)
+![Guide view mockup](../assets/command-switcher-guide-mockup.svg)
 
 ## Outcome
 

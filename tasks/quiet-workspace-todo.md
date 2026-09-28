@@ -53,7 +53,7 @@ Depends on: 1–5. Files: snapshot fixtures and existing integration tests as ne
 - [x] README and layout specification match implemented behavior.
 - [x] Final review finds no source/session/plain behavior changes.
 - [x] Terminal walkthrough completed, or clearly recorded as outstanding human acceptance.
-Depends on: 6. Files: README.md, SPEC-tui-review-layout.md, this checklist. Scope: small.
+Depends on: 6. Files: README.md, docs/spec/SPEC-tui-review-layout.md, this checklist. Scope: small.
 
 
 ## Verification record — 2026-09-25

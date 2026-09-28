@@ -803,7 +803,7 @@ Initial scope:
 These defaults make “select” distinct from activation and “panels” mean the
 existing navigation/detail pair. Broader mouse actions can be planned separately.
 The user's request supersedes the old no-mouse-capture restriction in
-`SPEC-tui-review-layout.md`; implementation must annotate that obsolete boundary.
+`docs/spec/SPEC-tui-review-layout.md`; implementation must annotate that obsolete boundary.
 
 ## Investigation evidence
 
@@ -980,7 +980,7 @@ checks remain pending as recorded above.
 
 Status: Completed on 2026-09-26 with Sol implementation agents.
 Evidence: [SQLite verification](../docs/SQLITE-VERIFICATION.md).
-Spec: [SPEC-sqlite-storage.md](../SPEC-sqlite-storage.md), approved for planning.
+Spec: [SPEC-sqlite-storage.md](../docs/spec/SPEC-sqlite-storage.md), approved for planning.
 Task list: [SQLite Storage — Fresh Start tasks](todo.md#sqlite-storage--fresh-start-tasks).
 The user authorized appending these sections; all earlier work remains intact.
 

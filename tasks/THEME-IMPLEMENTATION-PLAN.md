@@ -2,15 +2,13 @@
 
 ## Overview
 
-Implement the approved `SPEC-custom-themes.md` as five small, ordered slices:
+Implement the approved `docs/spec/SPEC-custom-themes.md` as five small, ordered slices:
 a pure semantic theme domain, safe global configuration, per-model palette
 application, CLI startup wiring, and a persistent keyboard-only picker. The
 implementation must retain the existing terminal-profile and plain-output
 contracts exactly.
 
-The detailed work checklist is [THEME-TASKS.md](THEME-TASKS.md). These files
-are deliberately separate from the repository's active `tasks/` plans, which
-track unrelated unfinished work.
+The detailed work checklist is [THEME-TASKS.md](THEME-TASKS.md).
 
 ## Architecture Decisions
 

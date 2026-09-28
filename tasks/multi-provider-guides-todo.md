@@ -1,6 +1,6 @@
 # Configurable Guide Models with Charm Fantasy — Tasks
 
-Source: [spec](../docs/SPEC-MULTI-PROVIDER-GUIDES.md) and
+Source: [spec](../docs/spec/SPEC-MULTI-PROVIDER-GUIDES.md) and
 [implementation plan](multi-provider-guides-plan.md). Check off tasks only
 after their acceptance criteria and verification pass. File lists are likely
 touch points, not permission to modify another task's owned files in parallel.
@@ -195,7 +195,7 @@ the OpenAI-only project contract.
 
 **Dependencies:** G-09. **Scope:** Medium, 5 files.
 
-**Files likely touched:** `README.md`, `CONSTRAINTS.md`, `docs/REFERENCE.md`, `docs/ARCHITECTURE.md`, `docs/SPEC-MULTI-PROVIDER-GUIDES.md`.
+**Files likely touched:** `README.md`, `CONSTRAINTS.md`, `docs/REFERENCE.md`, `docs/ARCHITECTURE.md`, `docs/spec/SPEC-MULTI-PROVIDER-GUIDES.md`.
 
 ## G-11: Retire the old OpenAI transport after parity
 

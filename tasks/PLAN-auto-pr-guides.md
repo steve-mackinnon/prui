@@ -43,7 +43,7 @@ typed comparison cache key + durable validated artifact
   - Acceptance: exact immutable-comparison lookup returns only a structurally
     valid generated bundle; changed base/head and invalid artifacts are misses.
   - Verify: `go test ./internal/session ./internal/guide -count=1`.
-  - Depends on: approved `SPEC-guide-cache.md`.
+  - Depends on: approved `docs/spec/SPEC-guide-cache.md`.
   - Files: `internal/session/store.go`, `internal/session/store_test.go`.
   - Estimated scope: Small.
 
