@@ -10,12 +10,12 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
-	"pr-review/internal/guide"
-	"pr-review/internal/guideconfig"
-	"pr-review/internal/review"
-	"pr-review/internal/session"
-	"pr-review/internal/source"
-	"pr-review/internal/testutil"
+	"prui/internal/guide"
+	"prui/internal/guideconfig"
+	"prui/internal/review"
+	"prui/internal/session"
+	"prui/internal/source"
+	"prui/internal/testutil"
 )
 
 func action(t *testing.T, m *Model, k rune) {

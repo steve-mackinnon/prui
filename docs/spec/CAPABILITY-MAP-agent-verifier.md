@@ -17,4 +17,4 @@ Build order: `live-pr-verifier` → `terminal-artifacts`, `performance-reporting
 The verifier never executes reviewed code, writes to the reviewed checkout, or
 enables guide-source upload. It uses the user's existing authenticated `gh`
 installation only for the read-only GitHub operations already performed by
-`pr-review open`.
+`prui open`.

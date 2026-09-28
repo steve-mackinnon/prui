@@ -31,7 +31,7 @@ parameter is not used. See [GitHub's review-comment API](https://docs.github.com
 ```sh
 go test ./internal/source -count=1
 go test ./internal/tui -count=1
-go test ./cmd/pr-review -count=1
+go test ./cmd/prui -count=1
 go test -race -count=1 ./...
 go build ./...
 ./scripts/verify.sh
@@ -43,7 +43,7 @@ git diff --check
 ```text
 internal/source/       typed GitHub comment contract, GH CLI implementation, runner
 internal/tui/          line provenance, cursor, composer, rendering, key routing
-cmd/pr-review/         online/freshness preflight and lifecycle injection
+cmd/prui/         online/freshness preflight and lifecycle injection
 README.md              user-facing interaction and permission requirements
 CONSTRAINTS.md         revised explicit-write boundary
 tasks/                 implementation plan and ordered task checklist

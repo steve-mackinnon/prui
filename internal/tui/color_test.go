@@ -13,8 +13,8 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/colorprofile"
 	"github.com/charmbracelet/x/ansi"
-	"pr-review/internal/review"
-	"pr-review/internal/theme"
+	"prui/internal/review"
+	"prui/internal/theme"
 )
 
 func testThemes(t *testing.T) []theme.Theme {

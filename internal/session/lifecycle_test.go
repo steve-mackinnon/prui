@@ -11,7 +11,7 @@ import (
 )
 
 func TestLifecycleInterruptedProcessPreservesCommittedState(t *testing.T) {
-	if path := os.Getenv("PR_REVIEW_TEST_CRASH_STORE"); path != "" {
+	if path := os.Getenv("PRUI_TEST_CRASH_STORE"); path != "" {
 		store, err := Open(path)
 		if err != nil {
 			t.Fatal(err)
@@ -28,7 +28,7 @@ func TestLifecycleInterruptedProcessPreservesCommittedState(t *testing.T) {
 	}
 	path := filepath.Join(t.TempDir(), "storage")
 	cmd := exec.Command(os.Args[0], "-test.run=^TestLifecycleInterruptedProcessPreservesCommittedState$")
-	cmd.Env = append(os.Environ(), "PR_REVIEW_TEST_CRASH_STORE="+path)
+	cmd.Env = append(os.Environ(), "PRUI_TEST_CRASH_STORE="+path)
 	if err := cmd.Run(); err == nil {
 		t.Fatal("child did not interrupt")
 	} else if exit, ok := err.(*exec.ExitError); !ok || exit.ExitCode() != 23 {
@@ -84,7 +84,7 @@ func TestLifecycleRejectsInvalidSnapshotAndMissingSourceRow(t *testing.T) {
 }
 
 func TestLifecycleKilledWriteTransactionRecoversOldState(t *testing.T) {
-	if path := os.Getenv("PR_REVIEW_TEST_OPEN_TX"); path != "" {
+	if path := os.Getenv("PRUI_TEST_OPEN_TX"); path != "" {
 		store, err := Open(path)
 		if err != nil {
 			t.Fatal(err)
@@ -123,7 +123,7 @@ func TestLifecycleKilledWriteTransactionRecoversOldState(t *testing.T) {
 		t.Fatal(err)
 	}
 	cmd := exec.Command(os.Args[0], "-test.run=^TestLifecycleKilledWriteTransactionRecoversOldState$")
-	cmd.Env = append(os.Environ(), "PR_REVIEW_TEST_OPEN_TX="+path)
+	cmd.Env = append(os.Environ(), "PRUI_TEST_OPEN_TX="+path)
 	if err := cmd.Start(); err != nil {
 		t.Fatal(err)
 	}
@@ -164,13 +164,13 @@ func TestLifecycleKilledWriteTransactionRecoversOldState(t *testing.T) {
 }
 
 func TestLifecycleIndependentProcessesConflictOnGeneration(t *testing.T) {
-	if path := os.Getenv("PR_REVIEW_TEST_CAS_PATH"); path != "" {
+	if path := os.Getenv("PRUI_TEST_CAS_PATH"); path != "" {
 		store, err := Open(path)
 		if err != nil {
 			t.Fatal(err)
 		}
 		defer store.Close()
-		worker := os.Getenv("PR_REVIEW_TEST_CAS_WORKER")
+		worker := os.Getenv("PRUI_TEST_CAS_WORKER")
 		if err := os.WriteFile(path+".cas-ready-"+worker, []byte("ready"), 0600); err != nil {
 			t.Fatal(err)
 		}
@@ -184,8 +184,8 @@ func TestLifecycleIndependentProcessesConflictOnGeneration(t *testing.T) {
 			}
 			time.Sleep(10 * time.Millisecond)
 		}
-		_, err = store.UpdateState(context.Background(), os.Getenv("PR_REVIEW_TEST_CAS_ID"), 1,
-			os.Getenv("PR_REVIEW_TEST_CAS_REF"), StateUpdate{ReviewedSliceIDs: []string{"file"}, RevisionStatus: Current})
+		_, err = store.UpdateState(context.Background(), os.Getenv("PRUI_TEST_CAS_ID"), 1,
+			os.Getenv("PRUI_TEST_CAS_REF"), StateUpdate{ReviewedSliceIDs: []string{"file"}, RevisionStatus: Current})
 		if err == nil {
 			os.Exit(0)
 		}
@@ -207,9 +207,9 @@ func TestLifecycleIndependentProcessesConflictOnGeneration(t *testing.T) {
 	commands := make([]*exec.Cmd, 2)
 	for i := range commands {
 		cmd := exec.Command(os.Args[0], "-test.run=^TestLifecycleIndependentProcessesConflictOnGeneration$")
-		cmd.Env = append(os.Environ(), "PR_REVIEW_TEST_CAS_PATH="+path,
-			"PR_REVIEW_TEST_CAS_WORKER="+string(rune('0'+i)), "PR_REVIEW_TEST_CAS_ID="+record.ID,
-			"PR_REVIEW_TEST_CAS_REF="+record.SnapshotReference)
+		cmd.Env = append(os.Environ(), "PRUI_TEST_CAS_PATH="+path,
+			"PRUI_TEST_CAS_WORKER="+string(rune('0'+i)), "PRUI_TEST_CAS_ID="+record.ID,
+			"PRUI_TEST_CAS_REF="+record.SnapshotReference)
 		if err := cmd.Start(); err != nil {
 			t.Fatal(err)
 		}

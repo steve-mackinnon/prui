@@ -200,9 +200,9 @@ validation timing. Session summaries are not proof of source integrity.
 
 The default paths are:
 
-- macOS: `~/Library/Application Support/pr-review/storage/store.sqlite3`.
-- Linux: `$XDG_DATA_HOME/pr-review/storage/store.sqlite3` when XDG_DATA_HOME is
-  absolute; otherwise `~/.local/share/pr-review/storage/store.sqlite3`.
+- macOS: `~/Library/Application Support/prui/storage/store.sqlite3`.
+- Linux: `$XDG_DATA_HOME/prui/storage/store.sqlite3` when XDG_DATA_HOME is
+  absolute; otherwise `~/.local/share/prui/storage/store.sqlite3`.
 
 These defaults deliberately use `storage` instead of the former `sessions`
 subdirectory. There is no scan, fallback read, or transfer from the old location.
@@ -267,7 +267,7 @@ internal/session/storage/                 independent SQL engine, schema, platfo
 internal/session/storage/*_test.go         native portable persistence tests
 internal/session/*_test.go                 domain and persistence behavior tests
 internal/review/lifecycle.go               state-only save callers
-cmd/pr-review/{main,lifecycle}.go          startup reporting and summary listing
+cmd/prui/{main,lifecycle}.go          startup reporting and summary listing
 internal/tui/                             summary picker/state-save callers as needed
 CONSTRAINTS.md, TESTING.md, docs/REFERENCE.md  approved contract and fresh-store guidance
 .github/workflows/verify.yml              existing macOS/Linux verification matrix
@@ -335,10 +335,10 @@ git diff --check
 Focused commands after the proposed package exists:
 
 ```sh
-go test -race -count=1 ./internal/session/storage ./internal/session ./internal/review ./cmd/pr-review
+go test -race -count=1 ./internal/session/storage ./internal/session ./internal/review ./cmd/prui
 go test ./internal/session -run '^$' -bench BenchmarkLatestComparisonHistory -benchmem -count=5
 CGO_ENABLED=0 go test -count=1 ./internal/session/storage
-GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o /tmp/pr-review-linux ./cmd/pr-review
+GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o /tmp/prui-linux ./cmd/prui
 ```
 
 Cross-compilation is a build check, not a native runtime test.

@@ -10,9 +10,9 @@ import (
 	"errors"
 	"fmt"
 
-	"pr-review/internal/guide"
-	"pr-review/internal/inventory"
-	"pr-review/internal/session/storage"
+	"prui/internal/guide"
+	"prui/internal/inventory"
+	"prui/internal/session/storage"
 )
 
 const sqliteGuidePayloadVersion = 1

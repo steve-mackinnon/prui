@@ -6,11 +6,11 @@ import (
 	"testing"
 
 	"github.com/charmbracelet/x/ansi"
-	"pr-review/internal/inventory"
-	"pr-review/internal/review"
-	"pr-review/internal/session"
-	"pr-review/internal/source"
-	"pr-review/internal/theme"
+	"prui/internal/inventory"
+	"prui/internal/review"
+	"prui/internal/session"
+	"prui/internal/source"
+	"prui/internal/theme"
 )
 
 func TestModelsOwnIndependentThemeStyles(t *testing.T) {

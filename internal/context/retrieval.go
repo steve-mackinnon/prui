@@ -10,9 +10,9 @@ import (
 	"strings"
 	"time"
 
-	"pr-review/internal/inventory"
-	"pr-review/internal/privacy"
-	"pr-review/internal/source"
+	"prui/internal/inventory"
+	"prui/internal/privacy"
+	"prui/internal/source"
 )
 
 type Kind string

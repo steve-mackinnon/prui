@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	reviewcontext "pr-review/internal/context"
-	"pr-review/internal/inventory"
-	"pr-review/internal/privacy"
+	reviewcontext "prui/internal/context"
+	"prui/internal/inventory"
+	"prui/internal/privacy"
 )
 
 // Defaults bound one analysis request. They sit well under the patch retention

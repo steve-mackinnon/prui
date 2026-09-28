@@ -11,8 +11,8 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
-	"pr-review/internal/guide"
-	"pr-review/internal/guideconfig"
+	"prui/internal/guide"
+	"prui/internal/guideconfig"
 )
 
 type guideProviderRoundTrip func(*http.Request) (*http.Response, error)
@@ -36,7 +36,7 @@ func TestConfiguredGuideProvidersFromInteractiveConsent(t *testing.T) {
 			if tc.keyEnv != "" {
 				t.Setenv(tc.keyEnv, "fixture-key")
 			}
-			configDir := filepath.Join(os.Getenv("XDG_CONFIG_HOME"), "pr-review")
+			configDir := filepath.Join(os.Getenv("XDG_CONFIG_HOME"), "prui")
 			if err := os.MkdirAll(configDir, 0700); err != nil {
 				t.Fatal(err)
 			}

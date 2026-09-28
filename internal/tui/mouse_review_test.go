@@ -4,7 +4,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"testing"
 
-	"pr-review/internal/source"
+	"prui/internal/source"
 )
 
 func TestMouseReviewSelectsScrolledListWithoutActivation(t *testing.T) {

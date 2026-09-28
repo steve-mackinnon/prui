@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"pr-review/internal/session/storage"
+	"prui/internal/session/storage"
 )
 
 func sqliteValidRepository(entry Repository) bool {

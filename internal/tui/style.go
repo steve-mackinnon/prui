@@ -6,9 +6,9 @@ import (
 	"strings"
 
 	"charm.land/lipgloss/v2"
-	"pr-review/internal/inventory"
-	"pr-review/internal/source"
-	"pr-review/internal/theme"
+	"prui/internal/inventory"
+	"prui/internal/source"
+	"prui/internal/theme"
 )
 
 // lineClass names the semantic role of a complete display line. Classes are

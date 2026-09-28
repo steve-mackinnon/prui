@@ -9,14 +9,14 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
-	"pr-review/internal/guide"
-	"pr-review/internal/guideconfig"
-	"pr-review/internal/review"
-	"pr-review/internal/session"
-	"pr-review/internal/source"
-	"pr-review/internal/testutil"
-	"pr-review/internal/theme"
-	"pr-review/internal/tui"
+	"prui/internal/guide"
+	"prui/internal/guideconfig"
+	"prui/internal/review"
+	"prui/internal/session"
+	"prui/internal/source"
+	"prui/internal/testutil"
+	"prui/internal/theme"
+	"prui/internal/tui"
 )
 
 func modelKey(m *tui.Model, code rune) {
@@ -120,7 +120,7 @@ func TestGuideSelectionUsesAbsoluteXDGWithoutHome(t *testing.T) {
 	root := t.TempDir()
 	t.Setenv("HOME", "")
 	t.Setenv("XDG_CONFIG_HOME", root)
-	path := filepath.Join(root, "pr-review")
+	path := filepath.Join(root, "prui")
 	if err := os.MkdirAll(path, 0700); err != nil {
 		t.Fatal(err)
 	}

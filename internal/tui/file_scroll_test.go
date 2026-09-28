@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"pr-review/internal/source"
+	"prui/internal/source"
 )
 
 func fileScrollModel(width int) *Model {

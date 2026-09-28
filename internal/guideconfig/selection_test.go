@@ -84,7 +84,7 @@ func TestAvailableCompatibleSelections(t *testing.T) {
 }
 
 func TestRememberedSelectionPersistence(t *testing.T) {
-	configPath := filepath.Join(t.TempDir(), "pr-review", "config.json")
+	configPath := filepath.Join(t.TempDir(), "prui", "config.json")
 	path := RememberedPath(configPath)
 	if path != filepath.Join(filepath.Dir(configPath), "guide-last.json") {
 		t.Fatalf("path=%q", path)

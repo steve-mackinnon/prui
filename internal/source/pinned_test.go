@@ -12,7 +12,7 @@ import (
 	"strings"
 	"testing"
 
-	"pr-review/internal/testutil"
+	"prui/internal/testutil"
 )
 
 type fakeGH struct {

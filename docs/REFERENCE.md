@@ -4,25 +4,25 @@ See the [README](../README.md) for installation and a short introduction. This r
 
 ## Command line
 
-Launching `pr-review` from a repository root opens its PR list. These commands
+Launching `prui` from a repository root opens its PR list. These commands
 cover cases that need a specific target or non-interactive output:
 
 | Command | Use |
 | --- | --- |
-| `pr-review open <PR-URL>` | Open a specific PR, including from a checkout without a supported `origin` remote. |
-| `pr-review open 42 --github-repo owner/repo --plain` | Print a review for a script or non-interactive terminal. |
-| `pr-review prs owner/repo` | Print up to 100 open PRs for a repository. |
-| `pr-review prs` | Browse remembered repositories interactively when outside a checkout. |
-| `pr-review sessions` | List saved session IDs, progress, and last freshness status. |
-| `pr-review resume <id> --offline --plain` | Read a saved snapshot without GitHub or the original checkout. |
-| `pr-review resume <id> --new --repo <checkout>` | Start a new comparison using another checkout; keep the old snapshot. |
-| `pr-review delete <id>` | Immediately delete a local session. |
+| `prui open <PR-URL>` | Open a specific PR, including from a checkout without a supported `origin` remote. |
+| `prui open 42 --github-repo owner/repo --plain` | Print a review for a script or non-interactive terminal. |
+| `prui prs owner/repo` | Print up to 100 open PRs for a repository. |
+| `prui prs` | Browse remembered repositories interactively when outside a checkout. |
+| `prui sessions` | List saved session IDs, progress, and last freshness status. |
+| `prui resume <id> --offline --plain` | Read a saved snapshot without GitHub or the original checkout. |
+| `prui resume <id> --new --repo <checkout>` | Start a new comparison using another checkout; keep the old snapshot. |
+| `prui delete <id>` | Immediately delete a local session. |
 
 In the TUI, `s` opens saved sessions and `N` starts a new comparison. Direct
 `resume <id>` remains available when you already know the ID. Opening a PR in
 plain mode saves a snapshot. Normal resume checks GitHub; `--offline` disables
 network operations. `--plain` is also selected automatically for redirected
-input or output and `TERM=dumb`. Run `pr-review --help` for the full syntax.
+input or output and `TERM=dumb`. Run `prui --help` for the full syntax.
 
 ## Optional review guides
 
@@ -32,8 +32,8 @@ Selecting a PR from the interactive PR list or switcher displays the latest vali
 
 ### Guide model configuration
 
-The global guide configuration is read from `$XDG_CONFIG_HOME/pr-review/config.json`
-when `XDG_CONFIG_HOME` is absolute, or `~/.config/pr-review/config.json`
+The global guide configuration is read from `$XDG_CONFIG_HOME/prui/config.json`
+when `XDG_CONFIG_HOME` is absolute, or `~/.config/prui/config.json`
 otherwise. This rule applies on macOS and Linux. The file is separate from
 `theme.json`, session storage, and the reviewed checkout. An absent file
 defaults to OpenAI with `gpt-5.6-terra`, `OPENAI_API_KEY`, and the optional
@@ -137,7 +137,7 @@ can miss secrets; confirm uploads only for source you are authorized to share.
 
 The selected endpoint receives both source and its credential, if one is
 configured, so use only a trusted endpoint. Guide generation makes at most
-one non-streaming model request with structured `pr_review_guides` output.
+one non-streaming model request with structured `prui_guides` output.
 OpenAI uses Responses with `store: false`; other providers use their native
 structured-output protocols, and no shared retention policy is promised.
 Requests are limited to 2 MiB and responses to 4 MiB. Redirects are not
@@ -233,7 +233,7 @@ Online reviews load the first page of at most 100 review comments and `c` refres
 
 Comment boxes participate in focused-diff `j`/`k` navigation, are visibly marked, and are kept in view. `enter` on one opens a local action menu: `r` opens a separate rune-aware reply box indented beneath that message, `a` opens the finite GitHub reaction picker (`1`–`8` choose its displayed reaction), and `d` is shown only after the authenticated viewer identity matches the displayed comment author. GitHub replies can target only a thread’s top-level comment, so `r` on an existing reply automatically uses that root and renders the canonical response in its thread. Reaction totals are compact emoji chips (`👍`, `👎`, `😄`, `😕`, `❤️`, `🎉`, `🚀`, `👀`) in the message box’s bottom border; an explicit non-UTF-8 locale uses the original GitHub token labels instead. Deletion requires a second `enter` confirmation. `esc` always closes the menu or draft without a write. Reply/reaction/deletion requests are preflighted against the frozen PR and update only that tab’s memory-only overlay from the canonical GitHub response; a failed reply retains its draft for retry.
 
-Immediately before posting a comment or submitting a review, pr-review re-reads GitHub metadata and requires the repository identities plus base and head SHAs to equal the frozen comparison. If they differ, it makes no write and asks you to open a new comparison. A successful request uses the frozen head SHA and line targets; GitHub can still mark a comment outdated if the pull request advances after that preflight. Writes are unavailable in `--plain` and `resume --offline`, and no open, resume, refresh, guide action, or background task can submit one.
+Immediately before posting a comment or submitting a review, prui re-reads GitHub metadata and requires the repository identities plus base and head SHAs to equal the frozen comparison. If they differ, it makes no write and asks you to open a new comparison. A successful request uses the frozen head SHA and line targets; GitHub can still mark a comment outdated if the pull request advances after that preflight. Writes are unavailable in `--plain` and `resume --offline`, and no open, resume, refresh, guide action, or background task can submit one.
 
 ## Color
 
@@ -241,16 +241,16 @@ The interactive TUI supports four built-in semantic palettes: `terminal` (the
 default), `light`, `dark`, and `high-contrast`. `terminal` uses the terminal's foreground for routine chrome and ANSI/256-color
 accents for focus, changes, and attention states. Light and dark palettes use
 neutral secondary text; high-contrast retains stronger semantic colors. Choose
-a palette for one invocation with `--theme NAME` on `pr-review`, `open`,
+a palette for one invocation with `--theme NAME` on `prui`, `open`,
 `resume`, or `prs`; an invalid name exits before normal work begins. The flag
 is accepted with `--plain` but has no visible effect. `verify` does not accept
 `--theme` and never reads personal theme configuration.
 
 The optional global configuration file is `theme.json`:
 
-- macOS: `~/Library/Application Support/pr-review/theme.json`
-- Linux: `$XDG_CONFIG_HOME/pr-review/theme.json` when `XDG_CONFIG_HOME` is
-  absolute; otherwise `~/.config/pr-review/theme.json`
+- macOS: `~/Library/Application Support/prui/theme.json`
+- Linux: `$XDG_CONFIG_HOME/prui/theme.json` when `XDG_CONFIG_HOME` is
+  absolute; otherwise `~/.config/prui/theme.json`
 
 It may select a built-in and override the fixed semantic color tokens:
 
@@ -309,8 +309,8 @@ Additional evidence is read only from pinned Git tree/blob objects. It prioritiz
 
 The CLI prints storage location; TUI help shows storage and session ID. Defaults:
 
-- macOS: `~/Library/Application Support/pr-review/storage`
-- Linux: `$XDG_DATA_HOME/pr-review/storage`, or `~/.local/share/pr-review/storage` when unset/non-absolute
+- macOS: `~/Library/Application Support/prui/storage`
+- Linux: `$XDG_DATA_HOME/prui/storage`, or `~/.local/share/prui/storage` when unset/non-absolute
 
 Storage must be outside the reviewed checkout. Old file caches and unrelated nonempty directories are rejected without import or deletion. Symlink roots and unsafe database/control files are rejected. Directories use 0700 and files 0600. Use a local filesystem with working locks and sync semantics; Windows support is deferred.
 
@@ -320,7 +320,7 @@ Progress updates compare the expected generation and immutable snapshot referenc
 
 Stored raw patches may contain sensitive source, including secrets already present in the PR. Storage is permission-restricted, not encrypted; checksums detect corruption, not malicious same-user rewriting. No credentials from `gh`, raw provider transcripts, or telemetry are stored. Sessions remain until explicitly deleted. Reopening a PR uses indexed recency/comparison queries and validates matching candidates newest-first. Opening a large review still materializes its source payload.
 
-`delete ID` atomically removes that session and its progress, reclaiming source and guide payloads only when no session or reusable guide cache references them. Derived sessions remain readable after their parent is deleted. Independent cached guides and repository registrations survive. Deletion has no confirmation prompt and does not guarantee forensic erasure or immediate database-file shrinkage; no automatic VACUUM runs. GitHub state, provider records and backups are unaffected. Normal source-fetch temporary storage is cleaned independently; a kill/power loss before a session exists can leave unassociated `pr-review-*` directories in the OS temp directory.
+`delete ID` atomically removes that session and its progress, reclaiming source and guide payloads only when no session or reusable guide cache references them. Derived sessions remain readable after their parent is deleted. Independent cached guides and repository registrations survive. Deletion has no confirmation prompt and does not guarantee forensic erasure or immediate database-file shrinkage; no automatic VACUUM runs. GitHub state, provider records and backups are unaffected. Normal source-fetch temporary storage is cleaned independently; a kill/power loss before a session exists can leave unassociated `prui-*` directories in the OS temp directory.
 
 Read-only commands require an existing initialized store and do not initialize, repair, or recover it. If a rollback journal requires recovery, reopen through a writable command first. The previous `sessions` directory is left untouched and is not used by this version.
 
@@ -332,7 +332,7 @@ Read-only commands require an existing initialized store and do not initialize, 
 - Fetch credentials come from `gh auth token`, then an environment-only, host-scoped Git HTTP authorization header. No token in argv, diagnostics, or files. Redirects and credential helpers are disabled. `gh`, Git, their installed runtime helpers, and the user's executable search path are trusted; this is not a sandbox against a compromised Git binary or local same-user attacker.
 - Raw tree metadata is NUL-delimited with full object IDs. Path fields and patch artifacts use byte arrays (lossless base64 in JSON). Display escapes controls, invalid UTF-8, and backslashes; raw stored bytes remain unchanged. Symlinks are blob content, never dereferenced. Submodule pointers show OIDs without reading submodule repositories.
 - Every file has a separate metadata unit. Text units contain real Git blob-to-blob hunks: Git's headers name object IDs and use blob mode, while the adjacent file metadata is authoritative for paths, modes, additions, deletions, and renames. No authored/reconstructed patch lines. Binary content uses explicit cards (NUL in the first 8 KiB); Git LFS pointers are reviewed as committed text, not downloaded.
-- Local progress is persisted separately from immutable source content. Temporary metadata/object storage is removed on normal completion or cancellation. SIGKILL, machine failure, or power loss can leave private `pr-review-*` directories under the OS temporary directory; deletion is not guaranteed forensic erasure.
+- Local progress is persisted separately from immutable source content. Temporary metadata/object storage is removed on normal completion or cancellation. SIGKILL, machine failure, or power loss can leave private `prui-*` directories under the OS temporary directory; deletion is not guaranteed forensic erasure.
 
 ## Limits And Incomplete States
 
@@ -347,7 +347,7 @@ Process stdout/stderr are bounded; overrun, timeout, or cancellation kills the p
 From the root of a target checkout, run a live acceptance journey with:
 
 ```sh
-pr-review verify https://github.com/owner/repo/pull/42 --artifacts /tmp/pr-review-artifacts
+prui verify https://github.com/owner/repo/pull/42 --artifacts /tmp/prui-artifacts
 ```
 
 This contacts GitHub through authenticated `gh`, opens a pinned comparison, then
@@ -362,7 +362,7 @@ Opening has a 60-second default timeout; `--open-timeout DURATION` changes it.
 metadata, pin/inventory, and offline startup timing. This live acceptance command
 is intentionally excluded from CI; the underlying journey has synthetic tests.
 
-`pr-review eval-guides SESSION_ID` reads a local session with a read-only store
+`prui eval-guides SESSION_ID` reads a local session with a read-only store
 handle and prints a JSON report. It never contacts GitHub or a provider, reads
 provider credentials, or creates guides. Structural validation is always included;
 synthetic-corpus checks apply only to matching curated fixtures. A session without

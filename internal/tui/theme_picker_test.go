@@ -8,7 +8,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
-	"pr-review/internal/theme"
+	"prui/internal/theme"
 )
 
 func TestThemePickerOpensNavigatesAndCancels(t *testing.T) {

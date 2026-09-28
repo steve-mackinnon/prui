@@ -1,4 +1,4 @@
-module pr-review
+module prui
 
 go 1.26.8
 

@@ -6,8 +6,8 @@ import (
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
-	"pr-review/internal/guide"
-	"pr-review/internal/guideconfig"
+	"prui/internal/guide"
+	"prui/internal/guideconfig"
 )
 
 // SetGuideOptions installs the currently usable, secret-free request identities.

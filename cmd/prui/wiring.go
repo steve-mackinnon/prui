@@ -6,12 +6,12 @@ import (
 	"fmt"
 	"os"
 
-	"pr-review/internal/guide"
-	"pr-review/internal/guideconfig"
-	"pr-review/internal/review"
-	"pr-review/internal/source"
-	"pr-review/internal/theme"
-	"pr-review/internal/tui"
+	"prui/internal/guide"
+	"prui/internal/guideconfig"
+	"prui/internal/review"
+	"prui/internal/source"
+	"prui/internal/theme"
+	"prui/internal/tui"
 )
 
 func (a *application) online(ctx context.Context) error {

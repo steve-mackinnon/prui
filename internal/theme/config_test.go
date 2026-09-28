@@ -14,10 +14,10 @@ func TestConfigPathUsesInjectedPlatformInputs(t *testing.T) {
 		in   ConfigPathInputs
 		want string
 	}{
-		{"macOS", ConfigPathInputs{GOOS: "darwin", Home: "/users/reviewer"}, "/users/reviewer/Library/Application Support/pr-review/theme.json"},
-		{"Linux XDG", ConfigPathInputs{GOOS: "linux", XDGConfigHome: "/var/config"}, "/var/config/pr-review/theme.json"},
-		{"Linux ignores relative XDG", ConfigPathInputs{GOOS: "linux", Home: "/home/reviewer", XDGConfigHome: "config"}, "/home/reviewer/.config/pr-review/theme.json"},
-		{"Linux fallback", ConfigPathInputs{GOOS: "linux", Home: "/home/reviewer"}, "/home/reviewer/.config/pr-review/theme.json"},
+		{"macOS", ConfigPathInputs{GOOS: "darwin", Home: "/users/reviewer"}, "/users/reviewer/Library/Application Support/prui/theme.json"},
+		{"Linux XDG", ConfigPathInputs{GOOS: "linux", XDGConfigHome: "/var/config"}, "/var/config/prui/theme.json"},
+		{"Linux ignores relative XDG", ConfigPathInputs{GOOS: "linux", Home: "/home/reviewer", XDGConfigHome: "config"}, "/home/reviewer/.config/prui/theme.json"},
+		{"Linux fallback", ConfigPathInputs{GOOS: "linux", Home: "/home/reviewer"}, "/home/reviewer/.config/prui/theme.json"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

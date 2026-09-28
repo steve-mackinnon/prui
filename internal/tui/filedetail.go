@@ -1,8 +1,8 @@
 package tui
 
 import (
-	"pr-review/internal/inventory"
-	"pr-review/internal/review"
+	"prui/internal/inventory"
+	"prui/internal/review"
 )
 
 // A single snapshot bounds retained source rows, including the optional split

@@ -11,9 +11,9 @@ import (
 
 // OpenTimingEnvironment enables the private timing record emitted by open for
 // the verifier. It is intentionally unset for normal user-facing commands.
-const OpenTimingEnvironment = "PR_REVIEW_VERIFY_TIMING"
+const OpenTimingEnvironment = "PRUI_VERIFY_TIMING"
 
-const openTimingPrefix = "pr-review-verify-timing:v1 "
+const openTimingPrefix = "prui-verify-timing:v1 "
 
 // OpenTiming is the private process boundary between verify and open. Its
 // durations remain typed until the report is serialized.

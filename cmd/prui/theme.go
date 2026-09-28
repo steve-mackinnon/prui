@@ -4,7 +4,7 @@ import (
 	"os"
 	"runtime"
 
-	"pr-review/internal/theme"
+	"prui/internal/theme"
 )
 
 // resolveThemeForInvocation leaves non-interactive output entirely independent

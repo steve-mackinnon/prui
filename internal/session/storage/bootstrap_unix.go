@@ -78,7 +78,7 @@ func bootstrap(ctx context.Context, root string) (string, error) {
 		if _, err := rand.Read(raw[:]); err != nil {
 			return "", err
 		}
-		o = owner{Application: "pr-review", Version: SchemaVersion, Identity: hex.EncodeToString(raw[:]), Phase: "initializing"}
+		o = owner{Application: "prui", Version: SchemaVersion, Identity: hex.EncodeToString(raw[:]), Phase: "initializing"}
 		if err := writeOwner(root, o, true); err != nil {
 			return "", err
 		}
@@ -253,7 +253,7 @@ func readOwner(root string) (owner, bool, error) {
 		return owner{}, false, err
 	}
 	var o owner
-	if err := json.Unmarshal(b, &o); err != nil || o.Application != "pr-review" || len(o.Identity) != 32 || (o.Phase != "ready" && o.Phase != "initializing") {
+	if err := json.Unmarshal(b, &o); err != nil || o.Application != "prui" || len(o.Identity) != 32 || (o.Phase != "ready" && o.Phase != "initializing") {
 		return owner{}, false, ErrInvalidStore
 	}
 	if o.Version != SchemaVersion {

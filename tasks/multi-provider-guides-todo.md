@@ -64,7 +64,7 @@ OpenAI provider constructor, leaving the old adapter as the CLI default until
 focused parity tests pass.
 
 **Acceptance criteria:**
-- [x] Existing bounded prompt and `pr_review_guides` schema produce the same validated bundle shape and provenance.
+- [x] Existing bounded prompt and `prui_guides` schema produce the same validated bundle shape and provenance.
 - [x] Local fixtures cover successful output, refusal, incomplete output, malformed schema, timeout/cancel, and sanitized provider failure.
 - [x] The current privacy tests still prove withheld paths/content never reach the injected HTTP client; no schema repair or second request occurs.
 
@@ -153,16 +153,16 @@ reuse when provider/model/endpoint/schema selection differs.
 - [x] A cache hit requires the current fingerprint; legacy bundles match only the unchanged OpenAI default without endpoint override.
 - [x] PR-list reopening cannot display a saved or cached guide from another selection; explicit resume still reads that saved session. A new successful guide can replace the existing comparison cache slot.
 
-**Verification:** `go test ./internal/session ./cmd/pr-review -run 'GuideCache|CachedGuide' -count=1`.
+**Verification:** `go test ./internal/session ./cmd/prui -run 'GuideCache|CachedGuide' -count=1`.
 
 **Dependencies:** G-02. **Scope:** Medium, up to 5 files.
 
-**Files likely touched:** `internal/guide/guide.go`, `internal/session/sqlite_guides.go`, `internal/session/sqlite_guides_test.go`, `cmd/pr-review/lifecycle.go`, `cmd/pr-review/lifecycle_test.go`.
+**Files likely touched:** `internal/guide/guide.go`, `internal/session/sqlite_guides.go`, `internal/session/sqlite_guides_test.go`, `cmd/prui/lifecycle.go`, `cmd/prui/lifecycle_test.go`.
 
 ## G-09: Wire selection through the interactive guide action
 
 **Description:** Connect the one resolved selection to consent, cache lookup,
-and analyzer construction in `cmd/pr-review`; make the offline guard precede
+and analyzer construction in `cmd/prui`; make the offline guard precede
 credential access.
 
 **Acceptance criteria:**
@@ -170,11 +170,11 @@ credential access.
 - [x] Invalid config or missing credential leaves the current review intact and sends nothing; offline mode reads no provider key or client.
 - [x] PR-list opens may reuse only a matching cached guide, while `open`, `resume`, `--plain`, and `verify` never auto-generate.
 
-**Verification:** `go test -race -count=1 ./cmd/pr-review ./internal/tui`; `go build ./...`.
+**Verification:** `go test -race -count=1 ./cmd/prui ./internal/tui`; `go build ./...`.
 
 **Dependencies:** G-04, G-05A, G-05B, G-06, G-07, G-08. **Scope:** Medium, up to 4 files.
 
-**Files likely touched:** `cmd/pr-review/wiring.go`, `cmd/pr-review/wiring_test.go`, `cmd/pr-review/guide_consent_test.go`, `cmd/pr-review/lifecycle_test.go`.
+**Files likely touched:** `cmd/prui/wiring.go`, `cmd/prui/wiring_test.go`, `cmd/prui/guide_consent_test.go`, `cmd/prui/lifecycle_test.go`.
 
 ## Checkpoint C: Complete configured path
 
@@ -207,7 +207,7 @@ after the new path is the CLI default and its behavioral coverage is retained.
 - [x] Existing privacy, failure, and schema tests remain covered by the Fantasy path before old tests are removed.
 - [x] Prompt/schema definitions have one source of truth and focused guide tests remain green.
 
-**Verification:** `go test -race -count=1 ./internal/guide ./cmd/pr-review`; `rg -n 'NewOpenAI|OpenAIOptions' internal cmd`.
+**Verification:** `go test -race -count=1 ./internal/guide ./cmd/prui`; `rg -n 'NewOpenAI|OpenAIOptions' internal cmd`.
 
 **Dependencies:** G-10. **Scope:** Small, 2 files.
 

@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"pr-review/internal/session/storage"
-	"pr-review/internal/source"
+	"prui/internal/session/storage"
+	"prui/internal/source"
 )
 
 func lookupStore(t *testing.T) *Store {

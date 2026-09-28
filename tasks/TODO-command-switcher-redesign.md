@@ -88,5 +88,5 @@ terminal width.
 - `internal/tui/render.go`
 - `internal/tui/bindings.go`
 - `internal/tui/*_test.go`
-- `cmd/pr-review/testdata/pty_smoke.py`
+- `cmd/prui/testdata/pty_smoke.py`
 - `README.md`

@@ -115,18 +115,18 @@ diagnostics through existing safe notification/stderr paths.
 
 **Verification:**
 
-- [ ] `go test ./cmd/pr-review -run 'Test(Options|Theme)' -count=1`
+- [ ] `go test ./cmd/prui -run 'Test(Options|Theme)' -count=1`
 - [ ] `go test ./internal/verify -count=1`
-- [ ] `go build ./cmd/pr-review`
+- [ ] `go build ./cmd/prui`
 
 **Dependencies:** Tasks 2–3.
 
 **Files likely touched:**
 
-- `cmd/pr-review/options.go`
-- `cmd/pr-review/main.go`
-- `cmd/pr-review/wiring.go`
-- `cmd/pr-review/{options,wiring}_test.go`
+- `cmd/prui/options.go`
+- `cmd/prui/main.go`
+- `cmd/prui/wiring.go`
+- `cmd/prui/{options,wiring}_test.go`
 - `internal/verify/*_test.go`
 
 **Estimated scope:** Medium (5 files).

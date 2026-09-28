@@ -4,9 +4,9 @@
 +package guide
 +
 +import (
-+	reviewcontext "pr-review/internal/context"
-+	"pr-review/internal/inventory"
-+	"pr-review/internal/privacy"
++	reviewcontext "prui/internal/context"
++	"prui/internal/inventory"
++	"prui/internal/privacy"
 +	"testing"
 +)
 +
@@ -39,15 +39,15 @@
 +	}
 +}
 --- /dev/null
-+++ b/cmd/pr-review/audit_probe_test.go
++++ b/cmd/prui/audit_probe_test.go
 @@ -0,0 +1,40 @@
 +package main
 +
 +import (
 +	"context"
-+	"pr-review/internal/session"
-+	"pr-review/internal/source"
-+	"pr-review/internal/tui"
++	"prui/internal/session"
++	"prui/internal/source"
++	"prui/internal/tui"
 +	"runtime"
 +	"testing"
 +)

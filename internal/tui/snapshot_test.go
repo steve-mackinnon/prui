@@ -13,11 +13,11 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
-	"pr-review/internal/guide"
-	"pr-review/internal/inventory"
-	"pr-review/internal/review"
-	"pr-review/internal/session"
-	"pr-review/internal/source"
+	"prui/internal/guide"
+	"prui/internal/inventory"
+	"prui/internal/review"
+	"prui/internal/session"
+	"prui/internal/source"
 )
 
 var updateScreens = flag.Bool("update-golden", false, "explicitly replace TUI screen baselines")

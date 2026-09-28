@@ -11,7 +11,7 @@ import (
 	"strconv"
 	"strings"
 
-	"pr-review/internal/source"
+	"prui/internal/source"
 )
 
 type Kind string

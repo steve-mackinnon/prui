@@ -2,12 +2,12 @@ package review
 
 import (
 	"context"
-	reviewcontext "pr-review/internal/context"
-	"pr-review/internal/guide"
-	"pr-review/internal/inventory"
-	"pr-review/internal/privacy"
-	"pr-review/internal/session"
-	"pr-review/internal/source"
+	reviewcontext "prui/internal/context"
+	"prui/internal/guide"
+	"prui/internal/inventory"
+	"prui/internal/privacy"
+	"prui/internal/session"
+	"prui/internal/source"
 	"time"
 )
 

@@ -42,7 +42,7 @@ func ConfigPath(in PathInputs) (string, error) {
 		}
 		root = filepath.Join(in.Home, ".config")
 	}
-	return filepath.Join(root, "pr-review", "config.json"), nil
+	return filepath.Join(root, "prui", "config.json"), nil
 }
 
 // Selection is the validated identity of one model invocation. It contains no

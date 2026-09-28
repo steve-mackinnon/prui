@@ -13,7 +13,7 @@ evaluation approach without reusing its saved-plan schema for guide bundles.
 
 ## Command Contract
 
-`pr-review eval-guides SESSION_ID` evaluates the guides already stored in a
+`prui eval-guides SESSION_ID` evaluates the guides already stored in a
 session and emits JSON. Its report has one of `not_available`, `passed`, or
 `failed` and contains structural checks plus named semantic fixture results when
 a selected corpus applies. A live verifier report may link this follow-up

@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"pr-review/internal/session"
+	"prui/internal/session"
 )
 
 func temporaryDefaultStore(t *testing.T, home string) string {

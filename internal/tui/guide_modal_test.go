@@ -7,8 +7,8 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
-	"pr-review/internal/guideconfig"
-	"pr-review/internal/review"
+	"prui/internal/guideconfig"
+	"prui/internal/review"
 )
 
 func TestGuideModalSelectsExactProviderAndModel(t *testing.T) {

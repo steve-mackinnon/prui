@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"pr-review/internal/inventory"
-	"pr-review/internal/review"
+	"prui/internal/inventory"
+	"prui/internal/review"
 )
 
 func largeSession(files, units int) *review.Session {

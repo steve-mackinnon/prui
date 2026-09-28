@@ -8,9 +8,9 @@ import (
 	"strings"
 	"testing"
 
-	"pr-review/internal/guide"
-	"pr-review/internal/source"
-	"pr-review/internal/testutil"
+	"prui/internal/guide"
+	"prui/internal/source"
+	"prui/internal/testutil"
 )
 
 type FixtureGitHub struct{ Value source.Metadata }

@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/charmbracelet/x/ansi"
-	"pr-review/internal/guide"
+	"prui/internal/guide"
 )
 
 func TestQuietGuideViewportShowsSelectedLowerExplanation(t *testing.T) {

@@ -4,9 +4,9 @@ import (
 	"context"
 	"testing"
 
-	reviewcontext "pr-review/internal/context"
-	"pr-review/internal/inventory"
-	"pr-review/internal/privacy"
+	reviewcontext "prui/internal/context"
+	"prui/internal/inventory"
+	"prui/internal/privacy"
 )
 
 const testKey = "sk-test-secret-value"

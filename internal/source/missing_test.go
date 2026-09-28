@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"pr-review/internal/testutil"
+	"prui/internal/testutil"
 )
 
 func TestPinnedMissingBlobFetch(t *testing.T) {

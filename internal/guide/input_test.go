@@ -7,9 +7,9 @@ import (
 	"strings"
 	"testing"
 
-	reviewcontext "pr-review/internal/context"
-	"pr-review/internal/inventory"
-	"pr-review/internal/privacy"
+	reviewcontext "prui/internal/context"
+	"prui/internal/inventory"
+	"prui/internal/privacy"
 )
 
 // builder assembles a frozen-looking inventory without Git, so input policy and

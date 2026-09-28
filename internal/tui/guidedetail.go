@@ -1,9 +1,9 @@
 package tui
 
 import (
-	"pr-review/internal/guide"
-	"pr-review/internal/inventory"
-	"pr-review/internal/review"
+	"prui/internal/guide"
+	"prui/internal/inventory"
+	"prui/internal/review"
 )
 
 // guideDetail is the selected guide's diff assembled from its ordered section

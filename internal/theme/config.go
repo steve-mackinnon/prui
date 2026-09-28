@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	configDirectory = "pr-review"
+	configDirectory = "prui"
 	configFilename  = "theme.json"
 )
 

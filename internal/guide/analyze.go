@@ -6,14 +6,14 @@ import (
 	"fmt"
 	"strings"
 
-	"pr-review/internal/inventory"
+	"prui/internal/inventory"
 )
 
 const (
 	// PromptVersion and SchemaName are provenance: a stored bundle states the
 	// contract that produced it, so guides from different prompts stay legible.
 	PromptVersion = "guides-v2"
-	SchemaName    = "pr_review_guides"
+	SchemaName    = "prui_guides"
 
 	maxItems     = 64
 	maxSections  = 64

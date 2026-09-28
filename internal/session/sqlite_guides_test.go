@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"pr-review/internal/guide"
-	"pr-review/internal/session/storage"
+	"prui/internal/guide"
+	"prui/internal/session/storage"
 )
 
 func sqliteGuideStore(t *testing.T) (*Store, string) {

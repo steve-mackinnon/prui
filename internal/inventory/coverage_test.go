@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"pr-review/internal/source"
-	"pr-review/internal/testutil"
+	"prui/internal/source"
+	"prui/internal/testutil"
 )
 
 func TestInventoryEmptyDeletedAndSeparatedHunks(t *testing.T) {

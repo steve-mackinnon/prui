@@ -1,4 +1,4 @@
-# pr-review
+# prui
 
 Review GitHub pull requests in your terminal, with frozen diffs, durable reading
 progress, inline comments, and explicit review submission. Optional AI guides
@@ -12,7 +12,7 @@ Requires macOS or Linux, Go **1.26.8+** to build, Git, and an authenticated
 From this repository's root, install the binary:
 
 ```sh
-go install ./cmd/pr-review
+go install ./cmd/prui
 ```
 
 Ensure your Go binary directory (`go env GOBIN`, or `$(go env GOPATH)/bin` when
@@ -22,16 +22,16 @@ review**:
 ```sh
 gh auth login
 cd /path/to/your/checkout
-pr-review                                      # browse this checkout's open PRs
+prui                                      # browse this checkout's open PRs
 ```
 
 The launcher recognizes standard GitHub HTTPS/SSH `origin` remotes. For a
-checkout without a supported origin, use `pr-review open <PR-URL>`. Select a PR
+checkout without a supported origin, use `prui open <PR-URL>`. Select a PR
 from the list and press `ctrl+p` to switch PRs or `s` to browse saved sessions.
 Reopening a cached PR preserves reading progress. Fetching and reviewing do not
 switch branches or modify the checkout.
 
-Use `pr-review --help` for command syntax and the
+Use `prui --help` for command syntax and the
 [CLI reference](docs/REFERENCE.md#command-line) for less common tasks such as
 plain output, offline review, and deletion. `--plain` is automatic when input
 or output is redirected or `TERM=dumb`; it emits escaped, uncolored text without
@@ -113,9 +113,9 @@ configuration file, OpenAI's default model is `gpt-5.6-terra`, and
 `OPENAI_BASE_URL` can override its destination. Use only an endpoint you trust
 with the source and API key.
 
-To bring your own model, create `~/.config/pr-review/config.json` on macOS or
+To bring your own model, create `~/.config/prui/config.json` on macOS or
 Linux. If `XDG_CONFIG_HOME` is an absolute path, use
-`$XDG_CONFIG_HOME/pr-review/config.json` instead. For example:
+`$XDG_CONFIG_HOME/prui/config.json` instead. For example:
 
 ```json
 {
@@ -165,8 +165,8 @@ executable search path are trusted.
 Snapshots contain raw source and may contain secrets already present in the PR.
 They are permission-restricted, **not encrypted**, and retained until deleted:
 
-- macOS: `~/Library/Application Support/pr-review/storage`
-- Linux: `$XDG_DATA_HOME/pr-review/storage`, or `~/.local/share/pr-review/storage`
+- macOS: `~/Library/Application Support/prui/storage`
+- Linux: `$XDG_DATA_HOME/prui/storage`, or `~/.local/share/prui/storage`
 
 SQLite runs inside the application; no SQLite installation or database service is
 needed. Independent app processes can open the store, with transactional writes
@@ -207,7 +207,7 @@ CI fetches complete history for that check. Dependabot tracks Go module and
 GitHub Action updates weekly; CI action references are pinned to commit SHAs.
 
 For changes, add a focused regression test, preserve the source/privacy
-invariants, and run all four checks. Manual live acceptance uses `pr-review verify`;
+invariants, and run all four checks. Manual live acceptance uses `prui verify`;
 its requirements are in the [reference](docs/REFERENCE.md#acceptance-and-guide-evaluation).
 
 ## License

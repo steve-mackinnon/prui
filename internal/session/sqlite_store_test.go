@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"pr-review/internal/session/storage"
+	"prui/internal/session/storage"
 )
 
 func newSQLiteStore(db *storage.DB) *Store { return &Store{db: db} }

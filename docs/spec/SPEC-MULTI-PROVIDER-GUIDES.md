@@ -46,8 +46,8 @@ Sources: [Fantasy repository](https://github.com/charmbracelet/fantasy),
 
 ## User configuration
 
-Read `config.json` from `$XDG_CONFIG_HOME/pr-review/config.json` when
-`XDG_CONFIG_HOME` is absolute, otherwise `~/.config/pr-review/config.json`.
+Read `config.json` from `$XDG_CONFIG_HOME/prui/config.json` when
+`XDG_CONFIG_HOME` is absolute, otherwise `~/.config/prui/config.json`.
 This rule applies on both macOS and Linux. It follows the convention used by
 terminal-first tools such as Fish, GitHub CLI, and OpenCode. The file is
 separate from the session store and is never read from the reviewed checkout.
@@ -167,9 +167,9 @@ is still required for every new upload. A cache hit makes no provider call.
 | --- | --- |
 | `internal/guide` | Fantasy-backed analyzer; retain input, prompt, and output validation. |
 | `internal/guideconfig` | Read and validate global provider/model selection, endpoint, and key-variable name. |
-| `cmd/pr-review/wiring.go` | Resolve one selection, inject analyzer factory and consent identity. |
+| `cmd/prui/wiring.go` | Resolve one selection, inject analyzer factory and consent identity. |
 | `internal/tui` | Show selected provider, model, destination, and accurate retention wording. |
-| `internal/session` and `cmd/pr-review/lifecycle.go` | Compare selection fingerprint before cache reuse; keep old sessions readable. |
+| `internal/session` and `cmd/prui/lifecycle.go` | Compare selection fingerprint before cache reuse; keep old sessions readable. |
 | `CONSTRAINTS.md`, `README.md`, `docs/REFERENCE.md` | Replace OpenAI-only guide rules and explain configuration. |
 
 Implement in this order: pin and test Fantasy with local HTTP fixtures; add
@@ -200,7 +200,7 @@ a selection change. Existing privacy and inventory tests remain green.
 Repository checks:
 
 ```sh
-go test ./internal/guide/... ./internal/guideconfig/... ./cmd/pr-review/... ./internal/session/... ./internal/tui/...
+go test ./internal/guide/... ./internal/guideconfig/... ./cmd/prui/... ./internal/session/... ./internal/tui/...
 go vet ./...
 go test -race -count=1 ./...
 go build ./...

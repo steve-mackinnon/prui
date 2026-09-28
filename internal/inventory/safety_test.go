@@ -9,7 +9,7 @@ import (
 	"reflect"
 	"testing"
 
-	"pr-review/internal/source"
+	"prui/internal/source"
 )
 
 func TestSafetyHostileRepository(t *testing.T) {

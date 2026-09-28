@@ -1,4 +1,4 @@
-"""Fixed PTY journey for pr-review verify. Python standard library only."""
+"""Fixed PTY journey for prui verify. Python standard library only."""
 import base64
 import codecs
 import errno

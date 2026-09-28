@@ -9,19 +9,19 @@ import (
 	"strings"
 	"time"
 
-	"pr-review/internal/source"
-	"pr-review/internal/theme"
+	"prui/internal/source"
+	"prui/internal/theme"
 )
 
-const usage = `pr-review
-pr-review [--theme NAME]
-pr-review open <PR-URL-or-number> [--github-repo owner/repo] [--plain] [--theme NAME]
-pr-review prs [owner/repo] [--plain] [--theme NAME]
-pr-review sessions
-pr-review resume <id> [--offline] [--plain] [--new] [--repo <checkout>] [--theme NAME]
-pr-review eval-guides <id>
-pr-review delete <id>
-pr-review verify <PR-URL-or-number> --artifacts <output-directory> [--github-repo owner/repo] [--measure-runs N] [--open-timeout DURATION]
+const usage = `prui
+prui [--theme NAME]
+prui open <PR-URL-or-number> [--github-repo owner/repo] [--plain] [--theme NAME]
+prui prs [owner/repo] [--plain] [--theme NAME]
+prui sessions
+prui resume <id> [--offline] [--plain] [--new] [--repo <checkout>] [--theme NAME]
+prui eval-guides <id>
+prui delete <id>
+prui verify <PR-URL-or-number> --artifacts <output-directory> [--github-repo owner/repo] [--measure-runs N] [--open-timeout DURATION]
 Resume checks metadata unless --offline. --new creates an unreviewed comparison; retains old session.
 Open and verify must be launched from the root of the local repository checkout.`
 

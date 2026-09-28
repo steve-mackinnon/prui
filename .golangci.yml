@@ -33,7 +33,7 @@ linters:
           - gosec
       # usage is printed verbatim to the terminal, so it deliberately contains
       # punctuation and newlines rather than being a conventional error string.
-      - path: cmd/pr-review/options\.go
+      - path: cmd/prui/options\.go
         text: "ST1005:"
         linters:
           - staticcheck

@@ -162,7 +162,7 @@ README.md                      reviewer-visible split target behavior
 ```sh
 go test ./internal/tui -run 'Test(SideBySide|Comment|Guide|Raw|Color|Snapshot)' -count=1
 go test -race ./internal/tui -count=1
-go test ./cmd/pr-review -count=1
+go test ./cmd/prui -count=1
 ./scripts/verify.sh
 git diff --check
 ```

@@ -11,7 +11,7 @@ import (
 	"charm.land/lipgloss/v2"
 	uv "github.com/charmbracelet/ultraviolet"
 	"github.com/charmbracelet/x/ansi"
-	"pr-review/internal/review"
+	"prui/internal/review"
 )
 
 func TestLoadingModalRendersBarAboveEscapedNotice(t *testing.T) {

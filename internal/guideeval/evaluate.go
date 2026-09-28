@@ -12,8 +12,8 @@ import (
 	"sort"
 	"strings"
 
-	"pr-review/internal/guide"
-	"pr-review/internal/inventory"
+	"prui/internal/guide"
+	"prui/internal/inventory"
 )
 
 // curatedCorpus is intentionally synthetic. It is embedded so command users

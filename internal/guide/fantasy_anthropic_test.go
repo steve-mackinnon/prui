@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	reviewcontext "pr-review/internal/context"
-	"pr-review/internal/privacy"
+	reviewcontext "prui/internal/context"
+	"prui/internal/privacy"
 )
 
 func TestFantasyAnthropicGeneratesOneStructuredRequest(t *testing.T) {

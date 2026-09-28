@@ -14,11 +14,11 @@ import (
 func TestRunJourneyOpensThenMarksAndResumesWithBoundedArtifacts(t *testing.T) {
 	python := requirePython(t)
 	root := t.TempDir()
-	fixture, err := os.ReadFile(filepath.Join("testdata", "fake_pr_review.py"))
+	fixture, err := os.ReadFile(filepath.Join("testdata", "fake_prui.py"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	binary := filepath.Join(root, "fake-pr-review")
+	binary := filepath.Join(root, "fake-prui")
 	if err := os.WriteFile(binary, fixture, 0700); err != nil {
 		t.Fatal(err)
 	}
@@ -40,7 +40,7 @@ func TestRunJourneyOpensThenMarksAndResumesWithBoundedArtifacts(t *testing.T) {
 		Runs:        2,
 		Python:      python,
 		Timeout:     3 * time.Second,
-		Environment: append(os.Environ(), "TERM=dumb", "PR_REVIEW_EXPECT_CWD="+root),
+		Environment: append(os.Environ(), "TERM=dumb", "PRUI_EXPECT_CWD="+root),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -93,11 +93,11 @@ func TestHarnessEvidencePreservesSubMillisecondProcessStart(t *testing.T) {
 
 func TestRunOpenUsesItsConfiguredTimeoutInsteadOfThePTYTimeout(t *testing.T) {
 	root := t.TempDir()
-	fixture, err := os.ReadFile(filepath.Join("testdata", "fake_pr_review.py"))
+	fixture, err := os.ReadFile(filepath.Join("testdata", "fake_prui.py"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	binary := filepath.Join(root, "fake-pr-review")
+	binary := filepath.Join(root, "fake-prui")
 	if err := os.WriteFile(binary, fixture, 0700); err != nil {
 		t.Fatal(err)
 	}
@@ -109,7 +109,7 @@ func TestRunOpenUsesItsConfiguredTimeoutInsteadOfThePTYTimeout(t *testing.T) {
 		HomeDir:     root,
 		Timeout:     10 * time.Millisecond,
 		OpenTimeout: time.Second,
-		Environment: append(os.Environ(), "PR_REVIEW_FAKE_OPEN_DELAY_SECONDS=0.05", "PR_REVIEW_EXPECT_CWD="+root),
+		Environment: append(os.Environ(), "PRUI_FAKE_OPEN_DELAY_SECONDS=0.05", "PRUI_EXPECT_CWD="+root),
 	})
 	if err != nil {
 		t.Fatalf("runOpen returned error with its configured timeout: %v", err)
@@ -122,11 +122,11 @@ func TestRunOpenUsesItsConfiguredTimeoutInsteadOfThePTYTimeout(t *testing.T) {
 func TestRunJourneyReportsSanitizedOpenFailureStageAndElapsedTime(t *testing.T) {
 	python := requirePython(t)
 	root := t.TempDir()
-	fixture, err := os.ReadFile(filepath.Join("testdata", "fake_pr_review.py"))
+	fixture, err := os.ReadFile(filepath.Join("testdata", "fake_prui.py"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	binary := filepath.Join(root, "fake-pr-review")
+	binary := filepath.Join(root, "fake-prui")
 	if err := os.WriteFile(binary, fixture, 0700); err != nil {
 		t.Fatal(err)
 	}
@@ -148,7 +148,7 @@ func TestRunJourneyReportsSanitizedOpenFailureStageAndElapsedTime(t *testing.T) 
 		Runs:        1,
 		Python:      python,
 		OpenTimeout: 10 * time.Millisecond,
-		Environment: append(os.Environ(), "PR_REVIEW_FAKE_OPEN_DELAY_SECONDS=0.05", "PR_REVIEW_EXPECT_CWD="+root),
+		Environment: append(os.Environ(), "PRUI_FAKE_OPEN_DELAY_SECONDS=0.05", "PRUI_EXPECT_CWD="+root),
 	})
 	if err == nil {
 		t.Fatal("RunJourney succeeded despite the open timeout")
@@ -163,7 +163,7 @@ func TestRunJourneyReportsSanitizedOpenFailureStageAndElapsedTime(t *testing.T) 
 	if marshalErr != nil {
 		t.Fatal(marshalErr)
 	}
-	if !strings.Contains(string(reportJSON), `"failure":{"stage":"open","elapsed_ms":`) || strings.Contains(string(reportJSON), "PR_REVIEW_FAKE_OPEN_DELAY_SECONDS") {
+	if !strings.Contains(string(reportJSON), `"failure":{"stage":"open","elapsed_ms":`) || strings.Contains(string(reportJSON), "PRUI_FAKE_OPEN_DELAY_SECONDS") {
 		t.Fatalf("report JSON did not contain sanitized diagnostics: %s", reportJSON)
 	}
 }

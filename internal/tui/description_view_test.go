@@ -8,8 +8,8 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
-	"pr-review/internal/session"
-	"pr-review/internal/theme"
+	"prui/internal/session"
+	"prui/internal/theme"
 )
 
 func TestDescriptionViewRendersFrozenEscapedTextAndProvenance(t *testing.T) {

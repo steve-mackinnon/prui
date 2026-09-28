@@ -9,10 +9,10 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
-	"pr-review/internal/guideconfig"
-	"pr-review/internal/review"
-	"pr-review/internal/session"
-	"pr-review/internal/source"
+	"prui/internal/guideconfig"
+	"prui/internal/review"
+	"prui/internal/session"
+	"prui/internal/source"
 )
 
 type FreshLoader func(context.Context, *review.Session, func(string)) (*review.Session, error)

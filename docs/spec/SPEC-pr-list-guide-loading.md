@@ -22,8 +22,8 @@ module. No dependency is added.
 ## Commands
 
 ```sh
-go test ./internal/tui ./cmd/pr-review -count=1
-go test -race ./internal/tui ./cmd/pr-review -count=1
+go test ./internal/tui ./cmd/prui -count=1
+go test -race ./internal/tui ./cmd/prui -count=1
 go vet ./...
 go test -race -count=1 ./...
 go build ./...
@@ -34,9 +34,9 @@ git diff --check
 ## Project Structure
 
 ```text
-cmd/pr-review/lifecycle.go         open, cache-or-generate orchestration
-cmd/pr-review/wiring.go            lifecycle wiring and analyzer creation
-cmd/pr-review/*_test.go            command lifecycle tests
+cmd/prui/lifecycle.go         open, cache-or-generate orchestration
+cmd/prui/wiring.go            lifecycle wiring and analyzer creation
+cmd/prui/*_test.go            command lifecycle tests
 internal/tui/{model,lifecycle}.go  tab-aware async guide resolution/loading
 internal/tui/*_test.go             selection, cancellation, and late-result tests
 internal/tui/{render,bindings}.go  loading copy and manual-retry wording

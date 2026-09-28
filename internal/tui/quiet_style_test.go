@@ -7,7 +7,7 @@ import (
 
 	"github.com/charmbracelet/colorprofile"
 	"github.com/charmbracelet/x/ansi"
-	"pr-review/internal/theme"
+	"prui/internal/theme"
 )
 
 // Personal color overrides must not erase keyboard focus, even when every

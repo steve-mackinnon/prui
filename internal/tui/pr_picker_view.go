@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"pr-review/internal/source"
+	"prui/internal/source"
 )
 
 func (m *Model) pullRequestPickerView() string {

@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	reviewcontext "pr-review/internal/context"
-	"pr-review/internal/inventory"
-	"pr-review/internal/privacy"
+	reviewcontext "prui/internal/context"
+	"prui/internal/inventory"
+	"prui/internal/privacy"
 )
 
 // fake is a deterministic analyzer: the grouping, coverage, and failure

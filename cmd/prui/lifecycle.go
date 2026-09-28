@@ -12,13 +12,13 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"pr-review/internal/guide"
-	"pr-review/internal/guideconfig"
-	"pr-review/internal/review"
-	"pr-review/internal/session"
-	"pr-review/internal/source"
-	"pr-review/internal/tui"
-	"pr-review/internal/verify"
+	"prui/internal/guide"
+	"prui/internal/guideconfig"
+	"prui/internal/review"
+	"prui/internal/session"
+	"prui/internal/source"
+	"prui/internal/tui"
+	"prui/internal/verify"
 )
 
 type application struct {

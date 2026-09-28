@@ -14,7 +14,7 @@ Implemented. This document records the approved scope and behavior.
 
 Let reviewers choose an intentional visual palette without making a terminal
 theme, terminal color capability, or color itself a requirement for using
-`pr-review`.
+`prui`.
 
 Today the interactive TUI maps semantic roles to mostly ANSI palette entries;
 the user’s terminal determines what ANSI names such as `green` and `red` look
@@ -54,9 +54,9 @@ Use a new app-owned configuration directory, never the reviewed checkout:
 
 | Platform | File |
 | --- | --- |
-| macOS | `~/Library/Application Support/pr-review/theme.json` |
-| Linux with absolute `XDG_CONFIG_HOME` | `$XDG_CONFIG_HOME/pr-review/theme.json` |
-| Linux otherwise | `~/.config/pr-review/theme.json` |
+| macOS | `~/Library/Application Support/prui/theme.json` |
+| Linux with absolute `XDG_CONFIG_HOME` | `$XDG_CONFIG_HOME/prui/theme.json` |
+| Linux otherwise | `~/.config/prui/theme.json` |
 
 Use JSON parsed by Go's standard library so the feature adds no dependency.
 The file is optional; a missing file is not an error. It contains only theme
@@ -188,7 +188,7 @@ prints user-controlled configuration bytes.
 
 ```sh
 go test ./internal/tui -run 'Test(Theme|Color|Style|Snapshot)' -count=1
-go test ./cmd/pr-review -run 'Test(Options|Theme)' -count=1
+go test ./cmd/prui -run 'Test(Options|Theme)' -count=1
 go test -race -count=1 ./...
 go vet ./...
 go build ./...
@@ -202,9 +202,9 @@ internal/tui/theme.go          theme tokens, built-ins, validation, palette cons
 internal/tui/style.go          semantic line classes and style application
 internal/tui/theme_test.go     palette/token, override, and colorless invariants
 internal/tui/theme_picker.go   transient picker state, key handling, and modal render
-cmd/pr-review/options.go       --theme parsing and command validation
-cmd/pr-review/theme.go         config discovery/loading and startup warnings
-cmd/pr-review/*_test.go        CLI precedence, malformed config, and verify isolation
+cmd/prui/options.go       --theme parsing and command validation
+cmd/prui/theme.go         config discovery/loading and startup warnings
+cmd/prui/*_test.go        CLI precedence, malformed config, and verify isolation
 README.md                      theme selection, schema, paths, and accessibility behavior
 CONSTRAINTS.md                 theme-specific preservation of the color contract
 ```
@@ -271,7 +271,7 @@ continues after escaping, clipping, and scroll projection.
 
 ## Success Criteria
 
-- A reviewer can run `pr-review --theme light`, `dark`, `high-contrast`, or
+- A reviewer can run `prui --theme light`, `dark`, `high-contrast`, or
   `terminal`; `terminal` remains the default and visually preserves the current
   palette.
 - A valid optional `theme.json` can select a built-in and override only named

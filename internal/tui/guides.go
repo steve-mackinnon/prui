@@ -7,9 +7,9 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
-	"pr-review/internal/guide"
-	"pr-review/internal/inventory"
-	"pr-review/internal/review"
+	"prui/internal/guide"
+	"prui/internal/inventory"
+	"prui/internal/review"
 )
 
 type rowKind int

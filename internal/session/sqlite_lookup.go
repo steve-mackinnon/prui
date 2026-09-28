@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"time"
 
-	"pr-review/internal/session/storage"
-	"pr-review/internal/source"
+	"prui/internal/session/storage"
+	"prui/internal/source"
 )
 
 // Entry is a session summary that does not load source payloads.

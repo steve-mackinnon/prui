@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"pr-review/internal/verify"
+	"prui/internal/verify"
 )
 
 func TestWriteVerifyReportAddsItsRelativeArtifactPath(t *testing.T) {

@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"io"
 
-	reviewcontext "pr-review/internal/context"
-	"pr-review/internal/inventory"
+	reviewcontext "prui/internal/context"
+	"prui/internal/inventory"
 )
 
 const sqlitePayloadVersion = 1

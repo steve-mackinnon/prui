@@ -10,12 +10,12 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
-	"pr-review/internal/guideconfig"
-	"pr-review/internal/inventory"
-	"pr-review/internal/review"
-	"pr-review/internal/session"
-	"pr-review/internal/source"
-	"pr-review/internal/theme"
+	"prui/internal/guideconfig"
+	"prui/internal/inventory"
+	"prui/internal/review"
+	"prui/internal/session"
+	"prui/internal/source"
+	"prui/internal/theme"
 )
 
 type Loader func(context.Context, func(string)) (*review.Session, error)

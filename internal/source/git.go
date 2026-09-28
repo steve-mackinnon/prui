@@ -53,7 +53,7 @@ func NewView(ctx context.Context, checkout string, r Runner, l Limits) (v *View,
 	if err != nil {
 		return nil, err
 	}
-	dir, err := os.MkdirTemp("", "pr-review-")
+	dir, err := os.MkdirTemp("", "prui-")
 	if err != nil {
 		return nil, err
 	}

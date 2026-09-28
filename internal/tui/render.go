@@ -8,10 +8,10 @@ import (
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
-	"pr-review/internal/guide"
-	"pr-review/internal/inventory"
-	"pr-review/internal/review"
-	"pr-review/internal/source"
+	"prui/internal/guide"
+	"prui/internal/inventory"
+	"prui/internal/review"
+	"prui/internal/source"
 )
 
 func Escape(s string) string { q := strconv.Quote(s); return q[1 : len(q)-1] }

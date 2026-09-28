@@ -38,7 +38,7 @@ of a model picker and its single fixed selection for the entire interactive run.
 
 - Go 1.26.8; Bubble Tea v2, Lip Gloss v2, and the existing ANSI-safe TUI
   rendering helpers.
-- Focused tests: `go test ./internal/tui/... ./internal/guideconfig/... ./cmd/pr-review/...`
+- Focused tests: `go test ./internal/tui/... ./internal/guideconfig/... ./cmd/prui/...`
 - Project checks: `go vet ./...`, `go test -race -count=1 ./...`,
   `go build ./...`, and `git diff --check`.
 
@@ -48,8 +48,8 @@ of a model picker and its single fixed selection for the entire interactive run.
 | --- | --- |
 | `internal/tui` | Modal state, keyboard handling, consent copy, overlay rendering, and narrow-viewport fallback. |
 | `internal/guideconfig` | Secret-free provider availability, selection validation, and app-owned remembered preference. |
-| `cmd/pr-review/wiring.go` | Supply candidates to the TUI and bind one confirmed selection to the guide request. |
-| `cmd/pr-review/lifecycle.go` | Stamp the confirmed selection fingerprint on generated guides. |
+| `cmd/prui/wiring.go` | Supply candidates to the TUI and bind one confirmed selection to the guide request. |
+| `cmd/prui/lifecycle.go` | Stamp the confirmed selection fingerprint on generated guides. |
 | `docs/REFERENCE.md`, `README.md`, `CONSTRAINTS.md` | Document the updated interaction and selection rules. |
 
 ## Interaction contract

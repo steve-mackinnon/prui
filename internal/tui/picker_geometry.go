@@ -1,6 +1,6 @@
 package tui
 
-import "pr-review/internal/theme"
+import "prui/internal/theme"
 
 // pickerWindow is the exact visible result interval, after chrome and optional
 // selected-result details have claimed their rows. Bounds are half-open.

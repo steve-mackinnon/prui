@@ -3,7 +3,7 @@
 ## Objective
 
 Provide an explicit, agent-operated acceptance command that opens a real GitHub
-pull request through the shipped `pr-review` binary, exercises a small terminal
+pull request through the shipped `prui` binary, exercises a small terminal
 journey, and reports a concise verdict suitable for a user reading Codex on a
 phone. It establishes that the production source-opening path, TUI navigation,
 durable local progress, and resume behavior compose correctly against a pinned
@@ -25,7 +25,7 @@ The proposed public command is:
 
 ```sh
 cd /absolute/checkout
-pr-review verify PR-URL --artifacts /absolute/output-directory
+prui verify PR-URL --artifacts /absolute/output-directory
 ```
 
 Required inputs:
@@ -82,10 +82,10 @@ result if opening and safe exit succeed.
 ## Project Structure
 
 ```text
-cmd/pr-review/              command parsing and application wiring
+cmd/prui/              command parsing and application wiring
 internal/verify/            verifier contract, journey driver, JSON report
 internal/verify/testdata/   synthetic PTY fixtures only
-cmd/pr-review/testdata/     shared terminal-screen support if extracted
+cmd/prui/testdata/     shared terminal-screen support if extracted
 SPEC-live-pr-verifier.md    this contract
 ```
 
@@ -117,7 +117,7 @@ explicit artifact directory, never absolute machine paths.
   preserves marked progress on offline resume.
 - Keep real-PR runs manual. They are evidence for a particular PR and host,
   not deterministic automated tests.
-- Run `go test -race ./internal/verify ./cmd/pr-review -count=1`, then
+- Run `go test -race ./internal/verify ./cmd/prui -count=1`, then
   `./scripts/verify.sh` before merging.
 
 ## Boundaries

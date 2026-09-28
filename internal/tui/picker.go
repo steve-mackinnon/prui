@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
-	"pr-review/internal/session"
+	"prui/internal/session"
 )
 
 // Each picker owns its cursor. Its visible window is derived from that cursor

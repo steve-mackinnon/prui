@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
-	"pr-review/internal/source"
+	"prui/internal/source"
 )
 
 var reviewEvents = []struct{ label, description, event string }{

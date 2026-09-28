@@ -5,8 +5,8 @@ import (
 	"errors"
 	"slices"
 
-	"pr-review/internal/session"
-	"pr-review/internal/source"
+	"prui/internal/session"
+	"prui/internal/source"
 )
 
 type MetadataReader interface {

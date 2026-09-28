@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"pr-review/internal/theme"
+	"prui/internal/theme"
 )
 
 func TestThemeResolutionPrecedence(t *testing.T) {

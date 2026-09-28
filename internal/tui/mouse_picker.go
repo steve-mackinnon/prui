@@ -2,7 +2,7 @@ package tui
 
 import (
 	tea "charm.land/bubbletea/v2"
-	"pr-review/internal/theme"
+	"prui/internal/theme"
 )
 
 func (m *Model) mousePickerAvailable() bool {

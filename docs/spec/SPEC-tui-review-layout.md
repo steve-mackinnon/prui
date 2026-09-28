@@ -39,7 +39,7 @@ meaning, or the set of supported keyboard operations.
 ```sh
 go test ./internal/tui -count=1
 go test ./internal/tui -run 'Test(Review|Guide|Raw|Color|Snapshot)' -count=1
-go test ./cmd/pr-review -count=1
+go test ./cmd/prui -count=1
 ./scripts/verify.sh
 git diff --check
 ```

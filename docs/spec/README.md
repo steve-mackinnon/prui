@@ -16,7 +16,7 @@ These documents preserve requirements, acceptance criteria, and the reasoning be
 - [Spec: Frozen Pull Request Commit List View](SPEC-pr-commits.md)
 - [Spec: Frozen Pull Request Description View](SPEC-pr-description.md)
 - [Spec: PR-List Guide Loading](SPEC-pr-list-guide-loading.md)
-- [Spec: Pull Request Line Comments](SPEC-pr-review-comments.md)
+- [Spec: Pull Request Line Comments](SPEC-pull-request-review-comments.md)
 - [Spec: PR Context View Tabs](SPEC-pr-view-tabs.md)
 - [Spec: Side-by-Side Diff View](SPEC-side-by-side-diff.md)
 - [Spec: Split-Diff Pane Cursor and Comment Targeting](SPEC-split-diff-pane-cursor.md)
@@ -30,6 +30,6 @@ These documents preserve requirements, acceptance criteria, and the reasoning be
 - [Capability Map: Agent PR Verifier](CAPABILITY-MAP-agent-verifier.md)
 - [Capability Map: Automatic PR-List Guides](CAPABILITY-MAP-auto-pr-guides.md)
 - [Capability Map: PR Context Views](CAPABILITY-MAP-pr-context-views.md)
-- [Capability Map: Pull Request Review Comments](CAPABILITY-MAP-pr-review-comments.md)
+- [Capability Map: Pull Request Review Comments](CAPABILITY-MAP-pull-request-review-comments.md)
 
 Implementation plans and checklists live in [tasks](../../tasks/).

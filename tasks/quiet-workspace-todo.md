@@ -58,12 +58,12 @@ Depends on: 6. Files: README.md, docs/spec/SPEC-tui-review-layout.md, this check
 
 ## Verification record — 2026-09-25
 
-- `GOCACHE=/tmp/pr-review-go-cache ./scripts/verify.sh`: PASS, including formatting,
+- `GOCACHE=/tmp/prui-go-cache ./scripts/verify.sh`: PASS, including formatting,
   vet, race tests, compiled-binary PTY tests and build. TUI suite: 28.647 seconds.
 - `golangci-lint run --new-from-rev=HEAD ./...`: PASS, 0 new issues.
 - `golangci-lint run ./...`: 11 existing findings in theme config and existing
   TUI key/state helpers. No checks or thresholds were disabled.
-- `git diff --check`: PASS. Local `pr-review` binary rebuilt.
+- `git diff --check`: PASS. Local `prui` binary rebuilt.
 - Inspected updated wide/narrow review, guide, picker, description, comment and
   error baselines. Automated viewport tests cover 60/99/100/120/159/160 columns,
   short heights, selected explanations, escaping, and monochrome focus.

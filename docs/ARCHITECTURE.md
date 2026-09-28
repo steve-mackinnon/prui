@@ -1,6 +1,6 @@
 # Code architecture
 
-`pr-review` is a local Go CLI. The command layer coordinates GitHub metadata,
+`prui` is a local Go CLI. The command layer coordinates GitHub metadata,
 an isolated view of Git objects, a frozen review snapshot, SQLite storage, and
 either plain output or a Bubble Tea interface. The [README](../README.md)
 covers installation and day-to-day use; this document describes the code paths
@@ -10,7 +10,7 @@ and boundaries for contributors.
 
 | Package | Responsibility |
 | --- | --- |
-| `cmd/pr-review` | Parse commands, assemble dependencies, control online actions and GitHub writes |
+| `cmd/prui` | Parse commands, assemble dependencies, control online actions and GitHub writes |
 | `internal/source` | Read GitHub metadata through `gh`; build an isolated Git object view and pin a comparison |
 | `internal/inventory` | Turn the pinned comparison into deterministic files, review units, and patches |
 | `internal/context` | Retrieve bounded repository evidence for optional guide generation |
@@ -24,10 +24,10 @@ and boundaries for contributors.
 
 ## Opening a comparison
 
-The main path starts in `cmd/pr-review/main.go`. It parses the command, opens the
+The main path starts in `cmd/prui/main.go`. It parses the command, opens the
 session store, creates the GitHub and Git runners, and chooses plain output or
-the TUI. `cmd/pr-review/lifecycle.go` owns open, resume, fresh-comparison, and
-guide-generation actions. `cmd/pr-review/wiring.go` gives the TUI those actions
+the TUI. `cmd/prui/lifecycle.go` owns open, resume, fresh-comparison, and
+guide-generation actions. `cmd/prui/wiring.go` gives the TUI those actions
 as callbacks.
 
 For a new comparison, `internal/review.OpenWithConfig` runs these stages:
@@ -67,7 +67,7 @@ saved comparison. A new comparison creates another session.
 
 `internal/tui` owns navigation, rendering, per-tab display state, and local
 comment drafts. It receives storage, loading, guide, and GitHub action callbacks
-from `cmd/pr-review`, so the command layer remains the boundary for external
+from `cmd/prui`, so the command layer remains the boundary for external
 effects. Plain output uses the same loaded review data without starting the
 interactive program.
 
@@ -81,7 +81,7 @@ cache belong to the workspace; the Files cache is invalidated when the active
 session changes. Tab switches save a semantic cursor anchor so a later resize
 can restore the selected source line.
 
-Guide generation requires an explicit user action. `cmd/pr-review/wiring.go`
+Guide generation requires an explicit user action. `cmd/prui/wiring.go`
 resolves one selection from the XDG guide configuration for the interactive
 model. That selection supplies the consent identity, analyzer factory, and
 guide-cache check. Credentials are read from the selected environment variable
@@ -106,11 +106,11 @@ blocks network actions at the same boundary.
   `internal/inventory`.
 - For guide inputs and exclusions, inspect `internal/context`, `internal/privacy`,
   and `internal/guide` together. For provider selection, inspect
-  `internal/guideconfig` and `cmd/pr-review/wiring.go`.
+  `internal/guideconfig` and `cmd/prui/wiring.go`.
 - For stored data or reading progress, start in `internal/session` and
   `internal/review`.
 - For controls and rendering, start in `internal/tui`; keep external actions in
-  the `cmd/pr-review` callbacks.
+  the `cmd/prui` callbacks.
 
 See [TESTING.md](../TESTING.md) for verification commands and
 [CONSTRAINTS.md](../CONSTRAINTS.md) for the project invariants.

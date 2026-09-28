@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
-	"pr-review/internal/theme"
+	"prui/internal/theme"
 )
 
 var errThemeSelectionNotSaved = errors.New("theme selection was not saved; active theme unchanged")

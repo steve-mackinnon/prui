@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"pr-review/internal/session/storage"
+	"prui/internal/session/storage"
 )
 
 func TestSQLiteHundredReopensShareSource(t *testing.T) {

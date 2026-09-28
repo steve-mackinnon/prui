@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"pr-review/internal/inventory"
+	"prui/internal/inventory"
 )
 
 func TestQuietGuidePortionsRetainExceptionalKindsAndCoverage(t *testing.T) {

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Synthetic pr-review binary used only by internal/verify journey tests."""
+"""Synthetic prui binary used only by internal/verify journey tests."""
 import os
 import json
 import sys
@@ -15,11 +15,11 @@ def main():
     command = sys.argv[1]
     store = os.environ["HOME"]
     if command == "open":
-        if "--repo" in sys.argv or os.path.realpath(os.environ.get("PR_REVIEW_EXPECT_CWD", "")) != os.path.realpath(os.getcwd()):
+        if "--repo" in sys.argv or os.path.realpath(os.environ.get("PRUI_EXPECT_CWD", "")) != os.path.realpath(os.getcwd()):
             raise SystemExit(4)
-        time.sleep(float(os.environ.get("PR_REVIEW_FAKE_OPEN_DELAY_SECONDS", "0")))
-        if os.environ.get("PR_REVIEW_VERIFY_TIMING") == "1":
-            print("pr-review-verify-timing:v1 " + json.dumps({"github_metadata_ns": 1000000, "pin_and_inventory_ns": 2000000}), file=sys.stderr)
+        time.sleep(float(os.environ.get("PRUI_FAKE_OPEN_DELAY_SECONDS", "0")))
+        if os.environ.get("PRUI_VERIFY_TIMING") == "1":
+            print("prui-verify-timing:v1 " + json.dumps({"github_metadata_ns": 1000000, "pin_and_inventory_ns": 2000000}), file=sys.stderr)
         print("PR #42 | head aaaaaaaaaaaa | inventory complete")
         print("Session: " + SESSION + " | plan: file-v1")
         return

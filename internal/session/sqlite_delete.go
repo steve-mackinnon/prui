@@ -3,7 +3,7 @@ package session
 import (
 	"context"
 	"errors"
-	"pr-review/internal/session/storage"
+	"prui/internal/session/storage"
 )
 
 // Delete removes the session and reclaims immutable data only when no remaining

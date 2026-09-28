@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"pr-review/internal/session/storage"
+	"prui/internal/session/storage"
 )
 
 func TestSQLiteRepositoryOrderReplacementAndReadOnlyReopen(t *testing.T) {

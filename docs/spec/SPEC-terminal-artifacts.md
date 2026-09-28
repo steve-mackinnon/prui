@@ -16,7 +16,7 @@ agent runtime proves SVG unsuitable, avoiding a font-rendering dependency.
 
 ## Command Contract
 
-`pr-review verify` gains `--screens initial,marked,resumed` with those three
+`prui verify` gains `--screens initial,marked,resumed` with those three
 names as the default. Each requested milestone creates `screens/NAME.txt` and
 `screens/NAME.svg`. The JSON report lists only successfully created relative
 paths. Screen dimensions are fixed by the verifier (120×24 cells).

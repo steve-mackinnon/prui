@@ -16,7 +16,7 @@ import (
 	"strings"
 	"time"
 
-	"pr-review/internal/source"
+	"prui/internal/source"
 )
 
 const (
@@ -186,7 +186,7 @@ func validateJourneyConfig(config JourneyConfig) error {
 		return errors.New("python 3 is required for terminal verification")
 	}
 	if _, err := os.Stat(config.Executable); err != nil {
-		return errors.New("pr-review executable is unavailable")
+		return errors.New("prui executable is unavailable")
 	}
 	return nil
 }
@@ -324,7 +324,7 @@ func persistJourney(journey Journey, artifactDir string, original error) (Journe
 }
 
 func writeHarness() (string, error) {
-	f, err := os.CreateTemp("", "pr-review-journey-*.py")
+	f, err := os.CreateTemp("", "prui-journey-*.py")
 	if err != nil {
 		return "", err
 	}

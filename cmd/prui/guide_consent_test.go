@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
-	"pr-review/internal/guide"
+	"prui/internal/guide"
 )
 
 func TestGuideConsentNamesConfiguredRecipient(t *testing.T) {
@@ -36,7 +36,7 @@ func TestGuideConsentNamesConfiguredRecipient(t *testing.T) {
 
 func TestGuideConsentNamesConfiguredModelAndRecipient(t *testing.T) {
 	app, saved := wiringFixture(t)
-	path := filepath.Join(os.Getenv("XDG_CONFIG_HOME"), "pr-review")
+	path := filepath.Join(os.Getenv("XDG_CONFIG_HOME"), "prui")
 	if err := os.MkdirAll(path, 0700); err != nil {
 		t.Fatal(err)
 	}
@@ -60,7 +60,7 @@ func TestGuideConsentNamesConfiguredModelAndRecipient(t *testing.T) {
 
 func TestInvalidGuideConfigDoesNotCreateAnalyzer(t *testing.T) {
 	app, saved := wiringFixture(t)
-	path := filepath.Join(os.Getenv("XDG_CONFIG_HOME"), "pr-review")
+	path := filepath.Join(os.Getenv("XDG_CONFIG_HOME"), "prui")
 	if err := os.MkdirAll(path, 0700); err != nil {
 		t.Fatal(err)
 	}

@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
-	"pr-review/internal/source"
+	"prui/internal/source"
 )
 
 // mouseReviewClick selects only a visible semantic item. It never activates

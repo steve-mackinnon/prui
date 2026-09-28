@@ -9,10 +9,10 @@ import (
 	"strings"
 	"testing"
 
-	reviewcontext "pr-review/internal/context"
-	"pr-review/internal/guide"
-	"pr-review/internal/inventory"
-	"pr-review/internal/source"
+	reviewcontext "prui/internal/context"
+	"prui/internal/guide"
+	"prui/internal/inventory"
+	"prui/internal/source"
 )
 
 func fixture() Snapshot {
@@ -28,7 +28,7 @@ func guideCacheKey() GuideCacheKey {
 }
 
 func generatedGuide() guide.Bundle {
-	return guide.Bundle{Status: guide.Generated, Provider: "openai", Model: "test-model", PromptVersion: guide.PromptVersion, SchemaName: "pr_review_guides", InputDigest: "digest", Items: []guide.Item{{Title: "Authentication flow", Sections: []guide.Section{{Title: "Add login endpoint", UnitIDs: []string{"unit"}}}}}}
+	return guide.Bundle{Status: guide.Generated, Provider: "openai", Model: "test-model", PromptVersion: guide.PromptVersion, SchemaName: "prui_guides", InputDigest: "digest", Items: []guide.Item{{Title: "Authentication flow", Sections: []guide.Section{{Title: "Add login endpoint", UnitIDs: []string{"unit"}}}}}}
 }
 
 func TestStoreRestartFrozenBytesAndProgress(t *testing.T) {

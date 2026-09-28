@@ -51,7 +51,7 @@ contract is fixed. G-05A, G-05B, and G-06 can be delegated concurrently after G-
 defines the provider-constructor seam; they must own disjoint files. G-07 and
 G-08 can also run independently once G-02 fixes the selection type. G-09 and
 G-10 are integration steps with one owner for shared wiring and documentation.
-Do not run agents concurrently on `go.mod`, `go.sum`, `cmd/pr-review/wiring.go`,
+Do not run agents concurrently on `go.mod`, `go.sum`, `cmd/prui/wiring.go`,
 `internal/guide/fantasy.go`, or `CONSTRAINTS.md`.
 
 ## Delivery checkpoints

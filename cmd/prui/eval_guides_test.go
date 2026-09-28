@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"testing"
 
-	"pr-review/internal/guide"
-	"pr-review/internal/guideeval"
+	"prui/internal/guide"
+	"prui/internal/guideeval"
 )
 
 func TestEvalGuidesCLIReadsStoredSessionWithoutGitHub(t *testing.T) {

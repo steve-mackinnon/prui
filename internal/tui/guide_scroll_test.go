@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"pr-review/internal/guide"
-	"pr-review/internal/source"
+	"prui/internal/guide"
+	"prui/internal/source"
 )
 
 func guideScrollModel(hunks, width int) *Model {

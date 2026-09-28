@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	"pr-review/internal/source"
-	"pr-review/internal/testutil"
+	"prui/internal/source"
+	"prui/internal/testutil"
 )
 
 func fixture(t *testing.T) (*source.View, source.PinnedComparison, *testutil.Repo) {

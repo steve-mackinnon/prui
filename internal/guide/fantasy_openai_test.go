@@ -8,9 +8,9 @@ import (
 	"strings"
 	"testing"
 
-	reviewcontext "pr-review/internal/context"
-	"pr-review/internal/inventory"
-	"pr-review/internal/privacy"
+	reviewcontext "prui/internal/context"
+	"prui/internal/inventory"
+	"prui/internal/privacy"
 )
 
 type openAIFixtureTransport func(*http.Request) (*http.Response, error)

@@ -12,7 +12,7 @@ events. No benchmark framework or dependency is required.
 
 ## Command Contract
 
-`pr-review verify` gains `--measure-runs N` (default 1, allowed 1–10). A report
+`prui verify` gains `--measure-runs N` (default 1, allowed 1–10). A report
 contains per-run and aggregate milliseconds for `process_start`,
 `first_review_frame`, `github_metadata`, and `pin_and_inventory`. The report
 labels every run `cold` or `warm` based on whether the verifier's private store

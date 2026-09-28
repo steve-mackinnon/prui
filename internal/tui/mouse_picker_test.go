@@ -8,8 +8,8 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"pr-review/internal/session"
-	"pr-review/internal/source"
+	"prui/internal/session"
+	"prui/internal/source"
 )
 
 func TestMousePickerScrolledRepositorySelectionOnly(t *testing.T) {

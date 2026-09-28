@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
-	"pr-review/internal/inventory"
-	"pr-review/internal/session"
-	"pr-review/internal/source"
+	"prui/internal/inventory"
+	"prui/internal/session"
+	"prui/internal/source"
 )
 
 // TestPTYSmoke runs the shipped executable, not run() with substituted streams.
@@ -62,7 +62,7 @@ func TestPTYSmoke(t *testing.T) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
-	binary := filepath.Join(root, "pr-review")
+	binary := filepath.Join(root, "prui")
 	build := exec.CommandContext(ctx, "go", "build", "-o", binary, ".")
 	build.Env = append(os.Environ(), "HOME="+buildHome)
 	if out, err := build.CombinedOutput(); err != nil {

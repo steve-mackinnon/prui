@@ -279,7 +279,7 @@ deterministic screen baselines if their documented renderer requires it.
 
 ## Completion checkpoint
 
-- [x] `go test ./internal/tui -count=1`, `go test ./cmd/pr-review -count=1`,
+- [x] `go test ./internal/tui -count=1`, `go test ./cmd/prui -count=1`,
       `./scripts/verify.sh`, and `git diff --check` pass.
 - [x] The final diff only changes the approved layout, shared chrome, tests,
       snapshots, and reviewer documentation.
@@ -313,7 +313,7 @@ deterministic screen baselines if their documented renderer requires it.
       reading credentials, while saved sessions remain usable.
 - [x] Test both entry paths, cancellation, and offline operations with fakes;
       guide cancellation does not replace the current session.
-- [x] Verify: `go test -race ./cmd/pr-review ./internal/review`.
+- [x] Verify: `go test -race ./cmd/prui ./internal/review`.
 
 ## 6. Reconcile the public contract
 - [x] README/constraints match accepted CLI flags, current keys, interactive guide
@@ -393,12 +393,12 @@ deterministic screen baselines if their documented renderer requires it.
 
 ## 2. Bounded live PR terminal journey
 
-- [x] Add `pr-review verify` input validation and a private-store, fixed-PTY
+- [x] Add `prui verify` input validation and a private-store, fixed-PTY
       journey that opens, navigates, marks, quits, and resumes offline.
 - Acceptance: synthetic integration proves the production open/resume path;
       real runs stay manual and never execute reviewed code.
 - Verify: focused command/PTY tests and `go build ./...`.
-- Depends on: task 1. Files: `cmd/pr-review/*`, `internal/verify/*`, testdata.
+- Depends on: task 1. Files: `cmd/prui/*`, `internal/verify/*`, testdata.
 
 ## Checkpoint: live verifier
 
@@ -427,8 +427,8 @@ deterministic screen baselines if their documented renderer requires it.
       semantic-corpus evaluation.
 - Acceptance: no provider call or credential read; absent guides report
       `not_available`; named expectations fail independently.
-- Verify: `go test ./internal/guideeval ./cmd/pr-review`.
-- Depends on: none. Files: `internal/guideeval/*`, `cmd/pr-review/*`.
+- Verify: `go test ./internal/guideeval ./cmd/prui`.
+- Depends on: none. Files: `internal/guideeval/*`, `cmd/prui/*`.
 
 ## Checkpoint: complete
 
@@ -481,7 +481,7 @@ deterministic screen baselines if their documented renderer requires it.
       README guidance, snapshots, and end-to-end program coverage.
 - Acceptance: tab labels survive color removal and width clipping; help/footer
       document keys; plain output stays single-review.
-- Verify: `go test ./internal/tui ./cmd/pr-review -count=1`, then
+- Verify: `go test ./internal/tui ./cmd/prui -count=1`, then
       `./scripts/verify.sh` and `git diff --check`.
 - Depends on: tasks 1–3. Files: `internal/tui/{render,style,bindings}.go`,
       `internal/tui/*_test.go`, `README.md`.
@@ -672,13 +672,13 @@ the existing offline and setup-error boundaries.
 - [x] A canceled/unknown delivery outcome makes no false success claim and never auto-retries.
 
 **Verification:**
-- [x] Write failing command/lifecycle tests, then run `go test ./cmd/pr-review -count=1`.
-- [x] Run `go test -race ./cmd/pr-review ./internal/review -count=1`.
+- [x] Write failing command/lifecycle tests, then run `go test ./cmd/prui -count=1`.
+- [x] Run `go test -race ./cmd/prui ./internal/review -count=1`.
 
 **Dependencies:** Tasks 1 and 4.
 
-**Files likely touched:** `cmd/pr-review/{lifecycle,wiring}.go`,
-`cmd/pr-review/{lifecycle,wiring}_test.go`.
+**Files likely touched:** `cmd/prui/{lifecycle,wiring}.go`,
+`cmd/prui/{lifecycle,wiring}_test.go`.
 
 **Estimated scope:** Medium (4 files).
 
@@ -806,12 +806,12 @@ after success.
 **Verification:**
 - [ ] Start with failing lifecycle/application tests for initial load, refresh,
   filtering, post insertion, failures, offline refusal, and tab isolation.
-- [ ] Run `go test -race ./internal/tui ./cmd/pr-review -count=1`.
+- [ ] Run `go test -race ./internal/tui ./cmd/prui -count=1`.
 
 **Dependencies:** Tasks 1–3.
 
 **Files likely touched:** `internal/tui/{model,lifecycle,render}.go`,
-`cmd/pr-review/{lifecycle,wiring}.go`, relevant `*_test.go` files.
+`cmd/prui/{lifecycle,wiring}.go`, relevant `*_test.go` files.
 
 **Estimated scope:** Large (6–8 files).
 
@@ -913,7 +913,7 @@ the canonical GitHub response in the same ephemeral anchored overlay.
 **Verification:**
 - [ ] Start with failing lifecycle/application tests for success, failure,
   cancellation, offline refusal, and tab isolation.
-- [ ] Run `go test -race ./internal/tui ./cmd/pr-review -count=1`.
+- [ ] Run `go test -race ./internal/tui ./cmd/prui -count=1`.
 
 **Dependencies:** Tasks 1–2.
 
@@ -933,7 +933,7 @@ authenticated viewer and a finite reaction picker for loaded comments.
 **Verification:**
 - [ ] Start with failing source/TUI/application tests for authorization gating,
   confirmation, picker values, success/failure/cancellation, and stale results.
-- [ ] Run `go test -race ./internal/source ./internal/tui ./cmd/pr-review -count=1`.
+- [ ] Run `go test -race ./internal/source ./internal/tui ./cmd/prui -count=1`.
 
 **Dependencies:** Tasks 1–2.
 
@@ -1049,7 +1049,7 @@ tests and screen baselines. **Estimated scope:** Medium.
 
 **Verification:**
 - [x] Start with focused failing TUI tests and inspect wide/narrow baselines.
-- [x] Run `go test ./internal/tui ./cmd/pr-review -count=1`.
+- [x] Run `go test ./internal/tui ./cmd/prui -count=1`.
 
 **Dependencies:** Tasks 1–2. **Files likely touched:** `internal/tui/{model,render}.go`,
 tests, screens, `README.md`. **Estimated scope:** Medium.
@@ -1083,7 +1083,7 @@ tests, screens, `README.md`. **Estimated scope:** Medium.
 
 **Verification:**
 - [ ] Start with focused failing TUI tests and inspect screen baselines.
-- [ ] Run `go test ./internal/tui ./cmd/pr-review -count=1`.
+- [ ] Run `go test ./internal/tui ./cmd/prui -count=1`.
 
 **Dependencies:** Tasks 1 and 4. **Files likely touched:** `internal/tui/{model,render,bindings}.go`,
 tests, screens, `README.md`. **Estimated scope:** Medium.
@@ -1104,7 +1104,7 @@ and text-only selected-state contracts remain intact.
 
 **Verification:**
 - [ ] Start with focused failing selector/model/lifecycle tests.
-- [ ] Run `go test ./internal/tui ./cmd/pr-review -count=1` and the full gate.
+- [ ] Run `go test ./internal/tui ./cmd/prui -count=1` and the full gate.
 
 **Dependencies:** Tasks 1–3. **Files likely touched:** `internal/tui/{model,lifecycle,picker}.go`,
 matching tests/screens, `README.md`. **Estimated scope:** Large; split into
@@ -1357,13 +1357,13 @@ Acceptance criteria:
   reported accurately; human terminal usability inspection is recorded as done
   or pending, never inferred from automated render tests.
 
-Verification: Run focused PTY tests (`go test ./cmd/pr-review -run PTY -count=1`),
+Verification: Run focused PTY tests (`go test ./cmd/prui -run PTY -count=1`),
 then `./scripts/verify.sh` and `git diff --check`. Inspect mouse use in a real
 terminal and a terminal multiplexer where available, including releasing a
 button outside the terminal and modifier-based text copying.
 Dependencies: M2, M3, M4, M5. Scope: Medium.
-Files likely touched: `cmd/pr-review/testdata/pty_smoke.py`,
-`cmd/pr-review/pty_test.go`, `internal/tui/help.go`, `README.md`,
+Files likely touched: `cmd/prui/testdata/pty_smoke.py`,
+`cmd/prui/pty_test.go`, `internal/tui/help.go`, `README.md`,
 `docs/spec/SPEC-tui-review-layout.md`. If help content belongs in `bindings.go`, use that
 instead of `help.go`; do not add a fake keyboard shortcut for mouse actions.
 
@@ -1700,7 +1700,7 @@ platform, failure-mode and packaging results are recorded in the evidence link.
 - [x] Read-only guide evaluation, registry reopening, plain output and explicit generation behavior remain covered.
 
 **Verification:**
-- [x] `go test -race -count=1 ./cmd/pr-review`
+- [x] `go test -race -count=1 ./cmd/prui`
 
 **Dependencies:** Checkpoint D and SQL-10 API contract; integrated with SQL-16.
 
@@ -1709,11 +1709,11 @@ platform, failure-mode and packaging results are recorded in the evidence link.
 **Spec coverage:** S5/S7/S10/S12.
 
 **Files likely touched:**
-- `cmd/pr-review/lifecycle.go`
-- `cmd/pr-review/lifecycle_test.go`
-- `cmd/pr-review/main.go`
-- `cmd/pr-review/wiring_test.go`
-- `cmd/pr-review/eval_guides_test.go`
+- `cmd/prui/lifecycle.go`
+- `cmd/prui/lifecycle_test.go`
+- `cmd/prui/main.go`
+- `cmd/prui/wiring_test.go`
+- `cmd/prui/eval_guides_test.go`
 
 **Estimated scope:** Medium (5 files). Split before dispatch if more files become necessary.
 
@@ -1908,7 +1908,7 @@ zero matches or removing necessary safety code.
 - [x] `./scripts/verify.sh`
 - [x] `golangci-lint run ./...`
 - [x] `go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 ./...`
-- [x] `CGO_ENABLED=0 go build -o /tmp/pr-review-sqlite ./cmd/pr-review`
+- [x] `CGO_ENABLED=0 go build -o /tmp/prui-sqlite ./cmd/prui`
 - [x] `go test ./internal/session -run '^$' -bench 'Benchmark(LatestComparisonHistory|SQLite)' -benchmem -count=5`
 - [x] `git diff --check`
 

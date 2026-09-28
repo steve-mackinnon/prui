@@ -41,7 +41,7 @@ are needed. Local process execution, PTYs, and loopback listeners must be allowe
 a sandbox that denies those operations cannot run the full integration suite.
 Never run scripts from a reviewed repository as test fixtures.
 
-`pr-review verify` is intentionally not a test-suite command: it opens a real
+`prui verify` is intentionally not a test-suite command: it opens a real
 PR through the user's authenticated GitHub CLI. Its journey engine is covered
 with a synthetic child executable and standard-library PTY fixture; run a live
 verification manually only when an agent has been given a specific PR URL and
@@ -60,7 +60,7 @@ remote setting.
 | Navigation, focus, back, layout | TUI key/message scenario; assert selected content and navigation outcomes |
 | Initialization, asynchronous actions, cancellation | Real Bubble Tea program journey using the driver in `internal/tui/program_test.go` |
 | Screen wording or arrangement | Small fixed-size baseline in `internal/tui/testdata/screens`, plus relevant visibility/width assertions |
-| CLI wiring, terminal input, resize, exit, restart | Compiled-binary PTY smoke scenario under `cmd/pr-review` |
+| CLI wiring, terminal input, resize, exit, restart | Compiled-binary PTY smoke scenario under `cmd/prui` |
 
 For each feature, cover its successful journey plus relevant failure and
 cancellation paths. For a bug, reproduce it with a failing test before changing
@@ -73,10 +73,10 @@ Useful focused commands:
 ```sh
 go test -race ./internal/tui -run '^TestProgram' -count=1
 go test ./internal/tui -run '^TestScreenSnapshots$' -count=1
-go test -race ./cmd/pr-review -run 'Test.*PTY' -count=1
+go test -race ./cmd/prui -run 'Test.*PTY' -count=1
 go test -race ./internal/session ./internal/review -count=1
-go test -race -coverprofile=/tmp/pr-review-coverage.out ./...
-go tool cover -html=/tmp/pr-review-coverage.out
+go test -race -coverprofile=/tmp/prui-coverage.out ./...
+go tool cover -html=/tmp/prui-coverage.out
 ```
 
 ## Program and scenario tests
@@ -151,7 +151,7 @@ Run the embedded-driver proof without CGo:
 
 ```sh
 CGO_ENABLED=0 go test -count=1 ./internal/session/storage
-CGO_ENABLED=0 go build -o /tmp/pr-review-sqlite ./cmd/pr-review
+CGO_ENABLED=0 go build -o /tmp/prui-sqlite ./cmd/prui
 go test ./internal/session -run '^$' -bench 'Benchmark(LatestComparisonHistory|SQLite)' -benchmem -count=5
 ```
 

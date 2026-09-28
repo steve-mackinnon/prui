@@ -6,7 +6,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"pr-review/internal/tui"
+	"prui/internal/tui"
 )
 
 const (

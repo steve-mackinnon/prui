@@ -209,7 +209,7 @@ func TestInterruptedInitializationAndForeignDatabase(t *testing.T) {
 	if err := os.Chmod(root, 0700); err != nil {
 		t.Fatal(err)
 	}
-	o := owner{Application: "pr-review", Version: SchemaVersion, Identity: "0123456789abcdef0123456789abcdef", Phase: "initializing"}
+	o := owner{Application: "prui", Version: SchemaVersion, Identity: "0123456789abcdef0123456789abcdef", Phase: "initializing"}
 	if err := writeOwner(root, o, true); err != nil {
 		t.Fatal(err)
 	}

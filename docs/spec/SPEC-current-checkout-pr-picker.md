@@ -4,7 +4,7 @@
 
 Let a developer start the interactive review flow from the root of a local
 GitHub checkout without first finding or pasting a pull-request URL. Running
-`pr-review` with no subcommand will identify the checkout's GitHub repository,
+`prui` with no subcommand will identify the checkout's GitHub repository,
 list its open pull requests in the terminal UI, and open the selected pull
 request through the existing pinned, read-only review path.
 
@@ -29,7 +29,7 @@ New interactive entry point:
 
 ```sh
 cd /path/to/github-checkout
-pr-review
+prui
 ```
 
 Behavior:
@@ -53,10 +53,10 @@ Behavior:
 Existing commands remain compatible:
 
 ```sh
-pr-review open https://github.com/owner/repo/pull/42
-pr-review open 42 --github-repo owner/repo
-pr-review prs
-pr-review prs owner/repo --plain
+prui open https://github.com/owner/repo/pull/42
+prui open 42 --github-repo owner/repo
+prui prs
+prui prs owner/repo --plain
 ```
 
 `prs` continues to browse remembered repositories when interactive; it is not
@@ -83,7 +83,7 @@ Repository resolution is deliberately local and narrow.
   configuration; ambiguity is an error.
 - If no safe GitHub `origin` can be determined, do not start a network request.
   Print a stated error that keeps the established alternatives visible:
-  `pr-review prs owner/repo` or `pr-review open URL`.
+  `prui prs owner/repo` or `prui open URL`.
 
 This explicit parser is preferable to invoking `git config` or running `gh`
 inside the checkout: the repository contract forbids allowing
@@ -93,8 +93,8 @@ the tool.
 ## Commands
 
 ```sh
-go test ./cmd/pr-review ./internal/source ./internal/tui -count=1
-go test -race ./cmd/pr-review ./internal/source ./internal/tui -count=1
+go test ./cmd/prui ./internal/source ./internal/tui -count=1
+go test -race ./cmd/prui ./internal/source ./internal/tui -count=1
 go vet ./...
 go test -race -count=1 ./...
 go build ./...
@@ -108,20 +108,20 @@ optional after the synthetic gate:
 
 ```sh
 cd /path/to/github-checkout
-pr-review
+prui
 ```
 
 ## Project Structure
 
 ```text
-cmd/pr-review/options.go       command parsing and usage text
-cmd/pr-review/main.go          no-argument entry dispatch and terminal checks
-cmd/pr-review/wiring.go        initial current-checkout picker wiring
-cmd/pr-review/lifecycle.go     reuse existing list/open operations
+cmd/prui/options.go       command parsing and usage text
+cmd/prui/main.go          no-argument entry dispatch and terminal checks
+cmd/prui/wiring.go        initial current-checkout picker wiring
+cmd/prui/lifecycle.go     reuse existing list/open operations
 internal/source/               bounded Git-dir/config and GitHub-origin resolver
 internal/tui/model.go          direct-current-repository browser constructor/state
 internal/tui/lifecycle.go      picker startup, rendering, and lifecycle actions
-cmd/pr-review/*_test.go        CLI and application wiring regressions
+cmd/prui/*_test.go        CLI and application wiring regressions
 internal/source/*_test.go      safe remote-resolution contract tests
 internal/tui/*_test.go         picker loading, selection, error, cancel regressions
 README.md                      user-facing launch and fallback documentation
@@ -189,10 +189,10 @@ client.
 
 ## Success Criteria
 
-- From the root of a supported GitHub checkout, `pr-review` opens an
+- From the root of a supported GitHub checkout, `prui` opens an
   interactive list of that repository's open PRs without a pasted URL.
 - Selecting a PR reaches the existing review screen through the same pinned,
-  read-only opening path as `pr-review open`.
+  read-only opening path as `prui open`.
 - The startup list is cancellable, retryable, bounded to the current
   100-result API contract, safe to render, and handles zero PRs and GitHub
   failures without losing the picker or starting a review.

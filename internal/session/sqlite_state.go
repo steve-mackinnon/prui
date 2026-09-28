@@ -8,7 +8,7 @@ import (
 	"math"
 	"time"
 
-	"pr-review/internal/session/storage"
+	"prui/internal/session/storage"
 )
 
 var ErrStateConflict = errors.New("session state changed; reload before updating")

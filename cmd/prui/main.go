@@ -13,10 +13,10 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/term"
-	"pr-review/internal/guideeval"
-	"pr-review/internal/session"
-	"pr-review/internal/source"
-	"pr-review/internal/tui"
+	"prui/internal/guideeval"
+	"prui/internal/session"
+	"prui/internal/source"
+	"prui/internal/tui"
 )
 
 func run(args []string) int {
@@ -37,7 +37,7 @@ func run(args []string) int {
 		}
 	}
 	if o.Command == "current" && (o.Plain || os.Getenv("TERM") == "dumb" || !term.IsTerminal(os.Stdout.Fd()) || !term.IsTerminal(os.Stdin.Fd())) {
-		fmt.Fprintln(os.Stderr, "pr-review without arguments requires an interactive terminal; use prs owner/repo --plain or open instead")
+		fmt.Fprintln(os.Stderr, "prui without arguments requires an interactive terminal; use prs owner/repo --plain or open instead")
 		return 1
 	}
 	if o.Command == "current" {
@@ -98,7 +98,7 @@ func run(args []string) int {
 	app := application{store: store, runner: r, limits: limits, offline: o.Offline}
 	// gh runs outside both the workspace and the reviewed checkout.
 	if !o.Offline {
-		dir, err := os.MkdirTemp("", "pr-review-gh-")
+		dir, err := os.MkdirTemp("", "prui-gh-")
 		app.setupError = err
 		if err == nil {
 			defer func() { _ = os.RemoveAll(dir) }()

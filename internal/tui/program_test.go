@@ -12,9 +12,9 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
-	"pr-review/internal/review"
-	"pr-review/internal/session"
-	"pr-review/internal/source"
+	"prui/internal/review"
+	"prui/internal/session"
+	"prui/internal/source"
 )
 
 // Observe only on the event-loop goroutine. Tests never read a running Model:

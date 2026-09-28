@@ -51,10 +51,10 @@ typed comparison cache key + durable validated artifact
   pinned PR-list comparison.
   - Acceptance: cache hit skips analyzer creation; cache miss generates and
     writes only generated bundles; unavailable result remains retryable.
-  - Verify: `go test ./cmd/pr-review -run 'Test.*Guide' -count=1`.
+  - Verify: `go test ./cmd/prui -run 'Test.*Guide' -count=1`.
   - Depends on: Task 1.
-  - Files: `cmd/pr-review/lifecycle.go`, `cmd/pr-review/wiring.go`,
-    `cmd/pr-review/lifecycle_test.go`.
+  - Files: `cmd/prui/lifecycle.go`, `cmd/prui/wiring.go`,
+    `cmd/prui/lifecycle_test.go`.
   - Estimated scope: Medium.
 
 ### Checkpoint: persisted guide path

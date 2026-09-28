@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"pr-review/internal/inventory"
+	"prui/internal/inventory"
 )
 
 type Status string

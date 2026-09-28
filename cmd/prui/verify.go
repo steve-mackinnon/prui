@@ -8,8 +8,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"pr-review/internal/tui"
-	"pr-review/internal/verify"
+	"prui/internal/tui"
+	"prui/internal/verify"
 )
 
 func runVerify(ctx context.Context, o options) int {
@@ -21,7 +21,7 @@ func runVerify(ctx context.Context, o options) int {
 		fmt.Fprintln(os.Stderr, "artifact directory must be a new path:", tui.Escape(err.Error()))
 		return 1
 	}
-	home, err := os.MkdirTemp("", "pr-review-verify-")
+	home, err := os.MkdirTemp("", "prui-verify-")
 	if err != nil {
 		fmt.Fprintln(os.Stderr, tui.Escape(err.Error()))
 		return 1

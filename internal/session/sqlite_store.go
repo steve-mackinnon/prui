@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"time"
 
-	"pr-review/internal/session/storage"
+	"prui/internal/session/storage"
 )
 
 // Store persists review sessions and reusable source data in SQLite.

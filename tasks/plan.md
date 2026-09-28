@@ -818,7 +818,7 @@ The user's request supersedes the old no-mouse-capture restriction in
 | Detail | `displayDetail`, `offset`, `cursorAnchor`, and `restoreCursorAnchor` coordinate projected rows and overlays. `renderProjectedSideBySideDetail` has cell widths and fixed gutters. | Mouse targets come from typed rows/cells, not text or displayed line numbers. |
 | Existing cursor work | The earlier Split-Diff Pane Cursor plan is unchecked. Current `cursorAnchor` still reads one `line.target`; split rendering selects row-priority targets. | Diff-cell mouse selection depends on finishing/reconciling that semantic-target work; do not recreate it independently. |
 | Modal ownership | Loading, Busy, Composer, CommentMenu, review submit, consent, and quit confirmation already gate keyboard navigation. | Add matching mouse gating before hit testing so clicks cannot reach the background. |
-| Verification | `program_test.go` offers event-loop observations; `cmd/pr-review/testdata/pty_smoke.py` and `pty_test.go` cover real terminal protocol. | Use state tests plus a bounded synthetic PTY journey, not screenshots alone. |
+| Verification | `program_test.go` offers event-loop observations; `cmd/prui/testdata/pty_smoke.py` and `pty_test.go` cover real terminal protocol. | Use state tests plus a bounded synthetic PTY journey, not screenshots alone. |
 
 API reference: [Bubble Tea v2 official upgrade guide](https://github.com/charmbracelet/bubbletea/blob/main/UPGRADE_GUIDE_V2.md).
 The installed v2.0.9 sources were also checked so newer online docs do not
@@ -917,7 +917,7 @@ No real GitHub/provider requests are needed.
 
 Only `tasks/plan.md` and `tasks/todo.md` changed. `git diff --check` passed.
 The baseline command initially could not write the sandboxed default Go build
-cache. Retrying with `GOCACHE=/private/tmp/pr-review-mouse-go-cache go test
+cache. Retrying with `GOCACHE=/private/tmp/prui-mouse-go-cache go test
 ./internal/tui -count=1` compiled but failed in
 `TestDescriptionViewKeepsGlobalActionsAndDisablesProgressCommentActions`:
 `fakeGitHub.Token` panicked with `no live network allowed` through the
@@ -943,7 +943,7 @@ claim completion of the separate earlier plan (including its P shortcut).
 The original fixture panic was avoided using bundled Git 2.53.0 via
 `PATH=/Users/steve/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/fallback:$PATH`.
 The exact Apple Git 2.39.5 incompatibility was not established. Verification
-uses `GOCACHE=/private/tmp/pr-review-mouse-go-cache`; local httptest listeners
+uses `GOCACHE=/private/tmp/prui-mouse-go-cache`; local httptest listeners
 require sandbox escalation. Neither production source retrieval nor fixtures
 were weakened. Real SGR press/motion/release, continued keyboard navigation,
 and capture cleanup are covered by the compiled-binary PTY test.
@@ -1018,8 +1018,8 @@ no SQLite executable, library, service, or database setup prerequisite.
 5. **No compatibility API.** Replace all seven production Save calls and the
    direct CLI test call with UpdateState; delete Save at cutover. Keep the
    existing Entry callback type but replace its full Record with summary fields.
-6. **Local storage identity.** Fresh defaults use `pr-review/storage`, not
-   `pr-review/sessions`. An unknown/old nonempty
+6. **Local storage identity.** Fresh defaults use `prui/storage`, not
+   `prui/sessions`. An unknown/old nonempty
    directory is rejected without parsing or changing its records.
 7. **Validation stays layered.** Verify source/bundle digests and domain references
    on create/load/cache reuse, enforce relational constraints in SQL, and check

@@ -5,10 +5,10 @@ import (
 	"sort"
 	"strings"
 
-	"pr-review/internal/guide"
-	"pr-review/internal/review"
-	"pr-review/internal/session"
-	"pr-review/internal/source"
+	"prui/internal/guide"
+	"prui/internal/review"
+	"prui/internal/session"
+	"prui/internal/source"
 )
 
 type healthItem struct {

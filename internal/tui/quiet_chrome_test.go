@@ -6,8 +6,8 @@ import (
 	"testing"
 
 	"github.com/charmbracelet/x/ansi"
-	"pr-review/internal/session"
-	"pr-review/internal/source"
+	"prui/internal/session"
+	"prui/internal/source"
 )
 
 func TestQuietStatusPrioritizesAttentionAndPending(t *testing.T) {

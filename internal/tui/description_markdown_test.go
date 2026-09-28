@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/charmbracelet/x/ansi"
-	"pr-review/internal/theme"
+	"prui/internal/theme"
 )
 
 func TestDescriptionMarkdownNormalizesCarriageReturns(t *testing.T) {

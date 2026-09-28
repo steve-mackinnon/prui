@@ -14,7 +14,7 @@ import (
 	"github.com/yuin/goldmark/extension"
 	"github.com/yuin/goldmark/parser"
 	"github.com/yuin/goldmark/text"
-	"pr-review/internal/theme"
+	"prui/internal/theme"
 )
 
 // Glamour unescapes character references in text and code spans after parsing.

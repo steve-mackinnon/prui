@@ -8,9 +8,9 @@ import (
 	"reflect"
 	"testing"
 
-	"pr-review/internal/session"
-	"pr-review/internal/source"
-	"pr-review/internal/testutil"
+	"prui/internal/session"
+	"prui/internal/source"
+	"prui/internal/testutil"
 )
 
 type metadataReader struct {

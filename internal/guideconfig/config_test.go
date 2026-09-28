@@ -14,10 +14,10 @@ func TestConfigPath(t *testing.T) {
 		in   PathInputs
 		want string
 	}{
-		{"XDG", PathInputs{Home: "/home/user", XDGConfigHome: "/settings"}, "/settings/pr-review/config.json"},
-		{"XDG without home", PathInputs{XDGConfigHome: "/settings"}, "/settings/pr-review/config.json"},
-		{"fallback", PathInputs{Home: "/home/user"}, "/home/user/.config/pr-review/config.json"},
-		{"relative XDG", PathInputs{Home: "/home/user", XDGConfigHome: "settings"}, "/home/user/.config/pr-review/config.json"},
+		{"XDG", PathInputs{Home: "/home/user", XDGConfigHome: "/settings"}, "/settings/prui/config.json"},
+		{"XDG without home", PathInputs{XDGConfigHome: "/settings"}, "/settings/prui/config.json"},
+		{"fallback", PathInputs{Home: "/home/user"}, "/home/user/.config/prui/config.json"},
+		{"relative XDG", PathInputs{Home: "/home/user", XDGConfigHome: "settings"}, "/home/user/.config/prui/config.json"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			got, err := ConfigPath(tc.in)

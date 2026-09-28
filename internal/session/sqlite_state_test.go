@@ -8,7 +8,7 @@ import (
 	"sync"
 	"testing"
 
-	"pr-review/internal/session/storage"
+	"prui/internal/session/storage"
 )
 
 func TestSQLiteStateUpdateCommitsProgressAndRejectsStaleWriter(t *testing.T) {

@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"pr-review/internal/guide"
-	"pr-review/internal/inventory"
+	"prui/internal/guide"
+	"prui/internal/inventory"
 )
 
 func testInventory(ids ...string) inventory.Inventory {

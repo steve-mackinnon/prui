@@ -46,7 +46,7 @@ TUI rewrite was introduced as part of these fixes.
 ### P1: Background freshness refresh mutates UI-owned session state
 
 Locations: [TUI worker](../internal/tui/lifecycle.go), lines 150–163;
-[application refresh](../cmd/pr-review/lifecycle.go), lines 425–450;
+[application refresh](../cmd/prui/lifecycle.go), lines 425–450;
 [store save](../internal/session/store.go), line 870.
 
 The TUI passes its live `*review.Session` to a background command. The application
@@ -104,7 +104,7 @@ the existing first-page, 100-comment limit to users.
 
 ### P2: Description edits incorrectly block inline writes
 
-Location: [comment preflights](../cmd/pr-review/lifecycle.go), lines 83 and 162.
+Location: [comment preflights](../cmd/prui/lifecycle.go), lines 83 and 162.
 
 Inline posting, replies, reactions, and deletion compare the entire `Metadata`
 struct, which includes `Description`. A description-only edit causes a “pull
@@ -223,7 +223,7 @@ clean checkout at the reviewed commit (with this patch available), run:
 
 ```sh
 git apply docs/audit-reproductions.patch
-go test -race ./internal/guide ./internal/source ./cmd/pr-review -run '^TestAudit' -count=1 -timeout=1m
+go test -race ./internal/guide ./internal/source ./cmd/prui -run '^TestAudit' -count=1 -timeout=1m
 # The four tests are expected to fail before fixes.
 git apply -R docs/audit-reproductions.patch
 ```
