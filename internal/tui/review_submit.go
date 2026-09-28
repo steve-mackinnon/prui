@@ -347,10 +347,7 @@ func (m *Model) focusPendingTarget(target source.ReviewCommentTarget) bool {
 
 func (m *Model) insertReviewSummary(text string) {
 	f := m.ReviewForm
-	r := []rune(f.Body)
-	insert := []rune(text)
-	f.Body = string(append(append(r[:f.Cursor], insert...), r[f.Cursor:]...))
-	f.Cursor += len(insert)
+	f.Body, f.Cursor = insertEditorText(f.Body, f.Cursor, text)
 }
 
 func (m *Model) pendingLines(target source.ReviewCommentTarget) []diffLine {

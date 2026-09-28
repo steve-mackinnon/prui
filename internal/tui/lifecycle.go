@@ -311,9 +311,7 @@ func (m *Model) commentComposerKey(key tea.KeyPressMsg) tea.Cmd {
 		}
 		return nil
 	case "shift+enter":
-		r := []rune(composer.Draft)
-		composer.Draft = string(append(append(r[:composer.Cursor], '\n'), r[composer.Cursor:]...))
-		composer.Cursor++
+		composer.Draft, composer.Cursor = insertEditorText(composer.Draft, composer.Cursor, "\n")
 		return nil
 	case "ctrl+p":
 		if composer.Draft == "" {
@@ -361,10 +359,7 @@ func (m *Model) commentComposerKey(key tea.KeyPressMsg) tea.Cmd {
 		})
 	}
 	if key.Text != "" && !key.Mod.Contains(tea.ModCtrl) && !key.Mod.Contains(tea.ModAlt) {
-		r := []rune(composer.Draft)
-		insert := []rune(key.Text)
-		composer.Draft = string(append(append(r[:composer.Cursor], insert...), r[composer.Cursor:]...))
-		composer.Cursor += len(insert)
+		composer.Draft, composer.Cursor = insertEditorText(composer.Draft, composer.Cursor, key.Text)
 	}
 	return nil
 }
@@ -441,9 +436,7 @@ func (m *Model) commentActionKey(key tea.KeyPressMsg) tea.Cmd {
 			}
 			return nil
 		case "shift+enter":
-			r := []rune(menu.Draft)
-			menu.Draft = string(append(append(r[:menu.Cursor], '\n'), r[menu.Cursor:]...))
-			menu.Cursor++
+			menu.Draft, menu.Cursor = insertEditorText(menu.Draft, menu.Cursor, "\n")
 			return nil
 		case "delete":
 			r := []rune(menu.Draft)
@@ -453,9 +446,7 @@ func (m *Model) commentActionKey(key tea.KeyPressMsg) tea.Cmd {
 			return nil
 		default:
 			if key.Text != "" && !key.Mod.Contains(tea.ModCtrl) && !key.Mod.Contains(tea.ModAlt) {
-				r, add := []rune(menu.Draft), []rune(key.Text)
-				menu.Draft = string(append(append(r[:menu.Cursor], add...), r[menu.Cursor:]...))
-				menu.Cursor += len(add)
+				menu.Draft, menu.Cursor = insertEditorText(menu.Draft, menu.Cursor, key.Text)
 			}
 			return nil
 		}
