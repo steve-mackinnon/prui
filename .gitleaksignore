@@ -1,0 +1,5 @@
+# Synthetic credential fixtures introduced in b84a4ff; keep each exception
+# tied to its original commit, path, rule, and line.
+b84a4fff66b58c67e6b01d3f13b242c705b0db33:internal/guide/input_test.go:github-pat:190
+b84a4fff66b58c67e6b01d3f13b242c705b0db33:internal/privacy/policy_test.go:private-key:27
+b84a4fff66b58c67e6b01d3f13b242c705b0db33:internal/privacy/policy_test.go:github-pat:28
