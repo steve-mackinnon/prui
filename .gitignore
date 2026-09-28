@@ -3,7 +3,8 @@
 .humanlayer/
 /pr-review
 .env
-.env.local
+.env.*
+!.env.example
 *.pem
 *.key
 __pycache__/
