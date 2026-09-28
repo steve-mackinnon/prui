@@ -105,7 +105,7 @@ func TestOfflineOperationsRejectBeforeDependencies(t *testing.T) {
 		"open":           func() error { _, err := a.open(ctx, "", source.Identity{}, nil); return err },
 		"fresh":          func() error { _, err := a.fresh(ctx, nil, "", nil); return err },
 		"comment":        func() error { _, err := a.submitReviewComment(ctx, tui.CommentSubmission{}); return err },
-		"guide consent":  func() error { _, err := a.requestGuide(ctx, nil, nil); return err },
+		"guide consent":  func() error { _, err := a.requestGuide(ctx, nil, guideconfig.Selection{}, nil); return err },
 		"guide analysis": func() error { _, err := a.generateGuide(ctx, nil, nil); return err },
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -131,6 +131,27 @@ func TestGuideSelectionUsesAbsoluteXDGWithoutHome(t *testing.T) {
 	a.resolveGuideSelection()
 	if a.guideSelectionError != nil || a.guideSelection.Provider != "google" || a.guideSelection.Model != "gemini-test" {
 		t.Fatalf("selection=%+v error=%v", a.guideSelection, a.guideSelectionError)
+	}
+}
+
+func TestInteractiveGuideChoicesRestoreRememberedProviderAndModel(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("OPENAI_API_KEY", "fixture-openai-key")
+	t.Setenv("ANTHROPIC_API_KEY", "fixture-anthropic-key")
+	a := &application{}
+	a.resolveGuideSelection()
+	path := guideconfig.RememberedPath(a.guideConfigPath)
+	if err := guideconfig.PersistRemembered(path, guideconfig.RememberedSelection{Provider: "anthropic", Model: "claude-remembered"}); err != nil {
+		t.Fatal(err)
+	}
+	choices, selected, err := a.interactiveGuideChoices()
+	if err != nil || len(choices) != 2 || selected.Provider != "anthropic" || selected.Model != "claude-remembered" || selected.Destination != "https://api.anthropic.com" {
+		t.Fatalf("remembered selection = %+v, choices=%+v, err=%v", selected, choices, err)
+	}
+	t.Setenv("ANTHROPIC_API_KEY", "")
+	_, selected, err = a.interactiveGuideChoices()
+	if err != nil || selected.Provider != "openai" || selected.Model != guide.DefaultModel {
+		t.Fatalf("unavailable remembered provider selected: %+v, err=%v", selected, err)
 	}
 }
 
@@ -217,6 +238,8 @@ func (f guideAnalyzerFunc) Analyze(ctx context.Context, input guide.Input) (guid
 func wiringFixture(t *testing.T) (*application, *review.Session) {
 	t.Helper()
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("OPENAI_API_KEY", "fixture-openai-key")
+	t.Setenv("ANTHROPIC_API_KEY", "fixture-anthropic-key")
 	repo := testutil.NewRepo(t)
 	repo.Write("a", "old\n")
 	base := repo.Commit()

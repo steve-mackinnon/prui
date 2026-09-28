@@ -12,6 +12,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"pr-review/internal/guide"
+	"pr-review/internal/guideconfig"
 )
 
 type guideProviderRoundTrip func(*http.Request) (*http.Response, error)
@@ -98,6 +99,64 @@ func TestConfiguredGuideProvidersFromInteractiveConsent(t *testing.T) {
 				t.Fatalf("saved guide provenance: session=%#v error=%v", persisted, err)
 			}
 		})
+	}
+}
+
+func TestModalSelectionUsesAndRemembersChosenProvider(t *testing.T) {
+	app, original := wiringFixture(t)
+	ids := make([]string, 0, len(original.Inventory.Units))
+	for _, unit := range original.Inventory.Units {
+		ids = append(ids, unit.ID)
+	}
+	answer, err := json.Marshal(map[string]any{"guides": []any{map[string]any{
+		"title": "Review change", "description": "Fixture guide",
+		"sections": []any{map[string]any{"title": "Inspect patch", "description": "Check changed code", "unit_ids": ids}},
+	}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	calls := 0
+	app.guideClient = &http.Client{Transport: guideProviderRoundTrip(func(r *http.Request) (*http.Response, error) {
+		calls++
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if r.URL.Host != "api.anthropic.com" || !strings.Contains(string(body), "claude-ui") {
+			t.Errorf("modal choice did not reach provider: %s %s", r.URL, body)
+		}
+		return guideProviderResponse(t, "anthropic", "claude-ui", answer), nil
+	})}
+	m := app.model(context.Background(), options{Command: "resume", SessionID: original.ID})
+	defer m.Close()
+	completeModelAction(t, m, m.Init())
+	modelKey(m, 'g')
+	modelKey(m, tea.KeyTab)
+	modelKey(m, tea.KeyRight)
+	modelKey(m, tea.KeyTab)
+	for _, ch := range "claude-ui" {
+		modelKey(m, ch)
+	}
+	modelKey(m, tea.KeyTab)
+	if view := m.View().Content; !strings.Contains(view, "Provider: anthropic") || !strings.Contains(view, "Model: claude-ui") {
+		t.Fatalf("modal did not show chosen selection: %s", view)
+	}
+	modelKey(m, tea.KeyEnter)
+	if m.ActionError != nil || calls != 1 || m.Session.Guides == nil || m.Session.Guides.Provider != "anthropic" || m.Session.Guides.Model != "claude-ui" {
+		t.Fatalf("guide result used wrong choice: calls=%d, error=%v, guide=%#v", calls, m.ActionError, m.Session.Guides)
+	}
+	if want := app.guideSelection.Fingerprint(guide.PromptVersion, guide.SchemaName); m.Session.Guides.SelectionFingerprint != want {
+		t.Fatalf("fingerprint = %q, want %q", m.Session.Guides.SelectionFingerprint, want)
+	}
+	remembered, err := guideconfig.LoadRemembered(guideconfig.RememberedPath(app.guideConfigPath))
+	if err != nil || remembered.Provider != "anthropic" || remembered.Model != "claude-ui" {
+		t.Fatalf("remembered selection = %+v, %v", remembered, err)
+	}
+	restarted := &application{store: app.store}
+	restarted.resolveGuideSelection()
+	_, selected, err := restarted.interactiveGuideChoices()
+	if err != nil || selected.Provider != "anthropic" || selected.Model != "claude-ui" {
+		t.Fatalf("restarted selection = %+v, %v", selected, err)
 	}
 }
 

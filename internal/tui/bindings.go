@@ -39,7 +39,7 @@ var bindings = []binding{
 	{keys: "e", desc: "show evidence scope", groups: groupFooter | groupHelp, section: "Views"},
 	{keys: "v/V", desc: "next/previous PR context view", groups: groupFooter | groupHelp, section: "Views"},
 	{keys: "1/2/3", desc: "select Diff, Description, or Commits", groups: groupFooter | groupHelp, section: "Views"},
-	{keys: "g", desc: "generate an OpenAI guide after confirmation", groups: groupFooter | groupHelp, section: "Review"},
+	{keys: "g", desc: "choose provider and model, then generate a guide", groups: groupFooter | groupHelp, section: "Review"},
 	{keys: "U", desc: "show GitHub URL", groups: groupFooter | groupHelp, section: "Review"},
 	{keys: "m", desc: "mark/unmark the whole file slice, including its units under other guides", groups: groupFooter | groupHelp, section: "Review"},
 	{keys: "R", desc: "submit a PR review with pending line comments", groups: groupHelp, section: "Review"},

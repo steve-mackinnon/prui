@@ -28,17 +28,19 @@ input or output and `TERM=dumb`. Run `pr-review --help` for the full syntax.
 
 Guides group the frozen review units into functional chunks, each with a title, description, and ordered sections that reference specific units. They are an interpretation layer: `Slices` and `UnitFiles` are unchanged, reading progress stays file-slice based, and the raw inventory remains the complete source view. Each unit is assigned to a guide exactly once; anything the model did not group lands in a synthesized `Ungrouped changes` guide.
 
-Selecting a PR from the interactive PR list or switcher displays the latest validated saved review immediately when one exists, with freshness shown as unknown until an asynchronous GitHub check finishes. The check reuses a matching frozen comparison without Git fetching or resource rebuilding; a changed comparison is pinned normally and replaces the displayed review when ready. A previously generated guide for the same repository, PR number, base SHA, and head SHA is reused locally only when its guide selection also matches. Press `g` in an interactive review and confirm to generate a guide; Escape cancels an in-flight request. Direct `open`, `resume`, `--plain`, offline mode, and `verify` do not generate guides. API keys are never written to a snapshot, log, or error string. With no guide configuration file, OpenAI's default model is `gpt-5.6-terra`, and `OPENAI_BASE_URL` may override its endpoint. There are no guide-generation model or exclusion CLI flags. `resume --offline` rejects guide generation and all GitHub operations before accessing clients or credentials; stored guides remain readable.
+Selecting a PR from the interactive PR list or switcher displays the latest validated saved review immediately when one exists, with freshness shown as unknown until an asynchronous GitHub check finishes. The check reuses a matching frozen comparison without Git fetching or resource rebuilding; a changed comparison is pinned normally and replaces the displayed review when ready. A previously generated guide for the same repository, PR number, base SHA, and head SHA is reused locally only when its guide selection also matches. Press `g` in an interactive review to open the guide modal over that review. Provider, editable model ID, sanitized recipient, and source-upload warning are visible together. The last confirmed valid pair is preselected, so `g` then Enter confirms it; Tab selects a row, arrow keys change provider, and typing or deleting edits the model ID. Escape closes the modal or cancels an in-flight request. Direct `open`, `resume`, `--plain`, offline mode, and `verify` do not generate guides. API keys are never written to a snapshot, log, or error string. With no guide configuration file, OpenAI's default model is `gpt-5.6-terra`, and `OPENAI_BASE_URL` may override its endpoint. There are no guide-generation model or exclusion CLI flags. `resume --offline` rejects guide generation and all GitHub operations before accessing clients or credentials; stored guides remain readable.
 
 ### Guide model configuration
 
-The global guide selection is read from `$XDG_CONFIG_HOME/pr-review/config.json`
+The global guide configuration is read from `$XDG_CONFIG_HOME/pr-review/config.json`
 when `XDG_CONFIG_HOME` is absolute, or `~/.config/pr-review/config.json`
 otherwise. This rule applies on macOS and Linux. The file is separate from
-`theme.json`, session storage, and the reviewed checkout. An absent file uses
-OpenAI with `gpt-5.6-terra`, `OPENAI_API_KEY`, and the optional legacy
-`OPENAI_BASE_URL` origin override. A present file selects the provider and
-model; `OPENAI_BASE_URL` no longer affects that selection.
+`theme.json`, session storage, and the reviewed checkout. An absent file
+defaults to OpenAI with `gpt-5.6-terra`, `OPENAI_API_KEY`, and the optional
+legacy `OPENAI_BASE_URL` origin override. A present file supplies the initial
+provider and model and any custom endpoint or key-variable name;
+`OPENAI_BASE_URL` no longer affects that configuration. The guide modal can
+select another currently usable provider and model for each confirmed request.
 
 ```json
 {
@@ -56,7 +58,20 @@ providers default to `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, and
 `GEMINI_API_KEY` respectively; `api_key_env` can name another variable.
 Store the key in that environment variable, not in the JSON file. The
 configuration is resolved for the interactive session; restart the CLI after
-changing it.
+changing it. The provider list includes native providers whose designated key
+variables have nonempty values. A compatible provider is selectable only when
+configured with its endpoint and key, or with an explicitly keyless loopback
+HTTP endpoint. Key values are never displayed or stored. If no provider is
+usable, confirmation is disabled.
+
+The last confirmed provider and model are stored as a private, atomic
+`guide-last.json` file beside `config.json`. This preference contains only
+the provider and model ID; it does not replace endpoint or key-variable
+configuration. A usable remembered pair takes precedence when the modal opens.
+If it is unavailable, the configured pair is used when available, followed by
+another usable provider. Invalid preference data is never overwritten
+silently. Editing the model ID requires a nonempty ID without whitespace or
+control characters. There is no provider model catalog or local model allowlist.
 
 An OpenAI-compatible endpoint needs an explicit API prefix, usually including
 `/v1`, and a key variable:

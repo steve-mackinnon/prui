@@ -58,8 +58,19 @@ func (a *application) model(ctx context.Context, o options) *tui.Model {
 	if a.guideSelectionError != nil {
 		m.SetGuideSelection("invalid configuration", "unavailable", "invalid", false, false)
 	} else {
+		choices, selected, rememberedErr := a.interactiveGuideChoices()
+		if rememberedErr != nil {
+			m.ActionError = rememberedErr
+		}
+		if selected.Provider != "" {
+			a.guideSelection = selected
+		}
 		s := a.guideSelection
 		m.SetGuideSelection(s.Provider, s.Model, s.Destination, s.Provider == "openai", s.APIKeyEnv != "")
+		m.SetGuideOptions(choices, selected, func(choice guideconfig.Selection) error {
+			a.guideSelection = choice
+			return guideconfig.PersistRemembered(guideconfig.RememberedPath(a.guideConfigPath), guideconfig.RememberedSelection{Provider: choice.Provider, Model: choice.Model})
+		})
 	}
 	m.SetGuideLifecycle(guideApp.requestGuide)
 	m.SetCommentSubmitter(a.submitReviewComment)
@@ -82,6 +93,42 @@ func (a *application) model(ctx context.Context, o options) *tui.Model {
 	}
 	m.SetThemeSelectionLocked(o.ThemeName != "")
 	return m
+}
+
+func (a *application) interactiveGuideChoices() ([]guideconfig.Selection, guideconfig.Selection, error) {
+	configured := a.guideConfigSelection
+	if configured.Provider == "" {
+		configured = a.guideSelection
+	}
+	// Offline mode never inspects a credential. It still presents the configured
+	// identity so an attempted request receives the existing explicit refusal.
+	if a.offline {
+		return []guideconfig.Selection{configured}, configured, nil
+	}
+	choices := guideconfig.AvailableSelections(configured, os.Getenv)
+	remembered, err := guideconfig.LoadRemembered(guideconfig.RememberedPath(a.guideConfigPath))
+	if err != nil {
+		return choices, chooseGuideSelection(choices, configured, guideconfig.RememberedSelection{}), err
+	}
+	return choices, chooseGuideSelection(choices, configured, remembered), nil
+}
+
+func chooseGuideSelection(choices []guideconfig.Selection, configured guideconfig.Selection, remembered guideconfig.RememberedSelection) guideconfig.Selection {
+	for _, choice := range choices {
+		if choice.Provider == remembered.Provider && remembered.Model != "" {
+			choice.Model = remembered.Model
+			return choice
+		}
+	}
+	for _, choice := range choices {
+		if choice.Provider == configured.Provider {
+			return choice
+		}
+	}
+	if len(choices) != 0 {
+		return choices[0]
+	}
+	return guideconfig.Selection{}
 }
 
 func (a *application) createGuideAnalyzer() (guide.Analyzer, error) {
@@ -129,7 +176,9 @@ func (a *application) resolveGuideSelection() {
 		a.guideSelectionError = err
 		return
 	}
+	a.guideConfigPath = path
 	a.guideSelection, a.guideSelectionError = guideconfig.Load(path, os.Getenv("OPENAI_BASE_URL"))
+	a.guideConfigSelection = a.guideSelection
 }
 
 func (a *application) activeGuideSelection() guideconfig.Selection {
@@ -152,16 +201,22 @@ func (a *application) guideCacheEligible(b guide.Bundle) bool {
 	return s.LegacyDefault && b.Provider == "openai" && b.Model == guide.DefaultModel && b.PromptVersion == guide.PromptVersion && b.SchemaName == guide.SchemaName
 }
 
-func (a *application) requestGuide(ctx context.Context, original *review.Session, notify func(string)) (*review.Session, error) {
+func (a *application) requestGuide(ctx context.Context, original *review.Session, choice guideconfig.Selection, notify func(string)) (*review.Session, error) {
 	if err := a.online(ctx); err != nil {
 		return nil, err
 	}
+	if choice.Provider == "" || choice.Model == "" {
+		return nil, errors.New("guide provider and model are required")
+	}
+	selected := *a
+	selected.guideSelection = choice
+	selected.guideSelectionResolved = true
 	if notify != nil {
 		notify("Creating analyzer for this confirmed guide request...")
 	}
-	analyzer, err := a.createGuideAnalyzer()
+	analyzer, err := selected.createGuideAnalyzer()
 	if err != nil {
 		return nil, err
 	}
-	return a.generateGuide(ctx, original, analyzer)
+	return selected.generateGuide(ctx, original, analyzer)
 }

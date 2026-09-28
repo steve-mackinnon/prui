@@ -9,17 +9,19 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"pr-review/internal/guideconfig"
 	"pr-review/internal/review"
 	"pr-review/internal/session"
 	"pr-review/internal/source"
 )
 
 type FreshLoader func(context.Context, *review.Session, func(string)) (*review.Session, error)
-type GuideLoader func(context.Context, *review.Session, func(string)) (*review.Session, error)
+type GuideLoader func(context.Context, *review.Session, guideconfig.Selection, func(string)) (*review.Session, error)
 type ActionResult struct {
 	Session *review.Session
 	Err     error
 	Reset   bool
+	SaveErr error
 }
 
 // CommentSubmission carries the immutable comparison that produced the target
@@ -599,6 +601,9 @@ func (m *Model) lifecycleKey(k string) (tea.Cmd, bool) {
 		if m.generateGuide == nil {
 			return nil, true
 		}
+		m.resetGuideDraft()
+		m.guideFocus = 0
+		m.guideModelEditing = false
 		m.push(pageGuideConsent)
 		return nil, true
 	}
@@ -608,23 +613,82 @@ func (m *Model) lifecycleKey(k string) (tea.Cmd, bool) {
 func (m *Model) guideConsentKey(k string) tea.Cmd {
 	switch k {
 	case "esc":
+		m.guideModelEditing = false
+		m.resetGuideDraft()
 		m.pop()
+	case "tab", "shift+tab":
+		delta := 1
+		if k == "shift+tab" {
+			delta = 2
+		}
+		m.guideFocus = (m.guideFocus + delta) % 3
+		m.guideModelEditing = false
+	case "left", "right", "up", "down":
+		if m.guideFocus == 1 && len(m.guideOptions) > 0 {
+			step := 1
+			if k == "left" || k == "up" {
+				step = -1
+			}
+			m.cycleGuideProvider(step)
+		}
+	case "backspace", "delete":
+		if m.guideFocus == 2 && m.guideChoice.Provider != "" {
+			runes := []rune(m.guideChoice.Model)
+			if len(runes) > 0 {
+				m.guideChoice.Model = string(runes[:len(runes)-1])
+			}
+		}
+	case "ctrl+a":
+		if m.guideFocus == 2 && m.guideChoice.Provider != "" {
+			m.guideChoice.Model = ""
+			m.guideModelEditing = true
+		}
 	case "enter":
+		if m.guideFocus == 1 {
+			m.cycleGuideProvider(1)
+			return nil
+		}
+		if m.guideFocus == 2 {
+			m.guideModelEditing = !m.guideModelEditing
+			if !m.guideModelEditing {
+				m.guideFocus = 0
+			}
+			return nil
+		}
 		if m.generateGuide == nil || m.Session == nil {
 			return nil
 		}
+		selection := m.currentGuideSelection()
+		if !guideconfig.ValidModel(selection.Model) || selection.Provider == "" || !guideConsentFits(m.Width, m.Height, m.guideConsentView()) {
+			return nil
+		}
+		m.guideConfirmed = selection
 		m.pop()
-		m.notice = "Sending bounded pinned source and evidence to " + Escape(m.guideRecipient()) + "..."
+		m.notice = "Sending bounded pinned source and evidence to " + Escape(selection.Destination) + "..."
 		ctx := m.beginAction()
 		s := *m.Session
+		var saveErr error
+		if m.guideSave != nil {
+			if err := m.guideSave(selection); err != nil {
+				saveErr = fmt.Errorf("could not remember guide selection: %w", err)
+			}
+		}
+		if saveErr != nil {
+			m.ActionError = saveErr
+		}
 		return m.start(func() tea.Msg {
 			n := m.notify
 			if n == nil {
 				n = func(string) {}
 			}
-			derived, err := m.generateGuide(ctx, &s, n)
-			return ActionResult{Session: derived, Err: err, Reset: true}
+			derived, err := m.generateGuide(ctx, &s, selection, n)
+			return ActionResult{Session: derived, Err: err, Reset: true, SaveErr: saveErr}
 		})
+	default:
+		if m.guideFocus == 2 && len([]rune(k)) == 1 && guideconfig.ValidModel(k) {
+			m.guideChoice.Model += k
+			m.guideModelEditing = true
+		}
 	}
 	return nil
 }

@@ -55,7 +55,7 @@ Local reading progress and exit success do not constitute GitHub approval.
 | `ctrl+p` | Switch PRs (except inside an editor) |
 | `enter` | Focus diff, then edit a comment on the selected line |
 | `R` | Open the review submission form |
-| `g` | Generate a guide after confirming source upload |
+| `g` | Open the guide modal to choose a provider and model, then confirm source upload |
 | `r` / `N` | Check freshness / start a new comparison |
 | `t` | Choose and save a theme |
 | `?` / `q` | Health & help / quit |
@@ -96,10 +96,22 @@ modifier (often Shift, depending on the terminal or multiplexer) to copy text.
 
 ## Optional AI guides
 
-With no guide configuration file, set `OPENAI_API_KEY` in your environment,
-press `g`, and confirm to send bounded pinned patches and repository evidence
-to OpenAI. The default model is `gpt-5.6-terra`; `OPENAI_BASE_URL` can override
-its destination. Use only an endpoint you trust with the source and API key.
+Press `g` in a review to open a modal over the current review. It always shows
+the provider, editable model ID, and recipient before upload. If the displayed
+choice is right, press Enter to confirm; `g`, then Enter is the quick path.
+Tab moves between the confirmation action, provider, and model. Use the arrow
+keys on the provider row and type or delete on the model row. Ctrl+A clears the
+model ID for replacement. Escape closes the modal without changing the review
+or saved choice.
+
+Providers with a configured, nonempty key in the current environment are
+selectable. OpenAI, Anthropic, and Google use `OPENAI_API_KEY`,
+`ANTHROPIC_API_KEY`, and `GEMINI_API_KEY` by default. An OpenAI-compatible
+provider requires an endpoint in your guide configuration; an explicitly
+configured keyless loopback endpoint is also supported. With no guide
+configuration file, OpenAI's default model is `gpt-5.6-terra`, and
+`OPENAI_BASE_URL` can override its destination. Use only an endpoint you trust
+with the source and API key.
 
 To bring your own model, create `~/.config/pr-review/config.json` on macOS or
 Linux. If `XDG_CONFIG_HOME` is an absolute path, use
@@ -127,11 +139,13 @@ pinned repository, not just files in the PR. See [what the guide request
 sends](docs/REFERENCE.md#guide-request-contents) for the selection rules and
 limits.
 
-Opening, resuming, and switching PRs never generate guides automatically. A
-cached guide is reused only when its provider, model, endpoint, prompt, and
-schema match the current selection. A completed generation saves a derived
-session with fresh reading progress and retains the original session. Escape
-cancels generation. Raw diffs remain available if analysis fails.
+The last confirmed provider and model are remembered across launches in the
+private app-owned `guide-last.json` beside `config.json`. This preference
+contains no key or source. Opening, resuming, and switching PRs never generate
+guides automatically. A cached guide is reused only when its provider, model,
+endpoint, prompt, and schema match the current selection. A completed generation
+saves a derived session with fresh reading progress and retains the original
+session. Escape cancels generation. Raw diffs remain available if analysis fails.
 
 Uploads have size and time limits and apply a heuristic credential filter.
 **The filter is not a secret scanner and can miss credentials.** Use guides only

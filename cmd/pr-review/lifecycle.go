@@ -31,6 +31,8 @@ type application struct {
 	newAnalyzer            func() (guide.Analyzer, error)
 	guideClient            *http.Client
 	guideSelection         guideconfig.Selection
+	guideConfigSelection   guideconfig.Selection
+	guideConfigPath        string
 	guideSelectionError    error
 	guideSelectionResolved bool
 }

@@ -11,6 +11,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 	"pr-review/internal/guide"
+	"pr-review/internal/guideconfig"
 	"pr-review/internal/review"
 	"pr-review/internal/session"
 	"pr-review/internal/source"
@@ -594,7 +595,7 @@ func TestGuideConsentCancelsOrSwitchesToDerivedSession(t *testing.T) {
 	defer m.Close()
 	m.SetLifecycle(store, fakeGitHub{meta}, nil)
 	calls := 0
-	m.SetGuideLifecycle(func(_ context.Context, s *review.Session, _ func(string)) (*review.Session, error) {
+	m.SetGuideLifecycle(func(_ context.Context, s *review.Session, _ guideconfig.Selection, _ func(string)) (*review.Session, error) {
 		calls++
 		derived := s.Snapshot
 		derived.DerivedFrom = s.ID
@@ -700,7 +701,9 @@ func TestBackgroundReplacementCannotInterruptForegroundReviewAction(t *testing.T
 				m.fresh = blocked
 				m.lifecycleKey("N")
 			case "guide":
-				m.generateGuide = blocked
+				m.generateGuide = func(ctx context.Context, s *review.Session, _ guideconfig.Selection, n func(string)) (*review.Session, error) {
+					return blocked(ctx, s, n)
+				}
 				m.push(pageGuideConsent)
 				m.guideConsentKey("enter")
 			case "comment":

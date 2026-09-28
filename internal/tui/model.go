@@ -10,6 +10,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+	"pr-review/internal/guideconfig"
 	"pr-review/internal/inventory"
 	"pr-review/internal/review"
 	"pr-review/internal/session"
@@ -208,6 +209,14 @@ type Model struct {
 	guideModel           string
 	guideStoreFalse      bool
 	guideHasCredential   bool
+	guideOptions         []guideconfig.Selection
+	guideChoice          guideconfig.Selection
+	guideConfirmed       guideconfig.Selection
+	guideOptionsSet      bool
+	guideFocus           int
+	guideModelEditing    bool
+	guideModelDrafts     map[string]string
+	guideSave            func(guideconfig.Selection) error
 	submitComment        CommentSubmitter
 	submitReview         ReviewSubmitter
 	readComments         CommentReader
@@ -376,6 +385,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	case ActionResult:
 		v.Err = m.finishAction(v.Err)
+		if v.SaveErr != nil && v.Err == nil {
+			m.ActionError = v.SaveErr
+		}
 		if v.Err == nil && v.Session != nil {
 			m.Session = v.Session
 			if v.Reset {
@@ -558,7 +570,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		editingReviewText := m.top() == pageReviewSubmit
-		if (v.String() != "q" || editingReviewText) && v.String() != "ctrl+c" {
+		editingGuideModel := m.top() == pageGuideConsent && m.guideFocus == 2
+		if (v.String() != "q" || editingReviewText || editingGuideModel) && v.String() != "ctrl+c" {
 			if m.Busy && (m.top() != pagePullRequestPicker || m.Session == nil) {
 				return m, nil
 			}
@@ -1725,7 +1738,7 @@ func (m *Model) View() tea.View {
 		case pageURL:
 			text = m.Session.Inventory.Comparison.Metadata.Identity.URL() + "\nOpen this URL in your browser.\nesc: back | q: quit"
 		case pageGuideConsent:
-			text = m.guideConsentView()
+			text = renderGuideConsentModal(m.Width, m.Height, m.reviewView(), m.guideConsentView())
 		case pageReviewSubmit:
 			text = m.reviewFormView()
 		case pageQuitPending:

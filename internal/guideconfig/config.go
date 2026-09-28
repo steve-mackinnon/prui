@@ -15,7 +15,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
-	"unicode"
 )
 
 const (
@@ -171,7 +170,7 @@ func parse(contents []byte) (Selection, error) {
 	if err != nil {
 		return Selection{}, err
 	}
-	if model == "" || strings.TrimSpace(model) != model || strings.IndexFunc(model, func(r rune) bool { return unicode.IsControl(r) || unicode.IsSpace(r) }) >= 0 {
+	if !ValidModel(model) {
 		return Selection{}, errors.New("invalid model")
 	}
 	switch provider {

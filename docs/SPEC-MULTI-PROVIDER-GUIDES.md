@@ -2,6 +2,11 @@
 
 Status: implemented in this worktree; terminal acceptance remains pending.
 
+The original single-selection and no-picker interaction in this spec describes
+the first release. [SPEC-GUIDE-GENERATION-MODAL.md](SPEC-GUIDE-GENERATION-MODAL.md)
+supersedes those interaction requirements with a guide modal, an editable model
+ID, key-aware provider choices, and a remembered last confirmed pair.
+
 ## Objective and scope
 
 Reviewers can generate a guide with their chosen model through OpenAI, Anthropic,
@@ -107,6 +112,11 @@ Path sources: [XDG Base Directory Specification](https://specifications.freedesk
 [OpenCode configuration](https://dev.opencode.ai/docs/config/).
 
 ## Selection, consent, and execution
+
+For the current modal interaction and selection precedence, follow
+[SPEC-GUIDE-GENERATION-MODAL.md](SPEC-GUIDE-GENERATION-MODAL.md). The steps below
+record the first release's fixed selection workflow; the one-request and
+upload-safety limits still apply.
 
 1. Resolve and validate one immutable guide selection when constructing the
    interactive model. The same selection supplies the consent text, cache
