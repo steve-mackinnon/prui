@@ -1266,6 +1266,11 @@ func (m *Model) baseDetail() []diffLine {
 // accidentally select remote text or the draft editor.
 func (m *Model) detail() []diffLine {
 	base := m.baseDetail()
+	// Source rows are immutable; the renderer copies just the visible viewport.
+	// Avoid rebuilding the whole review on every navigation call without overlays.
+	if len(m.Comments) == 0 && len(m.Pending) == 0 && m.Composer == nil {
+		return base
+	}
 	lines := make([]diffLine, 0, len(base)+len(m.Comments)+2)
 	for _, line := range base {
 		lines = append(lines, line)
@@ -1309,6 +1314,9 @@ func (m *Model) sideBySideDetail() []diffLine {
 		base = m.cachedFileDetail(true)
 	} else {
 		base = projectSideBySideDetail(m.baseDetail())
+	}
+	if len(m.Comments) == 0 && len(m.Pending) == 0 && m.Composer == nil {
+		return base
 	}
 	lines := make([]diffLine, 0, len(base)+len(m.Comments)+2)
 	for _, line := range base {
