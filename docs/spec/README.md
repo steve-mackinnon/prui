@@ -14,6 +14,7 @@ These documents preserve requirements, acceptance criteria, and the reasoning be
 - [Spec: Live PR Verifier](SPEC-live-pr-verifier.md)
 - [Spec: Performance Reporting](SPEC-performance-reporting.md)
 - [Spec: Pull Request Commit Browser](SPEC-pr-commits.md)
+- [Spec: Shared Diff Rendering](SPEC-shared-diff-rendering.md)
 - [Spec: Commit Discussions and Outdated Review Comments](SPEC-pr-commit-discussions.md)
 - [Spec: Frozen Pull Request Description View](SPEC-pr-description.md)
 - [Spec: PR-List Guide Loading](SPEC-pr-list-guide-loading.md)
