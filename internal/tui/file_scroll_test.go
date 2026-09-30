@@ -40,6 +40,45 @@ func BenchmarkFilesScroll(b *testing.B) {
 	}
 }
 
+// Exercise an actual file transition in a large continuous diff. The original
+// benchmark alternates within one file and cannot expose transition costs.
+func BenchmarkFilesScrollTransition(b *testing.B) {
+	for _, width := range []int{120, 180} {
+		for _, crossing := range []bool{false, true} {
+			b.Run(fmt.Sprintf("width=%d/crossing=%t", width, crossing), func(b *testing.B) {
+				m := largeModel(largeTextSession(100, 1000), width, 40)
+				defer m.Close()
+				m.Files, m.Focus, m.cursorActive = true, paneDiff, true
+				if width >= sideBySideMinimumWidth {
+					m.layout = diffLayoutSideBySide
+				}
+				start := m.fileOffset(50) - 1
+				detail := m.displayDetail()
+				for detail[start].target == nil {
+					start--
+				}
+				if !crossing {
+					start -= 5
+				}
+				m.setCursor(start)
+				m.setOffset(start - m.bodyHeight() + 1)
+				m.syncFileToLine(start)
+				_ = m.View()
+				b.ReportAllocs()
+				b.ResetTimer()
+				for i := 0; i < b.N; i++ {
+					if i%2 == 0 {
+						key(m, 'j')
+					} else {
+						key(m, 'k')
+					}
+					_ = m.View()
+				}
+			})
+		}
+	}
+}
+
 func TestFilesScrollAllocationBudget(t *testing.T) {
 	for _, tc := range []struct {
 		width  int
@@ -61,6 +100,22 @@ func TestFilesScrollAllocationBudget(t *testing.T) {
 			})
 			if allocs > tc.budget {
 				t.Fatalf("files keypress + render: %.0f allocations exceed %.0f", allocs, tc.budget)
+			}
+		})
+	}
+}
+
+// Reading an unchanged diff without overlays must reuse the cached stream.
+// Otherwise navigation repeatedly copies the entire review before clipping.
+func TestUnchangedDiffStreamAllocationBudget(t *testing.T) {
+	for _, width := range []int{120, 180} {
+		t.Run(fmt.Sprint(width), func(t *testing.T) {
+			m := fileScrollModel(width)
+			defer m.Close()
+			_ = m.displayDetail()
+			allocs := testing.AllocsPerRun(5, func() { _ = m.displayDetail() })
+			if allocs != 0 {
+				t.Fatalf("unchanged diff stream allocated %.0f times; want zero", allocs)
 			}
 		})
 	}
@@ -107,6 +162,14 @@ func TestFilesDetailCacheSourceAndOverlay(t *testing.T) {
 			m.Comments, m.Composer = nil, nil
 			if got := joined(); strings.Contains(got, "fresh comment") || strings.Contains(got, "fresh draft") {
 				t.Fatal("stale overlay")
+			}
+			m.Pending = []source.ReviewComment{{Target: target, Body: "pending draft"}}
+			if !strings.Contains(joined(), "pending draft") {
+				t.Fatal("pending-only overlay did not refresh")
+			}
+			m.Pending = nil
+			if strings.Contains(joined(), "pending draft") {
+				t.Fatal("stale pending overlay")
 			}
 			if !reflect.DeepEqual(m.baseDetail(), original) {
 				t.Fatal("overlay mutated cached source")

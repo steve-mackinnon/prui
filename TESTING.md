@@ -1,5 +1,32 @@
 # Automated verification
 
+## Diff scrolling performance
+
+Run `go test ./internal/tui -run '^$' -bench BenchmarkFilesScrollTransition -benchmem -count=3`
+to compare j/k movement within a file and across a file boundary. The fixture
+contains 100 files and 1,000 text hunks, with warmed source caches and no comment
+overlays. Both cases execute key handling and View; terminal output is excluded.
+
+On an Apple M2 Max with Go 1.26.8 (2026-09-30), bypassing overlay reconstruction
+when comments, pending drafts, and the composer are absent produced these median
+boundary-crossing results across three runs:
+
+| Layout | Before | After | Allocated bytes per key, before → after |
+| --- | --- | --- | --- |
+| Unified, 120 columns | 4.29 ms | 0.59 ms | 17.98 MB → 0.56 MB |
+| Split, 180 columns | 12.02 ms | 0.76 ms | 46.02 MB → 0.44 MB |
+
+Measurements used the same benchmark command with CPU and heap profiles enabled
+for both versions. Interior and crossing costs were similar; no distinct
+file-selection stall was reproduced. Over 96% of baseline allocated bytes were
+attributed to detail/sideBySideDetail and rowTargets. The optimization is retained;
+the unchanged-stream allocation test guards against rebuilding cached file rows.
+Existing cache tests verify rendering does not mutate source and overlays stay
+current. Reviews with overlays still rebuild the stream, and navigation still
+scans rows; terminal rendering and held-key cadence require interactive checking.
+
+## Repository verification
+
 Run the same gate as CI from the repository root:
 
 ```sh

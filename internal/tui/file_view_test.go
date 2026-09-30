@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 
+	"charm.land/lipgloss/v2"
+
 	"prui/internal/inventory"
 )
 
@@ -138,4 +140,63 @@ func TestFileViewCommentCursorUpdatesSelectedFile(t *testing.T) {
 		key(m, 'n')
 	}
 	t.Fatal("comment cursor reached the next file without updating selection")
+}
+
+func TestFilePickerResetsCursorWithinSelectedFile(t *testing.T) {
+	for _, width := range []int{120, 180} {
+		m := largeModel(largeTextSession(3, 3), width, 1000)
+		if width == 180 {
+			key(m, 'S')
+		}
+		m.Focus, m.cursorActive = paneList, true
+		for i, line := range m.displayDetail() {
+			if i > m.fileOffset(2) && line.target != nil {
+				m.setCursor(i)
+				break
+			}
+		}
+		m.file(1)
+		if got := m.cursor(); got < m.fileOffset(1) || got >= m.fileOffset(2) {
+			t.Fatalf("width %d: selected file 1 but cursor is at %d", width, got)
+		}
+	}
+}
+
+func TestActiveFileHeaderFollowsPickerAndCursor(t *testing.T) {
+	for _, width := range []int{120, 180} {
+		m := largeModel(largeTextSession(3, 3), width, 1000)
+		if width == 180 {
+			key(m, 'S')
+		}
+		m.styles = map[lineClass]lipgloss.Style{classSelection: lipgloss.NewStyle().Transform(func(s string) string { return "ACTIVE:" + s })}
+		m.Focus = paneList
+		m.file(1)
+		assertHeader := func(file int) {
+			t.Helper()
+			got := m.View().Content
+			for i, f := range m.Session.Inventory.Files {
+				highlighted := false
+				for _, line := range strings.Split(got, "\n") {
+					cells := strings.Split(line, "│")
+					if len(cells) > 2 && strings.Contains(cells[2], "ACTIVE:") && strings.Contains(cells[2], fileDivider(f)) {
+						highlighted = true
+					}
+				}
+				if highlighted != (i == file) {
+					t.Fatalf("width %d: header %d highlighted=%v, active file=%d", width, i, highlighted, file)
+				}
+			}
+		}
+		assertHeader(1)
+		m.Focus, m.cursorActive = paneDiff, true
+		for i, line := range m.displayDetail() {
+			if i > m.fileOffset(2) && line.target != nil {
+				m.setCursor(i)
+				break
+			}
+		}
+		assertHeader(2)
+		m.Focus = paneList
+		assertHeader(1)
+	}
 }
