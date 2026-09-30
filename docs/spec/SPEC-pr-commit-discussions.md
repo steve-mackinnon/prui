@@ -1,8 +1,8 @@
 # Spec: Commit Discussions and Outdated Review Comments
 
-Status: Proposed implementation contract, 2026-09-30. The user requested the
-specification and task breakdown; application implementation is not part of this
-change. Feature id: `pr-commit-discussions`.
+Status: Read-side scope and verified head-commit composer implemented
+2026-09-30 after user authorization. Nonhead historical posting remains gated
+pending separately authorized live interoperability evidence. Feature id: `pr-commit-discussions`.
 
 ## Objective
 
@@ -112,7 +112,9 @@ Reuse editor controls, including Enter to post, Shift+Enter for newline, and
 Escape to cancel. Header includes `Comment on <SHA> · <path>:<line> · <side>`
 and, for non-head commits, `Historical commit`. Context/commit switching cannot
 move an active draft to another target; composer routing consumes those keys.
-Drafts are review-owned and target-keyed. Confirm discarding on review replacement
+Ctrl+R explicitly refreshes discussion data without discarding the draft, so an
+uncertain delivery can be checked before an intentional retry. Drafts are
+review-owned and target-keyed. Confirm discarding on review replacement
 or quitting consistently with existing unsent-draft behavior.
 
 `ctrl+p` queue-for-review is unavailable in a historical composer, with an

@@ -1,5 +1,10 @@
 # Spec: Pull Request Line Comments
 
+Historical discussion viewing and the narrowly gated commit composer extend
+this original contract; see [Commit Discussions](SPEC-pr-commit-discussions.md).
+The read-only/current-head-only restrictions below describe the earlier release.
+
+
 ## Objective
 
 Allow a reviewer of a pinned GitHub pull request to select a concrete diff

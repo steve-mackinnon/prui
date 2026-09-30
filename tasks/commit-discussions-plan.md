@@ -2,12 +2,15 @@
 
 Spec: [SPEC-pr-commit-discussions.md](../docs/spec/SPEC-pr-commit-discussions.md).
 Checklist: [commit-discussions-todo.md](commit-discussions-todo.md).
-Status: Drafted 2026-09-30; implementation has not started.
+Status: Implementation authorized 2026-09-30. Read-side discussions and the
+verified head-commit composer are implemented; nonhead first-parent posting
+remains gated pending separately authorized live GitHub evidence.
 
 Use feature-specific files following the commit-browser convention. Existing
 `tasks/plan.md` and `tasks/todo.md` contain unrelated work and remain intact.
-The user requested specification and planning together; this package is the
-concrete result for review, not approval to implement or make external writes.
+The user subsequently authorized incremental implementation with sub-agents.
+That authorization covers local implementation and synthetic verification; live
+GitHub mutation experiments remain subject to the explicit delivery gate.
 
 ## Dependency Order and Slices
 

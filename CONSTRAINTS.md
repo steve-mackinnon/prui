@@ -56,3 +56,25 @@
 - Review submission sends one JSON stdin request through `gh api` to the pull-request reviews endpoint with the frozen head SHA, event, summary, and validated line targets. No draft text appears in process arguments, logs, sessions, or plain output. A successful request clears the local queue and refreshes the read-only inline overlay.
 - Before the write, the application checks current repository identities and base/head SHAs against the frozen comparison. Mismatch, offline mode, invalid input, or unavailable GitHub capability makes no write. There is no automatic retry after an uncertain outcome; a failed request retains local drafts for inspection.
 - Queued comments and asynchronous results belong to their originating review tab. Switching tabs cannot retarget a request. A new comparison clears drafts anchored to the old one. Source retrieval, guide generation, and progress updates cannot submit a review.
+
+
+# Commit Discussion Extension
+
+- The commit-discussions capability supersedes Phase 5's current-head-only read
+  overlay limit: bounded GraphQL review threads retain original/current anchors,
+  authoritative outdated/resolved status and fallback snippets/links. All data
+  remain memory-only, escaped and absent from sessions, logs, guides and plain
+  output. Offline refusal and explicit refresh/no-polling rules still apply.
+- Current anchors may render only after metadata before/after retrieval matches
+  the frozen PR pins, and only at an exact raw diff target. Original anchors may
+  render only at their own captured commit SHA/path/side/line; unplaceable threads
+  remain discoverable. Outdated never implies resolved; uncaptured never implies
+  removed. Partial retrieval cannot imply complete counts or no discussions.
+- Commit composers post immediately and cannot enter the head-based pending
+  review queue. Delivery validates captured SHA membership/raw patch provenance
+  plus full freshness. Only captured head targets also matching the frozen PR
+  diff are enabled while historical first-parent interoperability is unverified.
+  No silent retarget, automatic retry, additional permissions or persisted drafts.
+- A confirmed creation stays readable when its current anchor is missing.
+  Uncertain delivery retains the draft and requests refresh before intentional
+  retry. Existing main-diff actions retain their author/freshness protections.

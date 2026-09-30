@@ -2,19 +2,20 @@
 
 Spec: [commit discussions](../docs/spec/SPEC-pr-commit-discussions.md).
 Plan: [implementation plan](commit-discussions-plan.md).
-All tasks are unstarted. Use focused failing tests for behavioral changes, then
-implement and verify each increment. Listed paths include tests; split a task if
-its final scope exceeds roughly five files. No production implementation or live
-GitHub writes are authorized by this planning artifact alone.
+Read-side implementation, supported head-commit posting, and synthetic
+verification are complete. Historical first-parent delivery remains gated.
+Use focused failing tests for any subsequent behavioral changes. Listed paths include tests; split a task if
+its final scope exceeds roughly five files. The user authorized local implementation with sub-agents on 2026-09-30.
+Live GitHub mutation experiments still require explicit authorization.
 
 ## CD-01: Establish GitHub interoperability evidence
 
-- [ ] Verify official GraphQL field names/nullability for threads, original
+- [x] Verify official GraphQL field names/nullability for threads, original
   commits/anchors, replies, numeric IDs, statuses and both pagination levels.
 - [ ] Record first-parent targeting support for additions/deletions/context,
   renames, root/merge commits and lines changed again; distinguish documented,
   synthetic and live evidence. Explicitly mark unsupported/unverified cases.
-- [ ] Check `D` key conflicts and existing safe browser-launch behavior; record
+- [x] Check `D` key conflicts and existing safe browser-launch behavior; record
   decisions in the spec and an API fixture note. Resolve the gate before writes.
 
 Verify: official sources plus reviewed synthetic request/response fixtures;
@@ -26,11 +27,11 @@ Files: `docs/spec/SPEC-pr-commit-discussions.md`,
 
 ## CD-02: Normalize readable historical discussion records
 
-- [ ] Introduce typed thread/read-anchor/state records preserving root identity,
+- [x] Introduce typed thread/read-anchor/state records preserving root identity,
   original/current coordinates, replies, snippet and validated permalink.
-- [ ] Parse null anchors and immediately outdated write responses without rejecting
+- [x] Parse null anchors and immediately outdated write responses without rejecting
   valid readable comments; keep outbound target validation strict.
-- [ ] Preserve numeric action IDs and current-head action compatibility; malformed
+- [x] Preserve numeric action IDs and current-head action compatibility; malformed
   remote fields cannot become targets, unsafe URLs or terminal controls.
 
 Verify: `go test ./internal/source -count=1`; fixtures cover independent
@@ -41,11 +42,11 @@ Files: `internal/source/discussions.go` (new), `internal/source/discussions_test
 
 ## CD-03: Fetch bounded threads and nested reply pages
 
-- [ ] Implement narrow GraphQL reader using stdin JSON, explicit thread/comment
+- [x] Implement narrow GraphQL reader using stdin JSON, explicit thread/comment
   cursors and the spec's aggregate/deadline/material bounds.
-- [ ] Return completeness and safe partial/error states; distinguish complete
+- [x] Return completeness and safe partial/error states; distinguish complete
   empty results from unavailable data and incomplete threads.
-- [ ] Deduplicate by canonical identity, retain orphan/partial context honestly,
+- [x] Deduplicate by canonical identity, retain orphan/partial context honestly,
   and never drop a historical thread because it lacks a current line.
 
 Verify: `go test ./internal/source -count=1`; fake runner checks exact requests,
@@ -56,11 +57,11 @@ source API fixture files (new, keep task within five files).
 
 ## CD-04: Expose a review-owned Discussions overlay
 
-- [ ] Wire the reader through online lifecycle with metadata verification,
+- [x] Wire the reader through online lifecycle with metadata verification,
   identity/generation-scoped results and atomic refresh publication.
-- [ ] Add `D` list/detail with root/reply bodies, statuses, snippets and safe
+- [x] Add `D` list/detail with root/reply bodies, statuses, snippets and safe
   permalink display; `c` refresh and Escape return preserve context state.
-- [ ] Preserve prior results with stale/error notices on failure; offline and
+- [x] Preserve prior results with stale/error notices on failure; offline and
   replacement reviews cannot fetch or receive another review's late response.
 
 Verify: `go test ./internal/tui ./cmd/prui -count=1`; fake program reads an outdated
@@ -72,17 +73,17 @@ Files: `cmd/prui/lifecycle.go`, `internal/tui/lifecycle.go`,
 
 ## Checkpoint A: Historical discussions are discoverable
 
-- [ ] Complete/partial/unavailable states and status labels are truthful.
-- [ ] Main-diff comments and existing reply/delete/reaction actions regressions pass.
-- [ ] No comment data enters sessions, guides, plain output or logs.
+- [x] Complete/partial/unavailable states and status labels are truthful.
+- [x] Main-diff comments and existing reply/delete/reaction actions regressions pass.
+- [x] No comment data enters sessions, guides, plain output or logs.
 
 ## CD-05: Derive commit diff anchors and cursor provenance
 
-- [ ] Derive optional targets from immutable selected-commit hunks using SHA,
+- [x] Derive optional targets from immutable selected-commit hunks using SHA,
   path/side and raw line counters; keep unsupported rows non-commentable.
-- [ ] Add commit-owned cursor state and semantic mouse targets without changing
+- [x] Add commit-owned cursor state and semantic mouse targets without changing
   rail navigation, reading offsets, main-diff state or progress.
-- [ ] Cover rename/deletion/context/multiple hunks, root/merge eligibility,
+- [x] Cover rename/deletion/context/multiple hunks, root/merge eligibility,
   invalid paths and unavailable/partial/non-text diffs.
 
 Verify: `go test ./internal/tui -count=1`; pure target assertions and keyboard/mouse
@@ -94,11 +95,11 @@ Confirm actual mouse file ownership before editing; use existing semantic routin
 
 ## CD-06: Render shared discussions inline and count commit threads
 
-- [ ] Index roots by original SHA and exact anchors; show original-anchor cards
+- [x] Index roots by original SHA and exact anchors; show original-anchor cards
   in commits and freshness-qualified current-anchor cards in the main diff.
-- [ ] Count roots rather than replies, show outdated labels and incomplete counts,
+- [x] Count roots rather than replies, show outdated labels and incomplete counts,
   and keep unmatched records in Discussions without guessed placement.
-- [ ] Include overlay generation in rendering caches and cursor geometry; cards
+- [x] Include overlay generation in rendering caches and cursor geometry; cards
   never become new source targets or corrupt progress/state.
 
 Verify: `go test ./internal/tui -count=1`; render tests cover cross-commit same-line
@@ -109,11 +110,11 @@ Files: `internal/tui/discussions.go`, `internal/tui/discussions_test.go`,
 
 ## CD-07: Navigate original context and integrate overlay controls
 
-- [ ] `View original commit` selects captured SHA and exact available line;
+- [x] `View original commit` selects captured SHA and exact available line;
   missing capture retains thread detail with snippet/link and honest labels.
-- [ ] Return restores prior view/focus/selection/cursor/scroll; support keyboard
+- [x] Return restores prior view/focus/selection/cursor/scroll; support keyboard
   and mouse controls and safe explicit permalink opening/display fallback.
-- [ ] Complete help and wide/narrow screens, including capped list, unknown
+- [x] Complete help and wide/narrow screens, including capped list, unknown
   status, partial replies, file/multiline threads and unavailable commit diffs.
 
 Verify: `go test ./internal/tui -count=1`; reviewed screens at widths
@@ -124,17 +125,17 @@ Files: `internal/tui/discussions.go`, `internal/tui/discussions_test.go`,
 
 ## Checkpoint B: Commit viewing is complete
 
-- [ ] Every loaded thread is reachable, inline or via fallback.
-- [ ] Thread identity, counts, status and main/commit views agree after refresh.
-- [ ] Main review navigation, actions, progress and frozen source are unchanged.
+- [x] Every loaded thread is reachable, inline or via fallback.
+- [x] Thread identity, counts, status and main/commit views agree after refresh.
+- [x] Main review navigation, actions, progress and frozen source are unchanged.
 
 ## CD-08: Validate historical submission at the application boundary
 
-- [ ] Introduce explicit main-diff versus commit target provenance; historical
+- [x] Introduce explicit main-diff versus commit target provenance; historical
   requests must match active immutable commit membership and patch coordinates.
-- [ ] Retain full current-metadata freshness preflight, offline refusal and
+- [x] Retain full current-metadata freshness preflight, offline refusal and
   one-shot REST submission; unsupported cases cannot write.
-- [ ] Keep head-based PR-review batch validation strict; historical drafts cannot
+- [x] Keep head-based PR-review batch validation strict; historical drafts cannot
   be smuggled into it through a forged submission.
 
 Verify: `go test ./cmd/prui ./internal/source -count=1`; rejected SHA/anchor,
@@ -146,11 +147,11 @@ Files: `cmd/prui/lifecycle.go`, `cmd/prui/lifecycle_test.go`,
 
 ## CD-09: Compose explicit historical line comments
 
-- [ ] Reuse inline editor with historical SHA/path/side heading and immutable
+- [x] Reuse inline editor with historical SHA/path/side heading and immutable
   target; Enter posts, Shift+Enter inserts newline and Escape cancels.
-- [ ] Guard queue-for-review with explanation; preserve existing head drafts and
+- [x] Guard queue-for-review with explanation; preserve existing head drafts and
   review form; switching contexts/commits cannot move an active draft.
-- [ ] Retain draft on ordinary failure; include commit drafts in existing quit/
+- [x] Retain draft on ordinary failure; include commit drafts in existing quit/
   review-replacement protection; never persist or log draft text.
 
 Verify: `go test ./internal/tui -count=1`; compose/cancel/post routing,
@@ -162,11 +163,11 @@ Files: `internal/tui/commits.go`, `internal/tui/lifecycle.go`,
 
 ## CD-10: Reconcile created and uncertain historical comments
 
-- [ ] Confirmed POST clears draft and immediately inserts canonical record into
+- [x] Confirmed POST clears draft and immediately inserts canonical record into
   shared overlay/counts, even with null current anchor or outdated state unknown.
-- [ ] Place only exact returned anchors; enrich authoritative status on refresh
+- [x] Place only exact returned anchors; enrich authoritative status on refresh
   without losing the created record in partial pages or duplicating its ID.
-- [ ] Distinguish confirmed rejection from uncertain delivery; show refresh-first
+- [x] Distinguish confirmed rejection from uncertain delivery; show refresh-first
   guidance, retain draft and never automatically retry a write.
 
 Verify: `go test ./internal/source ./internal/tui ./cmd/prui -count=1`;
@@ -179,15 +180,16 @@ Files: `internal/tui/lifecycle.go`, `internal/tui/discussions.go`,
 
 ## Checkpoint C: Historical posting is safe and visible
 
-- [ ] Supported first-parent cases have evidence; unverified cases stay read-only.
-- [ ] A confirmed historical comment cannot disappear due to its current anchor.
-- [ ] Uncertain outcomes never cause automatic duplicates or false success claims.
+- [ ] Establish supported nonhead first-parent cases with live evidence;
+  unverified cases currently stay read-only. Verified head targets are enabled.
+- [x] A confirmed historical comment cannot disappear due to its current anchor.
+- [x] Uncertain outcomes never cause automatic duplicates or false success claims.
 
 ## CD-11: Verify complete terminal journeys and regressions
 
-- [ ] Add bounded program/PTY journeys for historical reading/fallback/jump/return,
+- [x] Add bounded program/PTY journeys for historical reading/fallback/jump/return,
   compose/cancel/post/refresh and wide/narrow layouts with fake GH transport.
-- [ ] Prove no session/comment persistence, navigation fetch, reviewed-code
+- [x] Prove no session/comment persistence, navigation fetch, reviewed-code
   execution, or main-review/pending-review behavior regression.
 - [ ] Record human keyboard/mouse/no-color/short-screen usability evidence
   separately; do not present synthetic fixtures as live GitHub evidence.
@@ -201,12 +203,12 @@ Files: `internal/tui/workflow_test.go`, `cmd/prui/pty_test.go`,
 
 ## CD-12: Update shipped contracts and complete verification
 
-- [ ] Amend current-head-only/read-only-commit clauses in constraints and earlier
+- [x] Amend current-head-only/read-only-commit clauses in constraints and earlier
   specs narrowly; describe shipped limits, status semantics, historical posting
   support, fallback, ephemeral/offline behavior and controls in user docs.
-- [ ] Review the complete diff against acceptance criteria and repository
+- [x] Review the complete diff against acceptance criteria and repository
   constraints; fix concrete findings and preserve unrelated rules/checks.
-- [ ] Run full repository verification and diff whitespace check; record results,
+- [x] Run full repository verification and diff whitespace check; record results,
   API gate evidence and outstanding human checks honestly.
 
 Verify: `./scripts/verify.sh` and `git diff --check`.
@@ -220,7 +222,41 @@ plus README only if its description changes.
 ## Completion Checkpoint
 
 - [ ] All seven specification acceptance criteria met with recorded evidence.
-- [ ] API eligibility and live/synthetic evidence distinctions remain explicit.
-- [ ] Full automated gate passes; human checks are completed or listed as pending.
-- [ ] No new dependencies, persisted discussion data, mixed-SHA review batch,
+  Nonhead commenting (criterion 5) awaits the historical delivery gate.
+- [x] API eligibility and live/synthetic evidence distinctions remain explicit.
+- [x] Full automated gate passes; human checks are completed or listed as pending.
+- [x] No new dependencies, persisted discussion data, mixed-SHA review batch,
   standalone commit comments or removed-object fetch slipped into scope.
+
+
+## Implementation evidence — 2026-09-30
+
+- Source GraphQL fixtures verify nested pagination, explicit connection/pageInfo
+  presence, 64-bit action IDs, independent statuses, null anchors, partial result
+  sorting, global canonical ID deduplication, budgets and safe errors.
+- Actual Bubble Tea program journeys verify outdated reading/fallback, original
+  jump/return without requests, current-diff freshness suppression, supported
+  head composer creation with a null current anchor, and partial refresh retention.
+- Four new reviewed golden screens cover widths 60/99/100/120, short height,
+  no color, historical detail, unavailable context, partial results and stale pins.
+- Independent reviews found/fixed current comments associated with older SHAs,
+  canonical reply anchor rejection, hidden short-screen editors, wheel/keyboard
+  jumps, partial-refresh creation loss, malformed empty-page success, duplicate
+  canonical IDs and unsorted partial results. Focused regressions protect fixes.
+- Composer Ctrl+R permits explicit refresh while retaining an uncertain draft.
+  Captured raw anchor indexes avoid scanning every thread for every patch line.
+- `GOCACHE=/tmp/prui-go-cache ./scripts/verify.sh` passes on native macOS:
+  vet, full race suite (including PTY smoke) and build. `git diff --check` passes.
+  Linked-worktree fixture tests require sandbox escalation for local Git and
+  loopback fixtures; no real credentials or external writes are used.
+- Local branch: `codex/commit-discussions`. Source/API, immutable target validation, UI integration, and final
+  visibility/documentation increments are saved as local commits.
+- Draft protection now covers active composers, and quit confirmation owns input
+  before the composer; a failing-then-passing test proves Enter cannot post while
+  discarding. Existing program tests explicitly confirm discard and wait for
+  confirmed creation, preserving meaningful lifecycle assertions.
+- Explicit discussion refresh repositions an active commit editor after newly
+  loaded cards; the viewport regression fails before the fix and passes after.
+- No external GitHub writes or live interoperability claims.
+- Pending: separately authorized disposable GitHub experiment for nonhead
+  first-parent targets; human terminal accessibility/usability acceptance.

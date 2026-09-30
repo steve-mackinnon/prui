@@ -1,5 +1,10 @@
 # Spec: Pull Request Commit Browser
 
+Historical discussion viewing and the narrowly gated commit composer extend
+this original contract; see [Commit Discussions](SPEC-pr-commit-discussions.md).
+The read-only/current-head-only restrictions below describe the earlier release.
+
+
 Status: Implemented 2026-09-30. Verification and review evidence is recorded in
 `tasks/commit-browser-todo.md`.
 

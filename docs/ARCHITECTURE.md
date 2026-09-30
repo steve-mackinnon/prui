@@ -99,6 +99,19 @@ a write, it validates the target and compares current GitHub metadata with the
 session's pinned revision. It rejects a write if the PR changed. Offline mode
 blocks network actions at the same boundary.
 
+PR review discussions are an ephemeral overlay in `internal/tui/discussions.go`.
+`internal/source/discussions.go` reads bounded GraphQL thread/comment connections,
+retaining original/current anchors and independent outdated/resolved status.
+The command layer checks metadata around retrieval; only verified current anchors
+can enter the main diff, while original anchors remain readable in captured
+commit diffs. Unplaceable records remain in Discussions. Request generation,
+session identity and cancellation prevent stale responses from changing a newer
+review. REST keeps the explicit write/action boundary. Commit composer targets
+are checked against immutable bundle membership and raw patches; historical
+first-parent writes stay gated pending interoperability evidence. No discussion
+record or draft enters session storage or guide input.
+
+
 ## Where to change behavior
 
 - For Git or GitHub acquisition and limits, start in `internal/source`.

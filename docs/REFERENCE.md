@@ -197,7 +197,8 @@ columns. Plain output is always unified.
 | `enter` in a line editor | Post the line comment immediately; `shift+enter` inserts a newline |
 | `ctrl+p` in a line editor | Save or update a local pending comment without posting |
 | `R` | Open Submit review from Diff, Description, or Commits |
-| `c` | Refresh ephemeral inline review comments (online reviews only) |
+| `c` | Refresh ephemeral review discussions and inline comments (online reviews only) |
+| `D` | Open the PR-wide Discussions list from any context view |
 | `j` / `k` | Jump to next / previous file in Files; navigate guide rows or inventory units elsewhere |
 | Up / down | Navigate list or scroll focused diff |
 | `J` / `K` | Scroll diff by 5 lines |
@@ -234,7 +235,7 @@ GitHub's returned order. The first returned commit is initially selected.
 | `n`/`p` | Next/previous commit | Next/previous commit |
 | PageDown/PageUp, `d`/`u` | Page through commits | Page through diff |
 | Home/End | First/last commit | Start/end of diff |
-| `l`, Ctrl+L, Enter | Focus diff | No comment action |
+| `l`, Ctrl+L, Enter | Focus diff | Enter composes on a supported comment target |
 | `h`, Ctrl+H, Escape | Stay in list | Return to list |
 | `[`/`]` | Resize commit list at 100+ columns | Same |
 
@@ -247,9 +248,14 @@ switching context views preserves both commit and main Diff state independently.
 Each unified commit diff compares against its first parent. Merge commits are
 labeled as first-parent comparisons, root commits compare against the empty
 tree, and empty commits are labeled. These are individual changes, including
-changes later reverted in the PR. Commit rows are read-only: they do not mark
-files, create line comments, or alter pending drafts. `R` still opens the PR-level
-Submit review form. `S` changes layout only in the main Diff view.
+changes later reverted in the PR. Online discussions appear below exactly
+matching original commit lines, with textual outdated/resolved status and thread
+counts in the rail. Commit rows do not mark files or alter pending PR drafts.
+Enter can compose an immediate comment on a captured head-commit line that also
+exists in the frozen PR diff. Older-commit posting remains disabled until GitHub
+first-parent coordinate interoperability is verified. These commit composers
+cannot queue a comment with `ctrl+p`; `R` still opens the head-based PR review
+form. `S` changes layout only in the main Diff view.
 
 Commit metadata and bounded patches are frozen during opening and stored with
 the session; selection and offline resume make no Git/GitHub calls. The first
@@ -267,7 +273,25 @@ Press `enter` on a selected commentable diff line to open an inline editor immed
 
 `R` opens **Submit review** from any PR context view. The form shows Comment, Approve, and Request changes as radio choices; use `j`/`k` or up/down to select one. All three choices and the selected state remain visible through confirmation, including on short terminals. Press Tab or Enter to move to the comment box below. Comment and Request changes require text; Approve allows an empty comment. Tab again to browse pending line comments: Enter edits the selected draft at its diff target, and `d` removes it. Enter in the comment box opens a confirmation showing the review decision and pending count; a second Enter sends the review and all pending comments to GitHub in one request. Escape backs out without writing. A failed submission leaves the comment and pending drafts in memory for inspection; because a network failure can have an uncertain outcome, check GitHub before retrying. Successful submission clears the local queue and refreshes the inline comment overlay.
 
-Online reviews load the first page of at most 100 review comments and `c` refreshes it. File-level comments and outdated comments without a current line anchor are omitted; valid inline threads on the same page remain available. Comments render only when their frozen head SHA, path, side, and line exactly match a diff target; remote author and body text are escaped. A successful post is inserted immediately from GitHub’s canonical response. Remote comments are never stored in sessions or plain output; offline reviews neither fetch nor post them.
+Online reviews load bounded review discussions through GitHub GraphQL; `c`
+refreshes them. `D` opens the PR-wide list, including outdated, file-level,
+multiline, and unplaceable discussions. Select with j/k or arrows, Enter reads
+replies and a historical snippet, `o` views the captured original commit when
+its context is available, and Escape returns. Thread detail displays a validated
+GitHub permalink. Missing capture is labeled without assuming a force-push.
+
+GitHub supplies separate outdated and resolved flags: outdated never implies
+resolved. Current-line comments render in the main diff only when live PR pins
+match the frozen comparison and path/side/line match exactly. Original anchors
+render on their own commits. Comments with unavailable context remain in `D`.
+Limits are 500 threads, 2,000 comments, 100 comments per thread, 4 MiB aggregate
+response material and 60 seconds per refresh; partial results and counts are
+labeled. A successful post is inserted immediately from GitHub's canonical
+response. An uncertain posting outcome retains the draft and directs you to
+refresh before retrying; `ctrl+r` refreshes while keeping an active draft. Writes
+never retry automatically. Discussions and drafts
+remain memory-only, absent from sessions, guides and plain output. Offline
+reviews neither fetch nor post them; browsing captured commits stays offline.
 
 Comment boxes participate in focused-diff `j`/`k` navigation, are visibly marked, and are kept in view. `enter` on one opens a local action menu: `r` opens a separate rune-aware reply box indented beneath that message, `a` opens the finite GitHub reaction picker (`1`–`8` choose its displayed reaction), and `d` is shown only after the authenticated viewer identity matches the displayed comment author. GitHub replies can target only a thread’s top-level comment, so `r` on an existing reply automatically uses that root and renders the canonical response in its thread. Reaction totals are compact emoji chips (`👍`, `👎`, `😄`, `😕`, `❤️`, `🎉`, `🚀`, `👀`) in the message box’s bottom border; an explicit non-UTF-8 locale uses the original GitHub token labels instead. Deletion requires a second `enter` confirmation. `esc` always closes the menu or draft without a write. Reply/reaction/deletion requests are preflighted against the frozen PR and update only that tab’s memory-only overlay from the canonical GitHub response; a failed reply retains its draft for retry.
 
