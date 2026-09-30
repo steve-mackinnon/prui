@@ -70,8 +70,11 @@ lost on exit or replacement with a new comparison. Check GitHub before retrying
 an uncertain write.
 
 Comments can be refreshed with `c`; replies, reactions, and deletion are available
-from a selected comment's action menu. The Commits tab (`3`) is currently a
-placeholder. See the [user reference](docs/REFERENCE.md) for all controls, theme
+from a selected comment's action menu. The Commits tab (`3`) lists captured PR
+commits on the left and the selected commit's first-parent diff on the right.
+Use `j`/`k` to select a commit, `l`/Enter to focus its diff, and `n`/`p` to move
+between commits from either pane. Captured material also works offline; legacy
+sessions and capture limits are labeled. See the [user reference](docs/REFERENCE.md) for all controls, theme
 configuration, and current limitations.
 
 ### Mouse selection and panel resizing

@@ -13,7 +13,7 @@ These documents preserve requirements, acceptance criteria, and the reasoning be
 - [Spec: Guide Path Overflow](SPEC-guide-path-overflow.md)
 - [Spec: Live PR Verifier](SPEC-live-pr-verifier.md)
 - [Spec: Performance Reporting](SPEC-performance-reporting.md)
-- [Spec: Frozen Pull Request Commit List View](SPEC-pr-commits.md)
+- [Spec: Pull Request Commit Browser](SPEC-pr-commits.md)
 - [Spec: Frozen Pull Request Description View](SPEC-pr-description.md)
 - [Spec: PR-List Guide Loading](SPEC-pr-list-guide-loading.md)
 - [Spec: Pull Request Line Comments](SPEC-pull-request-review-comments.md)

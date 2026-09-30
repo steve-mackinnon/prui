@@ -1,5 +1,9 @@
 # Spec: PR Context View Tabs
 
+The [Pull Request Commit Browser](SPEC-pr-commits.md), implemented 2026-09-30,
+supersedes this document's single-surface, no-diff Commits behavior with a
+commit rail and selected-commit diff. Description retains its contract here.
+
 ## Objective
 
 Give the single active interactive PR review a stable, keyboard-accessible view

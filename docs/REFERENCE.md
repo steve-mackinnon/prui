@@ -190,7 +190,7 @@ columns. Plain output is always unified.
 | `]` / `[` | Widen / narrow the left file and guide pane by two columns |
 | `F` / `G` | Select Files or Guide in the left pane |
 | `S` | Toggle side-by-side detail; unified is the default and narrow terminals fall back below 160 columns |
-| `v` / `V` | Next / previous PR context view: Diff, Description, or Commits (placeholder) |
+| `v` / `V` | Next / previous PR context view: Diff, Description, or Commits |
 | `tab` | Expand / collapse the selected guide or section |
 | `h` / `l`, `ctrl+h` / `ctrl+l` | Focus list / diff |
 | `enter` / `esc` | In the list, focus the selected diff / go back; in a focused diff, open a composer for a target or an action menu for a selected comment / discard local drafts and menus |
@@ -219,7 +219,45 @@ columns. Plain output is always unified.
 
 Selection, expansion, and diff scroll offsets survive resizing; navigation positions and expansion state are not persisted across processes, and they are rebuilt from the immutable bundle so navigation cannot drift from the stored guides. Mouse capture supports selection and divider dragging; use your terminal selection modifier for native text copying. Textual markers and labels are primary: the selected row is marked `› ` whether or not its pane is focused; a muted background reinforces it when unfocused and reverse video reinforces the focused row. The interactive view additionally colors diff structure — file headers, hunk locations, additions, removals — and unit states such as metadata, binary, gitlink, unavailable, and warning chrome. Color is presentation only: no wording, label, or ordering depends on it, and terminals without color show the same text. Extremely small terminals clip controls; enlarge or use plain output. Broad terminal/platform/accessibility coverage is not established.
 
-Every interactive PR has `Diff`, `Description`, and `Commits` context views. Commits currently displays a placeholder; it does not list commits. Description is display-only GitHub-flavored Markdown frozen from GitHub when the session opened; it is available after an offline resume and does not refresh when selected. Raw HTML remains literal text, links are not activated, and images never load. Empty captured descriptions and older sessions that did not capture one are labeled explicitly. Context views are not included in `--plain` output.
+Every interactive PR has `Diff`, `Description`, and `Commits` context views. Description is display-only GitHub-flavored Markdown frozen from GitHub when the session opened; it is available after an offline resume and does not refresh when selected. Raw HTML remains literal text, links are not activated, and images never load. Empty captured descriptions and older sessions that did not capture one are labeled explicitly. Context views are not included in `--plain` output.
+
+### Commit browsing
+
+`3` opens a two-pane commit browser: the captured PR commit list on the left,
+and all changed files in the selected commit on the right. Selecting a row
+immediately changes the diff. Rows show subject, author, and abbreviated SHA in
+GitHub's returned order. The first returned commit is initially selected.
+
+| Input | Commit list focused | Commit diff focused |
+| --- | --- | --- |
+| `j`/`k`, Down/Up | Next/previous commit | Scroll one line |
+| `n`/`p` | Next/previous commit | Next/previous commit |
+| PageDown/PageUp, `d`/`u` | Page through commits | Page through diff |
+| Home/End | First/last commit | Start/end of diff |
+| `l`, Ctrl+L, Enter | Focus diff | No comment action |
+| `h`, Ctrl+H, Escape | Stay in list | Return to list |
+| `[`/`]` | Resize commit list at 100+ columns | Same |
+
+Click commits to select them; wheel over the list moves selection and wheel
+over the diff scrolls it. Below 100 columns the focused pane fills the body;
+Enter/`l` opens detail and Escape/`h` returns to the list. Selection clamps at
+the ends. Revisiting a commit restores its reading offset during this run;
+switching context views preserves both commit and main Diff state independently.
+
+Each unified commit diff compares against its first parent. Merge commits are
+labeled as first-parent comparisons, root commits compare against the empty
+tree, and empty commits are labeled. These are individual changes, including
+changes later reverted in the PR. Commit rows are read-only: they do not mark
+files, create line comments, or alter pending drafts. `R` still opens the PR-level
+Submit review form. `S` changes layout only in the main Diff view.
+
+Commit metadata and bounded patches are frozen during opening and stored with
+the session; selection and offline resume make no Git/GitHub calls. The first
+100 commits are captured, with a visible notice when more may exist. Capture
+has an aggregate 50 MiB material / 100,000-line / 60-second budget plus the
+existing blob and storage bounds. Missing or limited diffs are labeled while
+the main PR review remains usable. Older sessions display that commits were not
+captured; they do not backfill on resume.
 
 ## Inline review comments
 
