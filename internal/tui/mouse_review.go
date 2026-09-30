@@ -26,6 +26,23 @@ func (m *Model) mouseReviewClick(x, y int) tea.Cmd {
 		}
 		return nil
 	}
+	if m.selectedReviewView() == viewCommits {
+		g := m.commitGeometry()
+		p := image.Pt(x, y)
+		if p.In(g.Detail) {
+			m.commit.focus = paneDiff
+		}
+		if p.In(g.Rail) {
+			rows := m.commitRail()
+			i := y - g.Rail.Min.Y
+			if i < len(rows) && rows[i].row >= 0 {
+				m.selectCommit(rows[i].row)
+				m.commit.focus = paneList
+				m.commitOffset()
+			}
+		}
+		return nil
+	}
 	if m.selectedReviewView() != viewChanges || len(m.Session.Inventory.Units) == 0 {
 		return nil
 	}

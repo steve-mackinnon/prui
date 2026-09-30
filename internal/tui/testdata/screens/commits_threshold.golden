@@ -1,0 +1,12 @@
+example/review #42                                                                 ctrl+p: switch PR
+  Diff [1]    Description [2]  › Commits [3]
+┌ Commits · 1/2 ──────────────────┬ Commit diff · aaaaaaaaaaaa ────────────────────────────────────┐
+│› First commit                   │First commit                                                    │
+│  Alice · aaaaaaaaaaaa           │Alice · aaaaaaaaaaaa                                            │
+│  Second commit                  │Compared with empty tree (root commit)                          │
+│  Alice · bbbbbbbbbbbb           │── changed.go                                                   │
+│                                 │Mode:  -> 100644                                                │
+│                                 │@@ -1,1 +1,30 @@                                                │
+└─────────────────────────────────┴────────────────────────────────────────────────────────────────┘
+0/2 read · R Review (0) · ? Freshness unknown · ?: Help
+j/k: commits · n/p: commit · enter/l: diff · esc/h: list · ?: Help

@@ -1,0 +1,12 @@
+example/review #42                                                                ctrl+p: switch PR
+  Diff [1]    Description [2]  › Commits [3]
+┌ Commits · 2/2 · enter/l: diff ──────────────────────────────────────────────────────────────────┐
+│  First commit                                                                                   │
+│  Alice · aaaaaaaaaaaa                                                                           │
+│› Second commit                                                                                  │
+│  Alice · bbbbbbbbbbbb                                                                           │
+│                                                                                                 │
+│                                                                                                 │
+└─────────────────────────────────────────────────────────────────────────────────────────────────┘
+0/2 read · R Review (0) · ? Freshness unknown · ?: Help
+j/k: commits · n/p: commit · enter/l: diff · esc/h: list · ?: Help

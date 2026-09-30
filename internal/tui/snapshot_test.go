@@ -53,6 +53,33 @@ func TestScreenSnapshots(t *testing.T) {
 			m.Focus = paneDiff
 			key(m, 'S')
 		}},
+		{"commits_wide", 120, 18, func(m *Model) {
+			m.Session.Commits = commitModel(t).Session.Commits
+			m.openReviewTab(m.Session)
+			key(m, '3')
+			key(m, 'j')
+		}},
+		{"commits_threshold", 100, 12, func(m *Model) {
+			m.Session.Commits = commitModel(t).Session.Commits
+			m.openReviewTab(m.Session)
+			key(m, '3')
+		}},
+		{"commits_narrow_list", 99, 12, func(m *Model) {
+			m.Session.Commits = commitModel(t).Session.Commits
+			m.openReviewTab(m.Session)
+			key(m, '3')
+			key(m, 'j')
+		}},
+		{"commits_narrow_diff", 60, 12, func(m *Model) {
+			m.Session.Commits = commitModel(t).Session.Commits
+			m.openReviewTab(m.Session)
+			key(m, '3')
+			namedKey(m, tea.KeyEnter)
+		}},
+		{"commits_legacy", 120, 12, func(m *Model) {
+			m.openReviewTab(m.Session)
+			key(m, '3')
+		}},
 		{"description_wide", 120, 18, func(m *Model) {
 			description := descriptionMarkdown
 			m.Session.PullRequestDescription = &description

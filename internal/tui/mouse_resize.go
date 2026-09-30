@@ -18,7 +18,7 @@ func (m *Model) cancelMouseDrag() { m.drag = dividerDrag{} }
 func (m *Model) mouseResize(msg tea.MouseMsg) (tea.Cmd, bool) {
 	event := msg.Mouse()
 	wasDragging := m.drag.active
-	if m.Width < 100 || m.top() != pageReview || m.selectedReviewView() != viewChanges {
+	if m.Width < 100 || m.top() != pageReview || (m.selectedReviewView() != viewChanges && m.selectedReviewView() != viewCommits) {
 		m.cancelMouseDrag()
 		return nil, wasDragging
 	}
@@ -34,6 +34,9 @@ func (m *Model) mouseResize(msg tea.MouseMsg) (tea.Cmd, bool) {
 	case tea.MouseClickMsg:
 		m.cancelMouseDrag()
 		divider := m.workspaceGeometry().Divider
+		if m.selectedReviewView() == viewCommits {
+			divider = m.commitGeometry().Divider
+		}
 		if event.Button == tea.MouseLeft && event.Mod == 0 && image.Pt(event.X, event.Y).In(divider) {
 			m.drag = dividerDrag{active: true, grabOffset: event.X - divider.Min.X}
 			return nil, true
@@ -49,6 +52,11 @@ func (m *Model) mouseResize(msg tea.MouseMsg) (tea.Cmd, bool) {
 			return nil, true
 		}
 		width := m.clampListWidth(event.X - m.drag.grabOffset - 1)
+		if m.selectedReviewView() == viewCommits {
+			m.commit.width = width
+			m.commitOffset()
+			return nil, true
+		}
 		if width == m.listWidth() {
 			return nil, true
 		}

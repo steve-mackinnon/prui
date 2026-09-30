@@ -144,6 +144,9 @@ func (m *Model) reviewStatus() string {
 	status := m.healthStatus(m.Width, m.Session)
 	hints := m.reviewHints()
 	if m.Height < 10 {
+		if m.selectedReviewView() == viewCommits && m.Session.Commits != nil && !m.Session.Commits.Complete && m.Session.Commits.Status == "captured" {
+			return hints
+		}
 		if m.Composer != nil || m.CommentMenu != nil || m.ActionError != nil {
 			return hints
 		}
@@ -184,6 +187,14 @@ func (m *Model) reviewHints() string {
 	}
 	hints := "j/k: files · enter: diff · m: mark file · ?: Help"
 	switch {
+	case m.selectedReviewView() == viewCommits:
+		if m.Session.Commits != nil && !m.Session.Commits.Complete && m.Session.Commits.Status == "captured" {
+			return m.styleLine(classWarning, clip(fmt.Sprintf("Showing first %d commits; more may exist. · ?: Help", len(m.Session.Commits.Entries)), m.Width))
+		}
+		hints = "j/k: commits · n/p: commit · enter/l: diff · esc/h: list · ?: Help"
+		if m.commit.focus == paneDiff {
+			hints = "j/k: scroll · n/p: commit · PgUp/PgDn: page · esc/h: list · ?: Help"
+		}
 	case m.selectedReviewView() != viewChanges:
 		hints = "↑/↓: scroll · 1/2/3: views · ?: Help"
 	case m.Focus == paneDiff:

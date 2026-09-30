@@ -70,6 +70,16 @@ func (m *Model) mouseWheel(wheel tea.MouseWheelMsg) tea.Cmd {
 		}
 		return nil
 	}
+	if m.selectedReviewView() == viewCommits {
+		g := m.commitGeometry()
+		if p.In(g.Rail) {
+			m.commitMove(delta)
+		}
+		if p.In(g.Detail) {
+			m.commitScroll(delta)
+		}
+		return nil
+	}
 	if m.selectedReviewView() != viewChanges {
 		return nil
 	}

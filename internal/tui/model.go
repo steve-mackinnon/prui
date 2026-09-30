@@ -85,6 +85,7 @@ type descriptionRenderCache struct {
 // reviewTabState is the reviewer-visible state that must travel with an open
 // review. Window dimensions and services remain shared by the workspace.
 type reviewTabState struct {
+	commit                                               commitState
 	savedCursorTarget                                    *source.ReviewCommentTarget
 	savedCursorCommentID                                 int64
 	CursorTarget, GuideCursorTarget                      map[int]source.ReviewCommentTarget
@@ -549,6 +550,12 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.mouseUpdate(v)
 	case tea.WindowSizeMsg:
 		m.cancelMouseDrag()
+		if m.selectedReviewView() == viewCommits {
+			m.Width, m.Height = max(1, v.Width), max(1, v.Height)
+			m.commitRail()
+			m.commitOffset()
+			return m, nil
+		}
 		cursorTarget, cursorCommentID := m.cursorAnchor()
 		m.Width = max(1, v.Width)
 		m.Height = max(1, v.Height)
@@ -628,7 +635,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.selectedReviewView() == viewDescription && m.descriptionKey(v.String()) {
 				return m, nil
 			}
-			if m.selectedReviewView() != viewChanges && m.selectedReviewView() != viewDescription && v.String() != "?" && v.String() != "esc" {
+			if m.selectedReviewView() == viewCommits && v.String() != "?" && v.String() != "U" {
+				m.commitKey(v.String())
 				return m, nil
 			}
 			if cmd, handled := m.lifecycleKey(v.String()); handled {
@@ -1801,7 +1809,7 @@ func (m *Model) reviewViewForLayout(preferSideBySide bool) string {
 		if m.selectedReviewView() == viewDescription {
 			return title + "\n" + m.descriptionView() + "\n" + m.reviewStatus()
 		}
-		return title + "\n" + m.contextViewPlaceholder() + "\n" + m.reviewStatus()
+		return title + "\n" + m.commitsView() + "\n" + m.reviewStatus()
 	}
 	if len(s.Inventory.Units) == 0 {
 		return title + "\nEmpty comparison: no net tree changes.\n" + m.reviewStatus()
