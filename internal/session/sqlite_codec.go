@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 
+	"prui/internal/commits"
 	reviewcontext "prui/internal/context"
 	"prui/internal/inventory"
 )
@@ -26,15 +27,19 @@ type sqliteSourcePayload struct {
 	UnitFiles              []int                       `json:"unit_files"`
 	Context                reviewcontext.ContextBundle `json:"context"`
 	PullRequestDescription *string                     `json:"pull_request_description,omitempty"`
+	Commits                *commits.Bundle             `json:"commits,omitempty"`
+}
+
+func sourcePayload(snapshot Snapshot) sqliteSourcePayload {
+	return sqliteSourcePayload{
+		Version: sqlitePayloadVersion, Inventory: snapshot.Inventory, Slices: snapshot.Slices,
+		UnitFiles: snapshot.UnitFiles, Context: snapshot.Context,
+		PullRequestDescription: snapshot.PullRequestDescription, Commits: snapshot.Commits,
+	}
 }
 
 func encodeSource(snapshot Snapshot) (string, []byte, error) {
-	payload := sqliteSourcePayload{
-		Version: sqlitePayloadVersion, Inventory: snapshot.Inventory, Slices: snapshot.Slices,
-		UnitFiles: snapshot.UnitFiles, Context: snapshot.Context,
-		PullRequestDescription: snapshot.PullRequestDescription,
-	}
-	b, err := json.Marshal(payload)
+	b, err := json.Marshal(sourcePayload(snapshot))
 	if err != nil {
 		return "", nil, err
 	}
@@ -61,9 +66,13 @@ func decodeSource(expectedDigest string, b []byte) (Snapshot, error) {
 	if err != nil || !bytes.Equal(canonical, b) {
 		return Snapshot{}, fmt.Errorf("%w: noncanonical source payload", ErrInvalidRecord)
 	}
+	comparison := payload.Inventory.Comparison.Metadata
+	if !validateCommits(payload.Commits, comparison.BaseSHA, comparison.HeadSHA) {
+		return Snapshot{}, fmt.Errorf("%w: invalid commit source", ErrInvalidRecord)
+	}
 	return Snapshot{Inventory: payload.Inventory, Slices: payload.Slices,
 		UnitFiles: payload.UnitFiles, Context: payload.Context,
-		PullRequestDescription: payload.PullRequestDescription}, nil
+		PullRequestDescription: payload.PullRequestDescription, Commits: payload.Commits}, nil
 }
 
 func logicalSnapshotReference(sourceDigest, bundleDigest string, checkout []byte, derivedFrom string) (string, error) {

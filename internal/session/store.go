@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
+	"prui/internal/commits"
 	reviewcontext "prui/internal/context"
 	"prui/internal/guide"
 	"prui/internal/inventory"
@@ -37,6 +38,8 @@ type Snapshot struct {
 	Context   reviewcontext.ContextBundle
 	// PullRequestDescription distinguishes an unavailable body from a captured empty body.
 	PullRequestDescription *string `json:"pull_request_description,omitempty"`
+	// Commits holds optional frozen commit history for offline browsing.
+	Commits *commits.Bundle `json:"commits,omitempty"`
 	// Guides contains optional analysis for the frozen comparison.
 	Guides *guide.Bundle `json:"guides,omitempty"`
 	// DerivedFrom links a guided copy to its immutable source session.
@@ -111,6 +114,9 @@ func validate(r *Record) error {
 		return bad
 	}
 	if r.PullRequestDescription != nil && (!utf8.ValidString(*r.PullRequestDescription) || len(*r.PullRequestDescription) > 1<<20) {
+		return bad
+	}
+	if !validateCommits(r.Commits, comparison.BaseSHA, comparison.HeadSHA) {
 		return bad
 	}
 	switch r.RevisionStatus {
