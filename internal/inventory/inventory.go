@@ -100,11 +100,23 @@ func parseRaw(raw []byte, limit int) ([]FileChange, error) {
 }
 
 func Build(ctx context.Context, objects Objects, p source.PinnedComparison, l source.Limits) (Inventory, error) {
+	return build(ctx, objects, p.MergeBaseSHA, p.Metadata.HeadSHA, &p, CommitComparison{}, l)
+}
+
+// CommitComparison compares a commit tree to its first parent (or empty tree).
+type CommitComparison struct{ ParentSHA, CommitSHA string }
+
+// BuildCommit shares raw/blob diff rules without inventing pull-request metadata.
+func BuildCommit(ctx context.Context, objects Objects, c CommitComparison, l source.Limits) (Inventory, error) {
+	return build(ctx, objects, c.ParentSHA, c.CommitSHA, nil, c, l)
+}
+
+func build(ctx context.Context, objects Objects, oldSHA, newSHA string, p *source.PinnedComparison, c CommitComparison, l source.Limits) (Inventory, error) {
 	inv := Inventory{Complete: true, Patches: map[string][]byte{}, Files: []FileChange{}, Units: []ReviewUnit{}, Problems: []string{}}
 	if l.Entries <= 0 || l.BlobBytes <= 0 || l.ContentBytes <= 0 || l.DiffLines <= 0 {
 		return inv, errors.New("invalid inventory limits")
 	}
-	raw, e := objects.Git(ctx, 50<<20, "diff-tree", "-r", "--raw", "-z", "--no-commit-id", "--no-abbrev", "--no-ext-diff", "--no-textconv", "--ignore-submodules=none", "--no-renames", "-M50%", "-l10000", p.MergeBaseSHA, p.Metadata.HeadSHA, "--")
+	raw, e := objects.Git(ctx, 50<<20, "diff-tree", "-r", "--raw", "-z", "--no-commit-id", "--no-abbrev", "--no-ext-diff", "--no-textconv", "--ignore-submodules=none", "--no-renames", "-M50%", "-l10000", oldSHA, newSHA, "--")
 	if e != nil {
 		return inv, fmt.Errorf("inventory unavailable (not an empty diff): %w", e)
 	}
@@ -112,12 +124,24 @@ func Build(ctx context.Context, objects Objects, p source.PinnedComparison, l so
 	if e != nil {
 		return inv, e
 	}
-	p.InventoryVersion = Version
-	p.DiffSettings = fmt.Sprintf("%s;entries=%d;content=%d;blob=%d;lines=%d", Settings, l.Entries, l.ContentBytes, l.BlobBytes, l.DiffLines)
-	p.InventoryID = ""
-	key, _ := json.Marshal(p)
-	p.InventoryID = digest(append(key, raw...))
-	inv.Comparison = p
+
+	settings := fmt.Sprintf("%s;entries=%d;content=%d;blob=%d;lines=%d", Settings, l.Entries, l.ContentBytes, l.BlobBytes, l.DiffLines)
+	var key []byte
+	if p != nil {
+		p.InventoryVersion = Version
+		p.DiffSettings = settings
+		p.InventoryID = ""
+		key, _ = json.Marshal(p)
+		p.InventoryID = digest(append(key, raw...))
+		inv.Comparison = *p
+	} else {
+		key, _ = json.Marshal(struct {
+			Comparison CommitComparison
+			Settings   string
+		}{c, settings})
+	}
+	inventoryID := digest(append(key, raw...))
+
 	empty, e := objects.Git(ctx, 100, "hash-object", "-w", "--stdin")
 	if e != nil {
 		return inv, e
@@ -125,7 +149,7 @@ func Build(ctx context.Context, objects Objects, p source.PinnedComparison, l so
 	emptyOID := strings.TrimSpace(string(empty))
 	used, lines := 0, 0
 	add := func(f FileChange, k Kind, old, newRange Range, patch []byte, reason string) {
-		u := ReviewUnit{InventoryID: p.InventoryID, FileChangeID: f.ID, Kind: k, OldRange: old, NewRange: newRange, UnavailableReason: reason}
+		u := ReviewUnit{InventoryID: inventoryID, FileChangeID: f.ID, Kind: k, OldRange: old, NewRange: newRange, UnavailableReason: reason}
 		if len(patch) > 0 {
 			u.PatchReference = digest(patch)
 			inv.Patches[u.PatchReference] = bytes.Clone(patch)
