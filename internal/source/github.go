@@ -90,6 +90,7 @@ type ReviewComment struct {
 	Author         string
 	Target         ReviewCommentTarget
 	Body           string
+	CurrentAnchor  *ReviewCommentTarget // associated raw anchor before display-head normalization
 	OriginalAnchor *ReviewCommentTarget
 	URL            string
 	DiffHunk       string
@@ -196,6 +197,10 @@ func validateReviewComment(comment ReviewComment) error {
 	return nil
 }
 
+// ErrCommentDeliveryUnknown means a write was attempted but creation cannot be confirmed.
+// Callers must retain the draft and refresh before an explicit retry.
+var ErrCommentDeliveryUnknown = errors.New("Posting outcome unknown; refresh discussions before retrying")
+
 func (g *GH) CreateReviewComment(ctx context.Context, comment ReviewComment) (ReviewComment, error) {
 	if err := validateReviewComment(comment); err != nil {
 		return ReviewComment{}, err
@@ -215,11 +220,11 @@ func (g *GH) CreateReviewComment(ctx context.Context, comment ReviewComment) (Re
 	}
 	data, err := g.callWithStdin(ctx, payload, "api", "--hostname", "github.com", "--method", "POST", "--input", "-", fmt.Sprintf("repos/%s/pulls/%d/comments", comment.Target.Identity.Repository, comment.Target.Identity.Number))
 	if err != nil {
-		return ReviewComment{}, safeReviewCommentError(err)
+		return ReviewComment{}, fmt.Errorf("%w: %w", ErrCommentDeliveryUnknown, safeReviewCommentError(err))
 	}
 	created, err := parseReviewComment(data, comment.Target.Identity)
 	if err != nil || (created.Target != comment.Target && (created.OriginalAnchor == nil || *created.OriginalAnchor != comment.Target)) || created.Body != comment.Body {
-		return ReviewComment{}, errors.New("invalid created review comment")
+		return ReviewComment{}, fmt.Errorf("%w: invalid created review comment", ErrCommentDeliveryUnknown)
 	}
 	return created, nil
 }

@@ -3,6 +3,7 @@ package source
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"testing"
 )
 
@@ -122,5 +123,86 @@ func TestHistoricalPostRetainsCanonicalOriginalAnchor(t *testing.T) {
 	want.Target.Line = 0
 	if _, err := g.CreateReviewComment(context.Background(), want); err == nil {
 		t.Fatal("accepted invalid outbound target")
+	}
+}
+
+func TestDiscussionsMissingPageInfoIsNotCompleteEmpty(t *testing.T) {
+	g := GH{Executable: "gh", Limits: Defaults(), Runner: listRunner(func(context.Context, Request) ([]byte, error) {
+		return []byte(`{"data":{"repository":{"pullRequest":{"reviewThreads":{"nodes":[]}}}}}`), nil
+	})}
+	got, err := g.ListDiscussions(context.Background(), Identity{"owner/repo", 42})
+	if err == nil || got.Complete {
+		t.Fatalf("%+v %v", got, err)
+	}
+}
+func TestCommentDeliveryUnknownOnlyAfterWriteAttempt(t *testing.T) {
+	id := Identity{"owner/repo", 42}
+	sha := "0123456789abcdef0123456789abcdef01234567"
+	comment := ReviewComment{Body: "body", Target: ReviewCommentTarget{Identity: id, CommitID: sha, Path: "a.go", Side: "RIGHT", Line: 2}}
+	for _, tc := range []struct {
+		data []byte
+		err  error
+	}{{err: context.Canceled}, {data: []byte(`{"id":1}`)}} {
+		calls := 0
+		g := GH{Executable: "gh", Limits: Defaults(), Runner: listRunner(func(context.Context, Request) ([]byte, error) { calls++; return tc.data, tc.err })}
+		_, err := g.CreateReviewComment(context.Background(), comment)
+		if !errors.Is(err, ErrCommentDeliveryUnknown) || calls != 1 {
+			t.Fatal(err, calls)
+		}
+		invalid := comment
+		invalid.Target.Line = 0
+		_, err = g.CreateReviewComment(context.Background(), invalid)
+		if errors.Is(err, ErrCommentDeliveryUnknown) || calls != 1 {
+			t.Fatal(err, calls)
+		}
+	}
+}
+
+func TestPartialDiscussionsAreSorted(t *testing.T) {
+	calls := 0
+	g := GH{Executable: "gh", Limits: Defaults(), Runner: listRunner(func(context.Context, Request) ([]byte, error) {
+		calls++
+		if calls > 1 {
+			return nil, context.DeadlineExceeded
+		}
+		a, b := discussionFixture(), discussionFixture()
+		a["id"] = "z-thread"
+		b["id"] = "a-thread"
+		b["comments"].(map[string]any)["nodes"].([]any)[0].(map[string]any)["fullDatabaseId"] = "124"
+		return json.Marshal(map[string]any{"data": map[string]any{"repository": map[string]any{"pullRequest": map[string]any{"reviewThreads": map[string]any{"nodes": []any{a, b}, "pageInfo": map[string]any{"hasNextPage": true, "endCursor": "next"}}}}}})
+	})}
+	got, err := g.ListDiscussions(context.Background(), Identity{"owner/repo", 42})
+	if err != nil || got.Complete || len(got.Threads) != 2 || got.Threads[0].ID != "a-thread" {
+		t.Fatalf("%+v %v", got, err)
+	}
+}
+
+func TestDiscussionsRequireExplicitPaginationState(t *testing.T) {
+	for _, nested := range []bool{false, true} {
+		g := GH{Executable: "gh", Limits: Defaults(), Runner: listRunner(func(context.Context, Request) ([]byte, error) {
+			d := discussionFixture()
+			info := map[string]any{"hasNextPage": false}
+			if nested {
+				d["comments"].(map[string]any)["pageInfo"] = map[string]any{}
+			} else {
+				info = map[string]any{}
+			}
+			return json.Marshal(map[string]any{"data": map[string]any{"repository": map[string]any{"pullRequest": map[string]any{"reviewThreads": map[string]any{"nodes": []any{d}, "pageInfo": info}}}}})
+		})}
+		got, _ := g.ListDiscussions(context.Background(), Identity{"owner/repo", 42})
+		if got.Complete {
+			t.Fatalf("missing explicit page state accepted nested=%v", nested)
+		}
+	}
+}
+func TestDiscussionsDeduplicateCanonicalCommentsAcrossThreads(t *testing.T) {
+	g := GH{Executable: "gh", Limits: Defaults(), Runner: listRunner(func(context.Context, Request) ([]byte, error) {
+		a, b := discussionFixture(), discussionFixture()
+		b["id"] = "thread-2"
+		return json.Marshal(map[string]any{"data": map[string]any{"repository": map[string]any{"pullRequest": map[string]any{"reviewThreads": map[string]any{"nodes": []any{a, b}, "pageInfo": map[string]any{"hasNextPage": false}}}}}})
+	})}
+	got, err := g.ListDiscussions(context.Background(), Identity{"owner/repo", 42})
+	if err != nil || got.Complete || len(got.Threads) != 1 || got.Threads[0].ID != "thread-1" {
+		t.Fatalf("%+v %v", got, err)
 	}
 }

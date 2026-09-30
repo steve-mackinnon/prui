@@ -36,9 +36,12 @@ type DiscussionReader interface {
 }
 
 type discussionPageInfo struct {
-	HasNextPage bool
+	HasNextPage *bool
 	EndCursor   string
 }
+
+func (p *discussionPageInfo) more() bool { return p != nil && p.HasNextPage != nil && *p.HasNextPage }
+
 type discussionComment struct {
 	FullDatabaseID         json.RawMessage `json:"fullDatabaseId"`
 	Body, URL, DiffHunk    string
@@ -49,7 +52,7 @@ type discussionComment struct {
 }
 type discussionComments struct {
 	Nodes    []*discussionComment
-	PageInfo discussionPageInfo
+	PageInfo *discussionPageInfo
 }
 type remoteDiscussion struct {
 	ID, Path, DiffSide, SubjectType                  string
@@ -101,7 +104,7 @@ func discussionAnchor(id Identity, sha, path, side string, line, start *int, sub
 	return &ReviewCommentTarget{Identity: id, CommitID: sha, Path: path, Side: side, Line: *line}
 }
 func normalizeDiscussion(raw *remoteDiscussion, id Identity) (Discussion, time.Time, error) {
-	if raw == nil || raw.ID == "" || !validDiscussionField(raw.ID, 256, false) || !validDiscussionField(raw.Path, 4096, false) || raw.Path == "" || len(raw.Comments.Nodes) == 0 || (raw.DiffSide != "LEFT" && raw.DiffSide != "RIGHT") || (raw.SubjectType != "LINE" && raw.SubjectType != "FILE") {
+	if raw == nil || raw.ID == "" || !validDiscussionField(raw.ID, 256, false) || !validDiscussionField(raw.Path, 4096, false) || raw.Path == "" || len(raw.Comments.Nodes) == 0 || raw.Comments.PageInfo == nil || raw.Comments.PageInfo.HasNextPage == nil || (raw.DiffSide != "LEFT" && raw.DiffSide != "RIGHT") || (raw.SubjectType != "LINE" && raw.SubjectType != "FILE") {
 		return Discussion{}, time.Time{}, errors.New("invalid discussion")
 	}
 	for _, line := range []*int{raw.Line, raw.OriginalLine, raw.StartLine, raw.OriginalStartLine} {
@@ -191,9 +194,20 @@ func (g *GH) ListDiscussions(ctx context.Context, id Identity) (DiscussionSnapsh
 		}
 		return data, nil
 	}
+	times := map[string]time.Time{}
+	finalize := func() {
+		sort.SliceStable(out.Threads, func(i, j int) bool {
+			a, b := out.Threads[i].ID, out.Threads[j].ID
+			if times[a].Equal(times[b]) {
+				return a < b
+			}
+			return times[a].Before(times[b])
+		})
+	}
 	partial := func(reason string, e error) (DiscussionSnapshot, error) {
 		out.Complete = false
 		out.Reason = reason
+		finalize()
 		if len(out.Threads) == 0 {
 			return out, e
 		}
@@ -202,7 +216,7 @@ func (g *GH) ListDiscussions(ctx context.Context, id Identity) (DiscussionSnapsh
 	parts := strings.Split(id.Repository, "/")
 	cursor := ""
 	seen := map[string]bool{}
-	times := map[string]time.Time{}
+	canonicalComments := map[int64]bool{}
 	for page := 0; page < 5; page++ {
 		data, e := request(discussionsQuery, map[string]any{"owner": parts[0], "name": parts[1], "number": id.Number, "cursor": nullableCursor(cursor)})
 		if e != nil {
@@ -213,9 +227,9 @@ func (g *GH) ListDiscussions(ctx context.Context, id Identity) (DiscussionSnapsh
 			Data   struct {
 				Repository *struct {
 					PullRequest *struct {
-						ReviewThreads struct {
+						ReviewThreads *struct {
 							Nodes    []*remoteDiscussion
-							PageInfo discussionPageInfo
+							PageInfo *discussionPageInfo
 						}
 					}
 				}
@@ -225,18 +239,21 @@ func (g *GH) ListDiscussions(ctx context.Context, id Identity) (DiscussionSnapsh
 			return partial("Invalid discussions response", errors.New("invalid discussions response"))
 		}
 		connection := response.Data.Repository.PullRequest.ReviewThreads
+		if connection.PageInfo == nil || connection.PageInfo.HasNextPage == nil {
+			return partial("Invalid discussion pagination", errors.New("invalid discussion pagination"))
+		}
 		if len(connection.Nodes) > 100 {
 			return partial("Discussion thread limit reached", ErrLimit)
 		}
 		for _, raw := range connection.Nodes {
-			if raw == nil || seen[raw.ID] {
+			if raw == nil || raw.Comments.PageInfo == nil || raw.Comments.PageInfo.HasNextPage == nil || seen[raw.ID] {
 				out.Complete = false
 				out.Reason = "Invalid or duplicate discussion omitted"
 				continue
 			}
 			nestedSeen := map[string]bool{}
 			nestedFailure := false
-			for raw.Comments.PageInfo.HasNextPage && len(raw.Comments.Nodes) < 100 && total+len(raw.Comments.Nodes) < 2000 {
+			for raw.Comments.PageInfo.more() && len(raw.Comments.Nodes) < 100 && total+len(raw.Comments.Nodes) < 2000 {
 				next := raw.Comments.PageInfo.EndCursor
 				if next == "" || !validDiscussionField(next, 4096, false) || nestedSeen[next] {
 					nestedFailure = true
@@ -254,7 +271,7 @@ func (g *GH) ListDiscussions(ctx context.Context, id Identity) (DiscussionSnapsh
 						Node *struct{ Comments discussionComments }
 					}
 				}
-				if json.Unmarshal(b, &r) != nil || r.Data.Node == nil || len(r.Errors) > 0 || len(r.Data.Node.Comments.Nodes) > 20 {
+				if json.Unmarshal(b, &r) != nil || r.Data.Node == nil || r.Data.Node.Comments.PageInfo == nil || r.Data.Node.Comments.PageInfo.HasNextPage == nil || len(r.Errors) > 0 || len(r.Data.Node.Comments.Nodes) > 20 {
 					nestedFailure = true
 					break
 				}
@@ -284,9 +301,24 @@ func (g *GH) ListDiscussions(ctx context.Context, id Identity) (DiscussionSnapsh
 					parentsComplete = false
 				}
 			}
-			if nestedFailure || raw.Comments.PageInfo.HasNextPage || d.Comments[0].ParentID != 0 || !parentsComplete {
+			if nestedFailure || raw.Comments.PageInfo.more() || d.Comments[0].ParentID != 0 || !parentsComplete {
 				out.Complete = false
 				out.Reason = "Some discussion replies or roots unavailable"
+			}
+			duplicate := false
+			for _, c := range d.Comments {
+				if canonicalComments[c.ID] {
+					duplicate = true
+					break
+				}
+			}
+			if duplicate {
+				out.Complete = false
+				out.Reason = "Duplicate discussion identity omitted"
+				continue
+			}
+			for _, c := range d.Comments {
+				canonicalComments[c.ID] = true
 			}
 			total += len(d.Comments)
 			seen[d.ID] = true
@@ -297,7 +329,7 @@ func (g *GH) ListDiscussions(ctx context.Context, id Identity) (DiscussionSnapsh
 			out.Complete = false
 			out.Reason = "Some discussions unavailable"
 		}
-		if !connection.PageInfo.HasNextPage {
+		if !connection.PageInfo.more() {
 			break
 		}
 		next := connection.PageInfo.EndCursor
@@ -310,13 +342,7 @@ func (g *GH) ListDiscussions(ctx context.Context, id Identity) (DiscussionSnapsh
 			out.Reason = "Discussion thread limit reached"
 		}
 	}
-	sort.SliceStable(out.Threads, func(i, j int) bool {
-		a, b := out.Threads[i].ID, out.Threads[j].ID
-		if times[a].Equal(times[b]) {
-			return a < b
-		}
-		return times[a].Before(times[b])
-	})
+	finalize()
 	return out, nil
 }
 func nullableCursor(s string) any {
