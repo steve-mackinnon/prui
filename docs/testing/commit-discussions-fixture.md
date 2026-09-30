@@ -13,3 +13,4 @@ Changing anchor: revised wording in the second commit.
 - Open the first commit diff.
 - Inspect the stable and changing anchors.
 - Compare the second commit diff.
+- Head anchor: comment on this line in the third commit.
