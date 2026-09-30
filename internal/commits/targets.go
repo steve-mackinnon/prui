@@ -80,3 +80,26 @@ func InventoryContainsTarget(files []inventory.FileChange, units []inventory.Rev
 	}
 	return false
 }
+
+// HistoricalCommentTarget accepts the first-parent coordinates verified against
+// GitHub: ordinary single-parent additions and modifications on the right side.
+// Deleted lines, renamed files, and root or merge commits remain unsupported.
+func HistoricalCommentTarget(bundle *Bundle, target source.ReviewCommentTarget) bool {
+	if bundle == nil || bundle.Status != Captured || target.Side != "RIGHT" {
+		return false
+	}
+	for _, entry := range bundle.Entries {
+		if entry.SHA != target.CommitID || entry.Status != Captured || len(entry.Parents) != 1 || entry.Diff == nil || !entry.Diff.Complete {
+			continue
+		}
+		for _, file := range entry.Diff.Files {
+			if string(file.NewPath) != target.Path || (file.Status != "A" && file.Status != "M") || (file.Status == "M" && !bytes.Equal(file.OldPath, file.NewPath)) {
+				continue
+			}
+			if InventoryContainsTarget([]inventory.FileChange{file}, entry.Diff.Units, entry.Diff.Patches, target) {
+				return true
+			}
+		}
+	}
+	return false
+}

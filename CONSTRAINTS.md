@@ -72,8 +72,11 @@
   removed. Partial retrieval cannot imply complete counts or no discussions.
 - Commit composers post immediately and cannot enter the head-based pending
   review queue. Delivery validates captured SHA membership/raw patch provenance
-  plus full freshness. Only captured head targets also matching the frozen PR
-  diff are enabled while historical first-parent interoperability is unverified.
+  plus full freshness. Captured head targets must also match the frozen PR
+  diff. Historical RIGHT additions/context require a complete captured
+  single-parent A/M diff with unchanged path and exact raw membership, backed by
+  recorded live API evidence. Historical LEFT/rename/copy/root/merge targets remain
+  disabled.
   No silent retarget, automatic retry, additional permissions or persisted drafts.
 - A confirmed creation stays readable when its current anchor is missing.
   Uncertain delivery retains the draft and requests refresh before intentional

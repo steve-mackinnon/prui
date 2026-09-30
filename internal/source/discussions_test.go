@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 )
 
@@ -204,5 +205,24 @@ func TestDiscussionsDeduplicateCanonicalCommentsAcrossThreads(t *testing.T) {
 	got, err := g.ListDiscussions(context.Background(), Identity{"owner/repo", 42})
 	if err != nil || got.Complete || len(got.Threads) != 1 || got.Threads[0].ID != "thread-1" {
 		t.Fatalf("%+v %v", got, err)
+	}
+}
+
+func TestHistoricalPostAcceptsMovedCurrentAnchorOnlyWithExactOriginal(t *testing.T) {
+	id := Identity{"owner/repo", 42}
+	sha := "0123456789abcdef0123456789abcdef01234567"
+	head := strings.Repeat("b", 40)
+	want := ReviewComment{Body: "body", Target: ReviewCommentTarget{Identity: id, CommitID: sha, Path: "a.go", Side: "RIGHT", Line: 2}}
+	for _, originalLine := range []int{2, 3} {
+		data, _ := json.Marshal(remoteCommentFixture(1, map[string]any{"commit_id": head, "line": 7, "original_line": originalLine, "original_commit_id": sha}))
+		g := GH{Executable: "gh", Limits: Defaults(), Runner: listRunner(func(context.Context, Request) ([]byte, error) { return data, nil })}
+		got, err := g.CreateReviewComment(context.Background(), want)
+		if originalLine == 2 {
+			if err != nil || got.Target.CommitID != head || got.Target.Line != 7 || got.OriginalAnchor == nil || *got.OriginalAnchor != want.Target {
+				t.Fatalf("moved current anchor rejected: %+v %v", got, err)
+			}
+		} else if !errors.Is(err, ErrCommentDeliveryUnknown) {
+			t.Fatalf("mismatched original accepted: %v", err)
+		}
 	}
 }

@@ -467,8 +467,8 @@ func (m *Model) openCommitComposer() tea.Cmd {
 	}
 	target := *rows[cursor].target
 	metadata := m.Session.Inventory.Comparison.Metadata
-	if target.CommitID != metadata.HeadSHA {
-		m.ActionError = errors.New("Historical commenting awaits verified GitHub first-parent targeting; discussions remain readable")
+	if target.CommitID != metadata.HeadSHA && !commits.HistoricalCommentTarget(m.Session.Commits, target) {
+		m.ActionError = errors.New("Commenting on this historical line is unsupported; use an added or context line in a regular commit")
 		return nil
 	}
 	matched := false
@@ -479,7 +479,7 @@ func (m *Model) openCommitComposer() tea.Cmd {
 			}
 		}
 	}
-	if !matched {
+	if target.CommitID == metadata.HeadSHA && !matched {
 		m.ActionError = errors.New("This commit line is not in the captured PR diff; commenting unavailable")
 		return nil
 	}

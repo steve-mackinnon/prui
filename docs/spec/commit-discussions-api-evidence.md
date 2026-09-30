@@ -1,8 +1,8 @@
 # Commit discussion API evidence
 
-Investigated 2026-09-30 using official public documentation. No authenticated
-live queries or external writes were performed. Synthetic tests verify our
-request construction and normalization; they are not GitHub interoperability proof.
+Investigated 2026-09-30 using official documentation and authenticated probes
+on the user-authorized disposable [PR #19](https://github.com/steve-mackinnon/prui/pull/19).
+Four labeled test comments were posted; one deletion request returned HTTP 422.
 
 ## Read contract
 
@@ -36,18 +36,32 @@ and line fields; a confirmed comment without a current line remains readable.
 
 | Case | Evidence | Historical posting |
 | --- | --- | --- |
-| Addition, deletion, context on an older SHA | Parameters documented; first-parent equivalence unverified | Disabled |
-| Rename | Original-path semantics unverified | Disabled |
-| Root commit | PR coordinate equivalence unverified | Disabled |
-| Merge commit | First-parent equivalence unverified | Disabled |
-| Changed-again line / immediate outdated response | Outdated behavior documented; synthetic normalization tested | Disabled |
+| RIGHT additions and context, regular single-parent A/M files | Live original SHA/path/line/side matched exactly | Enabled |
+| Changed-again RIGHT addition | Live original anchor matched; GraphQL isOutdated=true | Enabled |
+| LEFT deletion | Second-commit parent line absent cumulative PR diff; HTTP 422 | Disabled |
+| Rename/copy | Original-path semantics unverified | Disabled |
+| Root/merge commit | PR coordinate equivalence unverified | Disabled |
 
-Historical reads are enabled independently. No live mutation is needed to ship
-the read slices. Enabling historical writes requires a separately authorized
-experiment in a named disposable repository, covering request SHA/path/line/side
-and canonical response anchors for each supported class. Unsupported cases must
-remain non-commentable. Do not silently fall back to the head SHA or standalone
-commit comments.
+The runtime requires a complete captured single-parent diff, an added or modified
+file without path translation, and exact RIGHT raw-hunk membership. Head targets
+retain their existing requirement to also appear in the frozen PR diff. Delivery
+preflight still verifies both repository identities and base/head SHAs; no target
+is rewritten to head and uncertain delivery is never retried automatically.
+
+### Live results
+
+Fixture path: `docs/testing/commit-discussions-fixture.md`.
+
+| Request commit | Line/side | Result |
+| --- | --- | --- |
+| `9e18f6ea2cabf611b5e0f55415dda86dffe91119` | 8 RIGHT, stable addition | Comment 4149188001; exact original SHA/line; current anchor at head; isOutdated=false |
+| `9e18f6ea2cabf611b5e0f55415dda86dffe91119` | 9 RIGHT, changed again | Comment 4149188112; exact original SHA/line; current line null; isOutdated=true |
+| `1f2c5c1486c4b14f8e03db93c69f0b72cca55319` | 9 RIGHT, replacement | Comment 4149188245; exact original SHA/line; current anchor at head; isOutdated=false |
+| `1f2c5c1486c4b14f8e03db93c69f0b72cca55319` | 8 RIGHT, context | Comment 4149188404; exact original SHA/line; current anchor at head; isOutdated=false |
+| `1f2c5c1486c4b14f8e03db93c69f0b72cca55319` | 9 LEFT, deletion | HTTP 422: pull_request_review_thread.line could not be resolved |
+
+GraphQL reviewThreads independently verified each original commit and outdated
+flag. The head at probe time was `bddf8d8912fa419fcb75f4aca89fb535cb483c76`.
 
 ## Local interaction evidence
 

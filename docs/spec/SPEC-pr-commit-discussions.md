@@ -195,6 +195,12 @@ comment data enters session payloads, guides, logs, plain output, or disk.
 
 ## Delivery Gate and Risks
 
+2026-09-30 follow-up: user-authorized probes on disposable PR #19 verified
+RIGHT additions/context for complete single-parent A/M diffs and immediate
+outdated responses. These targets are enabled; LEFT deletion (HTTP 422),
+rename/copy, root and merge cases remain disabled. See
+[API evidence](commit-discussions-api-evidence.md) for exact requests/results.
+
 Before historical posting, establish GitHub behavior for first-parent diffs:
 additions, deletions, context, renames, root/merge commits, changed-again lines,
 and immediately outdated POST responses. Official docs allow a requested commit

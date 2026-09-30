@@ -289,6 +289,33 @@ func TestHistoricalCommitComposerGateAndQueueIsolation(t *testing.T) {
 	}
 }
 
+func TestHistoricalAddedLineOpensCommitComposer(t *testing.T) {
+	m := commitModel(t)
+	entry := &m.Session.Commits.Entries[0]
+	entry.SHA = strings.Repeat("d", 40)
+	m.commit.selectedSHA = entry.SHA
+	m.commit.cache = commitRenderCache{}
+	entry.Parents = []string{strings.Repeat("c", 40)}
+	entry.Diff.Files[0].Status = "A"
+	m.commit.focus = paneDiff
+	for i, row := range m.commitRows() {
+		if row.target != nil && row.target.Side == "RIGHT" {
+			m.commitCursor()
+			m.commit.cursors[m.commit.selectedSHA] = i
+			break
+		}
+	}
+	m.openCommitComposer()
+	if m.Composer == nil || m.Composer.Target.CommitID != entry.SHA || m.Composer.CommitSHA != entry.SHA {
+		t.Fatalf("historical composer did not retain selected SHA: %v", m.ActionError)
+	}
+	m.Composer.Draft = "historical draft"
+	m.commentComposerKey(tea.KeyPressMsg{Code: 'p', Mod: tea.ModCtrl})
+	if len(m.Pending) != 0 || m.Composer.Draft != "historical draft" {
+		t.Fatal("historical draft entered pending head review")
+	}
+}
+
 func TestCommitCommentUncertainDeliveryRetainsDraft(t *testing.T) {
 	m := commitModel(t)
 	m.Composer = &commentComposer{Target: source.ReviewCommentTarget{CommitID: strings.Repeat("a", 40)}, CommitSHA: strings.Repeat("a", 40), Draft: "retain this", PendingIndex: -1, generation: 3}
