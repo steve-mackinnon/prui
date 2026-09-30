@@ -9,6 +9,7 @@ cover cases that need a specific target or non-interactive output:
 
 | Command | Use |
 | --- | --- |
+| `prui --version` | Print the build version and commit without opening a checkout or session. |
 | `prui open <PR-URL>` | Open a specific PR, including from a checkout without a supported `origin` remote. |
 | `prui open 42 --github-repo owner/repo --plain` | Print a review for a script or non-interactive terminal. |
 | `prui prs owner/repo` | Print up to 100 open PRs for a repository. |

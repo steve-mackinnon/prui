@@ -14,6 +14,7 @@ import (
 )
 
 const usage = `prui
+prui --version
 prui [--theme NAME]
 prui open <PR-URL-or-number> [--github-repo owner/repo] [--plain] [--theme NAME]
 prui prs [owner/repo] [--plain] [--theme NAME]

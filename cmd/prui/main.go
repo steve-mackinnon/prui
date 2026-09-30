@@ -19,7 +19,15 @@ import (
 	"prui/internal/tui"
 )
 
+// Release builds set these from the Git tag and commit using linker flags.
+var version = "dev"
+var commit = "unknown"
+
 func run(args []string) int {
+	if len(args) == 1 && args[0] == "--version" {
+		fmt.Printf("prui %s (commit %s)\n", version, commit)
+		return 0
+	}
 	if len(args) == 1 && (args[0] == "--help" || args[0] == "-h") {
 		fmt.Println(usage)
 		return 0
