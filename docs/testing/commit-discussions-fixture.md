@@ -6,9 +6,10 @@ Do not merge.
 ## Scenario
 
 Stable anchor: this line stays unchanged in later commits.
-Changing anchor: initial wording.
+Changing anchor: revised wording in the second commit.
 
 ## Checklist
 
 - Open the first commit diff.
 - Inspect the stable and changing anchors.
+- Compare the second commit diff.
