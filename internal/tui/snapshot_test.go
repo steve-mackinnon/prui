@@ -201,3 +201,57 @@ func checkScreen(t *testing.T, name, got string) {
 		t.Fatalf("screen differs from %s\n--- expected ---\n%s--- actual ---\n%s\nIf intentional, update with -update-golden and review the diff.", path, want, got)
 	}
 }
+
+func TestDiscussionScreenSnapshots(t *testing.T) {
+	for _, tc := range []struct {
+		name                            string
+		width, height                   int
+		detail, partial, stale, noColor bool
+	}{
+		{"discussions_60_short", 60, 8, false, false, false, true},
+		{"discussions_99_detail", 99, 18, true, false, false, false},
+		{"discussions_100_partial", 100, 12, false, true, false, false},
+		{"discussions_120_stale", 120, 18, true, false, true, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			m := commitModel(t)
+			m.Loading = false
+			m.Width, m.Height = tc.width, tc.height
+			sha := m.commitEntries()[0].SHA
+			d := testDiscussion("thread-1", sha)
+			d.Comments = append(d.Comments, source.ReviewComment{ID: 2, ParentID: 1, Author: "bob", Body: "This concern still needs attention."})
+			missing := testDiscussion("thread-2", strings.Repeat("f", 40))
+			missing.Comments[0].ID = 3
+			missing.Comments[0].Body = "Context survives an unavailable commit."
+			m.discussions.loaded = true
+			m.discussions.snapshot = DiscussionSnapshot{CurrentVerified: !tc.stale, Reason: "Snapshot freshness unknown", Snapshot: source.DiscussionSnapshot{Complete: !tc.partial, Reason: "Reply limit reached", Threads: []source.Discussion{d, missing}}}
+			key(m, 'D')
+			if tc.detail {
+				key(m, 'j')
+				namedKey(m, tea.KeyEnter)
+			}
+			render := func() string { return m.View().Content }
+			var got string
+			if tc.noColor {
+				got = withoutStyles(m, render)
+			} else {
+				got = render()
+			}
+			got = ansi.Strip(got)
+			lines := strings.Split(got, "\n")
+			if len(lines) > tc.height {
+				t.Fatalf("height exceeded: %s", got)
+			}
+			for i, l := range lines {
+				if visibleWidth(l) > tc.width {
+					t.Fatalf("width exceeded: %q", l)
+				}
+				lines[i] = strings.TrimRight(l, " ")
+			}
+			if !strings.Contains(got, "Outdated on current PR") {
+				t.Fatalf("status missing: %s", got)
+			}
+			checkScreen(t, tc.name, strings.Join(lines, "\n")+"\n")
+		})
+	}
+}

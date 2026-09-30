@@ -73,10 +73,14 @@ func (a *application) model(ctx context.Context, o options) *tui.Model {
 		})
 	}
 	m.SetGuideLifecycle(guideApp.requestGuide)
+	if _, supported := a.gh.(source.DiscussionReader); !a.offline && supported {
+		m.SetDiscussionReader(a.listDiscussions)
+	}
 	m.SetCommentSubmitter(a.submitReviewComment)
 	m.SetReviewSubmitter(a.submitPullRequestReview)
 	m.SetCommentActionSubmitter(a.submitReviewCommentAction)
-	if _, supported := a.gh.(source.ReviewCommentReader); !a.offline && supported {
+	_, hasDiscussions := a.gh.(source.DiscussionReader)
+	if _, supported := a.gh.(source.ReviewCommentReader); !a.offline && supported && !hasDiscussions {
 		m.SetCommentReader(a.listReviewComments)
 	}
 	if _, supported := a.gh.(source.ReviewCommentViewer); !a.offline && supported {

@@ -122,13 +122,26 @@ func (h *programDriver) key(code rune) {
 func (h *programDriver) quit() {
 	h.t.Helper()
 	h.key('q')
-	select {
-	case <-h.done:
-		if h.err != nil {
-			h.t.Fatalf("quit failed: %v", h.err)
+	timer := time.NewTimer(5 * time.Second)
+	defer timer.Stop()
+	confirmed := false
+	for {
+		select {
+		case <-h.done:
+			if h.err != nil {
+				h.t.Fatalf("quit failed: %v", h.err)
+			}
+			return
+		case frame := <-h.frames:
+			if frame.page == pageQuitPending && !confirmed {
+				// The journey deliberately discards its asserted retained draft.
+				// Production must still require this explicit confirmation.
+				confirmed = true
+				h.key(tea.KeyEnter)
+			}
+		case <-timer.C:
+			h.t.Fatal("quit did not terminate the program")
 		}
-	case <-time.After(5 * time.Second):
-		h.t.Fatal("quit did not terminate the program")
 	}
 }
 
@@ -265,7 +278,7 @@ func TestProgramCommentComposerSubmitErrorAndCancellation(t *testing.T) {
 		openAndType(h)
 		submit(h)
 		h.expect("successful comment submission", func(f programFrame) bool {
-			return f.page == pageReview && !f.busy && f.failure == ""
+			return f.page == pageReview && !f.busy && f.failure == "" && !strings.Contains(f.text, "enter: post now")
 		})
 		h.quit()
 	})

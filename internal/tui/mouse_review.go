@@ -31,6 +31,12 @@ func (m *Model) mouseReviewClick(x, y int) tea.Cmd {
 		p := image.Pt(x, y)
 		if p.In(g.Detail) {
 			m.commit.focus = paneDiff
+			row := m.commitOffset() + y - g.Detail.Min.Y
+			rows := m.commitRows()
+			if row >= 0 && row < len(rows) && rows[row].target != nil {
+				m.commitCursor()
+				m.commit.cursors[m.commit.selectedSHA] = row
+			}
 		}
 		if p.In(g.Rail) {
 			rows := m.commitRail()

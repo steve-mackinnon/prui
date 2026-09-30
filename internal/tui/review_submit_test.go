@@ -283,3 +283,40 @@ func TestPendingCommentLimitKeepsEditorDraft(t *testing.T) {
 		t.Fatalf("limit lost draft or changed queue: pending=%d composer=%#v err=%v", len(m.Pending), m.Composer, m.ActionError)
 	}
 }
+
+func TestCommitComposerDraftParticipatesInQuitProtection(t *testing.T) {
+	m := commitModel(t)
+	m.Composer = &commentComposer{CommitSHA: m.commitEntries()[0].SHA, Draft: "unsent historical feedback"}
+	if !m.unsentReviewDrafts() {
+		t.Fatal("commit draft excluded from quit protection")
+	}
+	m.Composer.Draft = ""
+	if m.unsentReviewDrafts() {
+		t.Fatal("empty composer treated as unsent")
+	}
+}
+
+func TestQuitConfirmationCannotSubmitActiveCommitComposer(t *testing.T) {
+	m := commitModel(t)
+	m.Loading = false
+	m.Composer = &commentComposer{CommitSHA: m.commitEntries()[0].SHA, Draft: "do not send while quitting", PendingIndex: -1}
+	writes := 0
+	m.SetCommentSubmitter(func(context.Context, CommentSubmission) (source.ReviewComment, error) {
+		writes++
+		return source.ReviewComment{}, nil
+	})
+	key(m, 'q')
+	if m.top() != pageQuitPending {
+		t.Fatal("quit did not require confirmation")
+	}
+	_, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	if cmd == nil {
+		t.Fatal("quit confirmation did not quit")
+	}
+	if _, ok := cmd().(tea.QuitMsg); !ok {
+		t.Fatal("quit confirmation routed into composer")
+	}
+	if writes != 0 {
+		t.Fatal("quit confirmation posted draft")
+	}
+}

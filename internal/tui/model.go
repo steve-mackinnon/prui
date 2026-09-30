@@ -10,6 +10,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+	"prui/internal/commits"
 	"prui/internal/guideconfig"
 	"prui/internal/inventory"
 	"prui/internal/review"
@@ -85,6 +86,7 @@ type descriptionRenderCache struct {
 // reviewTabState is the reviewer-visible state that must travel with an open
 // review. Window dimensions and services remain shared by the workspace.
 type reviewTabState struct {
+	discussions                                          discussionState
 	commit                                               commitState
 	savedCursorTarget                                    *source.ReviewCommentTarget
 	savedCursorCommentID                                 int64
@@ -142,17 +144,21 @@ const (
 	pageReviewSubmit
 	pageQuitPending
 	pageThemePicker
+	pageDiscussions
 )
 
 // commentComposer is deliberately tab-owned. Its target is copied from the
 // immutable diff provenance when the reviewer opens the composer, so later
 // navigation cannot silently retarget a draft.
 type commentComposer struct {
-	Target       source.ReviewCommentTarget
-	Draft        string
-	Cursor       int // rune offset, never a byte offset
-	PendingIndex int // -1 for a new comment; otherwise edits a local pending draft
-	generation   uint64
+	Target          source.ReviewCommentTarget
+	CommitSHA       string
+	CommitBundle    *commits.Bundle
+	CommitInventory *inventory.Inventory
+	Draft           string
+	Cursor          int // rune offset, never a byte offset
+	PendingIndex    int // -1 for a new comment; otherwise edits a local pending draft
+	generation      uint64
 }
 
 type commentActionMenu struct {
@@ -220,6 +226,7 @@ type Model struct {
 	guideSave            func(guideconfig.Selection) error
 	submitComment        CommentSubmitter
 	submitReview         ReviewSubmitter
+	readDiscussions      DiscussionReader
 	readComments         CommentReader
 	readViewer           ViewerReader
 	submitCommentAction  CommentActionSubmitter
@@ -337,6 +344,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}()
 	switch v := msg.(type) {
+	case DiscussionResult:
+		m.applyDiscussionResult(v)
+		return m, nil
 	case guidePathTick:
 		if v.generation != m.guidePathGeneration || !m.guidePathScrollEligible() {
 			return m, nil
@@ -382,7 +392,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.begin()
 		if v.Err == nil && v.Session != nil {
-			return m, tea.Batch(m.refreshCommentsInBackground(), m.refreshOpenedPullRequest(m.activeTab, v.Session))
+			return m, tea.Batch(m.refreshDiscussions(), m.refreshCommentsInBackground(), m.refreshOpenedPullRequest(m.activeTab, v.Session))
 		}
 	case ActionResult:
 		v.Err = m.finishAction(v.Err)
@@ -392,6 +402,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if v.Err == nil && v.Session != nil {
 			m.Session = v.Session
 			if v.Reset {
+				if m.discussions.cancel != nil {
+					m.discussions.cancel()
+				}
+				m.discussions = discussionState{}
 				m.fileCache = fileDetailCache{}
 				m.Composer, m.ReviewForm, m.CommentMenu = nil, nil, nil
 				m.Pending, m.Comments = nil, nil
@@ -407,6 +421,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.Stack = []page{pageReview}
 				m.Focus = paneList
 				m.begin()
+				return m, tea.Batch(m.refreshDiscussions(), m.refreshCommentsInBackground())
 			}
 		}
 	case CommentResult:
@@ -426,7 +441,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.Busy, m.ActionError, m.notice = busy, actionErr, notice
 		}
 		if active == v.Target && v.Err == nil {
-			return m, m.refreshComments()
+			return m, tea.Batch(m.refreshDiscussions(), m.refreshComments())
 		}
 	case CommentActionResult:
 		active := m.activeTab
@@ -472,7 +487,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			m.registerReviewTab(v.Session, active == v.Target)
 			if active == v.Target {
-				return m, tea.Batch(m.refreshCommentsInBackground(), m.refreshOpenedPullRequest(m.activeTab, v.Session))
+				return m, tea.Batch(m.refreshDiscussions(), m.refreshCommentsInBackground(), m.refreshOpenedPullRequest(m.activeTab, v.Session))
 			}
 		}
 		if active != v.Target {
@@ -514,10 +529,13 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		// Changed comparisons never inherit progress or offsets from old source.
+		if state.discussions.cancel != nil {
+			state.discussions.cancel()
+		}
 		m.tabs[v.Target].review = newReviewTabState(v.Freshness.Session)
 		if v.Target == m.activeTab {
 			m.restoreReviewTab(m.tabs[v.Target].review)
-			return m, m.refreshCommentsInBackground()
+			return m, tea.Batch(m.refreshDiscussions(), m.refreshCommentsInBackground())
 		}
 		return m, nil
 	case PullRequestListResult:
@@ -576,6 +594,11 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.cancelCurrentAction()
 			return m, nil
 		}
+		if m.top() == pageQuitPending && v.String() != "ctrl+c" {
+			// The modal owns Enter/Escape; an underlying composer must never
+			// interpret discard confirmation as a remote comment submission.
+			return m, m.pageKey(pageQuitPending, v)
+		}
 		editingReviewText := m.top() == pageReviewSubmit
 		editingGuideModel := m.top() == pageGuideConsent && m.guideFocus == 2
 		if (v.String() != "q" || editingReviewText || editingGuideModel) && v.String() != "ctrl+c" {
@@ -595,8 +618,21 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.openThemePicker()
 				return m, nil
 			}
+			if m.top() == pageDiscussions {
+				return m, m.discussionKey(v.String())
+			}
 			if p := m.top(); p != pageReview {
 				return m, m.pageKey(p, v)
+			}
+			if v.String() == "D" && m.Session != nil {
+				m.openDiscussions()
+				return m, nil
+			}
+			if v.String() == "c" && m.readDiscussions != nil {
+				return m, tea.Batch(m.refreshDiscussions(), m.refreshComments())
+			}
+			if v.String() == "esc" && m.restoreDiscussionContext() {
+				return m, nil
 			}
 			if v.String() == "z" && m.selectedReviewView() == viewChanges && m.Focus == paneDiff {
 				if pendingCenter {
@@ -636,6 +672,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 			if m.selectedReviewView() == viewCommits && v.String() != "?" && v.String() != "U" {
+				if v.String() == "enter" && m.commit.focus == paneDiff {
+					return m, m.openCommitComposer()
+				}
 				m.commitKey(v.String())
 				return m, nil
 			}
@@ -1503,7 +1542,11 @@ func (m *Model) inlineEditorLinesFor(draft string, editorCursor, indent int) []d
 
 // overlayInnerWidth reserves the detail cursor gutter, indent, and overlay border.
 func (m *Model) overlayInnerWidth(indent int) int {
-	return max(8, m.detailWidth()-(2+indent)-6)
+	width := m.detailWidth()
+	if m.selectedReviewView() == viewCommits {
+		width = m.commitDetailWidth()
+	}
+	return max(8, width-(2+indent)-6)
 }
 
 func (m *Model) detailWidth() int {
@@ -1753,6 +1796,8 @@ func (m *Model) View() tea.View {
 		text = "Unable to open review\n" + Escape(m.Err.Error()) + "\nNo complete comparison available. q: quit"
 	default:
 		switch m.top() {
+		case pageDiscussions:
+			text = m.discussionsView()
 		case pagePicker:
 			text = m.pickerView()
 		case pageRepositoryPicker:

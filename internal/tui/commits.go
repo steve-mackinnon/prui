@@ -2,28 +2,34 @@ package tui
 
 import (
 	"bytes"
+	tea "charm.land/bubbletea/v2"
+	"errors"
 	"fmt"
 	"image"
 	"prui/internal/commits"
 	"prui/internal/inventory"
 	"prui/internal/review"
+	"prui/internal/source"
 	"strings"
+	"unicode/utf8"
 )
 
-// Commit browsing owns no source cursors, comment anchors or review progress.
+// Commit browsing owns its own cursor and never changes main review progress.
 type commitState struct {
 	selectedSHA                 string
 	selected, railOffset, width int
 	focus                       pane
 	offsets                     map[string]int
+	cursors                     map[string]int
 	cache                       commitRenderCache
 }
 type commitRenderCache struct {
-	session *review.Session
-	sha     string
-	width   int
-	theme   string
-	rows    []diffLine
+	session    *review.Session
+	sha        string
+	width      int
+	theme      string
+	generation uint64
+	rows       []diffLine
 }
 
 func (m *Model) commitEntries() []commits.Entry {
@@ -120,6 +126,9 @@ func (m *Model) commitRail() []listLine {
 	for line := m.commit.railOffset; line < min(len(entries)*2, m.commit.railOffset+height); line++ {
 		i := line / 2
 		text := "  " + commitMeta(entries[i])
+		if m.discussions.loaded || m.readDiscussions != nil {
+			text += " · " + m.commitDiscussionCount(entries[i].SHA)
+		}
 		if line%2 == 0 {
 			text = selectionMarker(i == m.commit.selected) + commitSubject(entries[i])
 		}
@@ -144,7 +153,7 @@ func (m *Model) commitRows() []diffLine {
 	m.commitSelection()
 	e := entries[m.commit.selected]
 	c := &m.commit.cache
-	if c.session == m.Session && c.sha == e.SHA && c.width == m.commitDetailWidth() && c.theme == m.theme.Name {
+	if m.Composer == nil && c.session == m.Session && c.sha == e.SHA && c.width == m.commitDetailWidth() && c.theme == m.theme.Name && c.generation == m.discussionGeneration() {
 		return c.rows
 	}
 	rows := body(classTitle, commitSubject(e))
@@ -166,15 +175,26 @@ func (m *Model) commitRows() []diffLine {
 		if len(e.Diff.Files) == 0 && e.Diff.Complete {
 			rows = append(rows, body(classMetadata, "No tree changes.")...)
 		}
-		rows = append(rows, commitDiffRows(e.Diff)...)
+		rawRows := commitDiffRowsFor(e.Diff, m.Session.Inventory.Comparison.Metadata.Identity, e.SHA)
+		for _, row := range rawRows {
+			rows = append(rows, row)
+			if row.target != nil {
+				rows = append(rows, m.commitDiscussionLines(*row.target)...)
+				if m.Composer != nil && m.Composer.CommitSHA == e.SHA && m.Composer.Target == *row.target {
+					rows = append(rows, body(classMetadata, fmt.Sprintf("Comment on %s · %s:%d · %s", shortCommitSHA(e.SHA), Escape(row.target.Path), row.target.Line, row.target.Side))...)
+					rows = append(rows, m.inlineEditorLines()...)
+				}
+			}
+		}
 	}
-	*c = commitRenderCache{session: m.Session, sha: e.SHA, width: m.commitDetailWidth(), theme: m.theme.Name, rows: rows}
+	*c = commitRenderCache{session: m.Session, sha: e.SHA, width: m.commitDetailWidth(), theme: m.theme.Name, generation: m.discussionGeneration(), rows: rows}
 	return rows
 }
 
 // This pure renderer accepts structured immutable commit data and deliberately
 // never constructs a review Session or creates a PR comment target.
-func commitDiffRows(d *commits.Diff) []diffLine {
+func commitDiffRows(d *commits.Diff) []diffLine { return commitDiffRowsFor(d, source.Identity{}, "") }
+func commitDiffRowsFor(d *commits.Diff, identity source.Identity, sha string) []diffLine {
 	var rows []diffLine
 	unitsByFile := make(map[string][]inventory.ReviewUnit, len(d.Files))
 	for _, unit := range d.Units {
@@ -189,29 +209,35 @@ func commitDiffRows(d *commits.Diff) []diffLine {
 			switch u.Kind {
 			case inventory.TextHunk:
 				old, new := u.OldRange.Start, u.NewRange.Start
+				inHunk := false
 				for _, raw := range bytes.Split(d.Patches[u.PatchReference], []byte{'\n'}) {
 					if isGitFilePreamble(raw) {
 						continue
 					}
+					var target *source.ReviewCommentTarget
 					text := Escape(string(raw))
 					class := classifyPatch(text)
 					if o, n, ok := hunkStarts(raw); ok {
 						old, new = o, n
-					} else if len(raw) > 0 {
+						inHunk = true
+					} else if inHunk && len(raw) > 0 {
 						switch raw[0] {
 						case '+':
+							target = commitPatchAnchor(identity, sha, f.NewPath, "RIGHT", new)
 							text = fmt.Sprintf("     %4d %s", new, text)
 							new++
 						case '-':
+							target = commitPatchAnchor(identity, sha, f.OldPath, "LEFT", old)
 							text = fmt.Sprintf("%4d      %s", old, text)
 							old++
 						case ' ':
+							target = commitPatchAnchor(identity, sha, f.NewPath, "RIGHT", new)
 							text = fmt.Sprintf("%4d %4d %s", old, new, text)
 							old++
 							new++
 						}
 					}
-					rows = append(rows, diffLine{styledLine: styledLine{Class: class, Text: text}})
+					rows = append(rows, diffLine{styledLine: styledLine{Class: class, Text: text}, target: target})
 				}
 			case inventory.Binary:
 				rows = append(rows, body(cardClass(u.Kind), "Binary content changed; no text patch.")...)
@@ -305,7 +331,7 @@ func (m *Model) commitKey(key string) {
 		if m.commit.focus == paneList {
 			m.commitMove(delta)
 		} else {
-			m.commitScroll(delta)
+			m.commitCursorMove(delta)
 		}
 	}
 }
@@ -346,6 +372,9 @@ func (m *Model) commitsView() string {
 		}
 		if i < len(rows) {
 			r, rc = rows[i].Text, rows[i].Class
+			if focus == paneDiff && offset+i == m.commitCursor() {
+				rc = classSelectionFocused
+			}
 		}
 		if m.Width < 100 {
 			if focus == paneDiff {
@@ -359,4 +388,148 @@ func (m *Model) commitsView() string {
 		}
 	}
 	return header + "\n" + strings.Join(lines, "\n") + "\n" + footer
+}
+
+func commitPatchAnchor(identity source.Identity, sha string, path []byte, side string, line int) *source.ReviewCommentTarget {
+	if sha == "" || line < 1 || len(path) == 0 || !utf8.Valid(path) || strings.ContainsAny(string(path), "\x00\r\n") {
+		return nil
+	}
+	return &source.ReviewCommentTarget{Identity: identity, CommitID: sha, Path: string(path), Side: side, Line: line}
+}
+func (m *Model) commitCursor() int {
+	if m.commit.cursors == nil {
+		m.commit.cursors = map[string]int{}
+	}
+	return m.commit.cursors[m.commit.selectedSHA]
+}
+func (m *Model) commitCursorMove(delta int) {
+	rows := m.commitRows()
+	if len(rows) == 0 {
+		return
+	}
+	offset := m.commitOffset()
+	current := max(offset, min(m.commitCursor(), offset+m.bodyHeight()-1))
+	m.commitScroll(delta)
+	cursor := max(0, min(current+delta, len(rows)-1))
+	m.commit.cursors[m.commit.selectedSHA] = cursor
+	offset = m.commitOffset()
+	if cursor < offset {
+		m.commit.offsets[m.commit.selectedSHA] = cursor
+	}
+	if cursor >= offset+m.bodyHeight() {
+		m.commit.offsets[m.commit.selectedSHA] = max(0, cursor-m.bodyHeight()+1)
+	}
+}
+func (m *Model) viewOriginalDiscussion(target *source.ReviewCommentTarget, sha string) bool {
+	for i, e := range m.commitEntries() {
+		if e.SHA != sha {
+			continue
+		}
+		if e.Status != commits.Captured || e.Diff == nil {
+			return false
+		}
+		// Check captured source before navigating so an unavailable anchor retains
+		// the discussion detail and its snippet rather than losing its context.
+		if target != nil {
+			found := false
+			for _, row := range commitDiffRowsFor(e.Diff, m.Session.Inventory.Comparison.Metadata.Identity, e.SHA) {
+				if row.target != nil && *row.target == *target {
+					found = true
+					break
+				}
+			}
+			if !found {
+				return false
+			}
+		}
+		m.selectCommit(i)
+		m.selectReviewView(viewCommits)
+		m.commit.focus = paneDiff
+		if target != nil {
+			for n, row := range m.commitRows() {
+				if row.target != nil && *row.target == *target {
+					m.commitCursor()
+					m.commit.cursors[sha] = n
+					m.commit.offsets[sha] = max(0, n-2)
+					break
+				}
+			}
+		}
+		return true
+	}
+	return false
+}
+func (m *Model) openCommitComposer() tea.Cmd {
+	rows := m.commitRows()
+	cursor := m.commitCursor()
+	if cursor >= len(rows) || rows[cursor].target == nil {
+		return nil
+	}
+	target := *rows[cursor].target
+	metadata := m.Session.Inventory.Comparison.Metadata
+	if target.CommitID != metadata.HeadSHA {
+		m.ActionError = errors.New("Historical commenting awaits verified GitHub first-parent targeting; discussions remain readable")
+		return nil
+	}
+	matched := false
+	for i := range m.Session.Inventory.Units {
+		for _, row := range unitLines(m.Session, i) {
+			if row.target != nil && *row.target == target {
+				matched = true
+			}
+		}
+	}
+	if !matched {
+		m.ActionError = errors.New("This commit line is not in the captured PR diff; commenting unavailable")
+		return nil
+	}
+	m.Composer = &commentComposer{Target: target, CommitSHA: target.CommitID, CommitBundle: m.Session.Commits, CommitInventory: &m.Session.Inventory, PendingIndex: -1}
+	m.commit.cache = commitRenderCache{}
+	m.editorCursorVisible = true
+	m.editorCursorGeneration++
+	m.ensureCommitEditorVisible()
+	return nextEditorCursorTick(m.editorCursorGeneration)
+}
+
+// ensureCommitEditorVisible adjusts only the commit viewport. Long editors keep
+// the active text cursor visible; shorter editors fit their complete box.
+func (m *Model) ensureCommitEditorVisible() {
+	c := m.Composer
+	if c == nil || c.CommitSHA == "" || c.CommitSHA != m.commit.selectedSHA {
+		return
+	}
+	rows := m.commitRows()
+	first, last := -1, -1
+	for i, row := range rows {
+		if row.editor {
+			if first < 0 {
+				first = i
+			}
+			last = i
+		}
+	}
+	if first < 0 {
+		return
+	}
+	offset := m.commitOffset()
+	height := m.bodyHeight()
+	if last-first+1 <= height {
+		if last >= offset+height {
+			offset = last - height + 1
+		}
+		if first < offset {
+			offset = first
+		}
+	} else {
+		runes := []rune(c.Draft)
+		cursor := max(0, min(c.Cursor, len(runes)))
+		line := first + 1 + strings.Count(string(runes[:cursor]), "\n")
+		if line >= offset+height {
+			offset = line - height + 1
+		}
+		if line < offset {
+			offset = line
+		}
+	}
+	m.commit.offsets[c.CommitSHA] = max(0, min(offset, max(0, len(rows)-height)))
 }

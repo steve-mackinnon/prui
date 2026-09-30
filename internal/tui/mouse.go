@@ -14,6 +14,8 @@ func (m *Model) mouseAvailable() bool {
 		return false
 	}
 	switch m.top() {
+	case pageDiscussions:
+		return m.Session != nil
 	case pageReview:
 		return m.Session != nil
 	case pagePicker, pageRepositoryPicker, pagePullRequestPicker, pageThemePicker:
@@ -44,6 +46,10 @@ func (m *Model) mouseUpdate(msg tea.MouseMsg) tea.Cmd {
 		return nil
 	}
 	m.pendingCenter = false
+	if m.top() == pageDiscussions {
+		m.discussionMouseClick(click.Y)
+		return nil
+	}
 	if m.top() == pageReview {
 		return m.mouseReviewClick(click.X, click.Y)
 	}
@@ -58,6 +64,16 @@ func (m *Model) mouseWheel(wheel tea.MouseWheelMsg) tea.Cmd {
 	case tea.MouseWheelDown:
 		delta = mouseWheelStep
 	default:
+		return nil
+	}
+	if m.top() == pageDiscussions {
+		for i := 0; i < mouseWheelStep; i++ {
+			if delta < 0 {
+				m.discussionKey("up")
+			} else {
+				m.discussionKey("down")
+			}
+		}
 		return nil
 	}
 	if wheel.X < 0 || wheel.Y < 0 || wheel.X >= m.Width || wheel.Y >= m.Height || m.top() != pageReview || m.Session == nil {

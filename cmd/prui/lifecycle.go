@@ -12,6 +12,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"prui/internal/commits"
 	"prui/internal/guide"
 	"prui/internal/guideconfig"
 	"prui/internal/review"
@@ -91,7 +92,11 @@ func (a *application) submitReviewComment(ctx context.Context, submission tui.Co
 	if !source.SamePinnedRevision(current, submission.Metadata) {
 		return source.ReviewComment{}, errors.New("pull request changed; open a new comparison before posting a comment")
 	}
-	return commenter.CreateReviewComment(ctx, submission.Comment)
+	created, err := commenter.CreateReviewComment(ctx, submission.Comment)
+	if err != nil {
+		return source.ReviewComment{}, errors.Join(source.ErrCommentDeliveryUnknown, err)
+	}
+	return created, nil
 }
 
 func (a *application) submitPullRequestReview(ctx context.Context, submission tui.ReviewSubmission) error {
@@ -201,8 +206,22 @@ func (a *application) submitReviewCommentAction(ctx context.Context, action tui.
 		return source.ReviewComment{}, source.ReviewCommentReaction{}, errors.New("review comment replies unavailable")
 	}
 	reply, err := replier.ReplyToReviewComment(ctx, action.Metadata.Identity, action.Comment.ID, action.Body)
-	if err == nil && reply.Target != action.Comment.Target {
-		return source.ReviewComment{}, source.ReviewCommentReaction{}, errors.New("invalid review comment reply target")
+	if err == nil {
+		expected := action.Comment.Target
+		if action.Comment.CurrentAnchor != nil {
+			expected = *action.Comment.CurrentAnchor
+			if reply.ParentID != action.Comment.ID {
+				return source.ReviewComment{}, source.ReviewCommentReaction{}, errors.New("invalid review comment reply parent")
+			}
+		}
+		if reply.Target != expected {
+			return source.ReviewComment{}, source.ReviewCommentReaction{}, errors.New("invalid review comment reply target")
+		}
+		if action.Comment.CurrentAnchor != nil {
+			associated := reply.Target
+			reply.CurrentAnchor = &associated
+			reply.Target = action.Comment.Target
+		}
 	}
 	return reply, source.ReviewCommentReaction{}, err
 }
@@ -210,6 +229,16 @@ func (a *application) submitReviewCommentAction(ctx context.Context, action tui.
 func validReviewCommentAction(action tui.CommentAction) error {
 	if !validIdentity(action.Metadata.Identity) || action.Comment.ID <= 0 || action.Comment.Target.Identity != action.Metadata.Identity || action.Comment.Target.CommitID != action.Metadata.HeadSHA || !validSHA(action.Metadata.HeadSHA) {
 		return errors.New("invalid review comment action")
+	}
+	if action.Comment.CurrentAnchor != nil {
+		raw := *action.Comment.CurrentAnchor
+		if !validSHA(raw.CommitID) {
+			return errors.New("invalid associated comment commit")
+		}
+		raw.CommitID = action.Metadata.HeadSHA
+		if raw != action.Comment.Target {
+			return errors.New("invalid associated comment anchor")
+		}
 	}
 	count := 0
 	if action.Delete {
@@ -231,10 +260,25 @@ func validReviewCommentSubmission(submission tui.CommentSubmission) error {
 	comment, frozen := submission.Comment, submission.Metadata
 	if !validIdentity(frozen.Identity) || !validIdentity(comment.Target.Identity) || frozen.Identity != comment.Target.Identity ||
 		!validSHA(frozen.BaseSHA) || !validSHA(frozen.HeadSHA) || !validRepository(frozen.BaseRepository) || !validRepository(frozen.HeadRepository) ||
-		comment.Target.CommitID != frozen.HeadSHA || !validSHA(comment.Target.CommitID) || comment.Target.Line <= 0 ||
+		(submission.CommitSHA == "" && comment.Target.CommitID != frozen.HeadSHA) || !validSHA(comment.Target.CommitID) || comment.Target.Line <= 0 ||
 		(comment.Target.Side != "LEFT" && comment.Target.Side != "RIGHT") || comment.Target.Path == "" || !utf8.ValidString(comment.Target.Path) ||
 		comment.Body == "" || !utf8.ValidString(comment.Body) {
 		return errors.New("invalid review comment submission")
+	}
+
+	if submission.CommitSHA != "" {
+		bundle, inv := submission.CommitBundle, submission.CommitInventory
+		target := comment.Target
+		if bundle == nil || inv == nil || bundle.BaseSHA != frozen.BaseSHA || bundle.HeadSHA != frozen.HeadSHA ||
+			submission.CommitSHA != target.CommitID || !source.SamePinnedRevision(inv.Comparison.Metadata, frozen) ||
+			!commits.ContainsTarget(bundle, target) {
+			return errors.New("invalid captured commit comment target")
+		}
+		// The only established coordinate case is a captured head target that also
+		// appears in the frozen PR diff. Other first-parent cases require API evidence.
+		if target.CommitID != frozen.HeadSHA || !commits.InventoryContainsTarget(inv.Files, inv.Units, inv.Patches, target) {
+			return errors.New("historical commit commenting is unavailable until GitHub targeting is verified")
+		}
 	}
 	return nil
 }

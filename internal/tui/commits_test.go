@@ -7,6 +7,7 @@ import (
 	"prui/internal/commits"
 	"prui/internal/inventory"
 	"prui/internal/review"
+	"prui/internal/source"
 	"strings"
 	"testing"
 )
@@ -246,5 +247,124 @@ func TestCommitDiffRowsPreservesFileAndUnitOrder(t *testing.T) {
 	namedKey(m, tea.KeyEnter)
 	if got := ansi.Strip(m.View().Content); !strings.Contains(got, "Commit diff · 2/2") {
 		t.Fatalf("narrow detail selection count missing: %s", got)
+	}
+}
+
+func TestCommitPatchAnchorsUseRawCounters(t *testing.T) {
+	d := &commits.Diff{Complete: true, Files: []inventory.FileChange{{ID: "f", OldPath: []byte("old.go"), NewPath: []byte("new.go")}}, Units: []inventory.ReviewUnit{{FileChangeID: "f", Kind: inventory.TextHunk, PatchReference: "p"}}, Patches: map[string][]byte{"p": []byte("@@ -4,2 +7,2 @@\n-before\n+after\n context\n\\ No newline at end of file\n@@ -20 +30 @@\n+next\n")}}
+	rows := commitDiffRowsFor(d, source.Identity{Repository: "o/r", Number: 1}, strings.Repeat("a", 40))
+	var got []source.ReviewCommentTarget
+	for _, row := range rows {
+		if row.target != nil {
+			got = append(got, *row.target)
+		}
+	}
+	if len(got) != 4 || got[0].Path != "old.go" || got[0].Side != "LEFT" || got[0].Line != 4 || got[1].Path != "new.go" || got[1].Line != 7 || got[2].Line != 8 || got[3].Line != 30 {
+		t.Fatalf("wrong raw anchors: %+v", got)
+	}
+	if commitPatchAnchor(source.Identity{}, "sha", []byte("bad\npath"), "RIGHT", 1) != nil {
+		t.Fatal("unsafe path anchor")
+	}
+}
+
+func TestHistoricalCommitComposerGateAndQueueIsolation(t *testing.T) {
+	m := commitModel(t)
+	m.commit.focus = paneDiff
+	for i, row := range m.commitRows() {
+		if row.target != nil {
+			m.commitCursor()
+			m.commit.cursors[m.commit.selectedSHA] = i
+			break
+		}
+	}
+	m.openCommitComposer()
+	if m.Composer != nil || m.ActionError == nil {
+		t.Fatal("unverified historical target must remain read-only")
+	}
+	target := source.ReviewCommentTarget{CommitID: strings.Repeat("a", 40), Path: "file.go", Side: "RIGHT", Line: 1}
+	m.Composer = &commentComposer{Target: target, CommitSHA: target.CommitID, Draft: "draft", PendingIndex: -1}
+	m.commentComposerKey(tea.KeyPressMsg{Code: 'p', Mod: tea.ModCtrl})
+	if len(m.Pending) != 0 || m.Composer == nil || m.Composer.Draft != "draft" || m.ActionError == nil {
+		t.Fatal("historical queue mutated draft or pending review")
+	}
+}
+
+func TestCommitCommentUncertainDeliveryRetainsDraft(t *testing.T) {
+	m := commitModel(t)
+	m.Composer = &commentComposer{Target: source.ReviewCommentTarget{CommitID: strings.Repeat("a", 40)}, CommitSHA: strings.Repeat("a", 40), Draft: "retain this", PendingIndex: -1, generation: 3}
+	m.applyCommentResult(CommentResult{Target: m.activeTab, Generation: 3, Err: source.ErrCommentDeliveryUnknown})
+	if m.Composer == nil || m.Composer.Draft != "retain this" || !strings.Contains(m.notice, "refresh discussions before retrying") || len(m.Pending) != 0 {
+		t.Fatal("uncertain delivery lost draft or refresh guidance")
+	}
+}
+
+func TestCommitComposerKeepsEditorVisibleWithoutMainScroll(t *testing.T) {
+	m := commitModel(t)
+	m.Height = 12
+	m.commit.focus = paneDiff
+	inv := &m.Session.Inventory
+	m.Session.Commits.Entries[0].SHA = inv.Comparison.Metadata.HeadSHA
+	m.Session.Commits.Entries[0].Diff = &commits.Diff{Files: inv.Files, Units: inv.Units, Patches: inv.Patches, Complete: true}
+	m.commit.selectedSHA = inv.Comparison.Metadata.HeadSHA
+	m.commit.cache = commitRenderCache{}
+	for i, row := range m.commitRows() {
+		if row.target != nil {
+			m.commitCursor()
+			m.commit.cursors[m.commit.selectedSHA] = i
+			m.commitOffset()
+			m.commit.offsets[m.commit.selectedSHA] = max(0, i-m.bodyHeight()+1)
+			break
+		}
+	}
+	m.Scroll[0] = 3
+	m.openCommitComposer()
+	if m.Composer == nil {
+		t.Fatal("head fixture composer not opened")
+	}
+	if got := ansi.Strip(m.View().Content); !strings.Contains(got, "▏") {
+		t.Fatalf("editor hidden below viewport: %s", got)
+	}
+	for i := 0; i < 10; i++ {
+		m.commentComposerKey(tea.KeyPressMsg{Code: tea.KeyEnter, Mod: tea.ModShift})
+	}
+	if got := ansi.Strip(m.View().Content); !strings.Contains(got, "▏") {
+		t.Fatalf("multiline editor cursor hidden: %s", got)
+	}
+	if m.Scroll[0] != 3 {
+		t.Fatal("commit editor changed main scroll")
+	}
+}
+
+func TestCommitKeyboardAfterWheelPreservesViewport(t *testing.T) {
+	m := commitModel(t)
+	m.commit.focus = paneDiff
+	m.commitCursor()
+	m.commit.cursors[m.commit.selectedSHA] = 0
+	m.commitScroll(10)
+	before := m.commitOffset()
+	m.commitCursorMove(1)
+	if m.commitOffset() < before {
+		t.Fatalf("keyboard jumped from offset %d to %d", before, m.commitOffset())
+	}
+	if m.commitCursor() < m.commitOffset() {
+		t.Fatal("cursor remains above viewport")
+	}
+}
+
+func TestCommitComposerCanRefreshWithoutLosingUncertainDraft(t *testing.T) {
+	m := commitModel(t)
+	m.Composer = &commentComposer{CommitSHA: m.commitEntries()[0].SHA, Draft: "retain after uncertain post", PendingIndex: -1}
+	reads := 0
+	m.SetDiscussionReader(func(context.Context, *review.Session) (DiscussionSnapshot, error) {
+		reads++
+		return DiscussionSnapshot{Snapshot: source.DiscussionSnapshot{Complete: true}}, nil
+	})
+	cmd := m.commentComposerKey(tea.KeyPressMsg{Code: 'r', Mod: tea.ModCtrl})
+	if cmd == nil {
+		t.Fatal("composer cannot refresh before retrying")
+	}
+	m.Update(cmd())
+	if reads != 1 || m.Composer == nil || m.Composer.Draft != "retain after uncertain post" {
+		t.Fatal("refresh lost draft or posted")
 	}
 }

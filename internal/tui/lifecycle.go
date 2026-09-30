@@ -9,7 +9,9 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"prui/internal/commits"
 	"prui/internal/guideconfig"
+	"prui/internal/inventory"
 	"prui/internal/review"
 	"prui/internal/session"
 	"prui/internal/source"
@@ -28,14 +30,18 @@ type ActionResult struct {
 // alongside the explicit write request. The model copies Metadata before
 // starting asynchronous work, so a tab switch cannot retarget its preflight.
 type CommentSubmission struct {
-	Comment  source.ReviewComment
-	Metadata source.Metadata
+	CommitSHA       string
+	CommitBundle    *commits.Bundle
+	CommitInventory *inventory.Inventory
+	Comment         source.ReviewComment
+	Metadata        source.Metadata
 }
 
 // CommentSubmitter is the only TUI write seam. The command layer injects an
 // implementation after its explicit freshness check; the model never reaches
 // directly into a GitHub client.
 type CommentSubmitter func(context.Context, CommentSubmission) (source.ReviewComment, error)
+
 type ReviewSubmission struct {
 	Metadata source.Metadata
 	Review   source.PullRequestReview
@@ -231,6 +237,9 @@ func (m *Model) applyCommentListResult(target int, generation uint64, comments [
 		state.ActionError = err
 		return
 	}
+	if m.readDiscussions != nil && state.discussions.loaded {
+		return
+	}
 	state.Comments = commentOverlay(comments, state.Session)
 }
 
@@ -275,8 +284,12 @@ func (m *Model) commentComposerKey(key tea.KeyPressMsg) tea.Cmd {
 		return nil
 	}
 	m.editorCursorVisible = true
+	if composer.CommitSHA != "" {
+		defer m.ensureCommitEditorVisible()
+	}
 	switch key.String() {
 	case "esc":
+		m.commit.cache = commitRenderCache{}
 		m.Composer = nil
 		return nil
 	case "left":
@@ -307,7 +320,20 @@ func (m *Model) commentComposerKey(key tea.KeyPressMsg) tea.Cmd {
 	case "shift+enter":
 		composer.Draft, composer.Cursor = insertEditorText(composer.Draft, composer.Cursor, "\n")
 		return nil
+	case "ctrl+r":
+		if m.readDiscussions != nil {
+			return m.refreshDiscussions()
+		}
+		if m.readComments != nil {
+			return m.refreshComments()
+		}
+		m.ActionError = errors.New("offline mode: discussion refresh is unavailable")
+		return nil
 	case "ctrl+p":
+		if composer.CommitSHA != "" {
+			m.ActionError = errors.New("Commit comments cannot be queued into a PR review")
+			return nil
+		}
 		if composer.Draft == "" {
 			m.ActionError = errors.New("review comment body is required")
 			return nil
@@ -342,7 +368,8 @@ func (m *Model) commentComposerKey(key tea.KeyPressMsg) tea.Cmd {
 			return nil
 		}
 		submission := CommentSubmission{
-			Comment:  source.ReviewComment{Target: composer.Target, Body: composer.Draft},
+			Comment:   source.ReviewComment{Target: composer.Target, Body: composer.Draft},
+			CommitSHA: composer.CommitSHA, CommitBundle: composer.CommitBundle, CommitInventory: composer.CommitInventory,
 			Metadata: m.Session.Inventory.Comparison.Metadata,
 		}
 		m.notice = "Submitting pull request comment..."
@@ -456,6 +483,12 @@ func (m *Model) commentActionKey(key tea.KeyPressMsg) tea.Cmd {
 		commentID = menu.ReplyToID
 	}
 	action := CommentAction{Metadata: m.Session.Inventory.Comparison.Metadata, Comment: source.ReviewComment{ID: commentID, Author: menu.Author, Target: menu.Target}, Body: menu.Draft, Reaction: menu.Reaction, Delete: menu.mode == commentActionDeleteConfirm}
+	for _, existing := range m.Comments {
+		if existing.ID == commentID {
+			action.Comment = existing
+			break
+		}
+	}
 	m.notice = "Submitting review comment action..."
 	ctx := m.beginAction()
 	return m.start(func() tea.Msg {
@@ -470,8 +503,15 @@ func (m *Model) applyCommentResult(result CommentResult) {
 		return
 	}
 	state.Busy = false
+	state.commit.cache = commitRenderCache{}
 	state.ActionError = result.Err
+	if errors.Is(result.Err, source.ErrCommentDeliveryUnknown) {
+		state.notice = "Posting outcome unknown; refresh discussions before retrying"
+	}
 	if result.Err == nil {
+		if state.Composer.CommitSHA != "" || m.readDiscussions != nil {
+			insertCommentDiscussion(state, result.Comment)
+		}
 		state.Comments = append(state.Comments, result.Comment)
 		if i := state.Composer.PendingIndex; i >= 0 && i < len(state.Pending) && state.Pending[i].Target == state.Composer.Target {
 			state.Pending = append(state.Pending[:i], state.Pending[i+1:]...)
@@ -505,6 +545,7 @@ func (m *Model) applyCommentActionResult(result CommentActionResult) {
 		}
 		state.CommentReactions[result.CommentID] = append(state.CommentReactions[result.CommentID], result.Reaction)
 	}
+	updateDiscussionAction(state, result)
 	state.CommentMenu = nil
 }
 
@@ -518,6 +559,7 @@ func (m *Model) start(work func() tea.Msg) tea.Cmd {
 }
 
 func (m *Model) Close() {
+	m.cancelDiscussionReads()
 	m.cancel()
 	if m.worker != nil {
 		<-m.worker

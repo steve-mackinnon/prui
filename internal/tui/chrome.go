@@ -157,6 +157,9 @@ func (m *Model) reviewStatus() string {
 
 func (m *Model) reviewHints() string {
 	if m.Composer != nil {
+		if m.Composer.CommitSHA != "" {
+			return m.styleLine(classWarning, clip("enter: post now · ctrl+r: refresh · esc: discard · shift+enter: newline", m.Width))
+		}
 		return m.styleLine(classWarning, clip("enter: post now · ctrl+p: save pending · esc: discard · shift+enter: newline", m.Width))
 	}
 	if menu := m.CommentMenu; menu != nil {
