@@ -274,10 +274,12 @@ func validReviewCommentSubmission(submission tui.CommentSubmission) error {
 			!commits.ContainsTarget(bundle, target) {
 			return errors.New("invalid captured commit comment target")
 		}
-		// The only established coordinate case is a captured head target that also
-		// appears in the frozen PR diff. Other first-parent cases require API evidence.
-		if target.CommitID != frozen.HeadSHA || !commits.InventoryContainsTarget(inv.Files, inv.Units, inv.Patches, target) {
-			return errors.New("historical commit commenting is unavailable until GitHub targeting is verified")
+		if target.CommitID == frozen.HeadSHA {
+			if !commits.InventoryContainsTarget(inv.Files, inv.Units, inv.Patches, target) {
+				return errors.New("this commit line is not in the captured PR diff")
+			}
+		} else if !commits.HistoricalCommentTarget(bundle, target) {
+			return errors.New("comments on older commits require a right-side line in an ordinary single-parent addition or modification")
 		}
 	}
 	return nil

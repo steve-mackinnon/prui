@@ -108,7 +108,8 @@ commit diffs. Unplaceable records remain in Discussions. Request generation,
 session identity and cancellation prevent stale responses from changing a newer
 review. REST keeps the explicit write/action boundary. Commit composer targets
 are checked against immutable bundle membership and raw patches; historical
-first-parent writes stay gated pending interoperability evidence. No discussion
+RIGHT additions/context are enabled for complete single-parent A/M diffs based on
+live API evidence. Historical LEFT/rename/root/merge cases remain disabled. No discussion
 record or draft enters session storage or guide input.
 
 

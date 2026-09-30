@@ -252,8 +252,10 @@ changes later reverted in the PR. Online discussions appear below exactly
 matching original commit lines, with textual outdated/resolved status and thread
 counts in the rail. Commit rows do not mark files or alter pending PR drafts.
 Enter can compose an immediate comment on a captured head-commit line that also
-exists in the frozen PR diff. Older-commit posting remains disabled until GitHub
-first-parent coordinate interoperability is verified. These commit composers
+exists in the frozen PR diff. Older commits support added and context lines (RIGHT side) in complete, regular
+single-parent diffs of added or modified files. Historical deletions, renames,
+copies, root commits and merge commits remain non-commentable. GitHub can mark a
+comment outdated immediately if later commits changed its line. These commit composers
 cannot queue a comment with `ctrl+p`; `R` still opens the head-based PR review
 form. `S` changes layout only in the main Diff view.
 

@@ -128,3 +128,29 @@ func TestReplyOnVerifiedCurrentDiscussionPreservesAssociatedCommit(t *testing.T)
 		}
 	}
 }
+
+func TestHistoricalCommitSubmissionPreservesExactCapturedTarget(t *testing.T) {
+	app, s := wiringFixture(t)
+	frozen := s.Inventory.Comparison.Metadata
+	sha := strings.Repeat("c", 40)
+	target := source.ReviewCommentTarget{Identity: frozen.Identity, CommitID: sha, Path: "older.go", Side: "RIGHT", Line: 8}
+	bundle := &commits.Bundle{BaseSHA: frozen.BaseSHA, HeadSHA: frozen.HeadSHA, Status: commits.Captured, Entries: []commits.Entry{{SHA: sha, Status: commits.Captured, Parents: []string{frozen.BaseSHA}, Diff: &commits.Diff{Complete: true, Files: []inventory.FileChange{{ID: "f", Status: "A", NewPath: []byte("older.go")}}, Units: []inventory.ReviewUnit{{FileChangeID: "f", Kind: inventory.TextHunk, PatchReference: "p"}}, Patches: map[string][]byte{"p": []byte("@@ -0,0 +8,2 @@\n+original\n+changed later\n")}}}}}
+	req := tui.CommentSubmission{Metadata: frozen, Comment: source.ReviewComment{Target: target, Body: "historical"}, CommitSHA: sha, CommitBundle: bundle, CommitInventory: &s.Inventory}
+	gh := app.gh.(*fixtureGH)
+	if _, err := app.submitReviewComment(context.Background(), req); err != nil {
+		t.Fatal(err)
+	}
+	if len(gh.comments) != 1 || gh.comments[0].Target != target {
+		t.Fatalf("historical target retargeted: %#v", gh.comments)
+	}
+	req.Comment.Target.Side = "LEFT"
+	before := len(gh.comments)
+	if _, err := app.submitReviewComment(context.Background(), req); err == nil || len(gh.comments) != before {
+		t.Fatal("unsupported deleted coordinate wrote")
+	}
+	req.Comment.Target = target
+	gh.value.HeadSHA = strings.Repeat("d", 40)
+	if _, err := app.submitReviewComment(context.Background(), req); err == nil || len(gh.comments) != before {
+		t.Fatal("stale historical write accepted")
+	}
+}

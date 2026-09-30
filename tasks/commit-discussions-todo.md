@@ -3,16 +3,17 @@
 Spec: [commit discussions](../docs/spec/SPEC-pr-commit-discussions.md).
 Plan: [implementation plan](commit-discussions-plan.md).
 Read-side implementation, supported head-commit posting, and synthetic
-verification are complete. Historical first-parent delivery remains gated.
+verification are complete. Historical RIGHT addition/context delivery is now
+verified on disposable PR #19; LEFT/rename/copy/root/merge cases remain gated.
 Use focused failing tests for any subsequent behavioral changes. Listed paths include tests; split a task if
 its final scope exceeds roughly five files. The user authorized local implementation with sub-agents on 2026-09-30.
-Live GitHub mutation experiments still require explicit authorization.
+The user authorized disposable PR #19 for testing on 2026-09-30.
 
 ## CD-01: Establish GitHub interoperability evidence
 
 - [x] Verify official GraphQL field names/nullability for threads, original
   commits/anchors, replies, numeric IDs, statuses and both pagination levels.
-- [ ] Record first-parent targeting support for additions/deletions/context,
+- [x] Record first-parent targeting support for additions/deletions/context,
   renames, root/merge commits and lines changed again; distinguish documented,
   synthetic and live evidence. Explicitly mark unsupported/unverified cases.
 - [x] Check `D` key conflicts and existing safe browser-launch behavior; record
@@ -180,7 +181,7 @@ Files: `internal/tui/lifecycle.go`, `internal/tui/discussions.go`,
 
 ## Checkpoint C: Historical posting is safe and visible
 
-- [ ] Establish supported nonhead first-parent cases with live evidence;
+- [x] Establish supported nonhead first-parent cases with live evidence;
   unverified cases currently stay read-only. Verified head targets are enabled.
 - [x] A confirmed historical comment cannot disappear due to its current anchor.
 - [x] Uncertain outcomes never cause automatic duplicates or false success claims.
@@ -222,7 +223,8 @@ plus README only if its description changes.
 ## Completion Checkpoint
 
 - [ ] All seven specification acceptance criteria met with recorded evidence.
-  Nonhead commenting (criterion 5) awaits the historical delivery gate.
+  Nonhead RIGHT addition/context commenting (criterion 5) is verified; unsupported
+  cases remain explicitly disabled.
 - [x] API eligibility and live/synthetic evidence distinctions remain explicit.
 - [x] Full automated gate passes; human checks are completed or listed as pending.
 - [x] No new dependencies, persisted discussion data, mixed-SHA review batch,
@@ -260,3 +262,10 @@ plus README only if its description changes.
 - No external GitHub writes or live interoperability claims.
 - Pending: separately authorized disposable GitHub experiment for nonhead
   first-parent targets; human terminal accessibility/usability acceptance.
+
+## Historical delivery follow-up (2026-09-30)
+
+- Verified exact original anchors for additions, context and immediate-outdated
+  comments through REST and GraphQL on disposable PR #19.
+- Historical LEFT deletion returned HTTP 422; keep LEFT/rename/copy/root/merge
+  cases disabled. See the API evidence document for comment IDs and SHAs.
