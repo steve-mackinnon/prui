@@ -1133,8 +1133,18 @@ func (m *Model) file(delta int) {
 	f = max(0, min(len(m.Session.Slices)-1, f+delta))
 	m.Selected = m.Session.Slices[f].Units[0]
 	if !m.Inventory {
-		m.setOffset(m.clampOffset(m.fileOffset(f)))
-		m.cursorInViewport(1)
+		start := m.fileOffset(f)
+		m.setOffset(m.clampOffset(start))
+		end := len(m.displayDetail())
+		if f+1 < len(m.Session.Slices) {
+			end = m.fileOffset(f + 1)
+		}
+		for i, line := range m.displayDetail()[start:end] {
+			if line.target != nil || line.commentID > 0 {
+				m.setCursor(start + i)
+				break
+			}
+		}
 	}
 	m.Horizontal = 0
 }
@@ -1857,7 +1867,33 @@ func (m *Model) reviewViewForLayout(preferSideBySide bool) string {
 		selected = m.selectedDiffTargetForLine(detail[cursor])
 	}
 	offset := min(m.offset(), max(0, len(detail)-1))
-	detail = detail[offset:min(len(detail), offset+bodyHeight)]
+	activeHeader := -1
+	activeLine := offset
+	if m.Focus == paneDiff && m.cursorActive && cursor >= 0 {
+		activeLine = cursor
+	} else if m.fileView() {
+		activeLine = m.fileOffset(s.UnitFiles[m.Selected])
+	}
+	for i, line := range detail {
+		if i > activeLine {
+			break
+		}
+		if line.Class == classFileHeader && strings.HasPrefix(line.Text, "── ") {
+			activeHeader = i
+		}
+	}
+	// Copy the viewport so selection styling never changes cached source rows.
+	detail = append([]diffLine(nil), detail[offset:min(len(detail), offset+bodyHeight)]...)
+	if i := activeHeader - offset; i >= 0 && i < len(detail) {
+		detail[i].Class = classSelection
+		if detail[i].sideBySide != nil && detail[i].sideBySide.full != nil {
+			row := *detail[i].sideBySide
+			full := *row.full
+			full.Class = classSelection
+			row.full = &full
+			detail[i].sideBySide = &row
+		}
+	}
 	if useSideBySide {
 		detail = m.renderSideBySideViewport(detail, m.detailWidth(), m.Horizontal, cursor-offset, selected)
 	}

@@ -77,7 +77,9 @@ configuration, and current limitations.
 ### Mouse selection and panel resizing
 
 Click a file, guide row, inventory unit, picker item, diff source cell, or
-comment card to select it. Click the visible view tabs to switch views.
+comment card to select it. Selecting a file scrolls its diff into view; the file
+header highlights the selection and follows the cursor while navigating the diff.
+Click the visible view tabs to switch views.
 Selection does not activate an item: Enter still opens a PR, applies a theme,
 or opens the selected comment editor/menu. Existing keyboard controls remain
 available. In split diffs, click the old or new source cell to select that
