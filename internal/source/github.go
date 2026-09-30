@@ -85,11 +85,14 @@ type GitHub interface {
 // review comment. It is intentionally separate from GitHub, whose operations
 // are otherwise read-only.
 type ReviewComment struct {
-	ID       int64
-	ParentID int64
-	Author   string
-	Target   ReviewCommentTarget
-	Body     string
+	ID             int64
+	ParentID       int64
+	Author         string
+	Target         ReviewCommentTarget
+	Body           string
+	OriginalAnchor *ReviewCommentTarget
+	URL            string
+	DiffHunk       string
 }
 
 // ReviewCommentTarget identifies the frozen pull request diff line to comment
@@ -215,7 +218,7 @@ func (g *GH) CreateReviewComment(ctx context.Context, comment ReviewComment) (Re
 		return ReviewComment{}, safeReviewCommentError(err)
 	}
 	created, err := parseReviewComment(data, comment.Target.Identity)
-	if err != nil || created.Target != comment.Target || created.Body != comment.Body {
+	if err != nil || (created.Target != comment.Target && (created.OriginalAnchor == nil || *created.OriginalAnchor != comment.Target)) || created.Body != comment.Body {
 		return ReviewComment{}, errors.New("invalid created review comment")
 	}
 	return created, nil
@@ -383,31 +386,35 @@ func (g *GH) ListReviewComments(ctx context.Context, id Identity) ([]ReviewComme
 	return comments, nil
 }
 
-// parseReviewComment validates write responses as strictly as outbound targets.
+// parseReviewComment accepts a canonical current or original line anchor.
+// Outbound writes still require a strictly valid target.
 func parseReviewComment(data []byte, identity Identity) (ReviewComment, error) {
 	comment, anchored, err := parseRemoteReviewComment(data, identity)
-	if err != nil || !anchored {
+	if err != nil || (!anchored && comment.OriginalAnchor == nil) {
 		return ReviewComment{}, errors.New("invalid review comment")
-	}
-	if err := validateReviewComment(comment); err != nil {
-		return ReviewComment{}, err
 	}
 	return comment, nil
 }
 
 // Remote records may describe files or outdated lines. Validate their common
-// fields before skipping them; original_line is never a current diff anchor.
+// fields before skipping them; original_line is retained separately.
 func parseRemoteReviewComment(data []byte, identity Identity) (ReviewComment, bool, error) {
 	var raw struct {
-		ID          int64  `json:"id"`
-		Body        string `json:"body"`
-		CommitID    string `json:"commit_id"`
-		Path        string `json:"path"`
-		Side        string `json:"side"`
-		Line        *int   `json:"line"`
-		SubjectType string `json:"subject_type"`
-		ParentID    int64  `json:"in_reply_to_id"`
-		User        *struct {
+		ID                int64  `json:"id"`
+		Body              string `json:"body"`
+		CommitID          string `json:"commit_id"`
+		Path              string `json:"path"`
+		Side              string `json:"side"`
+		Line              *int   `json:"line"`
+		SubjectType       string `json:"subject_type"`
+		OriginalCommitID  string `json:"original_commit_id"`
+		OriginalLine      *int   `json:"original_line"`
+		OriginalStartLine *int   `json:"original_start_line"`
+		StartLine         *int   `json:"start_line"`
+		URL               string `json:"html_url"`
+		DiffHunk          string `json:"diff_hunk"`
+		ParentID          int64  `json:"in_reply_to_id"`
+		User              *struct {
 			Login string `json:"login"`
 		} `json:"user"`
 	}
@@ -422,7 +429,17 @@ func parseRemoteReviewComment(data []byte, identity Identity) (ReviewComment, bo
 		return ReviewComment{}, false, errors.New("invalid review comment anchor")
 	}
 	comment := ReviewComment{ID: raw.ID, ParentID: raw.ParentID, Author: raw.User.Login, Body: raw.Body, Target: ReviewCommentTarget{Identity: identity, CommitID: raw.CommitID, Path: raw.Path, Side: raw.Side}}
-	if raw.SubjectType == "file" || raw.Line == nil {
+	if !validDiscussionField(raw.Body, 65536, true) || !validDiscussionField(raw.User.Login, 256, false) || !validDiscussionField(raw.Path, 4096, false) || !validDiscussionField(raw.DiffHunk, 65536, true) || (raw.OriginalCommitID != "" && !shaPattern.MatchString(raw.OriginalCommitID)) || (raw.OriginalLine != nil && *raw.OriginalLine <= 0) {
+		return ReviewComment{}, false, errors.New("invalid review comment")
+	}
+	comment.URL = discussionURL(raw.URL)
+	comment.DiffHunk = raw.DiffHunk
+	subject := "LINE"
+	if raw.SubjectType == "file" {
+		subject = "FILE"
+	}
+	comment.OriginalAnchor = discussionAnchor(identity, raw.OriginalCommitID, raw.Path, raw.Side, raw.OriginalLine, raw.OriginalStartLine, subject)
+	if raw.SubjectType == "file" || raw.Line == nil || raw.StartLine != nil {
 		return comment, false, nil
 	}
 	if raw.Side == "" {
