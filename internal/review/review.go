@@ -2,6 +2,9 @@ package review
 
 import (
 	"context"
+	"errors"
+
+	"prui/internal/commits"
 	reviewcontext "prui/internal/context"
 	"prui/internal/guide"
 	"prui/internal/inventory"
@@ -35,6 +38,19 @@ func Open(ctx context.Context, checkout string, id source.Identity, gh source.Gi
 }
 
 func OpenWithConfig(ctx context.Context, checkout string, id source.Identity, gh source.GitHub, r source.Runner, l source.Limits, notify func(string), cfg Config) (*Session, error) {
+	for attempt := 0; attempt < 2; attempt++ {
+		s, err := openWithConfigAttempt(ctx, checkout, id, gh, r, l, notify, cfg)
+		if !errors.Is(err, commits.ErrRevisionChanged) {
+			return s, err
+		}
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+	}
+	return nil, errors.New("PR revisions changed repeatedly during commit capture")
+}
+
+func openWithConfigAttempt(ctx context.Context, checkout string, id source.Identity, gh source.GitHub, r source.Runner, l source.Limits, notify func(string), cfg Config) (*Session, error) {
 	var pinTiming *source.PinTiming
 	if cfg.Timing != nil {
 		pinTiming = &cfg.Timing.Pin
@@ -52,6 +68,10 @@ func OpenWithConfig(ctx context.Context, checkout string, id source.Identity, gh
 	if e != nil {
 		return nil, e
 	}
+	commitBundle, e := commits.Capture(ctx, v, p, gh, l, notify)
+	if e != nil {
+		return nil, e
+	}
 	started = time.Now()
 	contextBundle := reviewcontext.Retrieve(ctx, v, p, inv, cfg.Policy, reviewcontext.Defaults)
 	if cfg.Timing != nil {
@@ -61,7 +81,7 @@ func OpenWithConfig(ctx context.Context, checkout string, id source.Identity, gh
 	// interpret the change but never influence file ownership or progress.
 	b := guide.Analyze(ctx, cfg.Analyzer, inv, guide.InputFrom(inv, contextBundle, cfg.Policy, guide.Defaults))
 	description := p.Metadata.Description
-	s := &Session{Snapshot: session.Snapshot{Inventory: inv, Checkout: []byte(checkout), PullRequestDescription: &description, Slices: make([]Slice, len(inv.Files)), UnitFiles: make([]int, len(inv.Units))}}
+	s := &Session{Snapshot: session.Snapshot{Inventory: inv, Checkout: []byte(checkout), PullRequestDescription: &description, Commits: commitBundle, Slices: make([]Slice, len(inv.Files)), UnitFiles: make([]int, len(inv.Units))}}
 	s.Context = contextBundle
 	s.Guides = &b
 	index := map[string]int{}
@@ -73,6 +93,9 @@ func OpenWithConfig(ctx context.Context, checkout string, id source.Identity, gh
 		f := index[u.FileChangeID]
 		s.Slices[f].Units = append(s.Slices[f].Units, i)
 		s.UnitFiles[i] = f
+	}
+	if err := session.BoundCommitPayload(&s.Snapshot); err != nil {
+		return nil, err
 	}
 	return s, nil
 }

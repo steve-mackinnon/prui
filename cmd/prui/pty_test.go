@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -10,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"prui/internal/commits"
 	"prui/internal/inventory"
 	"prui/internal/session"
 	"prui/internal/source"
@@ -47,6 +50,17 @@ func TestPTYSmoke(t *testing.T) {
 		snapshot.Inventory.Units = append(snapshot.Inventory.Units, inventory.ReviewUnit{InventoryID: "pty-inventory", ID: "unit-" + name, FileChangeID: name, Kind: inventory.FileMetadata})
 		snapshot.Slices = append(snapshot.Slices, session.Slice{FileID: name, Units: []int{i}})
 		snapshot.UnitFiles = append(snapshot.UnitFiles, i)
+	}
+	snapshot.Commits = &commits.Bundle{BaseSHA: snapshot.Inventory.Comparison.Metadata.BaseSHA,
+		HeadSHA: snapshot.Inventory.Comparison.Metadata.HeadSHA, Status: commits.Captured, Complete: true}
+	for i, sha := range []string{"cccccccccccccccccccccccccccccccccccccccc", snapshot.Commits.HeadSHA} {
+		patch := []byte(fmt.Sprintf("@@ -1 +1 @@\n-before\n+commit-change-%d\n", i+1))
+		ref := fmt.Sprintf("%x", sha256.Sum256(patch))
+		snapshot.Commits.Entries = append(snapshot.Commits.Entries, commits.Entry{SHA: sha,
+			Subject: fmt.Sprintf("Commit fixture %d", i+1), Author: "Fixture", Parents: []string{snapshot.Commits.BaseSHA}, Status: commits.Captured,
+			Diff: &commits.Diff{Complete: true, Files: []inventory.FileChange{{ID: "a.go", OldPath: []byte("a.go"), NewPath: []byte("a.go"), Status: "M", OldMode: "100644", NewMode: "100644", OldOID: snapshot.Commits.BaseSHA, NewOID: snapshot.Commits.HeadSHA}},
+				Units: []inventory.ReviewUnit{{InventoryID: "commit-fixture", ID: "commit-unit", FileChangeID: "a.go", Kind: inventory.TextHunk,
+					OldRange: inventory.Range{Start: 1, Count: 1}, NewRange: inventory.Range{Start: 1, Count: 1}, PatchReference: ref}}, Patches: map[string][]byte{ref: patch}}})
 	}
 	saved, err := store.Create(snapshot)
 	if err != nil {

@@ -48,13 +48,23 @@ class Screen:
         self.cells = [(row[:width] + [" "] * width)[:width] for row in self.cells[:height]]
         self.cells.extend([[" "] * width for _ in range(height - len(self.cells))])
         self.row, self.col = min(self.row, height - 1), min(self.col, width - 1)
+        self.scroll_top, self.scroll_bottom = 0, height - 1
+
+    def scroll(self, top, bottom, count):
+        count = max(-(bottom - top + 1), min(count, bottom - top + 1))
+        for _ in range(abs(count)):
+            if count > 0:
+                self.cells.pop(top)
+                self.cells.insert(bottom, [" "] * self.width)
+            else:
+                self.cells.pop(bottom)
+                self.cells.insert(top, [" "] * self.width)
 
     def linefeed(self):
-        self.row += 1
-        if self.row >= self.height:
-            self.cells.pop(0)
-            self.cells.append([" "] * self.width)
-            self.row = self.height - 1
+        if self.row == self.scroll_bottom:
+            self.scroll(self.scroll_top, self.scroll_bottom, 1)
+        else:
+            self.row = min(self.height - 1, self.row + 1)
 
     def csi(self, params, final):
         if any(c not in "0123456789;" for c in params):
@@ -70,6 +80,24 @@ class Screen:
         elif final == "D": self.col -= n
         elif final in "G`": self.col = n - 1
         elif final == "d": self.row = n - 1
+        elif final == "r":
+            top = n - 1
+            bottom = (values[1] or self.height) - 1 if len(values) > 1 else self.height - 1
+            if 0 <= top < bottom < self.height:
+                self.scroll_top, self.scroll_bottom = top, bottom
+                self.row = self.col = 0
+        elif final == "S": self.scroll(self.scroll_top, self.scroll_bottom, n)
+        elif final == "T": self.scroll(self.scroll_top, self.scroll_bottom, -n)
+        elif final in "LM":
+            if self.scroll_top <= self.row <= self.scroll_bottom:
+                self.scroll(self.row, self.scroll_bottom, n if final == "M" else -n)
+        elif final in "P@":
+            count = min(n, self.width - self.col)
+            row = self.cells[self.row]
+            if final == "P":
+                row[self.col:] = row[self.col + count:] + [" "] * count
+            else:
+                row[self.col:] = ([" "] * count + row[self.col:])[:self.width - self.col]
         elif final == "J":
             mode = values[0]
             if mode in (2, 3): self.cells = [[" "] * self.width for _ in range(self.height)]
@@ -109,11 +137,10 @@ class Screen:
             if char == "\x1b":
                 if len(self.pending) < 2: return
                 if self.pending[1] == "M":
-                    if self.row == 0:
-                        self.cells.insert(0, [" "] * self.width)
-                        self.cells.pop()
+                    if self.row == self.scroll_top:
+                        self.scroll(self.scroll_top, self.scroll_bottom, -1)
                     else:
-                        self.row -= 1
+                        self.row = max(0, self.row - 1)
                     self.pending = self.pending[2:]
                     continue
                 raise AssertionError(f"unsupported terminal escape: {self.pending[:8]!r}")
@@ -252,6 +279,23 @@ def main():
         if "alpha" in screen.text() or "beta" in screen.text():
             raise AssertionError("erased content remained visible")
 
+    # Scrolling a region must retain the header/footer outside that region.
+    region_trace = b"\x1b[H\x1b[2Jheader\r\nfirst\r\nsecond\r\nfooter\x1b[2;3r\x1b[3;1H\n\x1b[2;1H\x1bM"
+    for split in range(len(region_trace) + 1):
+        screen = Screen()
+        screen.feed(region_trace[:split])
+        screen.feed(region_trace[split:])
+        if screen.text().splitlines()[:4] != ["header", "", "second", "footer"]:
+            raise AssertionError("incremental scroll-region decoding failed")
+
+    character_trace = b"\x1b[H\x1b[2Jabcdef\x1b[1;3H\x1b[2P\x1b[@Z"
+    for split in range(len(character_trace) + 1):
+        screen = Screen()
+        screen.feed(character_trace[:split])
+        screen.feed(character_trace[split:])
+        if screen.text().splitlines()[0] != "abZef":
+            raise AssertionError("incremental character insert/delete decoding failed")
+
     binary, home, session_id = sys.argv[1:]
     root = pathlib.Path(home)
     bin_dir = root / "fake-bin"
@@ -303,10 +347,27 @@ def main():
     with Terminal(binary, resume, environment) as terminal:
         terminal.wait_for("1/2 read")
         terminal.wait_for("[x] b.go")
+        terminal.key(b"3", "Commit fixture 1")
+        terminal.wait_for("commit-change-1")
+        terminal.key(b"j", "commit-change-2")
+        terminal.key(b"l", "commit-change-2")
+        terminal.key(b"p", "commit-change-1")
+        start = len(terminal.output)
+        terminal.resize(70, 12)
+        terminal.wait_until(lambda screen: "Commit fixture 1" in screen and
+                            "Commit diff" in screen, "narrow commit diff", start)
+        terminal.key(b"j", "commit-change-1")
+        terminal.key(b"\x1b", "Commits · 1/2")
+        terminal.key(b"j", "› Commit fixture 2")
+        terminal.key(b"\r", "Commit fixture 2")
+        terminal.key(b"j", "commit-change-2")
+        terminal.key(b"1", "[x] b.go")
+        terminal.wait_for("1/2 read")
         terminal.quit(b"q")
     if gh_called.exists():
         raise AssertionError("browser startup/offline journeys unexpectedly invoked GitHub")
     print("PASS restart/resume preserves marked file without GitHub calls")
+    print("PASS offline commit selection, individual diff, narrow focus, and main review restoration")
 
 
 if __name__ == "__main__":
