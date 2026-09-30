@@ -572,6 +572,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.Width, m.Height = max(1, v.Width), max(1, v.Height)
 			m.commitRail()
 			m.commitOffset()
+			m.ensureCommitEditorVisible()
 			return m, nil
 		}
 		cursorTarget, cursorCommentID := m.cursorAnchor()
