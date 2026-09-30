@@ -368,3 +368,35 @@ func TestCommitComposerCanRefreshWithoutLosingUncertainDraft(t *testing.T) {
 		t.Fatal("refresh lost draft or posted")
 	}
 }
+
+func TestCommitRefreshKeepsActiveEditorVisible(t *testing.T) {
+	m := commitModel(t)
+	m.Loading = false
+	m.Height = 12
+	m.commit.focus = paneDiff
+	var target source.ReviewCommentTarget
+	for _, row := range m.commitRows() {
+		if row.target != nil {
+			target = *row.target
+			break
+		}
+	}
+	m.Composer = &commentComposer{Target: target, CommitSHA: target.CommitID, Draft: "retain draft", PendingIndex: -1}
+	m.ensureCommitEditorVisible()
+	thread := testDiscussion("new-thread", target.CommitID)
+	thread.OriginalAnchor = &target
+	thread.Comments[0].Body = strings.Repeat("New discussion line\n", 12)
+	m.applyDiscussionResult(DiscussionResult{Target: m.activeTab, Session: m.Session, Generation: m.discussions.generation, Snapshot: DiscussionSnapshot{CurrentVerified: true, Snapshot: source.DiscussionSnapshot{Complete: true, Threads: []source.Discussion{thread}}}})
+	last := -1
+	for i, row := range m.commitRows() {
+		if row.editor {
+			last = i
+		}
+	}
+	if last < 0 || last >= m.commitOffset()+m.bodyHeight() {
+		t.Fatal("refresh moved active editor outside viewport")
+	}
+	if m.Composer == nil || m.Composer.Draft != "retain draft" {
+		t.Fatal("refresh lost draft")
+	}
+}

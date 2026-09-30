@@ -121,6 +121,9 @@ func (m *Model) applyDiscussionResult(v DiscussionResult) {
 		d.selectedID = ""
 		d.detail = false
 	}
+	if v.Target == m.activeTab {
+		m.ensureCommitEditorVisible()
+	}
 }
 func discussionStatus(d source.Discussion) string {
 	labels := []string{}
