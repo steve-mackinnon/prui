@@ -364,8 +364,7 @@ func (m *Model) commitsView() string {
 	}
 	left, right := m.commitListWidth(), m.commitDetailWidth()
 	focus := m.commit.focus
-	header := ""
-	footer := ""
+	var header, footer string
 	if m.Width < 100 {
 		label := leftLabel + " · enter/l: diff"
 		if focus == paneDiff {
@@ -475,7 +474,7 @@ func (m *Model) openCommitComposer() tea.Cmd {
 	target := *rows[cursor].target
 	metadata := m.Session.Inventory.Comparison.Metadata
 	if target.CommitID != metadata.HeadSHA && !commits.HistoricalCommentTarget(m.Session.Commits, target) {
-		m.ActionError = errors.New("Commenting on this historical line is unsupported; use an added or context line in a regular commit")
+		m.ActionError = errors.New("commenting on this historical line is unsupported; use an added or context line in a regular commit")
 		return nil
 	}
 	matched := false
@@ -487,7 +486,7 @@ func (m *Model) openCommitComposer() tea.Cmd {
 		}
 	}
 	if target.CommitID == metadata.HeadSHA && !matched {
-		m.ActionError = errors.New("This commit line is not in the captured PR diff; commenting unavailable")
+		m.ActionError = errors.New("this commit line is not in the captured PR diff; commenting unavailable")
 		return nil
 	}
 	m.Composer = &commentComposer{Target: target, CommitSHA: target.CommitID, CommitBundle: m.Session.Commits, CommitInventory: &m.Session.Inventory, PendingIndex: -1}

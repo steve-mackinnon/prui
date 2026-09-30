@@ -331,7 +331,7 @@ func (m *Model) commentComposerKey(key tea.KeyPressMsg) tea.Cmd {
 		return nil
 	case "ctrl+p":
 		if composer.CommitSHA != "" {
-			m.ActionError = errors.New("Commit comments cannot be queued into a PR review")
+			m.ActionError = errors.New("commit comments cannot be queued into a PR review")
 			return nil
 		}
 		if composer.Draft == "" {

@@ -119,8 +119,8 @@ func AvailableSelections(config Selection, getenv func(string) string) []Selecti
 	}
 	native := []Selection{
 		{Provider: "openai", Model: defaultModel, BaseURL: defaultOpenAIBaseURL, APIKeyEnv: OpenAIEnvVariable, Destination: "https://api.openai.com", LegacyDefault: true},
-		{Provider: "anthropic", BaseURL: "https://api.anthropic.com", APIKeyEnv: "ANTHROPIC_API_KEY", Destination: "https://api.anthropic.com"},
-		{Provider: "google", BaseURL: "https://generativelanguage.googleapis.com", APIKeyEnv: "GEMINI_API_KEY", Destination: "https://generativelanguage.googleapis.com"},
+		{Provider: "anthropic", BaseURL: "https://api.anthropic.com", APIKeyEnv: anthropicEnvVariable, Destination: "https://api.anthropic.com"},
+		{Provider: "google", BaseURL: "https://generativelanguage.googleapis.com", APIKeyEnv: googleEnvVariable, Destination: "https://generativelanguage.googleapis.com"},
 	}
 	choices := make([]Selection, 0, 4)
 	for _, choice := range native {

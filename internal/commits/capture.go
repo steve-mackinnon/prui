@@ -87,7 +87,7 @@ func capture(parent context.Context, v *source.View, p source.PinnedComparison, 
 			continue
 		}
 		entry.Parents = parents
-		old := ""
+		var old string
 		if len(parents) > 0 {
 			old = parents[0]
 		} else {
