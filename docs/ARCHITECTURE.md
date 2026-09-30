@@ -81,6 +81,14 @@ cache belong to the workspace; the Files cache is invalidated when the active
 session changes. Tab switches save a semantic cursor anchor so a later resize
 can restore the selected source line.
 
+Main-review and commit diffs share a pure text-hunk renderer. Escaped source
+text, raw line coordinates, and frozen comment targets remain separate; each
+view owns its headings, numbering, navigation, and posting eligibility. Each
+review tab retains source rows for its selected commit independently of the
+discussion/editor overlay cache, so typing and cursor blinking do not reparse
+patches. Both views share pane-body framing while retaining their own focus,
+widths, border styles, and scroll state.
+
 Guide generation requires an explicit user action. `cmd/prui/wiring.go`
 resolves one selection from the XDG guide configuration for the interactive
 model. That selection supplies the consent identity, analyzer factory, and

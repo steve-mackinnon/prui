@@ -95,23 +95,8 @@ func unitLines(s *review.Session, i int) []diffLine {
 	lines := []diffLine{{styledLine: styledLine{classTitle, title}}}
 	switch u.Kind {
 	case inventory.TextHunk:
-		lines = nil
-		oldLine, newLine, inHunk := u.OldRange.Start, u.NewRange.Start, false
-		// The patch keeps its trailing newline, so the final empty element is a real display line.
-		for _, raw := range bytes.Split(s.Inventory.Patches[u.PatchReference], []byte{'\n'}) {
-			if isGitFilePreamble(raw) {
-				continue
-			}
-			if oldStart, newStart, ok := hunkStarts(raw); ok {
-				oldLine, newLine, inHunk = oldStart, newStart, true
-			}
-			e := Escape(string(raw))
-			line := diffLine{styledLine: styledLine{classifyPatch(e), e}}
-			if inHunk {
-				line.target = patchTarget(s, f, raw, &oldLine, &newLine)
-			}
-			lines = append(lines, line)
-		}
+		metadata := s.Inventory.Comparison.Metadata
+		return textHunkLines(f, u, s.Inventory.Patches[u.PatchReference], metadata.Identity, metadata.HeadSHA)
 	case inventory.FileMetadata:
 		return []diffLine{{styledLine: styledLine{classFileHeader, fileDivider(f)}}}
 	case inventory.Binary:
@@ -339,34 +324,58 @@ func splitPatchMarker(text string) (marker, source string) {
 	}
 }
 
-// patchTarget maps a raw patch body line and advances counters according to
-// unified-diff grammar. Headers and no-newline markers never receive targets.
-func patchTarget(s *review.Session, f inventory.FileChange, raw []byte, oldLine, newLine *int) *source.ReviewCommentTarget {
-	if len(raw) == 0 || bytes.HasPrefix(raw, []byte(`\ No newline at end of file`)) {
-		return nil
+// textHunkLines walks immutable patch bytes once. Coordinates and anchors stay
+// separate from escaped source text so each view can choose its presentation.
+func textHunkLines(f inventory.FileChange, u inventory.ReviewUnit, patch []byte, identity source.Identity, sha string) []diffLine {
+	var lines []diffLine
+	old, new, inHunk := u.OldRange.Start, u.NewRange.Start, false
+	for _, raw := range bytes.Split(patch, []byte{'\n'}) {
+		if isGitFilePreamble(raw) {
+			continue
+		}
+		text := Escape(string(raw))
+		row := diffLine{styledLine: styledLine{classifyPatch(text), text}}
+		if o, n, ok := hunkStarts(raw); ok {
+			old, new, inHunk = o, n, true
+		} else if inHunk && len(raw) > 0 {
+			target := func(path []byte, side string, line int) *source.ReviewCommentTarget {
+				return &source.ReviewCommentTarget{Identity: identity, CommitID: sha, Path: string(path), Side: side, Line: line}
+			}
+			switch raw[0] {
+			case '+':
+				row.newLine = new
+				row.target = target(f.NewPath, "RIGHT", new)
+				new++
+			case '-':
+				row.oldLine = old
+				row.target = target(f.OldPath, "LEFT", old)
+				old++
+			case ' ':
+				row.oldLine, row.newLine = old, new
+				row.target = target(f.NewPath, "RIGHT", new)
+				old++
+				new++
+			}
+		}
+		lines = append(lines, row)
 	}
-	metadata := s.Inventory.Comparison.Metadata
-	target := func(path []byte, side string, line int) *source.ReviewCommentTarget {
-		return &source.ReviewCommentTarget{Identity: metadata.Identity, CommitID: metadata.HeadSHA, Path: string(path), Side: side, Line: line}
-	}
-	switch raw[0] {
-	case '+':
-		out := target(f.NewPath, "RIGHT", *newLine)
-		*newLine++
-		return out
-	case '-':
-		out := target(f.OldPath, "LEFT", *oldLine)
-		*oldLine++
-		return out
-	case ' ':
-		out := target(f.NewPath, "RIGHT", *newLine)
-		*oldLine++
-		*newLine++
-		return out
+	return lines
+}
+
+// numberedPatchText adds commit-view columns without changing cached source.
+func numberedPatchText(row diffLine) string {
+	switch {
+	case row.oldLine != 0 && row.newLine != 0:
+		return fmt.Sprintf("%4d %4d %s", row.oldLine, row.newLine, row.Text)
+	case row.oldLine != 0:
+		return fmt.Sprintf("%4d      %s", row.oldLine, row.Text)
+	case row.newLine != 0:
+		return fmt.Sprintf("     %4d %s", row.newLine, row.Text)
 	default:
-		return nil
+		return row.Text
 	}
 }
+
 func unitText(s *review.Session, i int) string {
 	u := s.Inventory.Units[i]
 	f := s.Inventory.Files[s.UnitFiles[i]]

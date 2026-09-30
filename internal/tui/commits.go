@@ -1,7 +1,6 @@
 package tui
 
 import (
-	"bytes"
 	tea "charm.land/bubbletea/v2"
 	"errors"
 	"fmt"
@@ -21,6 +20,7 @@ type commitState struct {
 	focus                       pane
 	offsets                     map[string]int
 	cursors                     map[string]int
+	sourceCache                 commitSourceCache
 	cache                       commitRenderCache
 }
 type commitRenderCache struct {
@@ -145,15 +145,19 @@ func (m *Model) commitSafeState() string {
 	}
 	return "No commits captured for this PR."
 }
-func (m *Model) commitRows() []diffLine {
-	entries := m.commitEntries()
-	if len(entries) == 0 {
-		return body(classMetadata, m.commitSafeState())
-	}
-	m.commitSelection()
-	e := entries[m.commit.selected]
-	c := &m.commit.cache
-	if m.Composer == nil && c.session == m.Session && c.sha == e.SHA && c.width == m.commitDetailWidth() && c.theme == m.theme.Name && c.generation == m.discussionGeneration() {
+
+// Source rows retain only the selected immutable snapshot. Overlay invalidation
+// must not discard parsed patches on editor ticks or discussion refreshes.
+type commitSourceCache struct {
+	session *review.Session
+	sha     string
+	diff    *commits.Diff
+	rows    []diffLine
+}
+
+func (m *Model) commitSourceRows(e commits.Entry) []diffLine {
+	c := &m.commit.sourceCache
+	if c.session == m.Session && c.sha == e.SHA && c.diff == e.Diff {
 		return c.rows
 	}
 	rows := body(classTitle, commitSubject(e))
@@ -175,19 +179,57 @@ func (m *Model) commitRows() []diffLine {
 		if len(e.Diff.Files) == 0 && e.Diff.Complete {
 			rows = append(rows, body(classMetadata, "No tree changes.")...)
 		}
-		rawRows := commitDiffRowsFor(e.Diff, m.Session.Inventory.Comparison.Metadata.Identity, e.SHA)
-		for _, row := range rawRows {
+		rows = append(rows, commitDiffRowsFor(e.Diff, m.Session.Inventory.Comparison.Metadata.Identity, e.SHA)...)
+	}
+	*c = commitSourceCache{session: m.Session, sha: e.SHA, diff: e.Diff, rows: rows}
+	m.commit.cache = commitRenderCache{}
+	return rows
+}
+
+func (m *Model) commitRows() []diffLine {
+	entries := m.commitEntries()
+	if len(entries) == 0 {
+		m.commit.sourceCache = commitSourceCache{}
+		m.commit.cache = commitRenderCache{}
+		return body(classMetadata, m.commitSafeState())
+	}
+	m.commitSelection()
+	e := entries[m.commit.selected]
+	sourceRows := m.commitSourceRows(e)
+	c := &m.commit.cache
+	if m.Composer == nil && c.session == m.Session && c.sha == e.SHA && c.width == m.commitDetailWidth() && c.theme == m.theme.Name && c.generation == m.discussionGeneration() {
+		return c.rows
+	}
+	// Allocate an overlay slice only when the selected commit has an overlay.
+	// Never append into sourceRows: its spare capacity belongs to the source cache.
+	var rows []diffLine
+	for i, row := range sourceRows {
+		if rows != nil {
 			rows = append(rows, row)
-			if row.target != nil {
-				rows = append(rows, m.commitDiscussionLines(*row.target)...)
-				if m.Composer != nil && m.Composer.CommitSHA == e.SHA && m.Composer.Target == *row.target {
-					rows = append(rows, body(classMetadata, fmt.Sprintf("Comment on %s · %s:%d · %s", shortCommitSHA(e.SHA), Escape(row.target.Path), row.target.Line, row.target.Side))...)
-					rows = append(rows, m.inlineEditorLines()...)
-				}
+		}
+		if row.target == nil {
+			continue
+		}
+		overlay := m.commitDiscussionLines(*row.target)
+		if m.Composer != nil && m.Composer.CommitSHA == e.SHA && m.Composer.Target == *row.target {
+			overlay = append(overlay, body(classMetadata, fmt.Sprintf("Comment on %s · %s:%d · %s", shortCommitSHA(e.SHA), Escape(row.target.Path), row.target.Line, row.target.Side))...)
+			overlay = append(overlay, m.inlineEditorLines()...)
+		}
+		if len(overlay) > 0 {
+			if rows == nil {
+				rows = make([]diffLine, i+1, len(sourceRows)+len(overlay))
+				copy(rows, sourceRows[:i+1])
 			}
+			rows = append(rows, overlay...)
 		}
 	}
-	*c = commitRenderCache{session: m.Session, sha: e.SHA, width: m.commitDetailWidth(), theme: m.theme.Name, generation: m.discussionGeneration(), rows: rows}
+	if rows == nil {
+		rows = sourceRows
+	}
+	// Transient editors must never enter the reusable overlay cache.
+	if m.Composer == nil {
+		*c = commitRenderCache{session: m.Session, sha: e.SHA, width: m.commitDetailWidth(), theme: m.theme.Name, generation: m.discussionGeneration(), rows: rows}
+	}
 	return rows
 }
 
@@ -208,36 +250,11 @@ func commitDiffRowsFor(d *commits.Diff, identity source.Identity, sha string) []
 		for _, u := range unitsByFile[f.ID] {
 			switch u.Kind {
 			case inventory.TextHunk:
-				old, new := u.OldRange.Start, u.NewRange.Start
-				inHunk := false
-				for _, raw := range bytes.Split(d.Patches[u.PatchReference], []byte{'\n'}) {
-					if isGitFilePreamble(raw) {
-						continue
+				for _, row := range textHunkLines(f, u, d.Patches[u.PatchReference], identity, sha) {
+					if t := row.target; t != nil && !validCommitPatchAnchor(sha, []byte(t.Path), t.Line) {
+						row.target = nil
 					}
-					var target *source.ReviewCommentTarget
-					text := Escape(string(raw))
-					class := classifyPatch(text)
-					if o, n, ok := hunkStarts(raw); ok {
-						old, new = o, n
-						inHunk = true
-					} else if inHunk && len(raw) > 0 {
-						switch raw[0] {
-						case '+':
-							target = commitPatchAnchor(identity, sha, f.NewPath, "RIGHT", new)
-							text = fmt.Sprintf("     %4d %s", new, text)
-							new++
-						case '-':
-							target = commitPatchAnchor(identity, sha, f.OldPath, "LEFT", old)
-							text = fmt.Sprintf("%4d      %s", old, text)
-							old++
-						case ' ':
-							target = commitPatchAnchor(identity, sha, f.NewPath, "RIGHT", new)
-							text = fmt.Sprintf("%4d %4d %s", old, new, text)
-							old++
-							new++
-						}
-					}
-					rows = append(rows, diffLine{styledLine: styledLine{Class: class, Text: text}, target: target})
+					rows = append(rows, row)
 				}
 			case inventory.Binary:
 				rows = append(rows, body(cardClass(u.Kind), "Binary content changed; no text patch.")...)
@@ -361,6 +378,7 @@ func (m *Model) commitsView() string {
 		footer = m.styleLine(classPaneBorder, "└"+strings.Repeat("─", left)+"┴"+strings.Repeat("─", right)+"┘")
 	}
 	var lines []string
+	borders := paneBodyBorders{classPaneBorder, classPaneBorder, classPaneBorder}
 	for i := 0; i < m.bodyHeight(); i++ {
 		l, r := "", ""
 		lc, rc := classPlain, classPlain
@@ -371,31 +389,20 @@ func (m *Model) commitsView() string {
 			}
 		}
 		if i < len(rows) {
-			r, rc = rows[i].Text, rows[i].Class
+			r, rc = numberedPatchText(rows[i]), rows[i].Class
 			if focus == paneDiff && offset+i == m.commitCursor() {
 				rc = classSelectionFocused
 			}
 		}
-		if m.Width < 100 {
-			if focus == paneDiff {
-				lines = append(lines, m.frameBodyLine(r, rc, right, true))
-			} else {
-				lines = append(lines, m.frameBodyLine(l, lc, left, true))
-			}
-		} else {
-			border := m.styleLine(classPaneBorder, "│")
-			lines = append(lines, border+m.frameBodyLine(l, lc, left, false)+border+m.frameBodyLine(r, rc, right, false)+border)
-		}
+		lines = append(lines, m.paneBodyRow(styledLine{Class: lc, Text: l}, styledLine{Class: rc, Text: r}, left, right, focus, borders))
 	}
 	return header + "\n" + strings.Join(lines, "\n") + "\n" + footer
 }
 
-func commitPatchAnchor(identity source.Identity, sha string, path []byte, side string, line int) *source.ReviewCommentTarget {
-	if sha == "" || line < 1 || len(path) == 0 || !utf8.Valid(path) || strings.ContainsAny(string(path), "\x00\r\n") {
-		return nil
-	}
-	return &source.ReviewCommentTarget{Identity: identity, CommitID: sha, Path: string(path), Side: side, Line: line}
+func validCommitPatchAnchor(sha string, path []byte, line int) bool {
+	return sha != "" && line > 0 && len(path) > 0 && utf8.Valid(path) && !strings.ContainsAny(string(path), "\x00\r\n")
 }
+
 func (m *Model) commitCursor() int {
 	if m.commit.cursors == nil {
 		m.commit.cursors = map[string]int{}

@@ -262,7 +262,7 @@ func TestCommitPatchAnchorsUseRawCounters(t *testing.T) {
 	if len(got) != 4 || got[0].Path != "old.go" || got[0].Side != "LEFT" || got[0].Line != 4 || got[1].Path != "new.go" || got[1].Line != 7 || got[2].Line != 8 || got[3].Line != 30 {
 		t.Fatalf("wrong raw anchors: %+v", got)
 	}
-	if commitPatchAnchor(source.Identity{}, "sha", []byte("bad\npath"), "RIGHT", 1) != nil {
+	if validCommitPatchAnchor("sha", []byte("bad\npath"), 1) {
 		t.Fatal("unsafe path anchor")
 	}
 }

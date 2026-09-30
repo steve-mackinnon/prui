@@ -1984,6 +1984,7 @@ func (m *Model) reviewViewForLayout(preferSideBySide bool) string {
 		}
 	}
 	body := []string{}
+	borders := paneBodyBorders{paneBorderClass(m.Focus == paneList), classPaneBorderFocused, paneBorderClass(m.Focus == paneDiff)}
 	for row := 0; row < bodyHeight; row++ {
 		left, right := "", ""
 		class, leftClass := classPlain, classPlain
@@ -1996,21 +1997,7 @@ func (m *Model) reviewViewForLayout(preferSideBySide bool) string {
 		if row < len(detail) {
 			right, class = detail[row].Text, detail[row].Class
 		}
-		if m.Width < 100 {
-			if m.Focus == paneDiff {
-				body = append(body, m.frameBodyLine(right, class, m.detailWidth(), true))
-			} else {
-				body = append(body, m.frameBodyLine(left, leftClass, m.listWidth(), true))
-			}
-		} else {
-			leftWidth := m.listWidth()
-			rightWidth := m.detailWidth()
-			body = append(body, m.styleLine(paneBorderClass(m.Focus == paneList), "│")+
-				m.frameBodyLine(left, leftClass, leftWidth, false)+
-				m.styleLine(classPaneBorderFocused, "│")+
-				m.frameBodyLine(right, class, rightWidth, false)+
-				m.styleLine(paneBorderClass(m.Focus == paneDiff), "│"))
-		}
+		body = append(body, m.paneBodyRow(styledLine{Class: leftClass, Text: left}, styledLine{Class: class, Text: right}, m.listWidth(), m.detailWidth(), m.Focus, borders))
 	}
 	return title + "\n" + header + "\n" + strings.Join(body, "\n") + "\n" + m.paneFrameFooter() + "\n" + m.reviewStatus()
 }
