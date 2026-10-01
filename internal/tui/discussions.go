@@ -297,13 +297,14 @@ func (m *Model) discussionsView() string {
 			lines = append(lines, "Loaded threads · incomplete", Escape(d.snapshot.Snapshot.Reason))
 		}
 		threads := d.snapshot.Snapshot.Threads
-		if len(threads) == 0 {
+		switch {
+		case len(threads) == 0:
 			if d.snapshot.Snapshot.Complete {
 				lines = append(lines, "No discussions.")
 			} else {
 				lines = append(lines, "No threads loaded.")
 			}
-		} else if d.detail {
+		case d.detail:
 			t := threads[max(0, min(d.selected, len(threads)-1))]
 			body := []string{discussionStatus(t)}
 			captured := false
@@ -335,7 +336,7 @@ func (m *Model) discussionsView() string {
 			height := max(1, m.Height-len(lines)-2)
 			d.scroll = min(d.scroll, max(0, len(body)-height))
 			lines = append(lines, body[d.scroll:min(len(body), d.scroll+height)]...)
-		} else {
+		default:
 			height := max(1, m.Height-len(lines)-2)
 			start := max(0, d.selected-height+1)
 			for i := start; i < min(len(threads), start+height); i++ {

@@ -57,7 +57,7 @@ func (m *Model) mouseUpdate(msg tea.MouseMsg) tea.Cmd {
 }
 
 func (m *Model) mouseWheel(wheel tea.MouseWheelMsg) tea.Cmd {
-	delta := 0
+	var delta int
 	switch wheel.Button {
 	case tea.MouseWheelUp:
 		delta = -mouseWheelStep

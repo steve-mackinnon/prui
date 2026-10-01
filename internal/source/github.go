@@ -199,7 +199,7 @@ func validateReviewComment(comment ReviewComment) error {
 
 // ErrCommentDeliveryUnknown means a write was attempted but creation cannot be confirmed.
 // Callers must retain the draft and refresh before an explicit retry.
-var ErrCommentDeliveryUnknown = errors.New("Posting outcome unknown; refresh discussions before retrying")
+var ErrCommentDeliveryUnknown = errors.New("posting outcome unknown; refresh discussions before retrying")
 
 func (g *GH) CreateReviewComment(ctx context.Context, comment ReviewComment) (ReviewComment, error) {
 	if err := validateReviewComment(comment); err != nil {

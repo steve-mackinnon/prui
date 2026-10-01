@@ -240,11 +240,12 @@ func (m *Model) compactReviewFormView(full []string, f *reviewForm) string {
 		lines = lines[:max(0, m.Height)]
 	} else {
 		footer := "j/k: choose · tab: comment · esc: back"
-		if f.Confirm {
+		switch {
+		case f.Confirm:
 			footer = "enter: submit · esc: edit"
-		} else if f.Focus == 1 {
+		case f.Focus == 1:
 			footer = "enter: confirm · esc: back"
-		} else if f.Focus == 2 {
+		case f.Focus == 2:
 			footer = "enter: edit · d: remove · tab: choices"
 		}
 		if m.Height-len(lines) > 1 {

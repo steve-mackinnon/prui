@@ -58,7 +58,8 @@ func InventoryContainsTarget(files []inventory.FileChange, units []inventory.Rev
 			if !anchored || len(raw) == 0 {
 				continue
 			}
-			path, side, line := "", "", 0
+			var path, side string
+			var line int
 			switch raw[0] {
 			case '+':
 				path, side, line = string(f.NewPath), "RIGHT", newLine

@@ -2,6 +2,7 @@
 # Riptide artifacts (cloud-synced)
 .humanlayer/
 /prui
+/dist/
 .env
 .env.*
 !.env.example

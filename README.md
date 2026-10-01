@@ -6,10 +6,20 @@ organize changes into a reading order. No server or telemetry.
 
 ## Get started
 
-Requires macOS or Linux, Go **1.26.8+** to build, Git, and an authenticated
+Requires macOS or Linux, Git, and an authenticated
 [GitHub CLI](https://cli.github.com/). GitHub.com repositories only.
 
-From this repository's root, install the binary:
+Download the archive for your OS and architecture from
+[GitHub Releases](https://github.com/steve-mackinnon/prui/releases). `darwin` means
+macOS; choose `arm64` for Apple Silicon or `amd64` for Intel. Extract it and place
+`prui` in a directory on `PATH`. Each release includes `checksums.txt` for verifying
+downloads with `shasum -a 256` (macOS) or `sha256sum` (Linux).
+
+Run `prui --version` to identify the installed version and commit. See the
+[changelog](CHANGELOG.md) for changes and [release guide](docs/RELEASING.md) for
+versioning and publishing instructions.
+
+To build from source, install Go **1.26.8+**, then from this repository's root:
 
 ```sh
 go install ./cmd/prui

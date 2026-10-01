@@ -23,6 +23,9 @@ const (
 	maxConfigBytes       = 64 << 10
 	// OpenAIEnvVariable is the legacy environment variable name, not a key value.
 	OpenAIEnvVariable = "OPENAI_API_KEY"
+	// Provider environment variable names, never credential values.
+	anthropicEnvVariable = "ANTHROPIC_API_KEY"
+	googleEnvVariable    = "GEMINI_API_KEY"
 )
 
 var envName = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
@@ -189,7 +192,7 @@ func parse(contents []byte) (Selection, error) {
 		}
 		base = "https://api.anthropic.com"
 		if !hasKeyEnv {
-			keyEnv = "ANTHROPIC_API_KEY"
+			keyEnv = anthropicEnvVariable
 		}
 	case "google":
 		if hasBase {
@@ -197,7 +200,7 @@ func parse(contents []byte) (Selection, error) {
 		}
 		base = "https://generativelanguage.googleapis.com"
 		if !hasKeyEnv {
-			keyEnv = "GEMINI_API_KEY"
+			keyEnv = googleEnvVariable
 		}
 	case "openai-compatible":
 		if !hasBase || base == "" {
