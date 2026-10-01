@@ -7,6 +7,8 @@ User-visible changes are recorded here before each release. See
 
 ### Changed
 
+- Show only the active guide, keep its copy expanded, pin its position tracker, and continue diff navigation across guides.
+
 - Wrap diff lines at word boundaries in unified and side-by-side views; use left/right to scroll long tokens.
 
 - Replace the working indicator with a breathing, rotating particle orb.

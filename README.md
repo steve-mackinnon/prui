@@ -70,6 +70,11 @@ Local reading progress and exit success do not constitute GitHub approval.
 | `t` | Choose and save a theme |
 | `?` / `q` | Health & help / quit |
 
+The Guide pane shows the current guide’s overview, subsection copy, and files.
+Its title and position stay at the top while you browse. Scroll past the end
+of a guide’s diff to continue to the next guide, or use `}` / `{` to jump
+between guides.
+
 **Inside a line editor, Enter posts immediately.** Ctrl+P instead queues a local
 pending comment; Shift+Enter adds a newline and Escape discards the editor.
 `R` shows Comment, Approve, and Request changes as a three-choice radio list

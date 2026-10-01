@@ -243,12 +243,18 @@ func nextGuidePathTick(generation int) tea.Cmd {
 	})
 }
 
-// guideList renders selectable hierarchy rows and non-selectable context for
-// the guide or section under the cursor. Description lines are non-selectable;
-// navigation continues to use the unchanged hierarchy row identities.
+// guideList renders only the active guide and its complete context.
+// Description lines are non-selectable; navigation keeps global row identities.
 func guideList(s *review.Session, rows []row, selected, width int, focused bool, pathOffset int) []listLine {
 	out := make([]listLine, 0, len(rows))
+	activeGuide := -1
+	if selected >= 0 && selected < len(rows) {
+		activeGuide = rows[selected].guide
+	}
 	for i, r := range rows {
+		if r.guide != activeGuide {
+			continue
+		}
 		marker := selectionMarker(i == selected)
 		line := marker + strings.Repeat("  ", r.depth)
 		if r.kind == portionRow {
@@ -258,9 +264,6 @@ func guideList(s *review.Session, rows []row, selected, width int, focused bool,
 			line += r.label
 		}
 		out = append(out, listLine{row: i, text: line})
-		if i != selected {
-			continue
-		}
 		item := s.Guides.Items[r.guide]
 		switch r.kind {
 		case guideRow:
@@ -331,4 +334,45 @@ func firstDisplayLine(lines []listLine, row int) int {
 		}
 	}
 	return 0
+}
+
+// crossGuideBoundary continues diff reading into the adjacent guide. The
+// existing guide navigation owns selection and scroll state for each guide.
+func (m *Model) crossGuideBoundary(delta int) bool {
+	if m.Focus != paneDiff {
+		return false
+	}
+	current, ok := m.activeGuide()
+	if !ok {
+		return false
+	}
+	direction := 1
+	if delta < 0 {
+		direction = -1
+	}
+	rows := m.navigable()
+	m.moveGuide(rows, direction)
+	next, _ := m.activeGuide()
+	if next == current {
+		return false
+	}
+	m.setOffset(0)
+	if direction < 0 {
+		m.setOffset(m.clampOffset(len(m.displayDetail())))
+	}
+	if m.cursorActive {
+		lines := m.displayDetail()
+		start, end, step := 0, len(lines), 1
+		if direction < 0 {
+			start, end, step = len(lines)-1, -1, -1
+		}
+		for i := start; i != end; i += step {
+			if lines[i].target != nil || lines[i].commentID > 0 {
+				m.setCursor(i)
+				m.ensureCursorVisible()
+				break
+			}
+		}
+	}
+	return true
 }

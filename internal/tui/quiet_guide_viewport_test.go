@@ -57,3 +57,30 @@ func TestQuietGuideViewportShowsSelectedLowerExplanation(t *testing.T) {
 		}
 	}
 }
+
+func TestGuideTrackerStaysVisibleWhileBrowsingFiles(t *testing.T) {
+	s := largeTextSession(2, 2)
+	s.Guides = &guide.Bundle{Status: guide.Generated, Items: []guide.Item{
+		{Title: "First guide", Description: "First copy", Sections: []guide.Section{{Title: "First section", UnitIDs: []string{s.Inventory.Units[0].ID}}}},
+		{Title: "Second guide", Description: "Second copy", Sections: []guide.Section{{Title: "Second section", UnitIDs: []string{s.Inventory.Units[1].ID}}}},
+	}}
+	m := largeModel(s, 120, 20)
+	defer m.Close()
+	m.Files = false
+	for i, r := range m.rows() {
+		m.Row = i
+		list, _ := m.reviewListPresentation()
+		if len(list) < 2 || !strings.Contains(list[1].text, fmt.Sprintf("%02d / 02", r.guide+1)) {
+			t.Fatalf("row %d lacks pinned tracker: %#v", i, list)
+		}
+		other := "Second"
+		if r.guide == 1 {
+			other = "First"
+		}
+		for _, line := range list {
+			if strings.Contains(line.text, other) {
+				t.Fatalf("inactive guide remains visible: %q", line.text)
+			}
+		}
+	}
+}

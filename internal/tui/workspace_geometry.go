@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"fmt"
 	"github.com/charmbracelet/x/ansi"
 	"image"
 )
@@ -64,6 +65,13 @@ func (m *Model) reviewListPresentation() ([]listLine, int) {
 			list = append(list, listLine{row: i, text: prefix + path})
 		}
 	}
+	var pinned []listLine
+	if rows != nil && !m.Inventory && bodyHeight >= 3 && len(list) > 0 {
+		guide := rows[selectedRow].guide
+		pinned = []listLine{list[0], {row: -1, text: fmt.Sprintf("  %02d / %02d · { previous · } next", guide+1, len(s.Guides.Items))}}
+		list = list[1:]
+		bodyHeight -= len(pinned)
+	}
 	selectedLine := firstDisplayLine(list, selectedRow)
 	contextEnd := selectedLine + 1
 	for contextEnd < len(list) && list[contextEnd].row < 0 {
@@ -72,5 +80,5 @@ func (m *Model) reviewListPresentation() ([]listLine, int) {
 	// Keep the selection and its explanation together when navigating down.
 	start := max(0, min(selectedLine, contextEnd-bodyHeight))
 	list = list[start:min(len(list), start+bodyHeight)]
-	return list, selectedRow
+	return append(pinned, list...), selectedRow
 }

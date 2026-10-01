@@ -248,9 +248,14 @@ func TestGuideMarking(t *testing.T) {
 	}
 	rows := m.rows()
 	marked := 0
-	for _, line := range guideList(m.Session, rows, m.Row, 36, true, 0) {
-		if strings.Contains(line.text, "[x] a.go") {
-			marked++
+	for selected, r := range rows {
+		if r.kind != guideRow {
+			continue
+		}
+		for _, line := range guideList(m.Session, rows, selected, 36, true, 0) {
+			if strings.Contains(line.text, "[x] a.go") {
+				marked++
+			}
 		}
 	}
 	if marked != 2 {
@@ -528,17 +533,20 @@ func TestGuideFallbackEnterOnlyFocusesDiff(t *testing.T) {
 	}
 }
 
-func TestGuideContextShowsOnlySelectedRowDescription(t *testing.T) {
+func TestGuideContextShowsActiveGuideDescriptions(t *testing.T) {
 	s, _, _ := guidedSession(t, splitAnalyzer{})
 	m := loaded(t, s, 100, 24)
 	rows := m.rows()
 	for selected, r := range rows {
 		var want string
 		item := s.Guides.Items[r.guide]
-		if r.kind == guideRow && !item.Ungrouped {
+		if !item.Ungrouped {
 			want = item.Description
-		} else if r.kind == sectionRow {
-			want = item.Sections[r.section].Description
+			for _, section := range item.Sections {
+				if section.Description != "" {
+					want += " " + section.Description
+				}
+			}
 		}
 		var descriptions []string
 		for _, line := range guideList(s, rows, selected, 100, true, 0) {

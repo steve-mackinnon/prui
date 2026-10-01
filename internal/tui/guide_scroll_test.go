@@ -218,3 +218,43 @@ func TestGuideScrollAllocationBudget(t *testing.T) {
 		})
 	}
 }
+
+func TestGuideScrollingCrossesGuideBoundary(t *testing.T) {
+	for _, width := range []int{120, 180} {
+		s := largeTextSession(2, 2)
+		s.Guides = &guide.Bundle{Status: guide.Generated, Items: []guide.Item{
+			{Title: "First", Sections: []guide.Section{{Title: "One", UnitIDs: []string{s.Inventory.Units[0].ID}}}},
+			{Title: "Second", Sections: []guide.Section{{Title: "Two", UnitIDs: []string{s.Inventory.Units[1].ID}}}},
+		}}
+		m := largeModel(s, width, 12)
+		m.Files, m.Focus = false, paneDiff
+		if width >= sideBySideMinimumWidth {
+			m.layout = diffLayoutSideBySide
+		}
+		m.setOffset(m.clampOffset(10000))
+		m.scroll(1)
+		if active, _ := m.activeGuide(); active != 1 || m.offset() != 0 {
+			t.Fatalf("width %d: forward scroll guide/offset = %d/%d", width, active, m.offset())
+		}
+		m.scroll(-1)
+		if active, _ := m.activeGuide(); active != 0 || m.offset() != m.clampOffset(10000) {
+			t.Fatalf("width %d: backward scroll guide/offset = %d/%d", width, active, m.offset())
+		}
+		m.cursorActive = true
+		for i, line := range m.displayDetail() {
+			if line.target != nil {
+				m.setCursor(i)
+			}
+		}
+		m.moveCursor(1)
+		if active, _ := m.activeGuide(); active != 1 {
+			t.Fatalf("width %d: cursor did not enter next guide", width)
+		}
+		m.moveCursor(-1)
+		if active, _ := m.activeGuide(); active != 0 {
+			t.Fatalf("width %d: cursor did not return to previous guide", width)
+		}
+
+		m.Close()
+	}
+}

@@ -2,13 +2,13 @@ example/review #42                                                              
 › Diff [1]    Description [2]    Commits [3]
 ┌   File (F)  › Guide (G) ───────────┬ Diff · GUIDES 1 · guide 1/1 · marking: whole files ─────────────────────────────┐
 │› - 1. Greeting                     │── main.go                                                                       │
-│    Update the greeting and its     │@@ -1 +1 @@                                                                      │
-│    documentation.                  │-old greeting                                                                    │
-│    - 1.1 Implementation            │+hello world                                                                     │
-│      main.go                       │                                                                                 │
-│    - 1.2 Documentation             │── README.md                                                                     │
+│  01 / 01 · { previous · } next     │@@ -1 +1 @@                                                                      │
+│    Update the greeting and its     │-old greeting                                                                    │
+│    documentation.                  │+hello world                                                                     │
+│    - 1.1 Implementation            │                                                                                 │
+│      main.go                       │── README.md                                                                     │
+│    - 1.2 Documentation             │                                                                                 │
 │      README.md [file_metadata]     │                                                                                 │
-│                                    │                                                                                 │
 └────────────────────────────────────┴─────────────────────────────────────────────────────────────────────────────────┘
 0/2 read · R Submit review (0) · ? Freshness unknown · ?: Health & help
 j/k: guides · tab: expand · enter: diff · ?: Help

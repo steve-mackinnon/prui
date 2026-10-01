@@ -1201,6 +1201,9 @@ func (m *Model) scroll(delta int) {
 	if m.Session == nil || len(m.Session.Inventory.Units) == 0 {
 		return
 	}
+	if delta != 0 && m.offset() == m.clampOffset(m.offset()+delta) && m.crossGuideBoundary(delta) {
+		return
+	}
 	// The clamp counts the same display lines the diff pane renders, so a diff
 	// that already fits cannot be scrolled past its end.
 	m.setOffset(m.clampOffset(m.offset() + delta))
@@ -1691,6 +1694,9 @@ func (m *Model) moveCursor(delta int) {
 	}
 	for i, target := range targets {
 		if target == current {
+			if (delta > 0 && i == len(targets)-1 || delta < 0 && i == 0) && m.crossGuideBoundary(delta) {
+				return
+			}
 			m.setCursor(targets[max(0, min(len(targets)-1, i+delta))])
 			m.ensureCursorVisible()
 			if m.fileView() {
