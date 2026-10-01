@@ -974,7 +974,11 @@ func (m *Model) selectReviewView(view reviewView) {
 		m.Files, m.Inventory = true, false
 	case viewGuide:
 		m.Files, m.Inventory = false, false
-		m.syncRow(m.rows())
+		m.begin()
+		if _, ok := m.activeGuide(); ok {
+			m.setOffset(0)
+			m.setCursor(0)
+		}
 	}
 }
 

@@ -77,6 +77,39 @@ func TestTopLevelReviewTabsMouseSelection(t *testing.T) {
 	}
 }
 
+func TestOpeningGuideStartsAtFirstSection(t *testing.T) {
+	for _, shortcut := range []rune{'3', 'G'} {
+		t.Run(string(shortcut), func(t *testing.T) {
+			m := New(context.Background(), nil)
+			defer m.Close()
+			s := largeTextSession(2, 2)
+			s.Guides = &guide.Bundle{Status: guide.Generated, Items: []guide.Item{
+				{Title: "First guide", Sections: []guide.Section{
+					{Title: "First section", UnitIDs: []string{s.Inventory.Units[0].ID}},
+					{Title: "Last section", UnitIDs: []string{s.Inventory.Units[1].ID}},
+				}},
+				{Title: "Last guide", Sections: []guide.Section{{Title: "Repeated unit", UnitIDs: []string{s.Inventory.Units[0].ID}}}},
+			}}
+			m.openReviewTab(s)
+			m.Width, m.Height = 120, 12
+			m.Selected = 1
+			for range 2 {
+				key(m, shortcut)
+				if m.Row != 0 || m.Selected != 0 || m.offset() != 0 {
+					t.Fatalf("Guide opened at row/unit/offset %d/%d/%d; want 0/0/0", m.Row, m.Selected, m.offset())
+				}
+				key(m, 'j')
+				key(m, 'j')
+				key(m, 'j')
+				if m.rows()[m.Row].section != 1 || m.offset() == 0 {
+					t.Fatal("could not navigate to last section")
+				}
+				key(m, '2')
+			}
+		})
+	}
+}
+
 func TestTopLevelGuidePreservesWorkspaceStateAndDiffControls(t *testing.T) {
 	m := New(context.Background(), nil)
 	defer m.Close()

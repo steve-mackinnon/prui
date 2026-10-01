@@ -5,6 +5,10 @@ User-visible changes are recorded here before each release. See
 
 ## [Unreleased]
 
+### Fixed
+
+- Open the Guide tab at the first section instead of following the current file selection.
+
 ### Changed
 
 - Show only the active guide, keep its copy expanded, pin its position tracker, and continue diff navigation across guides.
