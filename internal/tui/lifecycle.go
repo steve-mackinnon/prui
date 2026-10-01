@@ -733,7 +733,7 @@ func (m *Model) guideConsentKey(k string) tea.Cmd {
 				if reason == "" {
 					reason = "guide unavailable"
 				}
-				err = fmt.Errorf("Guide generation failed: %s", reason)
+				err = fmt.Errorf("guide generation failed: %s", reason)
 			}
 			return ActionResult{Session: derived, Err: err, Reset: true, SaveErr: saveErr}
 		})

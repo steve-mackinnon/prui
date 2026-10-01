@@ -595,7 +595,13 @@ func TestGuideConsentCancelsOrReportsFailedGeneration(t *testing.T) {
 	defer m.Close()
 	m.SetLifecycle(store, fakeGitHub{meta}, nil)
 	calls := 0
-	m.SetGuideLifecycle(func(_ context.Context, s *review.Session, _ guideconfig.Selection, _ func(string)) (*review.Session, error) {
+	generate := make(chan struct{})
+	m.SetGuideLifecycle(func(ctx context.Context, s *review.Session, _ guideconfig.Selection, _ func(string)) (*review.Session, error) {
+		select {
+		case <-generate:
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
 		calls++
 		derived := s.Snapshot
 		derived.DerivedFrom = s.ID
@@ -617,7 +623,11 @@ func TestGuideConsentCancelsOrReportsFailedGeneration(t *testing.T) {
 	if cmd == nil || !m.Busy {
 		t.Fatal("confirmed guide generation did not start")
 	}
-	m.Update(cmd())
+	// Keep generation pending through the first animation tick to exercise
+	// the command chain even on fast machines.
+	_, next := m.Update(cmd())
+	close(generate)
+	completeAction(t, m, next)
 	if calls != 1 || m.Session.ID != original.ID || m.ActionError == nil || !strings.Contains(m.ActionError.Error(), "provider unavailable") {
 		t.Fatal("failed guide generation did not report the error and retain the session")
 	}
@@ -697,7 +707,7 @@ func TestGuideGenerationFailureIsVisibleAndRetainsSnapshot(t *testing.T) {
 			if m.Busy || m.ActionError == nil || m.Session != saved {
 				t.Fatalf("failed guide did not retain snapshot and report an error: busy=%v error=%v", m.Busy, m.ActionError)
 			}
-			if view := ansi.Strip(m.View().Content); !strings.Contains(view, "Guide generation failed: "+reason) {
+			if view := ansi.Strip(m.View().Content); !strings.Contains(view, "guide generation failed: "+reason) {
 				t.Fatalf("guide failure missing from review view: %s", view)
 			}
 		})
