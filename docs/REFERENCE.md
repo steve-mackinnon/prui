@@ -123,7 +123,7 @@ does not read the live checkout or uncommitted work.
 Evidence collection is budgeted at 100 retained files, 32 KiB per blob,
 256 KiB of retained excerpts, and five seconds. The final guide request keeps
 at most 400 units, 32 KiB per unit, and 512 KiB of patches plus evidence,
-with a 60-second analysis deadline. The current consent screen describes these
+with a five-minute analysis deadline. The current consent screen describes these
 categories and the recipient; it does not list the exact paths in the assembled request.
 There is currently no user-configurable path exclusion for guide uploads.
 

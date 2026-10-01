@@ -160,7 +160,8 @@ contains no key or source. Opening, resuming, and switching PRs never generate
 guides automatically. A cached guide is reused only when its provider, model,
 endpoint, prompt, and schema match the current selection. A completed generation
 saves a derived session with fresh reading progress and retains the original
-session. Escape cancels generation. Raw diffs remain available if analysis fails.
+session. Generation has a five-minute timeout; Escape cancels it sooner.
+Raw diffs remain available if analysis fails.
 
 Uploads have size and time limits and apply a heuristic credential filter.
 **The filter is not a secret scanner and can miss credentials.** Use guides only

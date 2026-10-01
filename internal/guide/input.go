@@ -16,7 +16,7 @@ import (
 
 // Defaults bound one analysis request. They sit well under the patch retention
 // limits so a large PR degrades into a stated scope rather than a huge upload.
-var Defaults = Limits{Units: 400, UnitBytes: 32 << 10, Bytes: 512 << 10, Duration: 60 * time.Second}
+var Defaults = Limits{Units: 400, UnitBytes: 32 << 10, Bytes: 512 << 10, Duration: 5 * time.Minute}
 
 // Unit is one frozen review unit as it will be presented to an analyzer.
 type Unit struct {
