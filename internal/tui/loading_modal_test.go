@@ -14,7 +14,7 @@ import (
 	"prui/internal/review"
 )
 
-func TestLoadingModalRendersOrbAboveEscapedNotice(t *testing.T) {
+func TestLoadingModalRendersGlyphAboveEscapedNotice(t *testing.T) {
 	got := ansi.Strip(renderLoadingModal(60, 12, "Review\ncontent", loadingModal{
 		active:     true,
 		cancelable: true,
@@ -22,10 +22,13 @@ func TestLoadingModalRendersOrbAboveEscapedNotice(t *testing.T) {
 		notice:     "Fetching\x1b[31m pinned objects",
 	}))
 
-	orb := strings.Index(got, strings.TrimSpace(loadingOrb(3, 1)[0]))
+	orb := strings.Index(got, loadingGlyph(3))
 	notice := strings.Index(got, "↳ Fetching\\x1b[31m pinned objects")
 	if !strings.Contains(got, "╭") || !strings.Contains(got, "Loading") || orb < 0 || notice < 0 || orb > notice {
 		t.Fatalf("modal does not render orb above escaped notice:\n%s", got)
+	}
+	if !strings.Contains(got, loadingGlyph(3)+" Loading") {
+		t.Fatalf("loading label is not beside the compact orb:\n%s", got)
 	}
 	if !strings.Contains(got, "esc: cancel") {
 		t.Fatalf("cancellable modal lacks escape hint:\n%s", got)
@@ -72,12 +75,12 @@ func TestModelLoadingModalAnimatesAndEscCancelsOnlyCancelableWork(t *testing.T) 
 	m.cancelAction = func() { canceled++ }
 
 	before := ansi.Strip(m.View().Content)
-	if !strings.Contains(before, "Working") || !strings.Contains(before, strings.TrimSpace(loadingOrb(0, 5)[2])) || !strings.Contains(before, "esc: cancel") {
+	if !strings.Contains(before, "Working") || !strings.Contains(before, loadingGlyph(0)) || !strings.Contains(before, "esc: cancel") {
 		t.Fatalf("busy action does not render the cancellable modal:\n%s", before)
 	}
 	_, cmd := m.Update(loadingTick{})
 	after := ansi.Strip(m.View().Content)
-	if cmd == nil || before == after || !strings.Contains(after, strings.TrimSpace(loadingOrb(1, 5)[2])) {
+	if cmd == nil || before == after || !strings.Contains(after, loadingGlyph(1)) {
 		t.Fatalf("loading tick did not advance the modal:\n%s", after)
 	}
 	namedKey(m, tea.KeyEscape)
@@ -121,10 +124,10 @@ func TestLoadingModalAnimatesInProgram(t *testing.T) {
 	})
 	h := runProgram(t, m)
 	h.expect("initial loading modal", func(f programFrame) bool {
-		return f.loading && strings.Contains(f.text, strings.TrimSpace(loadingOrb(0, 5)[2])) && strings.Contains(f.text, "esc: cancel")
+		return f.loading && strings.Contains(f.text, loadingGlyph(0)) && strings.Contains(f.text, "esc: cancel")
 	})
 	h.expect("advanced loading frame", func(f programFrame) bool {
-		return f.loading && strings.Contains(f.text, strings.TrimSpace(loadingOrb(1, 5)[2]))
+		return f.loading && strings.Contains(f.text, loadingGlyph(1))
 	})
 	h.p.Send(tea.KeyPressMsg{Code: tea.KeyEscape})
 	h.expect("canceled initial loading", func(f programFrame) bool {
@@ -306,36 +309,19 @@ func assertFitsViewport(t *testing.T, text string, width, height int) {
 	}
 }
 
-func TestLoadingOrbCycleAndBounds(t *testing.T) {
-	for _, rows := range []int{1, 5} {
-		frames := make(map[string]bool)
-		minWidth, maxWidth := 18, 0
-		for frame := 0; frame < loadingAnimationFrames; frame++ {
-			orb := loadingOrb(frame, rows)
-			if len(orb) != rows {
-				t.Fatalf("orb height = %d, want %d", len(orb), rows)
-			}
-			width := 0
-			for _, line := range orb {
-				if visibleWidth(line) != 18 {
-					t.Fatalf("orb canvas width changed: %q", line)
-				}
-				width = max(width, visibleWidth(strings.TrimSpace(line)))
-			}
-			minWidth, maxWidth = min(minWidth, width), max(maxWidth, width)
-			frames[strings.Join(orb, "\n")] = true
+func TestLoadingGlyphIsSingleCellAndLoops(t *testing.T) {
+	frames := make(map[string]bool)
+	for frame := 0; frame < loadingAnimationFrames; frame++ {
+		glyph := loadingGlyph(frame)
+		if visibleWidth(glyph) != 1 || strings.Contains(glyph, "\n") {
+			t.Fatalf("loader exceeds one cell: %q", glyph)
 		}
-		if len(frames) < 20 {
-			t.Fatalf("orb has too few distinct frames: %d", len(frames))
-		}
-		if strings.Join(loadingOrb(0, rows), "\n") == strings.Join(loadingOrb(loadingAnimationFrames/2, rows), "\n") {
-			t.Fatal("particles do not rotate at equal breathing radii")
-		}
-		if minWidth == maxWidth {
-			t.Fatal("orb does not expand and contract")
-		}
-		if strings.Join(loadingOrb(0, rows), "\n") != strings.Join(loadingOrb(loadingAnimationFrames, rows), "\n") {
-			t.Fatal("orb cycle does not loop")
-		}
+		frames[glyph] = true
+	}
+	if len(frames) != loadingAnimationFrames {
+		t.Fatal("loader frames do not animate")
+	}
+	if loadingGlyph(0) != loadingGlyph(loadingAnimationFrames) {
+		t.Fatal("loader does not loop")
 	}
 }
