@@ -27,6 +27,52 @@ func guideScrollModel(hunks, width int) *Model {
 	return m
 }
 
+func TestGuideRowNavigationScrollsDiff(t *testing.T) {
+	for _, width := range []int{120, 180} {
+		for _, files := range []int{1, 2} {
+			t.Run(fmt.Sprintf("width=%d/files=%d", width, files), func(t *testing.T) {
+				s := largeTextSession(files, 2)
+				s.Guides = &guide.Bundle{Status: guide.Generated, Items: []guide.Item{{Title: "Changes", Sections: []guide.Section{
+					{Title: "First", UnitIDs: []string{s.Inventory.Units[0].ID}},
+					{Title: "Second", UnitIDs: []string{s.Inventory.Units[1].ID}},
+				}}}}
+				m := loaded(t, s, width, 12)
+				if width >= sideBySideMinimumWidth {
+					m.layout = diffLayoutSideBySide
+				}
+				rows := m.rows()
+				// Each section has one file portion. The second section starts
+				// after the first unit, even when both belong to the same file.
+				want := len(unitLines(s, 0)) + 1
+				if m.sideBySideEnabled() {
+					want = len(projectSideBySideDetail(unitLines(s, 0))) + 1
+				}
+				for range 3 {
+					key(m, 'j')
+				}
+				if rows[m.Row].kind != sectionRow || rows[m.Row].section != 1 || m.offset() != want || m.Focus != paneList {
+					t.Fatalf("j selected row %d, offset %d, focus %v; want second section, offset %d, list focus", m.Row, m.offset(), m.Focus, want)
+				}
+				key(m, 'j') // its file portion uses the same section occurrence
+				if m.offset() != want {
+					t.Fatalf("file portion offset = %d, want %d", m.offset(), want)
+				}
+				key(m, 'k')
+				key(m, 'k')
+				if m.offset() != 0 || m.Focus != paneList {
+					t.Fatalf("k returned offset %d, focus %v; want 0, list focus", m.offset(), m.Focus)
+				}
+				key(m, 'k')
+				m.setOffset(7)
+				key(m, 'k') // guide rows retain their saved reading position
+				if m.offset() != 7 {
+					t.Fatalf("guide row changed saved offset to %d", m.offset())
+				}
+			})
+		}
+	}
+}
+
 // Showing a cursor must not multiply whole-guide allocations by viewport height.
 func TestGuideCursorRenderAllocationGrowth(t *testing.T) {
 	m := guideScrollModel(10, 120)

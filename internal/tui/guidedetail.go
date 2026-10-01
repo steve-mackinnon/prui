@@ -59,6 +59,7 @@ func detailFor(s *review.Session, guide int) guideDetail {
 		detail.splitLines = append(detail.splitLines, projectSideBySideDetail(lines)...)
 	}
 	previous := -1
+	previousSection := -1
 	for si, section := range s.Guides.Items[guide].Sections {
 		for _, id := range section.UnitIDs {
 			unit, ok := index[id]
@@ -66,6 +67,10 @@ func detailFor(s *review.Session, guide int) guideDetail {
 				continue
 			}
 			file := s.UnitFiles[unit]
+			if file == previous && si != previousSection {
+				detail.files = append(detail.files, fileAnchor{section: si, file: file, offset: len(detail.lines)})
+				detail.splitFiles = append(detail.splitFiles, fileAnchor{section: si, file: file, offset: len(detail.splitLines)})
+			}
 			if file != previous && s.Inventory.Units[unit].Kind != inventory.FileMetadata {
 				detail.files = append(detail.files, fileAnchor{section: si, file: file, offset: len(detail.lines)})
 				detail.splitFiles = append(detail.splitFiles, fileAnchor{section: si, file: file, offset: len(detail.splitLines)})
@@ -76,6 +81,7 @@ func detailFor(s *review.Session, guide int) guideDetail {
 				detail.splitFiles = append(detail.splitFiles, fileAnchor{section: si, file: file, offset: len(detail.splitLines)})
 			}
 			previous = file
+			previousSection = si
 			appendLines(unitLines(s, unit))
 		}
 	}

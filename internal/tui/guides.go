@@ -194,6 +194,9 @@ func (m *Model) moveRow(rows []row, delta int) {
 	if len(rows[m.Row].units) > 0 {
 		m.Selected = rows[m.Row].units[0]
 	}
+	if offset, ok := anchorForLayout(m.cachedGuideDetail(rows[m.Row].guide), rows[m.Row], m.sideBySideEnabled()); ok {
+		m.setOffset(m.clampOffset(offset))
+	}
 	m.Horizontal = 0
 }
 
