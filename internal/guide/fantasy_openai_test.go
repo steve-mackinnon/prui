@@ -87,3 +87,19 @@ func TestFantasyOpenAIUploadOmitsWithheldMaterial(t *testing.T) {
 		t.Fatalf("bundle=%#v calls=%d", bundle, calls)
 	}
 }
+
+func TestFantasyOpenAIQuotaFailureIsSafeAndDoesNotRetry(t *testing.T) {
+	calls := 0
+	client := &http.Client{Transport: openAIFixtureTransport(func(r *http.Request) (*http.Response, error) {
+		calls++
+		return &http.Response{StatusCode: 429, Header: http.Header{"Content-Type": []string{"application/json"}}, Body: io.NopCloser(strings.NewReader(`{"error":{"code":"insufficient_quota","type":"insufficient_quota","message":"fake-key source excerpt"}}`)), Request: r}, nil
+	})}
+	a, err := NewFantasyOpenAI(FantasyOptions{APIKey: "fake-key", Model: "gpt-test", BaseURL: "https://openai.example/v1", Client: client})
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := a.Analyze(context.Background(), Input{})
+	if err != nil || b.Status != Unavailable || b.Reason != "API quota exhausted; check billing and credits" || calls != 1 {
+		t.Fatalf("bundle=%+v err=%v calls=%d", b, err, calls)
+	}
+}

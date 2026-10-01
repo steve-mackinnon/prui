@@ -678,7 +678,7 @@ func TestBackgroundRefreshIgnoresReplacedSessionAndCanceledModel(t *testing.T) {
 }
 
 func TestGuideGenerationFailureIsVisibleAndRetainsSnapshot(t *testing.T) {
-	for _, reason := range []string{"guide provider request failed", "analysis timed out after 1m0s", "guide provider returned invalid output"} {
+	for _, reason := range []string{"guide provider request failed", "API quota exhausted; check billing and credits", "API authentication failed; check or renew credentials", "API rate limit reached; try again later", "analysis timed out after 1m0s", "guide provider returned invalid output"} {
 		t.Run(reason, func(t *testing.T) {
 			m := newModel(context.Background())
 			defer m.Close()

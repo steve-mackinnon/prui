@@ -48,7 +48,7 @@ func (f *Fantasy) Analyze(ctx context.Context, in Input) (Bundle, error) {
 		}
 		// SDK and provider errors may include a request URL, source excerpt, or
 		// credential. None belongs in a saved session or terminal view.
-		return Fallback("guide provider request failed"), nil
+		return Fallback(providerFailureReason(err)), nil
 	}
 	if response == nil || (response.FinishReason != fantasy.FinishReasonStop && response.FinishReason != fantasy.FinishReasonToolCalls) {
 		return Fallback("guide provider returned incomplete output"), nil
