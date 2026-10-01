@@ -7,8 +7,8 @@ centered loading modal. The modal makes work feel active rather than stalled,
 keeps the current screen recognizable behind it, and makes cancellation discoverable
 without claiming an operation can be cancelled when it cannot.
 
-The user sees a compact, animated indeterminate bar and the operation's current
-loading text directly below the bar. A cancellable operation also shows `esc: cancel`.
+The user sees a compact, breathing, rotating particle orb and the operation's current
+loading text directly below the orb. A cancellable operation also shows `esc: cancel`.
 This applies to the initial review open and every foreground operation that blocks
 normal key handling; it does not change plain output or background work that leaves
 the TUI interactive.
@@ -51,7 +51,7 @@ border. Its content is, in order:
 ```text
 ┌ Loading ───────────────────────────┐
 │                                    │
-│   [··········▰▰▰▰▰▰··········]   │
+│        ⠐⠕⠎⠵⠪⠢        │
 │   Fetching pinned GitHub objects…  │
 │                                    │
 │   esc: cancel                      │
@@ -61,11 +61,12 @@ border. Its content is, in order:
 - The title is `Loading` for initial open and `Working` for an in-review action;
   implementation may use the current operation name if it is already available
   without adding new strings.
-- The full-size card uses an indeterminate 18-cell solid/light Unicode sweep and
-  a four-frame activity glyph. On each animation tick, both advance one frame.
-  Tiny terminals use the readable ASCII fallback: `=` for the comet and `-` for
-  the track. The state never relies on color.
-- The current, escaped notification text is rendered immediately beneath the bar.
+- The full-size card uses a monochrome Braille-dot particle sphere on a fixed
+  18-column, five-row canvas. Its 96 particles rotate around a tilted axis while
+  the radius expands and contracts over a seamless 60-frame, six-second cycle.
+  Short viewports use a one-row orb to preserve room for status and cancellation.
+  The state never relies on color.
+- The current, escaped notification text is rendered immediately beneath the orb.
   It wraps within the modal's interior width and available viewport height, with
   aligned continuation lines. If the viewport cannot show the full notice, the
   final visible line ends in an ellipsis. It never grows beyond the viewport or
@@ -76,7 +77,7 @@ border. Its content is, in order:
 - The modal is at least 36 columns wide where the terminal permits it, is capped
   at 60 columns, and uses the available width on narrower terminals. At widths or
   heights too small to draw a complete box, render a clipped one- or two-line
-  fallback containing the bar and notice; it must never exceed the viewport.
+  fallback containing a compact orb and notice; it must never exceed the viewport.
 - The background is not interactive while the modal is present. Where terminal
   color support exists it may be visually muted, but the modal border, title,
   animation, message, and cancel hint must convey the complete state without
@@ -158,7 +159,7 @@ Add focused unit and snapshot coverage in `internal/tui`.
    width/height, uses no unescaped control bytes, and remains intelligible after
    ANSI stripping.
 2. Snapshot tests cover initial loading, cancellable in-review loading, and a
-   non-cancellable write. The snapshots assert bar above notice and the presence
+   non-cancellable write. The snapshots assert orb above notice and the presence
    or absence of `esc: cancel`.
 3. Update-loop tests inject animation ticks and prove the frame changes only while
    active, stale ticks do not revive a completed modal, and no timer-dependent
@@ -184,7 +185,7 @@ Add focused unit and snapshot coverage in `internal/tui`.
 
 - Every foreground, input-blocking TUI operation presents the shared centered
   loading modal while it is active.
-- The loading text wraps within the modal when space permits. The animated bar
+- The loading text wraps within the modal when space permits. The animated orb
   remains visibly above it and advances on deterministic ticks.
 - A real cancel callback always yields a visible `esc: cancel` hint, and no hint
   appears when Esc cannot cancel the operation.
@@ -196,6 +197,6 @@ Add focused unit and snapshot coverage in `internal/tui`.
 
 ## Open questions
 
-None for the first implementation. The visual default is the comet bar above;
+None. The visual default is the particle orb above;
 after the first rendered snapshot, a future styling-only pass can tune glyphs or
 colors without changing the behavioral contract.

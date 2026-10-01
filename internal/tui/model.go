@@ -371,7 +371,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if !m.loadingModal().active {
 			return m, nil
 		}
-		m.loadingFrame = (m.loadingFrame + 1) % loadingBarWidth
+		m.loadingFrame = (m.loadingFrame + 1) % loadingAnimationFrames
 		if v.result != nil {
 			return m, waitForLoading(v.result)
 		}

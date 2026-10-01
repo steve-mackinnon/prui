@@ -5,6 +5,10 @@ User-visible changes are recorded here before each release. See
 
 ## [Unreleased]
 
+### Changed
+
+- Replace the working indicator with a breathing, rotating particle orb.
+
 ## [0.1.0]
 
 First public release of prui, a terminal interface for reviewing GitHub pull requests.

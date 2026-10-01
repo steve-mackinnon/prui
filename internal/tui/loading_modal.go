@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"math"
 	"strings"
 	"time"
 
@@ -9,10 +10,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 )
 
-const (
-	loadingBarWidth   = 18
-	loadingCometWidth = 6
-)
+const loadingAnimationFrames = 60
 
 type loadingModal struct {
 	active     bool
@@ -41,30 +39,51 @@ func waitForLoading(result <-chan tea.Msg) tea.Cmd {
 	}
 }
 
-func loadingBar(frame int) string {
-	cells := make([]rune, loadingBarWidth)
-	for i := range cells {
-		cells[i] = '▱'
+// loadingOrb projects rotating particles onto a Braille grid. Two horizontal
+// dots and four vertical dots per cell keep the sphere round in terminal fonts.
+// Its fixed canvas prevents the breathing motion from shifting nearby text.
+func loadingOrb(frame, rows int) []string {
+	const columns = 18
+	phase := 2 * math.Pi * float64(frame%loadingAnimationFrames) / loadingAnimationFrames
+	radius := float64(rows*4-2) / 2 * (0.82 + 0.16*math.Sin(phase))
+	particles := 96
+	horizontalScale := 1.7
+	if rows == 1 {
+		particles = 8
+		horizontalScale = 5
 	}
-	for i := 0; i < loadingCometWidth; i++ {
-		cells[(frame+i)%len(cells)] = '▰'
+	cells := make([][]rune, rows)
+	for y := range cells {
+		cells[y] = make([]rune, columns)
+		for x := range cells[y] {
+			cells[y][x] = ' '
+		}
 	}
-	return string(cells)
-}
-
-func compactLoadingBar(frame int) string {
-	cells := make([]byte, loadingBarWidth)
-	for i := range cells {
-		cells[i] = '-'
+	bits := [4][2]rune{{1, 8}, {2, 16}, {4, 32}, {64, 128}}
+	for i := 0; i < particles; i++ {
+		// Evenly spaced latitudes with a golden-angle distribution avoid clumps.
+		z := 1 - 2*(float64(i)+0.5)/float64(particles)
+		angle := float64(i)*math.Pi*(3-math.Sqrt(5)) + phase
+		ring := math.Sqrt(1 - z*z)
+		x := ring * math.Cos(angle)
+		depth := ring * math.Sin(angle)
+		// Tilt the sphere so particles trace visible circular paths.
+		y := z*0.86 + depth*0.5
+		px := int(math.Round(float64(columns) - 0.5 + x*radius*horizontalScale))
+		py := int(math.Round(float64(rows*2) - 0.5 + y*radius))
+		if px < 0 || px >= columns*2 || py < 0 || py >= rows*4 {
+			continue
+		}
+		if cells[py/4][px/2] == ' ' {
+			cells[py/4][px/2] = '\u2800'
+		}
+		cells[py/4][px/2] |= bits[py%4][px%2]
 	}
-	for i := 0; i < loadingCometWidth; i++ {
-		cells[(frame+i)%len(cells)] = '='
+	lines := make([]string, rows)
+	for y := range cells {
+		lines[y] = string(cells[y])
 	}
-	return "[" + string(cells) + "]"
-}
-
-func loadingSpinner(frame int) string {
-	return []string{"◐", "◓", "◑", "◒"}[frame%4]
+	return lines
 }
 
 // renderLoadingModal draws the card at fixed viewport coordinates over the
@@ -86,7 +105,11 @@ func renderLoadingModal(width, height int, background string, modal loadingModal
 	if title == "" {
 		title = "Loading"
 	}
-	fixedLineCount := 6
+	orbRows := 1
+	if height >= 14 {
+		orbRows = 5
+	}
+	fixedLineCount := 5 + orbRows
 	if modal.cancelable {
 		fixedLineCount++
 	}
@@ -109,9 +132,11 @@ func renderLoadingModal(width, height int, background string, modal loadingModal
 
 	content := []string{
 		"╭" + strings.Repeat("─", modalWidth-2) + "╮",
-		modalLine("  "+loadingSpinner(modal.frame)+"  "+title, inside),
+		modalLine("  "+title, inside),
 		modalLine("", inside),
-		modalLine(center(loadingBar(modal.frame), inside), inside),
+	}
+	for _, line := range loadingOrb(modal.frame, orbRows) {
+		content = append(content, modalLine(center(line, inside), inside))
 	}
 	for i, line := range noticeLines {
 		prefix := strings.Repeat(" ", visibleWidth(noticePrefix))
@@ -135,7 +160,7 @@ func renderLoadingModal(width, height int, background string, modal loadingModal
 }
 
 func renderCompactLoading(width, height int, modal loadingModal) string {
-	lines := []string{clip(compactLoadingBar(modal.frame), width), clip(Escape(modal.notice), width)}
+	lines := []string{clip(strings.TrimSpace(loadingOrb(modal.frame, 1)[0]), width), clip(Escape(modal.notice), width)}
 	if modal.cancelable && len(lines) < height {
 		lines = append(lines, clip("esc: cancel", width))
 	}
