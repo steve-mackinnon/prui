@@ -79,7 +79,7 @@ func TestEntryPointsShareReviewOperations(t *testing.T) {
 				t.Fatal("consent screen created analyzer")
 			}
 			modelKey(m, tea.KeyEnter)
-			if m.ActionError != nil || calls != expectedCalls+1 || m.Session.DerivedFrom != id {
+			if m.ActionError == nil || !strings.Contains(m.ActionError.Error(), "provider unavailable") || calls != expectedCalls+1 || m.Session.ID != id {
 				t.Fatal("guide not wired", m.ActionError)
 			}
 		})

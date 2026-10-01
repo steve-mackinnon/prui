@@ -10,6 +10,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"prui/internal/commits"
+	"prui/internal/guide"
 	"prui/internal/guideconfig"
 	"prui/internal/inventory"
 	"prui/internal/review"
@@ -724,6 +725,16 @@ func (m *Model) guideConsentKey(k string) tea.Cmd {
 				n = func(string) {}
 			}
 			derived, err := m.generateGuide(ctx, &s, selection, n)
+			// Analysis failures are stored as safe unavailable bundles. Surface
+			// them as foreground failures so the footer explains what happened
+			// and the reader keeps the current snapshot and reading progress.
+			if err == nil && derived != nil && derived.Guides != nil && derived.Guides.Status == guide.Unavailable {
+				reason := derived.Guides.Reason
+				if reason == "" {
+					reason = "guide unavailable"
+				}
+				err = fmt.Errorf("Guide generation failed: %s", reason)
+			}
 			return ActionResult{Session: derived, Err: err, Reset: true, SaveErr: saveErr}
 		})
 	default:

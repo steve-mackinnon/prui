@@ -571,7 +571,7 @@ func TestPullRequestOpeningCapacityAndFailureRetainBrowserAndReviews(t *testing.
 	}
 }
 
-func TestGuideConsentCancelsOrSwitchesToDerivedSession(t *testing.T) {
+func TestGuideConsentCancelsOrReportsFailedGeneration(t *testing.T) {
 	r := testutil.NewRepo(t)
 	r.Write("a", "old\n")
 	base := r.Commit()
@@ -618,8 +618,8 @@ func TestGuideConsentCancelsOrSwitchesToDerivedSession(t *testing.T) {
 		t.Fatal("confirmed guide generation did not start")
 	}
 	m.Update(cmd())
-	if calls != 1 || m.Session.ID == original.ID || m.Session.DerivedFrom != original.ID || len(m.Session.ReviewedSliceIDs) != 0 {
-		t.Fatal("confirmed guide generation did not switch to a new unread session")
+	if calls != 1 || m.Session.ID != original.ID || m.ActionError == nil || !strings.Contains(m.ActionError.Error(), "provider unavailable") {
+		t.Fatal("failed guide generation did not report the error and retain the session")
 	}
 }
 
@@ -672,6 +672,33 @@ func TestBackgroundRefreshIgnoresReplacedSessionAndCanceledModel(t *testing.T) {
 			reopened, err := store.Load(saved.ID)
 			if err != nil || reopened.RevisionStatus != session.Unchecked {
 				t.Fatal("obsolete result persisted freshness", err)
+			}
+		})
+	}
+}
+
+func TestGuideGenerationFailureIsVisibleAndRetainsSnapshot(t *testing.T) {
+	for _, reason := range []string{"guide provider request failed", "analysis timed out after 1m0s", "guide provider returned invalid output"} {
+		t.Run(reason, func(t *testing.T) {
+			m := newModel(context.Background())
+			defer m.Close()
+			saved := largeSession(1, 1)
+			m.openReviewTab(saved)
+			m.Loading = false
+			m.Width, m.Height = 120, 40
+			m.generateGuide = func(context.Context, *review.Session, guideconfig.Selection, func(string)) (*review.Session, error) {
+				derived := *saved
+				bundle := guide.Fallback(reason)
+				derived.Guides = &bundle
+				return &derived, nil
+			}
+			m.push(pageGuideConsent)
+			completeAction(t, m, m.guideConsentKey("enter"))
+			if m.Busy || m.ActionError == nil || m.Session != saved {
+				t.Fatalf("failed guide did not retain snapshot and report an error: busy=%v error=%v", m.Busy, m.ActionError)
+			}
+			if view := ansi.Strip(m.View().Content); !strings.Contains(view, "Guide generation failed: "+reason) {
+				t.Fatalf("guide failure missing from review view: %s", view)
 			}
 		})
 	}
