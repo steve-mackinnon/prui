@@ -11,7 +11,7 @@ User-visible changes are recorded here before each release. See
 
 - Wrap diff lines at word boundaries in unified and side-by-side views; use left/right to scroll long tokens.
 
-- Replace the working indicator with a breathing, rotating particle orb.
+- Replace the working indicator with a single-cell breathing-dot animation beside the loading label.
 
 ## [0.1.0]
 
