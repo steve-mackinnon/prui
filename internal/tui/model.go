@@ -108,6 +108,7 @@ type reviewTabState struct {
 	Horizontal                                           int
 	listWidthPreference                                  int
 	layout                                               diffLayout
+	diffWrapCache                                        diffWrapCache
 	guidePathOffset, guidePathPause, guidePathGeneration int
 	Inventory                                            bool
 	Focus                                                pane
@@ -1221,7 +1222,7 @@ func (m *Model) clampOffset(offset int) int {
 func (m *Model) focusDetail(rows []row) {
 	if len(rows) > 0 {
 		r := rows[max(0, min(len(rows)-1, m.Row))]
-		if offset, ok := anchorForLayout(m.cachedGuideDetail(r.guide), r, m.sideBySideEnabled()); ok {
+		if offset, ok := m.wrappedGuideAnchor(m.cachedGuideDetail(r.guide), r); ok {
 			m.setOffset(m.clampOffset(offset))
 		}
 	}
@@ -1317,11 +1318,11 @@ func (m *Model) detail() []diffLine {
 	// Source rows are immutable; the renderer copies just the visible viewport.
 	// Avoid rebuilding the whole review on every navigation call without overlays.
 	if len(m.Comments) == 0 && len(m.Pending) == 0 && m.Composer == nil {
-		return base
+		return m.wrapSource(base)
 	}
 	lines := make([]diffLine, 0, len(base)+len(m.Comments)+2)
 	for _, line := range base {
-		lines = append(lines, line)
+		lines = append(lines, m.wrapSource([]diffLine{line})...)
 		if line.target == nil {
 			continue
 		}
@@ -1339,7 +1340,7 @@ func (m *Model) detail() []diffLine {
 }
 
 // displayDetail is the single source of truth for rendered-row navigation.
-// Unified mode keeps its original line stream; split mode projects source rows
+// Unified mode wraps source rows; split mode projects and wraps source rows
 // before attaching full-width comment and editor overlays.
 func (m *Model) displayDetail() []diffLine {
 	if !m.sideBySideEnabled() {
@@ -1364,11 +1365,11 @@ func (m *Model) sideBySideDetail() []diffLine {
 		base = projectSideBySideDetail(m.baseDetail())
 	}
 	if len(m.Comments) == 0 && len(m.Pending) == 0 && m.Composer == nil {
-		return base
+		return m.wrapSource(base)
 	}
 	lines := make([]diffLine, 0, len(base)+len(m.Comments)+2)
 	for _, line := range base {
-		lines = append(lines, line)
+		lines = append(lines, m.wrapSource([]diffLine{line})...)
 		if line.sideBySide == nil {
 			continue
 		}
@@ -1920,7 +1921,7 @@ func (m *Model) reviewViewForLayout(preferSideBySide bool) string {
 	} else {
 		detail = m.detail()
 		if useSideBySide {
-			detail = projectSideBySideDetail(detail)
+			detail = m.wrapSource(projectSideBySideDetail(m.baseDetail()))
 		}
 	}
 	cursor := m.cursorInDetail(detail)
