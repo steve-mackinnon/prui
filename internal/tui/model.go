@@ -827,6 +827,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.Horizontal = max(0, m.Horizontal-8)
 		case "home":
 			m.setOffset(0)
+			m.syncGuideToLine(0)
 			m.Horizontal = 0
 			m.cursorInViewport(-1)
 		}
@@ -1233,6 +1234,7 @@ func (m *Model) scroll(delta int) {
 	// The clamp counts the same display lines the diff pane renders, so a diff
 	// that already fits cannot be scrolled past its end.
 	m.setOffset(m.clampOffset(m.offset() + delta))
+	m.syncGuideToLine(m.offset())
 	if m.fileView() {
 		m.syncFileToOffset()
 	}
@@ -1725,6 +1727,7 @@ func (m *Model) moveCursor(delta int) {
 			}
 			m.setCursor(targets[max(0, min(len(targets)-1, i+delta))])
 			m.ensureCursorVisible()
+			m.syncGuideToLine(m.cursor())
 			if m.fileView() {
 				m.syncFileToLine(m.cursor())
 			}

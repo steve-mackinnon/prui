@@ -46,9 +46,10 @@ type diffLine struct {
 	styledLine
 	oldLine, newLine int // raw source coordinates; zero means absent
 	target           *source.ReviewCommentTarget
-	commentID        int64    // nonzero only for an already anchored overlay comment
-	editor           bool     // true for rows in the active inline editor
-	sideBySide       *diffRow // non-nil for one logical, aligned source row
+	commentID        int64       // nonzero only for an already anchored overlay comment
+	editor           bool        // true for rows in the active inline editor
+	sideBySide       *diffRow    // non-nil for one logical, aligned source row
+	guideAnchor      *fileAnchor // guide occurrence beginning at this source row
 }
 
 // palette is the semantic style table, named by meaning rather than color.

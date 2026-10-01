@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	tea "charm.land/bubbletea/v2"
 	"prui/internal/guide"
 	"prui/internal/source"
 )
@@ -256,5 +257,74 @@ func TestGuideScrollingCrossesGuideBoundary(t *testing.T) {
 		}
 
 		m.Close()
+	}
+}
+
+func TestGuideDiffNavigationSyncsSelection(t *testing.T) {
+	for _, width := range []int{120, 180} {
+		for _, collapsed := range []bool{false, true} {
+			t.Run(fmt.Sprintf("width=%d/collapsed=%v", width, collapsed), func(t *testing.T) {
+				s := largeTextSession(2, 2)
+				s.Guides = &guide.Bundle{Status: guide.Generated, Items: []guide.Item{{Title: "Changes", Sections: []guide.Section{
+					{Title: "First", UnitIDs: []string{s.Inventory.Units[0].ID}},
+					{Title: "Second", UnitIDs: []string{s.Inventory.Units[1].ID}},
+					{Title: "Repeated", UnitIDs: []string{s.Inventory.Units[0].ID}},
+				}}}}
+				m := largeModel(s, width, 12)
+				defer m.Close()
+				m.Files, m.Focus = false, paneDiff
+				if width >= sideBySideMinimumWidth {
+					m.layout = diffLayoutSideBySide
+				}
+				if collapsed {
+					m.collapsed.sections[[2]int{0, 1}] = true
+				}
+				check := func(section int) {
+					t.Helper()
+					r := m.rows()[m.Row]
+					wantKind := portionRow
+					if collapsed && section == 1 {
+						wantKind = sectionRow
+					}
+					if r.section != section || r.kind != wantKind {
+						t.Fatalf("selected %+v, want section %d kind %d", r, section, wantKind)
+					}
+					if m.Selected != r.units[0] {
+						t.Fatal("selected unit does not follow guide row")
+					}
+				}
+				for _, section := range []int{1, 2, 0} {
+					offset, _ := m.wrappedGuideAnchor(m.cachedGuideDetail(0), row{kind: sectionRow, section: section})
+					m.scroll(offset - m.offset())
+					check(section)
+				}
+				// Cursor navigation follows the occurrence under the cursor even
+				// while an earlier file remains at the top of the viewport.
+				offset, _ := m.wrappedGuideAnchor(m.cachedGuideDetail(0), row{kind: sectionRow, section: 1})
+				for i := offset - 1; i >= 0; i-- {
+					if m.displayDetail()[i].target != nil {
+						m.setCursor(i)
+						break
+					}
+				}
+				m.moveCursor(1)
+				check(1)
+				namedKey(m, tea.KeyHome)
+				check(0)
+				for _, line := range m.displayDetail() {
+					if line.target != nil {
+						m.Comments = []source.ReviewComment{{ID: 123, Target: *line.target, Body: "comment before the next file"}}
+						break
+					}
+				}
+				for i, line := range m.displayDetail() {
+					if line.guideAnchor != nil && line.guideAnchor.section == 1 {
+						m.scroll(i - m.offset())
+						check(1)
+						break
+					}
+				}
+			})
+		}
 	}
 }

@@ -7,6 +7,8 @@ User-visible changes are recorded here before each release. See
 
 ### Fixed
 
+- Keep the Guide selection in sync when scrolling or navigating the diff.
+
 - Open the Guide tab at the first section instead of following the current file selection.
 
 ### Changed

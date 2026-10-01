@@ -56,9 +56,8 @@ func TestMouseWheelRoutesGuideListAndNarrowVisiblePane(t *testing.T) {
 		t.Fatal("narrow list wheel did not use the visible list")
 	}
 	m.Focus = paneDiff
-	row = m.Row
 	wheel(m, 10, 4, tea.MouseWheelDown)
-	if m.offset() <= before || m.Row != row {
+	if m.offset() <= before || m.rows()[m.Row].kind != portionRow {
 		t.Fatal("narrow detail wheel did not use the visible diff")
 	}
 }

@@ -85,7 +85,49 @@ func detailFor(s *review.Session, guide int) guideDetail {
 			appendLines(unitLines(s, unit))
 		}
 	}
+	// Attach occurrence boundaries after projection so wrapping and overlays
+	// preserve their positions in both rendered layouts.
+	for i := range detail.files {
+		anchor := &detail.files[i]
+		detail.lines[anchor.offset].guideAnchor = anchor
+	}
+	for i := range detail.splitFiles {
+		anchor := &detail.splitFiles[i]
+		detail.splitLines[anchor.offset].guideAnchor = anchor
+	}
 	return detail
+}
+
+// syncGuideToLine follows the rendered occurrence, including repeated files
+// and comment overlays. Collapsed hierarchy rows remain collapsed.
+func (m *Model) syncGuideToLine(index int) {
+	guide, ok := m.activeGuide()
+	if !ok {
+		return
+	}
+	var occurrence *fileAnchor
+	for i, line := range m.displayDetail() {
+		if i > index {
+			break
+		}
+		if line.guideAnchor != nil {
+			occurrence = line.guideAnchor
+		}
+	}
+	if occurrence == nil {
+		return
+	}
+	for i, r := range m.rows() {
+		if r.guide != guide {
+			continue
+		}
+		if r.kind == guideRow || r.section == occurrence.section && (r.kind == sectionRow || r.file == occurrence.file) {
+			m.Row = i
+			if len(r.units) > 0 {
+				m.Selected = r.units[0]
+			}
+		}
+	}
 }
 
 // Keep only the most recently used guide. Frozen source and guide bundles are
