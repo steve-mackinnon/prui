@@ -96,7 +96,7 @@ func (m *Model) mouseWheel(wheel tea.MouseWheelMsg) tea.Cmd {
 		}
 		return nil
 	}
-	if m.selectedReviewView() != viewChanges {
+	if !m.diffReviewView() {
 		return nil
 	}
 	g := m.workspaceGeometry()

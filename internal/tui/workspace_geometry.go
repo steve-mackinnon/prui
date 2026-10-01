@@ -9,7 +9,7 @@ import (
 type workspaceGeometry struct{ Rail, Detail, Divider image.Rectangle }
 
 func (m *Model) workspaceGeometry() workspaceGeometry {
-	if m.Session == nil || m.top() != pageReview || m.selectedReviewView() != viewChanges || len(m.Session.Inventory.Units) == 0 {
+	if m.Session == nil || m.top() != pageReview || !m.diffReviewView() || len(m.Session.Inventory.Units) == 0 {
 		return workspaceGeometry{}
 	}
 	screen := image.Rect(0, 0, max(0, m.Width), max(0, m.Height))

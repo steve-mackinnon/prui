@@ -18,7 +18,7 @@ func TestWorkspaceIdentityPersistsAcrossContextViews(t *testing.T) {
 	s.Inventory.Comparison.Metadata.Identity = source.Identity{Repository: "owner/repo", Number: 42}
 	m.openReviewTab(s)
 	m.PullRequests = []source.PullRequest{{Identity: s.Inventory.Comparison.Metadata.Identity, Title: "Fix\x1b]52;unsafe\a title"}}
-	for _, view := range []reviewView{viewChanges, viewDescription, viewCommits} {
+	for _, view := range []reviewView{viewFiles, viewDescription, viewCommits} {
 		m.selectReviewView(view)
 		first, _, _ := strings.Cut(ansi.Strip(m.View().Content), "\n")
 		if !strings.Contains(first, `owner/repo #42 · Fix\x1b]52;unsafe\a title`) || !strings.Contains(first, "ctrl+p: switch PR") {

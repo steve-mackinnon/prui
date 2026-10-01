@@ -1,0 +1,118 @@
+package tui
+
+import (
+	"context"
+	"strings"
+	"testing"
+
+	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
+	"prui/internal/guide"
+)
+
+func TestTopLevelReviewTabsOrderAndKeyboardSelection(t *testing.T) {
+	m := New(context.Background(), nil)
+	defer m.Close()
+	m.openReviewTab(screenSession())
+	m.Width, m.Height = 120, 16
+	want := "  Description [1]  › Files [2]    Guide [3]    Commits [4]"
+	if got := strings.Split(ansi.Strip(m.View().Content), "\n")[1]; got != want {
+		t.Fatalf("tab strip = %q, want %q", got, want)
+	}
+	for _, tc := range []struct {
+		key   rune
+		label string
+	}{{'1', "Description [1]"}, {'2', "Files [2]"}, {'3', "Guide [3]"}, {'4', "Commits [4]"}, {'G', "Guide [3]"}, {'F', "Files [2]"}} {
+		key(m, tc.key)
+		got := ansi.Strip(m.View().Content)
+		if !strings.Contains(strings.Split(got, "\n")[1], "› "+tc.label) {
+			t.Fatalf("%c did not select %s:\n%s", tc.key, tc.label, got)
+		}
+		if strings.Contains(got, "File (F)") || strings.Contains(got, "Guide (G)") {
+			t.Fatal("nested tab selector remains")
+		}
+	}
+	key(m, '3')
+	if !strings.Contains(ansi.Strip(m.View().Content), "No guide yet. Press g") || m.Busy {
+		t.Fatal("Guide did not preserve explicit generation state")
+	}
+}
+
+func TestTopLevelReviewTabsCycleAndWrap(t *testing.T) {
+	m := New(context.Background(), nil)
+	defer m.Close()
+	m.openReviewTab(screenSession())
+	key(m, '1')
+	for _, label := range []string{"Files [2]", "Guide [3]", "Commits [4]", "Description [1]"} {
+		key(m, 'v')
+		if !strings.Contains(ansi.Strip(m.contextViewTabs()), "› "+label) {
+			t.Fatalf("forward cycle did not select %s", label)
+		}
+	}
+	for _, label := range []string{"Commits [4]", "Guide [3]", "Files [2]", "Description [1]"} {
+		key(m, 'V')
+		if !strings.Contains(ansi.Strip(m.contextViewTabs()), "› "+label) {
+			t.Fatalf("reverse cycle did not select %s", label)
+		}
+	}
+}
+
+func TestTopLevelReviewTabsMouseSelection(t *testing.T) {
+	m := New(context.Background(), nil)
+	defer m.Close()
+	m.openReviewTab(screenSession())
+	m.Width, m.Height = 120, 16
+	x := 0
+	for _, label := range []string{"Description [1]", "Files [2]", "Guide [3]", "Commits [4]"} {
+		m.Update(tea.MouseClickMsg{Button: tea.MouseLeft, X: x + 3, Y: 1})
+		if !strings.Contains(ansi.Strip(m.contextViewTabs()), "› "+label) {
+			t.Fatalf("mouse did not select %s", label)
+		}
+		x += visibleWidth(label) + 4
+	}
+	key(m, '2')
+	m.Update(tea.MouseClickMsg{Button: tea.MouseLeft, X: 20, Y: 2})
+	if !strings.Contains(ansi.Strip(m.contextViewTabs()), "› Files [2]") {
+		t.Fatal("pane header changed view")
+	}
+}
+
+func TestTopLevelGuidePreservesWorkspaceStateAndDiffControls(t *testing.T) {
+	m := New(context.Background(), nil)
+	defer m.Close()
+	s := screenSession()
+	s.Guides = &guide.Bundle{Status: guide.Generated, Items: []guide.Item{{Title: "Greeting guide", Sections: []guide.Section{{Title: "Implementation", UnitIDs: []string{"unit-0"}}}}}}
+	m.openReviewTab(s)
+	m.Width, m.Height = 160, 16
+	m.Focus = paneDiff
+	m.Scroll[0], m.Horizontal = 2, 5
+	key(m, '3')
+	if m.selectedReviewView() != viewGuide || !strings.Contains(ansi.Strip(m.View().Content), "Greeting guide") {
+		t.Fatal("generated guide is not reachable")
+	}
+	key(m, 'S')
+	if !m.sideBySideEnabled() || m.workspaceGeometry().Detail.Empty() {
+		t.Fatal("Guide lost split layout or pane geometry")
+	}
+	g := m.workspaceGeometry()
+	m.Update(tea.MouseWheelMsg{Button: tea.MouseWheelDown, X: g.Detail.Min.X + 2, Y: g.Detail.Min.Y + 1})
+	if m.Focus != paneDiff {
+		t.Fatal("Guide lost diff focus")
+	}
+	other := screenSession()
+	other.Inventory.Comparison.Metadata.Identity.Number = 99
+	m.openReviewTab(other)
+	m.activateTab(0)
+	if m.selectedReviewView() != viewGuide || !m.sideBySideEnabled() {
+		t.Fatal("workspace switch lost Guide view or layout")
+	}
+	key(m, '1')
+	key(m, '2')
+	if m.Scroll[0] != 2 || m.Horizontal != 5 {
+		t.Fatal("view selection reset raw reading state")
+	}
+	key(m, 'G')
+	if len(m.rows()) == 0 {
+		t.Fatal("Guide alias did not restore hierarchy")
+	}
+}

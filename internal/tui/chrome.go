@@ -198,8 +198,8 @@ func (m *Model) reviewHints() string {
 		if m.commit.focus == paneDiff {
 			hints = "j/k: scroll · n/p: commit · PgUp/PgDn: page · esc/h: list · ?: Help"
 		}
-	case m.selectedReviewView() != viewChanges:
-		hints = "↑/↓: scroll · 1/2/3: views · ?: Help"
+	case !m.diffReviewView():
+		hints = "↑/↓: scroll · 1/2/3/4: views · ?: Help"
 	case m.Focus == paneDiff:
 		hints = "↑/↓: scroll · enter: comment/menu · m: mark file · esc: list · ?: Help"
 	case !m.Files && !m.Inventory:

@@ -20,10 +20,10 @@ func TestDescriptionViewRendersFrozenEscapedTextAndProvenance(t *testing.T) {
 	s.PullRequestDescription = &description
 	m.openReviewTab(s)
 	m.Width, m.Height = 48, 10
-	m.Update(tea.KeyPressMsg{Code: 'v', Text: "v"})
+	m.Update(tea.KeyPressMsg{Code: '1', Text: "1"})
 
 	view := ansi.Strip(m.View().Content)
-	for _, want := range []string{"› Description [2]", "Frozen from GitHub when this review opened.", "Summary", `\x1b]52;c;unsafe\x07`} {
+	for _, want := range []string{"› Description [1]", "Frozen from GitHub when this review opened.", "Summary", `\x1b]52;c;unsafe\x07`} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("description view missing %q:\n%s", want, view)
 		}
@@ -50,7 +50,7 @@ func TestDescriptionViewKeepsGlobalActionsAndDisablesProgressCommentActions(t *t
 	t.Cleanup(m.Close)
 	m.SetLifecycle(store, fakeGitHub{metadata}, nil)
 	m.openReviewTab(saved)
-	key(m, 'v')
+	key(m, '1')
 
 	key(m, 'e')
 	if m.top() != pageEvidence {
@@ -89,7 +89,7 @@ func TestDescriptionViewDistinguishesEmptyAndLegacyDescriptions(t *testing.T) {
 			s := screenSession()
 			s.PullRequestDescription = tc.description
 			m.openReviewTab(s)
-			key(m, 'v')
+			key(m, '1')
 			if view := ansi.Strip(m.View().Content); !strings.Contains(view, tc.want) {
 				t.Fatalf("description state missing %q:\n%s", tc.want, view)
 			}
@@ -107,7 +107,7 @@ func TestDescriptionViewScrollIsTabOwnedAndLeavesChangesStateUntouched(t *testin
 	m.Width, m.Height = 60, 7
 	m.Selected, m.Row, m.Focus = 1, 1, paneDiff
 	m.Scroll[1], m.Horizontal = 3, 5
-	key(m, 'v')
+	key(m, '1')
 	key(m, 'j')
 	namedKey(m, tea.KeyEscape)
 	if m.DescriptionScroll == 0 {
@@ -116,8 +116,8 @@ func TestDescriptionViewScrollIsTabOwnedAndLeavesChangesStateUntouched(t *testin
 	if m.Selected != 1 || m.Row != 1 || m.Focus != paneDiff || m.Scroll[1] != 3 || m.Horizontal != 5 {
 		t.Fatalf("description navigation changed source review state: %#v", m)
 	}
-	key(m, 'V')
-	if got := m.selectedReviewView(); got != viewChanges || m.DescriptionScroll == 0 {
+	key(m, '2')
+	if got := m.selectedReviewView(); got != viewFiles || m.DescriptionScroll == 0 {
 		t.Fatalf("switching back lost view or description scroll: view=%v scroll=%d", got, m.DescriptionScroll)
 	}
 }
@@ -130,7 +130,7 @@ func TestDescriptionViewCachesRenderedLinesForScrollAndRebuildsOnResize(t *testi
 	s.PullRequestDescription = &description
 	m.openReviewTab(s)
 	m.Width, m.Height = 60, 7
-	key(m, 'v')
+	key(m, '1')
 
 	first := m.descriptionLines()
 	if m.descriptionCache.body != description || m.descriptionCache.width != 60 || m.descriptionCache.themeName != theme.Terminal || len(first) == 0 {
@@ -159,10 +159,10 @@ func TestDescriptionViewInvalidatesEveryTabCacheWhenThemeChanges(t *testing.T) {
 	first.PullRequestDescription, second.PullRequestDescription = &firstDescription, &secondDescription
 	second.Inventory.Comparison.Metadata.Identity.Number = 2
 	m.openReviewTab(first)
-	key(m, 'v')
+	key(m, '1')
 	m.descriptionLines()
 	m.openReviewTab(second)
-	key(m, 'v')
+	key(m, '1')
 	beforeTheme := m.descriptionLines()
 
 	dark, err := theme.Resolve(theme.Dark, nil)

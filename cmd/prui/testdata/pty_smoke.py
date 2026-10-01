@@ -347,7 +347,11 @@ def main():
     with Terminal(binary, resume, environment) as terminal:
         terminal.wait_for("1/2 read")
         terminal.wait_for("[x] b.go")
-        terminal.key(b"3", "Commit fixture 1")
+        terminal.key(b"1", "› Description [1]")
+        terminal.key(b"v", "› Files [2]")
+        terminal.key(b"v", "No guide yet. Press g to generate.")
+        terminal.wait_for("› Guide [3]")
+        terminal.key(b"4", "Commit fixture 1")
         terminal.wait_for("commit-change-1")
         terminal.key(b"j", "commit-change-2")
         terminal.key(b"l", "commit-change-2")
@@ -361,7 +365,7 @@ def main():
         terminal.key(b"j", "› Commit fixture 2")
         terminal.key(b"\r", "Commit fixture 2")
         terminal.key(b"j", "commit-change-2")
-        terminal.key(b"1", "[x] b.go")
+        terminal.key(b"2", "[x] b.go")
         terminal.wait_for("1/2 read")
         terminal.quit(b"q")
     if gh_called.exists():

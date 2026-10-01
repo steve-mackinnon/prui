@@ -174,7 +174,7 @@ func TestPendingCommentCanBeEditedFromReviewScreen(t *testing.T) {
 	namedKey(m, tea.KeyTab)
 	namedKey(m, tea.KeyTab)
 	namedKey(m, tea.KeyEnter)
-	if m.top() != pageReview || m.ContextView != viewChanges || m.Composer == nil || m.Composer.Draft != "draft" || m.Composer.PendingIndex != 0 {
+	if m.top() != pageReview || m.ContextView != viewFiles || m.Composer == nil || m.Composer.Draft != "draft" || m.Composer.PendingIndex != 0 {
 		t.Fatalf("pending draft did not open at its diff target: page=%v view=%v composer=%#v", m.top(), m.ContextView, m.Composer)
 	}
 	key(m, 'x')
@@ -206,7 +206,7 @@ func TestReviewSummaryAcceptsQAndPendingDraftsGuardQuit(t *testing.T) {
 }
 
 func TestSubmitReviewActionAvailableFromEveryContextView(t *testing.T) {
-	for _, view := range []reviewView{viewChanges, viewDescription, viewCommits} {
+	for _, view := range []reviewView{viewFiles, viewDescription, viewCommits} {
 		m := New(context.Background(), nil)
 		m.Loading = false
 		m.openReviewTab(screenSession())

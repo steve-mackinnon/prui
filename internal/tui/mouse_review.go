@@ -19,8 +19,8 @@ func (m *Model) mouseReviewClick(x, y int) tea.Cmd {
 		for i, label := range m.contextTabLabels() {
 			width := visibleWidth(label)
 			if x >= start && x < start+width {
-				m.selectReviewView(reviewView(i))
-				return nil
+				m.selectReviewView(reviewViews[i])
+				return m.restartGuidePathScroll()
 			}
 			start += width + 2
 		}
@@ -49,22 +49,7 @@ func (m *Model) mouseReviewClick(x, y int) tea.Cmd {
 		}
 		return nil
 	}
-	if m.selectedReviewView() != viewChanges || len(m.Session.Inventory.Units) == 0 {
-		return nil
-	}
-	if y == 2 {
-		labels := m.reviewTabLabels()
-		fileWidth, guideWidth := visibleWidth(labels[0]), visibleWidth(labels[1])
-		if x >= 2 && x < 2+fileWidth {
-			m.Files, m.Inventory = true, false
-			m.file(0)
-			return m.restartGuidePathScroll()
-		}
-		if x >= fileWidth+4 && x < fileWidth+4+guideWidth {
-			m.Files, m.Inventory = false, false
-			m.syncRow(m.rows())
-			return m.restartGuidePathScroll()
-		}
+	if !m.diffReviewView() || len(m.Session.Inventory.Units) == 0 {
 		return nil
 	}
 	g := m.workspaceGeometry()
@@ -217,32 +202,13 @@ func (m *Model) clearSelectedDiffTarget() { m.setSelectedDiffTarget(nil) }
 
 // Plain labels are shared by rendering and hit testing, before styling or clipping.
 func (m *Model) contextTabLabels() []string {
-	labels := []string{"Diff [1]", "Description [2]", "Commits [3]"}
+	labels := []string{"Description [1]", "Files [2]", "Guide [3]", "Commits [4]"}
 	for i, label := range labels {
 		prefix := "  "
-		if reviewView(i) == m.selectedReviewView() {
+		if reviewViews[i] == m.selectedReviewView() {
 			prefix = "› "
 		}
 		labels[i] = prefix + label
 	}
 	return labels
-}
-func (m *Model) reviewTabLabels() []string {
-	labels := []string{"  File (F)", "  Guide (G)"}
-	selected := 1
-	if m.Files || m.Inventory {
-		selected = 0
-	}
-	labels[selected] = "› " + strings.TrimPrefix(labels[selected], "  ")
-	return labels
-}
-
-func (m *Model) reviewTabStrip() string {
-	labels := m.reviewTabLabels()
-	selected := 1
-	if m.Files || m.Inventory {
-		selected = 0
-	}
-	labels[selected] = m.styleLine(selectedClass(true), labels[selected])
-	return strings.Join(labels, "  ")
 }

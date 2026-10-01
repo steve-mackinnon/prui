@@ -9,6 +9,8 @@ User-visible changes are recorded here before each release. See
 
 - Show only the active guide, keep its copy expanded, pin its position tracker, and continue diff navigation across guides.
 
+- Promote Guide to a top-level tab alongside Description, Files, and Commits, with number shortcuts 1–4.
+
 - Wrap diff lines at word boundaries in unified and side-by-side views; use left/right to scroll long tokens.
 
 - Replace the working indicator with a single-cell breathing-dot animation beside the loading label.

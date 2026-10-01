@@ -35,3 +35,5 @@ These documents preserve requirements, acceptance criteria, and the reasoning be
 - [Capability Map: Pull Request Review Comments](CAPABILITY-MAP-pull-request-review-comments.md)
 
 Implementation plans and checklists live in [tasks](../../tasks/).
+
+- [Spec: Top-Level Review Tabs](SPEC-top-level-review-tabs.md)

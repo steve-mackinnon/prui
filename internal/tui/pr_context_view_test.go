@@ -17,23 +17,23 @@ func TestPRContextViewDefaultsAndCyclesWithoutChangingChangesState(t *testing.T)
 	m.Selected, m.Row, m.Focus = 1, 1, paneDiff
 	m.Scroll[1], m.Horizontal = 4, 8
 
-	if got := m.selectedReviewView(); got != viewChanges {
+	if got := m.selectedReviewView(); got != viewFiles {
 		t.Fatalf("new review view = %v, want changes", got)
-	}
-	m.Update(tea.KeyPressMsg{Code: 'v', Text: "v"})
-	if got := m.selectedReviewView(); got != viewDescription {
-		t.Fatalf("v selected %v, want description", got)
-	}
-	if m.Selected != 1 || m.Row != 1 || m.Focus != paneDiff || m.Scroll[1] != 4 || m.Horizontal != 8 {
-		t.Fatalf("context switch changed source review state: %#v", m)
-	}
-	m.Update(tea.KeyPressMsg{Code: 'v', Text: "v"})
-	if got := m.selectedReviewView(); got != viewCommits {
-		t.Fatalf("second v selected %v, want commits", got)
 	}
 	m.Update(tea.KeyPressMsg{Code: 'V', Text: "V"})
 	if got := m.selectedReviewView(); got != viewDescription {
 		t.Fatalf("V selected %v, want description", got)
+	}
+	if m.Selected != 1 || m.Row != 1 || m.Focus != paneDiff || m.Scroll[1] != 4 || m.Horizontal != 8 {
+		t.Fatalf("context switch changed source review state: %#v", m)
+	}
+	m.Update(tea.KeyPressMsg{Code: 'V', Text: "V"})
+	if got := m.selectedReviewView(); got != viewCommits {
+		t.Fatalf("second V selected %v, want commits", got)
+	}
+	m.Update(tea.KeyPressMsg{Code: 'V', Text: "V"})
+	if got := m.selectedReviewView(); got != viewGuide {
+		t.Fatalf("third V selected %v, want guide", got)
 	}
 }
 
@@ -45,14 +45,14 @@ func TestPRContextViewIsOwnedByEachOpenReviewTab(t *testing.T) {
 	second := screenSession()
 	second.Inventory.Comparison.Metadata.Identity = source.Identity{Repository: "example/review", Number: 2}
 	m.openReviewTab(first)
-	m.Update(tea.KeyPressMsg{Code: 'v', Text: "v"})
+	m.Update(tea.KeyPressMsg{Code: '1', Text: "1"})
 	m.openReviewTab(second)
-	if got := m.selectedReviewView(); got != viewChanges {
+	if got := m.selectedReviewView(); got != viewFiles {
 		t.Fatalf("second review view = %v, want changes", got)
 	}
-	m.Update(tea.KeyPressMsg{Code: 'V', Text: "V"})
+	m.Update(tea.KeyPressMsg{Code: '4', Text: "4"})
 	if got := m.selectedReviewView(); got != viewCommits {
-		t.Fatalf("second reverse cycle = %v, want commits", got)
+		t.Fatalf("second direct selection = %v, want commits", got)
 	}
 	m.activateTab(0)
 	if got := m.selectedReviewView(); got != viewDescription {
@@ -67,9 +67,9 @@ func TestPRContextViewRendersTextualTabStripAndContextPlaceholder(t *testing.T) 
 			t.Cleanup(m.Close)
 			m.openReviewTab(screenSession())
 			m.Width, m.Height = width, 12
-			m.Update(tea.KeyPressMsg{Code: 'v', Text: "v"})
+			m.Update(tea.KeyPressMsg{Code: '1', Text: "1"})
 			view := ansi.Strip(m.View().Content)
-			wantTab := "› Description [2]"
+			wantTab := "› Description [1]"
 			if !strings.Contains(view, wantTab) {
 				t.Fatalf("context tab strip does not identify active Description:\n%s", view)
 			}
@@ -92,24 +92,24 @@ func TestPRContextTabsFollowIdentityAndHaveDirectNumberKeys(t *testing.T) {
 	view := ansi.Strip(m.View().Content)
 	_, tabsAndBody, _ := strings.Cut(view, "\n")
 	first, _, _ := strings.Cut(tabsAndBody, "\n")
-	if first != "› Diff [1]    Description [2]    Commits [3]" {
+	if first != "  Description [1]  › Files [2]    Guide [3]    Commits [4]" {
 		t.Fatalf("top row = %q, want direct tab strip below identity", first)
 	}
 	if strings.Contains(first, "review ·") || strings.Contains(first, "ctrl+p") {
 		t.Fatalf("top row retained review chrome: %q", first)
 	}
 
-	m.Update(tea.KeyPressMsg{Code: '2', Text: "2"})
-	if got := m.selectedReviewView(); got != viewDescription {
-		t.Fatalf("2 selected %v, want description", got)
-	}
-	m.Update(tea.KeyPressMsg{Code: '3', Text: "3"})
-	if got := m.selectedReviewView(); got != viewCommits {
-		t.Fatalf("3 selected %v, want commits", got)
-	}
 	m.Update(tea.KeyPressMsg{Code: '1', Text: "1"})
-	if got := m.selectedReviewView(); got != viewChanges {
-		t.Fatalf("1 selected %v, want diff", got)
+	if got := m.selectedReviewView(); got != viewDescription {
+		t.Fatalf("1 selected %v, want description", got)
+	}
+	m.Update(tea.KeyPressMsg{Code: '4', Text: "4"})
+	if got := m.selectedReviewView(); got != viewCommits {
+		t.Fatalf("4 selected %v, want commits", got)
+	}
+	m.Update(tea.KeyPressMsg{Code: '2', Text: "2"})
+	if got := m.selectedReviewView(); got != viewFiles {
+		t.Fatalf("2 selected %v, want files", got)
 	}
 }
 
@@ -122,9 +122,10 @@ func TestPRContextTabsHighlightOnlyTheSelectedView(t *testing.T) {
 		view  reviewView
 		label string
 	}{
-		{viewChanges, "Diff [1]"},
-		{viewDescription, "Description [2]"},
-		{viewCommits, "Commits [3]"},
+		{viewFiles, "Files [2]"},
+		{viewDescription, "Description [1]"},
+		{viewCommits, "Commits [4]"},
+		{viewGuide, "Guide [3]"},
 	} {
 		m.selectReviewView(tc.view)
 		active := m.styleLine(selectedClass(true), "› "+tc.label)
@@ -132,7 +133,7 @@ func TestPRContextTabsHighlightOnlyTheSelectedView(t *testing.T) {
 		if !strings.Contains(tabs, active) {
 			t.Fatalf("selected %s tab is not highlighted", tc.label)
 		}
-		for _, other := range []string{"Diff [1]", "Description [2]", "Commits [3]"} {
+		for _, other := range []string{"Files [2]", "Description [1]", "Guide [3]", "Commits [4]"} {
 			if other != tc.label && strings.Contains(tabs, m.styleLine(selectedClass(true), "› "+other)) {
 				t.Fatalf("unselected %s tab is highlighted", other)
 			}
@@ -140,27 +141,19 @@ func TestPRContextTabsHighlightOnlyTheSelectedView(t *testing.T) {
 	}
 }
 
-func TestReviewTabsHighlightOnlySelectedFileOrGuide(t *testing.T) {
+func TestReviewPaneHeadersIdentifyViewWithoutNestedTabs(t *testing.T) {
 	m := New(context.Background(), nil)
 	t.Cleanup(m.Close)
 	m.openReviewTab(screenSession())
 	m.Width, m.Height = 120, 12
-
 	for _, tc := range []struct {
-		files  bool
-		active string
-		other  string
-	}{
-		{true, "File (F)", "Guide (G)"},
-		{false, "Guide (G)", "File (F)"},
-	} {
-		m.Files = tc.files
-		header := strings.Split(m.View().Content, "\n")[2]
-		if !strings.Contains(header, m.styleLine(selectedClass(true), "› "+tc.active)) {
-			t.Fatalf("selected %s tab is not highlighted", tc.active)
-		}
-		if strings.Contains(header, m.styleLine(selectedClass(true), "› "+tc.other)) {
-			t.Fatalf("unselected %s tab is highlighted", tc.other)
+		view  reviewView
+		label string
+	}{{viewFiles, "Files"}, {viewGuide, "Guide"}} {
+		m.selectReviewView(tc.view)
+		header := strings.Split(ansi.Strip(m.View().Content), "\n")[2]
+		if !strings.HasPrefix(header, "┌ "+tc.label+" ") || strings.Contains(header, "(F)") || strings.Contains(header, "(G)") {
+			t.Fatalf("unexpected pane header: %q", header)
 		}
 	}
 }

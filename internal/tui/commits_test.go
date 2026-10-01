@@ -26,7 +26,7 @@ func commitModel(t *testing.T) *Model {
 	}
 	m.openReviewTab(s)
 	m.Width, m.Height = 120, 18
-	key(m, '3')
+	key(m, '4')
 	return m
 }
 
@@ -49,7 +49,7 @@ func TestCommitsSelectionScrollAndIsolation(t *testing.T) {
 	if m.commit.offsets[strings.Repeat("b", 40)] != saved {
 		t.Fatal("reading offset not restored")
 	}
-	for _, k := range []rune{'m', 'S', 'F', 'G', 'i', 'c', 'e'} {
+	for _, k := range []rune{'m', 'S', 'i', 'c', 'e'} {
 		key(m, k)
 	}
 	namedKey(m, tea.KeyEnter)
@@ -61,7 +61,7 @@ func TestCommitsSelectionScrollAndIsolation(t *testing.T) {
 	if m.commit.focus != paneList || m.selectedReviewView() != viewCommits {
 		t.Fatal("escape did not return to rail")
 	}
-	key(m, '1')
+	key(m, '2')
 	if m.Focus != paneDiff || m.Scroll[1] != 5 {
 		t.Fatal("return to diff lost state")
 	}
@@ -150,7 +150,7 @@ func TestCommitsWorkspaceAndShortHeight(t *testing.T) {
 	second := screenSession()
 	second.Inventory.Comparison.Metadata.Identity.Number = 999
 	m.openReviewTab(second)
-	key(m, '3')
+	key(m, '4')
 	if m.commit.selected != 0 || m.commit.focus != paneList {
 		t.Fatal("new tab inherited commits state")
 	}
@@ -171,7 +171,7 @@ func TestProgramCommitNavigation(t *testing.T) {
 	m := New(context.Background(), func(context.Context, func(string)) (*review.Session, error) { return fixture, nil })
 	h := runProgram(t, m)
 	h.expect("loaded review", func(f programFrame) bool { return !f.loading && strings.Contains(f.text, "main.go") })
-	h.key('3')
+	h.key('4')
 	h.expect("first commit diff", func(f programFrame) bool { return strings.Contains(f.text, "+First commit") })
 	h.key('j')
 	h.expect("second commit diff", func(f programFrame) bool {
@@ -182,7 +182,7 @@ func TestProgramCommitNavigation(t *testing.T) {
 	h.expect("read-only commit detail", func(f programFrame) bool {
 		return f.read == 0 && strings.Contains(f.text, "+Second commit") && !strings.Contains(f.text, "post now")
 	})
-	h.key('1')
+	h.key('2')
 	h.expect("main review restored", func(f programFrame) bool { return strings.Contains(f.text, "hello world") && f.read == 0 })
 	h.quit()
 }

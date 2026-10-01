@@ -18,7 +18,7 @@ func (m *Model) cancelMouseDrag() { m.drag = dividerDrag{} }
 func (m *Model) mouseResize(msg tea.MouseMsg) (tea.Cmd, bool) {
 	event := msg.Mouse()
 	wasDragging := m.drag.active
-	if m.Width < 100 || m.top() != pageReview || (m.selectedReviewView() != viewChanges && m.selectedReviewView() != viewCommits) {
+	if m.Width < 100 || m.top() != pageReview || (!m.diffReviewView() && m.selectedReviewView() != viewCommits) {
 		m.cancelMouseDrag()
 		return nil, wasDragging
 	}

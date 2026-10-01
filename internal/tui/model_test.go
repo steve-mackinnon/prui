@@ -213,7 +213,7 @@ func TestReviewHeaderExposesSwitcherAndFitsViewport(t *testing.T) {
 func TestReviewStartsWithFilesAndGuideTabNeedsOptIn(t *testing.T) {
 	m := New(context.Background(), nil)
 	m.openReviewTab(screenSession())
-	if !m.Files || !strings.Contains(ansi.Strip(m.View().Content), "› File (F)") {
+	if !m.Files || !strings.Contains(ansi.Strip(m.View().Content), "› Files [2]") {
 		t.Fatal("review did not open on Files")
 	}
 	key(m, 'G')
@@ -286,7 +286,7 @@ func TestWideReviewSeparatesPanesAndIdentifiesFocus(t *testing.T) {
 		}
 		view := ansi.Strip(rendered)
 		lines := strings.Split(view, "\n")
-		if !strings.HasPrefix(lines[2], "┌ › File (F)    Guide (G)") || !strings.Contains(lines[2], "┬ Diff · FILES") {
+		if !strings.HasPrefix(lines[2], "┌ Files ") || !strings.Contains(lines[2], "┬ Diff · FILES") {
 			t.Fatalf("missing pane headers:\n%s", view)
 		}
 		if !strings.HasPrefix(lines[3], "│› main.go") || strings.Count(lines[3], "│") != 3 || !strings.HasPrefix(lines[3+m.bodyHeight()], "└") {

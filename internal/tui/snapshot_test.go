@@ -56,41 +56,41 @@ func TestScreenSnapshots(t *testing.T) {
 		{"commits_wide", 120, 18, func(m *Model) {
 			m.Session.Commits = commitModel(t).Session.Commits
 			m.openReviewTab(m.Session)
-			key(m, '3')
+			key(m, '4')
 			key(m, 'j')
 		}},
 		{"commits_threshold", 100, 12, func(m *Model) {
 			m.Session.Commits = commitModel(t).Session.Commits
 			m.openReviewTab(m.Session)
-			key(m, '3')
+			key(m, '4')
 		}},
 		{"commits_narrow_list", 99, 12, func(m *Model) {
 			m.Session.Commits = commitModel(t).Session.Commits
 			m.openReviewTab(m.Session)
-			key(m, '3')
+			key(m, '4')
 			key(m, 'j')
 		}},
 		{"commits_narrow_diff", 60, 12, func(m *Model) {
 			m.Session.Commits = commitModel(t).Session.Commits
 			m.openReviewTab(m.Session)
-			key(m, '3')
+			key(m, '4')
 			namedKey(m, tea.KeyEnter)
 		}},
 		{"commits_legacy", 120, 12, func(m *Model) {
 			m.openReviewTab(m.Session)
-			key(m, '3')
+			key(m, '4')
 		}},
 		{"description_wide", 120, 18, func(m *Model) {
 			description := descriptionMarkdown
 			m.Session.PullRequestDescription = &description
 			m.openReviewTab(m.Session)
-			key(m, 'v')
+			key(m, '1')
 		}},
 		{"description_narrow", 60, 18, func(m *Model) {
 			description := descriptionMarkdown
 			m.Session.PullRequestDescription = &description
 			m.openReviewTab(m.Session)
-			key(m, 'v')
+			key(m, '1')
 		}},
 		{"comment_thread", 120, 16, func(m *Model) {
 			m.Focus, m.cursorActive = paneDiff, true

@@ -150,7 +150,7 @@ for automatic reuse only under the unchanged default OpenAI selection.
 
 Failure is cheap and explicit. A transport error, non-2xx status, refusal, deadline, oversize payload, or unusable structured output produces an `analysis_unavailable` bundle with a stated reason, a durable session, and the unchanged deterministic file plan. Only a structurally valid generated bundle is persisted as a reusable local cache entry; unavailable bundles never suppress a later retry. Retrying cannot modify a stored snapshot; a later successful attempt is a new session. Generated text is model interpretation of the bounded input, not source truth, approval, security findings, or complete architectural documentation, and it can be wrong about anything it was not shown.
 
-The left pane opens on Files. Its right pane shows every changed file in order, with all of each file's hunks together. Scroll through the whole PR or press `j`/`k` to jump between file boundaries. Press `F` for Files or `G` for Guide. When a session has generated guides, Guide shows each guide, section, and covered file portion, with the selected guide's combined diff in the right pane. Selecting a section or file with `j`/`k` scrolls to its position in that diff; Enter also focuses the diff. Selecting a guide restores its saved scroll position. A file appears under every section that owns part of it. `n` walks guide rows, `}`/`{` jump between guides, and `tab` expands or collapses the selected guide or section. `]`/`[` widen or narrow the left pane by two columns. `i` lists every raw unit. `m` marks the whole file slice of the selected unit. A fallback, absent, or empty bundle leaves Files available.
+Reviews open on the Files tab. The right pane shows every changed file in order, with all of each file's hunks together. Scroll through the whole PR or press `j`/`k` to jump between file boundaries. Press `F` for Files or `G` for Guide. When a session has generated guides, Guide shows each guide, section, and covered file portion, with the selected guide's combined diff in the right pane. Selecting a section or file with `j`/`k` scrolls to its position in that diff; Enter also focuses the diff. Selecting a guide restores its saved scroll position. A file appears under every section that owns part of it. `n` walks guide rows, `}`/`{` jump between guides, and `tab` expands or collapses the selected guide or section. `]`/`[` widen or narrow the left pane by two columns. `i` lists every raw unit. `m` marks the whole file slice of the selected unit. A fallback, absent, or empty bundle leaves Files available.
 
 Reviews opened in one process keep independent in-memory reading positions, hierarchy expansion, pane focus, scroll offsets, notices, and errors. `ctrl+p` (or `p` where control-key reporting is unreliable) opens a keyboard-only PR switcher over the current review. It lists already-open reviews first, then open PRs for the active repository; typing filters, Enter switches or starts a new read-only pinned review, and Escape leaves the current review unchanged. The overlay never takes a permanent column or changes plain output.
 
@@ -189,15 +189,16 @@ columns. Plain output is always unified.
 | `n` / `p` | Move between comment targets in a focused Files diff; move through files, guide rows, or inventory units in the list |
 | `}` / `{` | Next / previous guide, or file slice without guides |
 | `]` / `[` | Widen / narrow the left file and guide pane by two columns |
-| `F` / `G` | Select Files or Guide in the left pane |
+| `F` / `G` | Select the Files or Guide tab |
 | `S` | Toggle side-by-side detail; unified is the default and narrow terminals fall back below 160 columns |
-| `v` / `V` | Next / previous PR context view: Diff, Description, or Commits |
+| `1` / `2` / `3` / `4` | Select Description / Files / Guide / Commits |
+| `v` / `V` | Next / previous PR context view: Description, Files, Guide, or Commits |
 | `tab` | Expand / collapse the selected guide or section |
 | `h` / `l`, `ctrl+h` / `ctrl+l` | Focus list / diff |
 | `enter` / `esc` | In the list, focus the selected diff / go back; in a focused diff, open a composer for a target or an action menu for a selected comment / discard local drafts and menus |
 | `enter` in a line editor | Post the line comment immediately; `shift+enter` inserts a newline |
 | `ctrl+p` in a line editor | Save or update a local pending comment without posting |
-| `R` | Open Submit review from Diff, Description, or Commits |
+| `R` | Open Submit review from any review tab |
 | `c` | Refresh ephemeral review discussions and inline comments (online reviews only) |
 | `D` | Open the PR-wide Discussions list from any context view |
 | `j` / `k` | Jump to next / previous file in Files; navigate guide rows or inventory units elsewhere |
@@ -221,7 +222,7 @@ columns. Plain output is always unified.
 
 Selection, expansion, and diff scroll offsets survive resizing; navigation positions and expansion state are not persisted across processes, and they are rebuilt from the immutable bundle so navigation cannot drift from the stored guides. Mouse capture supports selection and divider dragging; use your terminal selection modifier for native text copying. Textual markers and labels are primary: the selected row is marked `› ` whether or not its pane is focused; a muted background reinforces it when unfocused and reverse video reinforces the focused row. The interactive view additionally colors diff structure — file headers, hunk locations, additions, removals — and unit states such as metadata, binary, gitlink, unavailable, and warning chrome. Color is presentation only: no wording, label, or ordering depends on it, and terminals without color show the same text. Extremely small terminals clip controls; enlarge or use plain output. Broad terminal/platform/accessibility coverage is not established.
 
-Every interactive PR has `Diff`, `Description`, and `Commits` context views. Description is display-only GitHub-flavored Markdown frozen from GitHub when the session opened; it is available after an offline resume and does not refresh when selected. Raw HTML remains literal text, links are not activated, and images never load. Empty captured descriptions and older sessions that did not capture one are labeled explicitly. Context views are not included in `--plain` output.
+Every interactive PR has `Description` (`1`), `Files` (`2`), `Guide` (`3`), and `Commits` (`4`) context views, in that order. Reviews open on Files; F/G also select Files/Guide. Guide has its own top-level tab and requires explicit generation with `g` when no guide is available. Description is display-only GitHub-flavored Markdown frozen from GitHub when the session opened; it is available after an offline resume and does not refresh when selected. Raw HTML remains literal text, links are not activated, and images never load. Empty captured descriptions and older sessions that did not capture one are labeled explicitly. Context views are not included in `--plain` output.
 
 ### Commit browsing
 
@@ -244,7 +245,7 @@ Click commits to select them; wheel over the list moves selection and wheel
 over the diff scrolls it. Below 100 columns the focused pane fills the body;
 Enter/`l` opens detail and Escape/`h` returns to the list. Selection clamps at
 the ends. Revisiting a commit restores its reading offset during this run;
-switching context views preserves both commit and main Diff state independently.
+switching context views preserves commit state and Files/Guide reading state independently.
 
 Each unified commit diff compares against its first parent. Merge commits are
 labeled as first-parent comparisons, root commits compare against the empty
@@ -258,7 +259,7 @@ single-parent diffs of added or modified files. Historical deletions, renames,
 copies, root commits and merge commits remain non-commentable. GitHub can mark a
 comment outdated immediately if later commits changed its line. These commit composers
 cannot queue a comment with `ctrl+p`; `R` still opens the head-based PR review
-form. `S` changes layout only in the main Diff view.
+form. `S` changes layout in Files and Guide.
 
 Commit metadata and bounded patches are frozen during opening and stored with
 the session; selection and offline resume make no Git/GitHub calls. The first

@@ -60,7 +60,8 @@ Local reading progress and exit success do not constitute GitHub approval.
 | `]` / `[` | Widen / narrow the left pane |
 | `}` / `{` | Next / previous guide or file slice |
 | `S` | Toggle side-by-side diff (requires 160 columns) |
-| `1` / `2` | Show Diff / frozen PR Description |
+| `1` / `2` / `3` / `4` | Show Description / Files / Guide / Commits |
+| `v` / `V` | Cycle forward / backward through review tabs |
 | `m` | Mark or unmark the selected file as read; saves immediately |
 | `ctrl+p` | Switch PRs (except inside an editor) |
 | `enter` | Focus diff, then edit a comment on the selected line |
@@ -85,7 +86,7 @@ lost on exit or replacement with a new comparison. Check GitHub before retrying
 an uncertain write.
 
 Comments can be refreshed with `c`; replies, reactions, and deletion are available
-from a selected comment's action menu. The Commits tab (`3`) lists captured PR
+from a selected comment's action menu. The Commits tab (`4`) lists captured PR
 commits on the left and the selected commit's first-parent diff on the right.
 Use `j`/`k` to select a commit, `l`/Enter to focus its diff, and `n`/`p` to move
 between commits from either pane. Captured material also works offline; legacy

@@ -40,9 +40,10 @@ const diffStep = 5
 type reviewView uint8
 
 const (
-	viewChanges reviewView = iota
+	viewFiles reviewView = iota
 	viewDescription
 	viewCommits
+	viewGuide
 )
 
 // diffLayout is a tab-local display preference. Its zero value deliberately
@@ -636,7 +637,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if v.String() == "esc" && m.restoreDiscussionContext() {
 				return m, nil
 			}
-			if v.String() == "z" && m.selectedReviewView() == viewChanges && m.Focus == paneDiff {
+			if v.String() == "z" && m.diffReviewView() && m.Focus == paneDiff {
 				if pendingCenter {
 					m.centerCursor()
 				} else {
@@ -653,22 +654,25 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			switch v.String() {
 			case "1":
-				m.selectReviewView(viewChanges)
-				return m, nil
-			case "2":
 				m.selectReviewView(viewDescription)
 				return m, nil
-			case "3":
+			case "2", "F":
+				m.selectReviewView(viewFiles)
+				return m, m.restartGuidePathScroll()
+			case "3", "G":
+				m.selectReviewView(viewGuide)
+				return m, m.restartGuidePathScroll()
+			case "4":
 				m.selectReviewView(viewCommits)
 				return m, nil
 			}
 			if v.String() == "v" {
 				m.cycleReviewView(1)
-				return m, nil
+				return m, m.restartGuidePathScroll()
 			}
 			if v.String() == "V" {
 				m.cycleReviewView(-1)
-				return m, nil
+				return m, m.restartGuidePathScroll()
 			}
 			if m.selectedReviewView() == viewDescription && m.descriptionKey(v.String()) {
 				return m, nil
@@ -706,14 +710,11 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			}
 		case "F":
-			m.Files, m.Inventory = true, false
-			m.file(0)
+			m.selectReviewView(viewFiles)
 		case "G":
-			m.Files = false
-			m.Inventory = false
-			m.syncRow(m.rows())
+			m.selectReviewView(viewGuide)
 		case "S":
-			if m.selectedReviewView() == viewChanges {
+			if m.diffReviewView() {
 				target, commentID := m.cursorAnchor()
 				m.layout = m.layout.toggled()
 				m.restoreCursorAnchor(target, commentID)
@@ -906,7 +907,7 @@ func (m *Model) reviewStateForTarget(target int) *reviewTabState {
 func newReviewTabState(s *review.Session) *reviewTabState {
 	return &reviewTabState{
 		Session: s, Scroll: map[int]int{}, GuideScroll: map[int]int{}, Cursor: map[int]int{}, GuideCursor: map[int]int{},
-		ContextView: viewChanges, DescriptionScroll: 0, Files: true, collapsed: newExpansion(), Stack: []page{pageReview}, Focus: paneList,
+		ContextView: viewFiles, DescriptionScroll: 0, Files: true, collapsed: newExpansion(), Stack: []page{pageReview}, Focus: paneList,
 	}
 }
 
@@ -932,28 +933,49 @@ func (m *Model) restoreReviewTab(state *reviewTabState) {
 	m.restoreCursorAnchor(state.savedCursorTarget, state.savedCursorCommentID)
 }
 
+// reviewViews is the displayed order, independent of the enum's zero-value
+// Files default. Rendering, cycling, and mouse selection share this order.
+var reviewViews = [...]reviewView{viewDescription, viewFiles, viewGuide, viewCommits}
+
 func (m *Model) selectedReviewView() reviewView {
-	if m.activeTab < 0 || m.activeTab >= len(m.tabs) {
-		return viewChanges
+	// Files remains the internal selector for the existing shared diff workspace.
+	// Models constructed directly for rendering also use it to select Guide.
+	if m.ContextView == viewFiles && !m.Files && !m.Inventory {
+		return viewGuide
 	}
 	return m.ContextView
 }
 
+func (m *Model) diffReviewView() bool {
+	view := m.selectedReviewView()
+	return view == viewFiles || view == viewGuide
+}
+
 func (m *Model) cycleReviewView(delta int) {
-	m.cancelMouseDrag()
-	if m.activeTab < 0 || m.activeTab >= len(m.tabs) {
+	if m.Session == nil {
 		return
 	}
-	views := [...]reviewView{viewChanges, viewDescription, viewCommits}
-	m.ContextView = views[(int(m.selectedReviewView())+delta%len(views)+len(views))%len(views)]
+	for i, view := range reviewViews {
+		if view == m.selectedReviewView() {
+			m.selectReviewView(reviewViews[(i+delta%len(reviewViews)+len(reviewViews))%len(reviewViews)])
+			return
+		}
+	}
 }
 
 func (m *Model) selectReviewView(view reviewView) {
 	m.cancelMouseDrag()
-	if m.activeTab < 0 || m.activeTab >= len(m.tabs) {
+	if m.Session == nil {
 		return
 	}
 	m.ContextView = view
+	switch view {
+	case viewFiles:
+		m.Files, m.Inventory = true, false
+	case viewGuide:
+		m.Files, m.Inventory = false, false
+		m.syncRow(m.rows())
+	}
 }
 
 func (m *Model) push(p page) {
@@ -1159,7 +1181,7 @@ func (m *Model) clampListWidth(width int) int {
 }
 
 func (m *Model) resizeList(delta int) {
-	if m.Width < 100 || m.Session == nil || m.selectedReviewView() != viewChanges {
+	if m.Width < 100 || m.Session == nil || !m.diffReviewView() {
 		return
 	}
 	target, commentID := m.cursorAnchor()
@@ -1353,7 +1375,7 @@ func (m *Model) displayDetail() []diffLine {
 }
 
 func (m *Model) sideBySideEnabled() bool {
-	return m.diffLayout() == diffLayoutSideBySide && m.selectedReviewView() == viewChanges && m.Width >= sideBySideMinimumWidth
+	return m.diffLayout() == diffLayoutSideBySide && m.diffReviewView() && m.Width >= sideBySideMinimumWidth
 }
 
 func (m *Model) diffLayout() diffLayout { return m.layout }
@@ -1876,7 +1898,7 @@ func (m *Model) reviewView() string {
 func (m *Model) reviewViewForLayout(preferSideBySide bool) string {
 	s := m.Session
 	title := m.workspaceIdentity() + "\n" + m.contextViewTabs()
-	if m.selectedReviewView() != viewChanges {
+	if !m.diffReviewView() {
 		if m.selectedReviewView() == viewDescription {
 			return title + "\n" + m.descriptionView() + "\n" + m.reviewStatus()
 		}
@@ -1913,7 +1935,10 @@ func (m *Model) reviewViewForLayout(preferSideBySide bool) string {
 	if preferSideBySide && !useSideBySide {
 		text += " · side-by-side needs 160 columns"
 	}
-	leftLabel := m.reviewTabStrip()
+	leftLabel := "Files"
+	if m.selectedReviewView() == viewGuide {
+		leftLabel = "Guide"
+	}
 	if m.Inventory {
 		leftLabel = "Full inventory (i)"
 	}
@@ -2092,7 +2117,7 @@ func (m *Model) contextViewTabs() string {
 	tabs := m.contextTabLabels()
 	for i, tab := range tabs {
 		class := classTitle
-		if reviewView(i) == m.selectedReviewView() {
+		if reviewViews[i] == m.selectedReviewView() {
 			class = selectedClass(true)
 		}
 		tabs[i] = m.styleLine(class, tab)

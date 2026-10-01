@@ -147,7 +147,7 @@ func TestProgramCommitCommentNullCurrentAndPartialRefresh(t *testing.T) {
 func TestProgramDiscussionFreshnessMismatchSuppressesMainCards(t *testing.T) {
 	m := commitModel(t)
 	m.Loading = false
-	m.selectReviewView(viewChanges)
+	m.selectReviewView(viewFiles)
 	m.Focus = paneDiff
 	var target *source.ReviewCommentTarget
 	for _, row := range m.baseDetail() {

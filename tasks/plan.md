@@ -1206,3 +1206,9 @@ No product decision remains open. Driver version/security/build suitability,
 measured overhead, and native Linux behavior remain evidence to establish in
 SQL-01/18, not assumptions of completed validation. The ownership-marker protocol
 is an implementation refinement for the already approved crash-safety requirement.
+
+# Top-Level Review Tabs
+
+See [spec](../docs/spec/SPEC-top-level-review-tabs.md). Implement shared ordered
+tab navigation and promote Guide while retaining the existing diff workspace.
+Then update documentation and screen fixtures and run `./scripts/verify.sh`.

@@ -1941,3 +1941,10 @@ Implementation notes:
   transactions, source membership corruption, typed errors and payload bounds.
 - Native Linux additionally exposed a verifier timing precision defect, corrected
   in a separate commit while retaining its original positive-duration assertion.
+
+# Top-Level Review Tabs
+
+- [x] Write spec and failing keyboard/cycle/mouse tests.
+- [x] Promote Guide and rename Diff to Files in the top-level strip.
+- [x] Update existing tests, documentation, and screen baselines.
+- [x] Run the repository verification gate and review the final diff.

@@ -115,7 +115,7 @@ func TestMouseResizeNarrowAndContextCancel(t *testing.T) {
 			t.Fatal("hidden divider changes preference")
 		}
 	}
-	m.ContextView = viewChanges
+	m.ContextView = viewFiles
 	if m.listWidth() != 55 {
 		t.Fatal("width preference lost across narrow/context view")
 	}
