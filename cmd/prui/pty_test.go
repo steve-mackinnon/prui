@@ -76,7 +76,9 @@ func TestPTYSmoke(t *testing.T) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
-	binary := filepath.Join(root, "prui")
+	// On Linux, root/prui is the XDG data directory created above. Build
+	// outside the fixture home so go build cannot treat -o as that directory.
+	binary := filepath.Join(t.TempDir(), "prui")
 	build := exec.CommandContext(ctx, "go", "build", "-o", binary, ".")
 	build.Env = append(os.Environ(), "HOME="+buildHome)
 	if out, err := build.CombinedOutput(); err != nil {
