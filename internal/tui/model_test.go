@@ -565,7 +565,7 @@ func TestDiffCursorMovesBetweenCommentTargetsAndKeepsThemVisible(t *testing.T) {
 	if !strings.Contains(view, "›  context") {
 		t.Fatalf("initial comment target is not visibly marked:\n%s", view)
 	}
-	if !strings.Contains(view, "│  @@ -1,2 +1,2 @@") {
+	if !strings.Contains(view, "│  ── text") {
 		t.Fatalf("unselected detail line does not retain the cursor gutter:\n%s", view)
 	}
 

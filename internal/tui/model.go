@@ -1740,16 +1740,36 @@ func (m *Model) moveCursor(delta int) {
 	}
 }
 
+// stickyFileHeader returns the file boundary that has scrolled above the viewport.
+// At a boundary the original row is already visible, so no overlay is needed.
+func stickyFileHeader(detail []diffLine, offset int) int {
+	if offset < 0 || offset >= len(detail) {
+		return -1
+	}
+	for i := offset; i >= 0; i-- {
+		if detail[i].Class == classFileHeader && strings.HasPrefix(detail[i].Text, "── ") {
+			if i == offset {
+				return -1
+			}
+			return i
+		}
+	}
+	return -1
+}
+
 // cursorInViewport replaces a cursor only when scrolling would hide it.
 // Forward scrolling chooses the first available target in view; backward
 // scrolling chooses the last, while stable cursors are left untouched.
 func (m *Model) cursorInViewport(delta int) {
 	current := m.cursor()
 	start, end := m.offset(), m.offset()+m.bodyHeight()
+	detail := m.displayDetail()
+	if m.bodyHeight() > 1 && stickyFileHeader(detail, start) >= 0 {
+		start++
+	}
 	if current >= start && current < end {
 		return
 	}
-	detail := m.displayDetail()
 	if delta < 0 {
 		for i := min(len(detail)-1, end-1); i >= start; i-- {
 			if detail[i].target != nil || detail[i].commentID > 0 {
@@ -1773,8 +1793,8 @@ func (m *Model) ensureCursorVisible() {
 		return
 	}
 	offset := m.offset()
-	if cursor < offset {
-		m.setOffset(cursor)
+	if cursor < offset || (cursor == offset && m.bodyHeight() > 1 && stickyFileHeader(m.displayDetail(), offset) >= 0) {
+		m.setOffset(max(0, cursor-1))
 		return
 	}
 	if cursor >= offset+m.bodyHeight() {
@@ -1988,6 +2008,11 @@ func (m *Model) reviewViewForLayout(preferSideBySide bool) string {
 		}
 	}
 	// Copy the viewport so selection styling never changes cached source rows.
+	sticky := stickyFileHeader(detail, offset)
+	var pinned diffLine
+	if sticky >= 0 && bodyHeight > 1 {
+		pinned = detail[sticky]
+	}
 	detail = append([]diffLine(nil), detail[offset:min(len(detail), offset+bodyHeight)]...)
 	if i := activeHeader - offset; i >= 0 && i < len(detail) {
 		detail[i].Class = classSelection
@@ -1999,6 +2024,13 @@ func (m *Model) reviewViewForLayout(preferSideBySide bool) string {
 			detail[i].sideBySide = &row
 		}
 	}
+	if sticky >= 0 && bodyHeight > 1 {
+		// Replace only the occluded top row; source indexes and bottom geometry stay stable.
+		detail[0] = pinned
+		if sticky == activeHeader {
+			detail[0].Class = classSelection
+		}
+	}
 	if useSideBySide {
 		detail = m.renderSideBySideViewport(detail, m.detailWidth(), m.Horizontal, cursor-offset, selected)
 	}
@@ -2006,6 +2038,17 @@ func (m *Model) reviewViewForLayout(preferSideBySide bool) string {
 	// Split rows need the same stable cursor gutter as unified rows. Without it,
 	// a focused comment target remains selectable but has no visible location.
 	for i, line := range detail {
+		if i == 0 && sticky >= 0 && bodyHeight > 1 {
+			detail[i].Text = pinned.Text
+			detail[i].Class = pinned.Class
+			if sticky == activeHeader {
+				detail[i].Class = classSelection
+			}
+			if m.cursorActive {
+				detail[i].Text = cursorMarker(false) + pinned.Text
+			}
+			continue
+		}
 		marker := ""
 		if m.cursorActive {
 			marker = cursorMarker(offset+i == cursor)

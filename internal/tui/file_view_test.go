@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"prui/internal/inventory"
 )
@@ -198,5 +199,28 @@ func TestActiveFileHeaderFollowsPickerAndCursor(t *testing.T) {
 		assertHeader(2)
 		m.Focus = paneList
 		assertHeader(1)
+	}
+}
+
+func TestFilenameStaysAtTopWhileScrollingDiff(t *testing.T) {
+	for _, width := range []int{120, 180} {
+		m := largeModel(largeTextSession(2, 10), width, 14)
+		if width == 180 {
+			key(m, 'S')
+		}
+		m.Focus, m.cursorActive = paneDiff, true
+		for file := 0; file < 2; file++ {
+			m.setOffset(m.fileOffset(file) + 3)
+			m.setCursor(m.offset())
+			m.ensureCursorVisible()
+			view := strings.Split(ansi.Strip(m.View().Content), "\n")
+			if !strings.Contains(view[3], fileDivider(m.Session.Inventory.Files[file])) {
+				t.Fatalf("width %d: filename missing from top diff row: %s", width, view[3])
+			}
+			right := strings.Split(view[4], "│")
+			if len(right) < 3 || !strings.Contains(strings.Join(right[2:], "│"), cursorMarker(true)) {
+				t.Fatalf("width %d: sticky header hid cursor: %s", width, view[4])
+			}
+		}
 	}
 }
