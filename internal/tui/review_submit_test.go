@@ -320,3 +320,61 @@ func TestQuitConfirmationCannotSubmitActiveCommitComposer(t *testing.T) {
 		t.Fatal("quit confirmation posted draft")
 	}
 }
+
+func TestReviewSubmissionModalPreservesContext(t *testing.T) {
+	m := New(context.Background(), nil)
+	m.Loading = false
+	m.Session, m.Width, m.Height = screenSession(), 120, 30
+	before := m.View().Content
+	m.openReviewForm()
+	shown := m.View().Content
+	if !strings.Contains(shown, "╭") || !strings.Contains(shown, "Submit review") || strings.Split(shown, "\n")[0] != strings.Split(before, "\n")[0] {
+		t.Fatalf("review form must overlay the review context:\n%s", shown)
+	}
+	m.ReviewForm.Body = "Retain this draft"
+	namedKey(m, tea.KeyEscape)
+	if m.View().Content != before || m.ReviewForm.Body != "Retain this draft" {
+		t.Fatal("closing modal changed review context or discarded draft")
+	}
+}
+
+func TestReviewModalFitsTerminal(t *testing.T) {
+	for _, size := range [][2]int{{120, 30}, {60, 10}, {20, 8}, {15, 5}} {
+		m := New(context.Background(), nil)
+		m.Loading = false
+		m.Session, m.Width, m.Height = screenSession(), size[0], size[1]
+		m.openReviewForm()
+		for _, confirm := range []bool{false, true} {
+			m.ReviewForm.Confirm = confirm
+			view := m.View().Content
+			lines := strings.Split(view, "\n")
+			if len(lines) > m.Height {
+				t.Fatalf("modal exceeds height at %v", size)
+			}
+			for _, line := range lines {
+				if visibleWidth(line) > m.Width {
+					t.Fatalf("modal exceeds width at %v", size)
+				}
+			}
+			if !strings.Contains(view, "Approve") {
+				t.Fatalf("modal hides decisions at %v:\n%s", size, view)
+			}
+		}
+	}
+}
+
+func TestDiscardDraftsConfirmationIsModal(t *testing.T) {
+	m := New(context.Background(), nil)
+	m.Loading = false
+	m.Session, m.Width, m.Height = screenSession(), 120, 30
+	m.Pending = []source.ReviewComment{{Body: "Draft"}}
+	key(m, 'q')
+	view := m.View().Content
+	if !strings.Contains(view, "╭") || !strings.Contains(view, "Discard unsent review drafts") {
+		t.Fatalf("missing confirmation modal:\n%s", view)
+	}
+	namedKey(m, tea.KeyEscape)
+	if m.top() != pageReview || len(m.Pending) != 1 {
+		t.Fatal("cancel discarded drafts or failed to return")
+	}
+}

@@ -242,7 +242,7 @@ func (m *Model) compactReviewFormView(full []string, f *reviewForm) string {
 		footer := "j/k: choose · tab: comment · esc: back"
 		switch {
 		case f.Confirm:
-			footer = "enter: submit · esc: edit"
+			footer = "enter: submit review · esc: edit"
 		case f.Focus == 1:
 			footer = "enter: confirm · esc: back"
 		case f.Focus == 2:

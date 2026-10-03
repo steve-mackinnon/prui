@@ -1,10 +1,10 @@
-Submit review · example/review#42 · head aaaaaaaaaaaa
-0/2 file slices read · 0 pending comments
-Review decision
-  ○ Comment
-  ○ Approve
-  ◉ Request changes
-Confirm submission · 0 pending comments
-Comment:
-  Please address the edge case.
-enter: submit review and pending comments · esc: edit
+ex╭──────────────────────────────────────────────────────╮PR
+  │ Submit review · example/review#42 · head aaaaaaaaaaa │
+┌ │ Review decision                                      │─┐
+│›│   ○ Comment                                          │ │
+│ │   ○ Approve                                          │ │
+│ │   ◉ Request changes                                  │ │
+│ │ Confirm submission · 0 pending comments              │ │
+└─│ enter: submit review · esc: edit                     │─┘
+0/╰──────────────────────────────────────────────────────╯
+j/k: files · enter: diff · m: mark file · ?: Help

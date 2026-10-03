@@ -1877,9 +1877,9 @@ func (m *Model) View() tea.View {
 		case pageGuideConsent:
 			text = renderGuideConsentModal(m.Width, m.Height, m.reviewView(), m.guideConsentView())
 		case pageReviewSubmit:
-			text = m.reviewFormView()
+			text = m.reviewFormModalView()
 		case pageQuitPending:
-			text = "Discard unsent review drafts and quit?\n\nenter: discard and quit · esc: keep reviewing"
+			text = renderActionModal(m.Width, m.Height, m.actionModalBackground(), "Discard unsent review drafts and quit?\n\nenter: discard and quit · esc: keep reviewing")
 		case pageThemePicker:
 			text = m.themePickerView()
 		case pageEvidence:
