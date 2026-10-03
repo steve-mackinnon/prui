@@ -8,6 +8,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"prui/internal/inventory"
 	"prui/internal/source"
+	"prui/internal/syntax"
 	"prui/internal/theme"
 )
 
@@ -44,12 +45,13 @@ type styledLine struct {
 // display data. The target is derived from patch bytes, never terminal text.
 type diffLine struct {
 	styledLine
-	oldLine, newLine int // raw source coordinates; zero means absent
-	target           *source.ReviewCommentTarget
-	commentID        int64       // nonzero only for an already anchored overlay comment
-	editor           bool        // true for rows in the active inline editor
-	sideBySide       *diffRow    // non-nil for one logical, aligned source row
-	guideAnchor      *fileAnchor // guide occurrence beginning at this source row
+	syntax, oldSyntax []syntax.Span
+	oldLine, newLine  int // raw source coordinates; zero means absent
+	target            *source.ReviewCommentTarget
+	commentID         int64       // nonzero only for an already anchored overlay comment
+	editor            bool        // true for rows in the active inline editor
+	sideBySide        *diffRow    // non-nil for one logical, aligned source row
+	guideAnchor       *fileAnchor // guide occurrence beginning at this source row
 }
 
 // palette is the semantic style table, named by meaning rather than color.

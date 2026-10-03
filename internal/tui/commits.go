@@ -250,7 +250,7 @@ func commitDiffRowsFor(d *commits.Diff, identity source.Identity, sha string) []
 		for _, u := range unitsByFile[f.ID] {
 			switch u.Kind {
 			case inventory.TextHunk:
-				for _, row := range textHunkLines(f, u, d.Patches[u.PatchReference], identity, sha) {
+				for _, row := range textHunkLines(f, u, d.Patches[u.PatchReference], identity, sha, d.Syntax[u.ID]) {
 					if t := row.target; t != nil && !validCommitPatchAnchor(sha, []byte(t.Path), t.Line) {
 						row.target = nil
 					}
@@ -388,7 +388,10 @@ func (m *Model) commitsView() string {
 			}
 		}
 		if i < len(rows) {
-			r, rc = numberedPatchText(rows[i]), rows[i].Class
+			row := rows[i]
+			numbered := numberedPatchText(row)
+			prefix := numbered[:len(numbered)-len(row.Text)]
+			r, rc = m.syntaxText(row, 0, right, prefix), row.Class
 			if focus == paneDiff && offset+i == m.commitCursor() {
 				rc = classSelectionFocused
 			}

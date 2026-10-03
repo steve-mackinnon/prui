@@ -2068,8 +2068,7 @@ func (m *Model) reviewViewForLayout(preferSideBySide bool) string {
 			}
 			continue
 		}
-		runes := []rune(line.Text)
-		detail[i].Text = marker + string(runes[min(m.Horizontal, len(runes)):])
+		detail[i].Text = m.syntaxText(line, m.Horizontal, m.detailWidth(), marker)
 		if line.commentID > 0 && offset+i == cursor {
 			detail[i].Class = selectedClass(true)
 		}

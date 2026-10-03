@@ -1,7 +1,10 @@
 // Package commits captures immutable first-parent commit diffs for offline browsing.
 package commits
 
-import "prui/internal/inventory"
+import (
+	"prui/internal/inventory"
+	"prui/internal/syntax"
+)
 
 type Status string
 
@@ -30,6 +33,7 @@ type Diff struct {
 	Files    []inventory.FileChange
 	Units    []inventory.ReviewUnit
 	Patches  map[string][]byte
+	Syntax   map[string]syntax.Patch `json:"syntax,omitempty"`
 	Complete bool
 	Problems []string
 }

@@ -119,6 +119,11 @@ For offline reading, list session IDs with `prui sessions`, then run
 Newly opened pull requests start on the Description tab. Use `2` to switch to Files.
 
 Mouse selection, pane resizing, themes, and side-by-side diffs are also available.
+Diff syntax highlighting is captured from the complete pinned old/new files and
+saved as token spans for offline review; no extra full-file source is retained.
+Older sessions use best-effort hunk highlighting. Unsupported languages and files
+beyond highlighting limits retain ordinary diff styling. Colors follow the active
+theme; explicit theme backgrounds allow subtle addition/deletion backgrounds.
 See the [user reference](docs/REFERENCE.md) for all controls and limitations,
 or run `prui --help` for command syntax.
 

@@ -10,8 +10,10 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"prui/internal/source"
+	"prui/internal/syntax"
 )
 
 type Kind string
@@ -43,6 +45,7 @@ type Inventory struct {
 	Files      []FileChange
 	Units      []ReviewUnit
 	Patches    map[string][]byte
+	Syntax     map[string]syntax.Patch `json:"syntax,omitempty"`
 	Complete   bool
 	Problems   []string
 }
@@ -148,6 +151,8 @@ func build(ctx context.Context, objects Objects, oldSHA, newSHA string, p *sourc
 	}
 	emptyOID := strings.TrimSpace(string(empty))
 	used, lines := 0, 0
+	syntaxBytes, syntaxSpans := 0, 0
+	syntaxRemaining := 500 * time.Millisecond
 	add := func(f FileChange, k Kind, old, newRange Range, patch []byte, reason string) {
 		u := ReviewUnit{InventoryID: inventoryID, FileChangeID: f.ID, Kind: k, OldRange: old, NewRange: newRange, UnavailableReason: reason}
 		if len(patch) > 0 {
@@ -233,8 +238,32 @@ func build(ctx context.Context, objects Objects, oldSHA, newSHA string, p *sourc
 			add(f, Unavailable, Range{}, Range{}, nil, "materialized content or diff-line limit exceeded")
 			continue
 		}
+		var oldTokens, newTokens syntax.Lines
+		if syntaxRemaining > 0 && syntaxBytes+len(a)+len(b) <= 4<<20 && syntaxSpans < 32000 {
+			started := time.Now()
+			syntaxContext, stopSyntax := context.WithTimeout(ctx, syntaxRemaining)
+			syntaxBytes += len(a) + len(b)
+			oldTokens = syntax.Tokenize(syntaxContext, string(f.OldPath), a)
+			newTokens = syntax.Tokenize(syntaxContext, string(f.NewPath), b)
+			stopSyntax()
+			syntaxRemaining -= time.Since(started)
+		}
 		for _, h := range hunks {
 			add(f, TextHunk, h.old, h.newRange, h.patch, "")
+			tokens := hunkSyntax(h, oldTokens, newTokens)
+			count := 0
+			for _, row := range tokens {
+				count += len(row.Old) + len(row.New)
+			}
+			if syntaxSpans+count > 32000 {
+				tokens = syntax.Patch{}
+				count = 0
+			}
+			if inv.Syntax == nil {
+				inv.Syntax = map[string]syntax.Patch{}
+			}
+			inv.Syntax[inv.Units[len(inv.Units)-1].ID] = tokens
+			syntaxSpans += count
 		}
 	}
 	return inv, nil
