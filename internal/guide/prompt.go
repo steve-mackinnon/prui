@@ -6,7 +6,7 @@ import (
 )
 
 const (
-	DefaultModel     = "gpt-5.6-terra"
+	DefaultModel     = "gpt-6.1-sol"
 	DefaultEndpoint  = "https://api.openai.com"
 	maxRequestBytes  = 2 << 20
 	maxResponseBytes = 4 << 20

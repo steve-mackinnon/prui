@@ -1,4 +1,4 @@
-# Pre-release code audit
+# Historical pre-release code audit
 
 Reviewed commit: `42468f813eb13141f179761ec299fd4706f56aca`.
 Audit date: 2026-09-25 (America/New_York).
@@ -8,7 +8,7 @@ findings below describe the reviewed commit; the remediation status records the
 subsequent fixes. Original reproduction probes are retained for that historical
 commit only. Permanent regression tests now live beside the fixed code.
 
-## Remediation status
+## Remediation verification at the time of the fixes
 
 The four concrete bugs have been fixed:
 
@@ -23,8 +23,8 @@ The consent screen now identifies the configured provider origin, explains that
 both source and the API credential go there, and warns that filtering can miss
 secrets. The displayed destination is captured for the model's lifetime.
 
-Goldmark is pinned to v1.7.17, `x/text` to v0.39.0, and `x/net` to v0.56.0.
-`govulncheck` v1.8.0 reports no vulnerabilities in the resulting graph. CI now
+At remediation verification, Goldmark was pinned to v1.7.17, `x/text` to v0.39.0, and `x/net` to v0.56.0.
+`govulncheck` v1.8.0 reported no vulnerabilities in that dependency graph. CI now
 runs that pinned checker. The configured GolangCI-Lint v2.13.2 gate is clean;
 its existing rules and exclusions were preserved. Theme file paths are normalized
 caller-selected global paths; this is not a claim of untrusted-path confinement.
@@ -36,10 +36,13 @@ cover progress persistence, refresh ordering and draft retention, mixed comment
 pages, description-only write preflights, upload bodies, and provider consent.
 No real provider upload or GitHub write was performed.
 
-The license and private reporting channel still require maintainer choices.
+As of 2026-10-02, the project includes an [MIT license](../LICENSE). A private
+security-reporting channel still requires a maintainer choice. Dependency versions
+and architecture have evolved since this audit; the verification results below
+are historical, not a current release certification.
 The two scaling suggestions under Architecture are longer-term improvements,
 not demonstrated release-blocking defects; no storage-format migration or broad
-TUI rewrite was introduced as part of these fixes.
+TUI rewrite was introduced as part of those remediation fixes.
 
 ## Original findings
 

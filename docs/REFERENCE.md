@@ -23,13 +23,25 @@ In the TUI, `s` opens saved sessions and `N` starts a new comparison. Direct
 `resume <id>` remains available when you already know the ID. Opening a PR in
 plain mode saves a snapshot. Normal resume checks GitHub; `--offline` disables
 network operations. `--plain` is also selected automatically for redirected
-input or output and `TERM=dumb`. Run `prui --help` for the full syntax.
+input or output and `TERM=dumb`. It emits escaped, uncolored text without
+interactive actions. Exit codes are `0` for complete inventory, `1` for errors,
+`2` for unavailable review content, and `130` for canceled loading.
+Local reading progress and exit success do not constitute GitHub approval.
+Run `prui --help` for the full syntax.
+
+### Pull request list
+
+Pull request rows show the author, check status, and your latest GitHub review:
+👁 for a submitted review, ○ for no review, and ✎ for a draft. The selected row
+shows whether you approved, requested changes, commented, or had a review
+dismissed. This records your latest review, even if new commits have arrived
+since it.
 
 ## Optional review guides
 
 Guides group the frozen review units into functional chunks, each with a title, description, and ordered sections that reference specific units. They are an interpretation layer: `Slices` and `UnitFiles` are unchanged, reading progress stays file-slice based, and the raw inventory remains the complete source view. Each unit is assigned to a guide exactly once; anything the model did not group lands in a synthesized `Ungrouped changes` guide.
 
-Selecting a PR from the interactive PR list or switcher displays the latest validated saved review immediately when one exists, with freshness shown as unknown until an asynchronous GitHub check finishes. The check reuses a matching frozen comparison without Git fetching or resource rebuilding; a changed comparison is pinned normally and replaces the displayed review when ready. A previously generated guide for the same repository, PR number, base SHA, and head SHA is reused locally only when its guide selection also matches. Press `g` in an interactive review to open the guide modal over that review. Provider, editable model ID, sanitized recipient, and source-upload warning are visible together. The last confirmed valid pair is preselected, so `g` then Enter confirms it; Tab selects a row, arrow keys change provider, and typing or deleting edits the model ID. Escape closes the modal or cancels an in-flight request. Direct `open`, `resume`, `--plain`, offline mode, and `verify` do not generate guides. API keys are never written to a snapshot, log, or error string. With no guide configuration file, OpenAI's default model is `gpt-5.6-terra`, and `OPENAI_BASE_URL` may override its endpoint. There are no guide-generation model or exclusion CLI flags. `resume --offline` rejects guide generation and all GitHub operations before accessing clients or credentials; stored guides remain readable.
+Selecting a PR from the interactive PR list or switcher displays the latest validated saved review immediately when one exists, with freshness shown as unknown until an asynchronous GitHub check finishes. The check reuses a matching frozen comparison without Git fetching or resource rebuilding; a changed comparison is pinned normally and replaces the displayed review when ready. A previously generated guide for the same repository, PR number, base SHA, and head SHA is reused locally only when its guide selection also matches. Press `g` in an interactive review to open the guide modal over that review. Provider, editable model ID, sanitized recipient, and source-upload warning are visible together. The last confirmed valid pair is preselected, so `g` then Enter confirms it; Tab selects a row, arrow keys change provider, and typing or deleting edits the model ID. Escape closes the modal or cancels an in-flight request. Direct `open`, `resume`, `--plain`, offline mode, and `verify` do not generate guides. API keys are never written to a snapshot, log, or error string. With no guide configuration file, OpenAI's default model is `gpt-6.1-sol`, and `OPENAI_BASE_URL` may override its endpoint. There are no guide-generation model or exclusion CLI flags. `resume --offline` rejects guide generation and all GitHub operations before accessing clients or credentials; stored guides remain readable.
 
 ### Guide model configuration
 
@@ -37,7 +49,7 @@ The global guide configuration is read from `$XDG_CONFIG_HOME/prui/config.json`
 when `XDG_CONFIG_HOME` is absolute, or `~/.config/prui/config.json`
 otherwise. This rule applies on macOS and Linux. The file is separate from
 `theme.json`, session storage, and the reviewed checkout. An absent file
-defaults to OpenAI with `gpt-5.6-terra`, `OPENAI_API_KEY`, and the optional
+defaults to OpenAI with `gpt-6.1-sol`, `OPENAI_API_KEY`, and the optional
 legacy `OPENAI_BASE_URL` origin override. A present file supplies the initial
 provider and model and any custom endpoint or key-variable name;
 `OPENAI_BASE_URL` no longer affects that configuration. The guide modal can
@@ -224,9 +236,32 @@ Selection, expansion, and diff scroll offsets survive resizing; navigation posit
 
 Every interactive PR has `Description` (`1`), `Files` (`2`), `Guide` (`3`), and `Commits` (`4`) context views, in that order. Reviews open on Files; F/G also select Files/Guide. Guide has its own top-level tab and requires explicit generation with `g` when no guide is available. Description is display-only GitHub-flavored Markdown frozen from GitHub when the session opened; it is available after an offline resume and does not refresh when selected. Raw HTML remains literal text, links are not activated, and images never load. Empty captured descriptions and older sessions that did not capture one are labeled explicitly. Context views are not included in `--plain` output.
 
+### Mouse selection and panel resizing
+
+Click a file, guide row, inventory unit, picker item, diff source cell, or
+comment card to select it. Selecting a file scrolls its diff into view; the file
+header highlights the selection and follows the cursor while navigating the diff.
+Click the visible view tabs to switch views.
+Selection does not activate an item: Enter still opens a PR, applies a theme,
+or opens the selected comment editor/menu. Existing keyboard controls remain
+available. In split diffs, click the old or new source cell to select that
+cell's exact comment target; old context cells are not comment targets.
+
+At terminal widths of 100 columns or more, drag the separator between the
+navigation list and diff horizontally. The navigation list stays at least
+18 columns wide, with at least 40 columns for detail. Mouse dragging and the
+`[` / `]` keys share the same per-review width, remembered for this run and restored after
+returning from a narrow terminal. The inner old/new diff divider stays equal.
+
+Mouse input is disabled during loading, editors, and confirmation forms.
+Wheel input scrolls diff and description panes, moves selection in navigation
+lists, and navigates discussions. Double-click activation is not supported. Mouse capture
+may affect native terminal text selection; use your terminal's selection
+modifier (often Shift, depending on the terminal or multiplexer) to copy text.
+
 ### Commit browsing
 
-`3` opens a two-pane commit browser: the captured PR commit list on the left,
+`4` opens a two-pane commit browser: the captured PR commit list on the left,
 and all changed files in the selected commit on the right. Selecting a row
 immediately changes the diff. Rows show subject, author, and abbreviated SHA in
 GitHub's returned order. The first returned commit is initially selected.

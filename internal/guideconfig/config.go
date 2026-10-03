@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	defaultModel         = "gpt-5.6-terra"
+	defaultModel         = "gpt-6.1-sol"
 	defaultOpenAIBaseURL = "https://api.openai.com/v1"
 	maxConfigBytes       = 64 << 10
 	// OpenAIEnvVariable is the legacy environment variable name, not a key value.

@@ -37,7 +37,7 @@ func TestMissingFilePreservesOpenAISelection(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if defaultSelection.Provider != "openai" || defaultSelection.Model != defaultModel || defaultSelection.BaseURL != defaultOpenAIBaseURL || defaultSelection.APIKeyEnv != "OPENAI_API_KEY" || defaultSelection.Destination != "https://api.openai.com" || !defaultSelection.LegacyDefault {
+	if defaultSelection.Provider != "openai" || defaultSelection.Model != "gpt-6.1-sol" || defaultSelection.BaseURL != defaultOpenAIBaseURL || defaultSelection.APIKeyEnv != "OPENAI_API_KEY" || defaultSelection.Destination != "https://api.openai.com" || !defaultSelection.LegacyDefault {
 		t.Fatalf("unexpected default selection: %+v", defaultSelection)
 	}
 	legacyOverride, err := Load(path, "https://proxy.example/v1/")

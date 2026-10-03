@@ -48,7 +48,7 @@ func TestFantasyOpenAIContract(t *testing.T) {
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 			t.Errorf("decode request: %v", err)
 		}
-		if got := body["model"]; got != "gpt-5.6-terra" {
+		if got := body["model"]; got != "gpt-6.1-sol" {
 			t.Errorf("model = %v", got)
 		}
 		if got := body["store"]; got != false {
@@ -72,7 +72,7 @@ func TestFantasyOpenAIContract(t *testing.T) {
 			t.Errorf("guide schema differs from existing strict schema:\n got: %#v\nwant: %#v", root, wanted)
 		}
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"id":"resp_test","object":"response","model":"gpt-5.6-terra","status":"completed","output":[{"type":"message","id":"msg_test","role":"assistant","status":"completed","content":[{"type":"output_text","text":"{\"guides\":[]}"}]}]}`))
+		_, _ = w.Write([]byte(`{"id":"resp_test","object":"response","model":"gpt-6.1-sol","status":"completed","output":[{"type":"message","id":"msg_test","role":"assistant","status":"completed","content":[{"type":"output_text","text":"{\"guides\":[]}"}]}]}`))
 	}))
 	defer server.Close()
 
@@ -89,7 +89,7 @@ func TestFantasyOpenAIContract(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	model, err := provider.LanguageModel(context.Background(), "gpt-5.6-terra")
+	model, err := provider.LanguageModel(context.Background(), "gpt-6.1-sol")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -142,7 +142,7 @@ func TestFantasyRetryAndRedirectContract(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			model, err := provider.LanguageModel(context.Background(), "gpt-5.6-terra")
+			model, err := provider.LanguageModel(context.Background(), "gpt-6.1-sol")
 			if err != nil {
 				t.Fatal(err)
 			}

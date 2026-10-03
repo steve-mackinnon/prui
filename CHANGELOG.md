@@ -13,6 +13,8 @@ User-visible changes are recorded here before each release. See
 
 ### Changed
 
+- Default OpenAI reading guides to `gpt-6.1-sol`; configured and remembered model choices still take precedence.
+
 - Show only the active guide, keep its copy expanded, pin its position tracker, and continue diff navigation across guides.
 
 - Promote Guide to a top-level tab alongside Description, Files, and Commits, with number shortcuts 1–4.

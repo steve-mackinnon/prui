@@ -56,6 +56,11 @@ from the platform verification matrix. Its configuration deliberately focuses
 on correctness and bug detection; the full all-linters audit is not a merge
 gate because it mixes incompatible style rules and arbitrary complexity caps.
 
+The secret scan examines all local Git refs. Its three fingerprint exceptions
+identify historical synthetic test fixtures, not entire files or directories.
+CI fetches complete history for that check. Dependabot tracks Go module and
+GitHub Action updates weekly; CI action references are pinned to commit SHAs.
+
 Requirements: macOS or Linux, the Go version declared in `go.mod`, Git, and
 Python 3. The gate checks Go formatting without rewriting files, runs `go vet`,
 runs every Go test with the race detector and a five-minute package timeout,
