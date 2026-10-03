@@ -9,6 +9,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/colorprofile"
 	"github.com/charmbracelet/x/ansi"
 	"prui/internal/commits"
 	"prui/internal/guideconfig"
@@ -245,6 +246,7 @@ type Model struct {
 	styles               map[lineClass]lipgloss.Style
 	saveTheme            func(string) (theme.PersistResult, error)
 	themeSelectionLocked bool
+	colorProfile         colorprofile.Profile
 }
 
 type PullRequestLoader func(context.Context, string) ([]source.PullRequest, error)
@@ -257,7 +259,7 @@ func newModel(parent context.Context) *Model {
 	if err != nil {
 		panic(err)
 	}
-	m := &Model{ctx: ctx, cancel: cancel, reviewTabState: newReviewTabState(nil), Width: 100, Height: 24, activeTab: -1, reactionEmoji: defaultEmojiSupport()}
+	m := &Model{ctx: ctx, cancel: cancel, reviewTabState: newReviewTabState(nil), Width: 100, Height: 24, activeTab: -1, colorProfile: colorprofile.Unknown, reactionEmoji: defaultEmojiSupport()}
 	m.SetTheme(terminal)
 	return m
 }
@@ -346,6 +348,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}()
 	switch v := msg.(type) {
+	case tea.ColorProfileMsg:
+		m.colorProfile = v.Profile
+		return m, nil
 	case DiscussionResult:
 		m.applyDiscussionResult(v)
 		return m, nil
@@ -1897,7 +1902,7 @@ func (m *Model) View() tea.View {
 	for i := range lines {
 		lines[i] = clip(lines[i], m.Width)
 	}
-	v := tea.NewView(strings.Join(lines, "\n"))
+	v := tea.NewView(m.themeContent(strings.Join(lines, "\n")))
 	v.AltScreen = true
 	if m.mouseAvailable() {
 		v.MouseMode = tea.MouseModeCellMotion
@@ -2212,7 +2217,7 @@ func (m *Model) descriptionLines() []string {
 	if m.descriptionCache.valid && m.descriptionCache.body == body && m.descriptionCache.width == width && m.descriptionCache.themeName == m.theme.Name {
 		return m.descriptionCache.lines
 	}
-	lines, err := renderDescriptionMarkdownForTheme(body, width, m.theme.Name)
+	lines, err := renderDescriptionMarkdownWithTheme(body, width, m.theme)
 	if err != nil {
 		lines = []string{"Description could not be rendered."}
 	}

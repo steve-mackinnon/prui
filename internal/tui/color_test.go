@@ -37,9 +37,10 @@ func testThemes(t *testing.T) []theme.Theme {
 // withoutStyles renders f with one model's semantic styles removed. It never
 // touches another model, which is the essential isolation property for themes.
 func withoutStyles(m *Model, f func() string) string {
-	styled := m.styles
+	styled, profile := m.styles, m.colorProfile
 	m.styles = map[lineClass]lipgloss.Style{}
-	defer func() { m.styles = styled }()
+	m.colorProfile = colorprofile.NoTTY
+	defer func() { m.styles, m.colorProfile = styled, profile }()
 	return f()
 }
 
@@ -95,11 +96,16 @@ func TestColorProfileFallbackPreservesContent(t *testing.T) {
 				for _, focus := range []pane{paneList, paneDiff} {
 					m.Selected, m.Focus = i, focus
 					m.Update(tea.WindowSizeMsg{Width: width, Height: 14})
-					colored := m.View().Content
 					unstyled := withoutStyles(m, func() string { return m.View().Content })
 					for _, p := range profiles {
+						m.Update(tea.ColorProfileMsg{Profile: p})
+						colored := m.View().Content
 						got := downsample(colored, p)
-						if ansi.Strip(got) != unstyled {
+						want := unstyled
+						if p > colorprofile.Ascii && (themeBaseColor(palette, theme.Foreground) != nil || themeBaseColor(palette, theme.Background) != nil) {
+							want = plainCanvas(unstyled, width, m.Height)
+						}
+						if ansi.Strip(got) != want {
 							t.Fatalf("profile %s width %d unit %d focus %v changed content:\n%q\n%q", p, width, i, focus, ansi.Strip(got), unstyled)
 						}
 						switch p {
@@ -206,4 +212,16 @@ func TestEscapeContractUnchanged(t *testing.T) {
 			t.Fatalf("styling altered escaped text: %q", styled)
 		}
 	}
+}
+
+// plainCanvas models only presentation padding, never content transformation.
+func plainCanvas(content string, width, height int) string {
+	rows := strings.Split(content, "\n")
+	for len(rows) < height {
+		rows = append(rows, "")
+	}
+	for i := range rows {
+		rows[i] += strings.Repeat(" ", max(0, width-visibleWidth(rows[i])))
+	}
+	return strings.Join(rows, "\n")
 }

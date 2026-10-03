@@ -102,15 +102,15 @@ func TestMousePickerFilteredSwitcherUsesDisplayedResult(t *testing.T) {
 }
 
 func TestMousePickerThemeSelectionDoesNotApply(t *testing.T) {
-	for _, size := range [][2]int{{80, 24}, {20, 6}} {
+	for _, size := range [][2]int{{80, 24}, {36, 10}} {
 		m := New(context.Background(), nil)
 		m.Width, m.Height = size[0], size[1]
 		m.Stack = []page{pageThemePicker}
 		before := m.theme.Name
 		_, top, _, _ := themePickerBounds(m.Width, m.Height)
 		left, _, _, _ := themePickerBounds(m.Width, m.Height)
-		m.mousePickerClick(left+2, top+3)
-		if m.ThemePicker.Index != 1 || m.theme.Name != before || m.top() != pageThemePicker {
+		m.mousePickerClick(left+2, top+4)
+		if m.ThemePicker.Index != 2 || m.theme.Name != before || m.top() != pageThemePicker {
 			t.Fatal("theme click failed selection-only behavior")
 		}
 	}

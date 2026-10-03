@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	uv "github.com/charmbracelet/ultraviolet"
 	"github.com/charmbracelet/x/ansi"
 	"prui/internal/theme"
 )
@@ -158,7 +159,7 @@ func TestDescriptionMarkdownEscapesControlsInsideOSC8Target(t *testing.T) {
 	}
 }
 
-func TestDescriptionMarkdownUsesLightStyleOnlyForLightTheme(t *testing.T) {
+func TestDescriptionMarkdownUsesCatalogAppearance(t *testing.T) {
 	light, err := renderDescriptionMarkdownForTheme("# Heading", 72, theme.Light)
 	if err != nil {
 		t.Fatalf("render light description markdown: %v", err)
@@ -182,5 +183,75 @@ func TestDescriptionMarkdownUsesLightStyleOnlyForLightTheme(t *testing.T) {
 	}
 	if strings.Join(terminal, "\n") != darkOutput {
 		t.Fatal("non-light theme did not select Glamour's dark style")
+	}
+}
+
+func TestDescriptionMarkdownInheritsThemeCanvasWithoutChangingContent(t *testing.T) {
+	body := "ordinary paragraph e\u0301\n\n# Heading\n\n`inline`\n\n```go\nfunc main() {}\n```\n\n[link](https://example.com)"
+	base, _ := theme.Resolve(theme.Dark, nil)
+	themed, _ := theme.Resolve(theme.Dark, map[theme.Token]string{theme.Foreground: "#cdd6f4", theme.Background: "#1e1e2e"})
+	before, err := renderDescriptionMarkdownWithTheme(body, 72, base)
+	if err != nil {
+		t.Fatal(err)
+	}
+	after, err := renderDescriptionMarkdownWithTheme(body, 72, themed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ansi.Strip(strings.Join(before, "\n")) != ansi.Strip(strings.Join(after, "\n")) {
+		t.Fatal("theme changed Markdown text or wrapping")
+	}
+	plainSeen := false
+	for _, line := range after {
+		width := ansi.StringWidth(line)
+		if width == 0 {
+			continue
+		}
+		buf := uv.NewScreenBuffer(width, 1)
+		uv.NewStyledString(line).Draw(buf, buf.Bounds())
+		for x := 0; x < width; x++ {
+			cell := buf.CellAt(x, 0)
+			if cell.Style.Bg != nil {
+				t.Fatalf("Markdown retained foreign background: %v", cell.Style.Bg)
+			}
+			if cell.Content == "o" && cell.Style.Fg == nil {
+				plainSeen = true
+			}
+		}
+	}
+
+	if !plainSeen {
+		t.Fatal("ordinary Markdown text did not inherit canvas foreground")
+	}
+	if !strings.Contains(strings.Join(after, "\n"), "https://example.com") {
+		t.Fatal("theme lost hyperlink")
+	}
+}
+
+func TestDescriptionMarkdownInheritsDefaultForegroundWithExplicitBackground(t *testing.T) {
+	palette, _ := theme.Resolve(theme.CatppuccinMocha, map[theme.Token]string{theme.Foreground: "default"})
+	lines, err := renderDescriptionMarkdownWithTheme("ordinary paragraph", 72, palette)
+	if err != nil {
+		t.Fatal(err)
+	}
+	seen := false
+	for _, line := range lines {
+		width := ansi.StringWidth(line)
+		if width == 0 {
+			continue
+		}
+		buf := themeCanvasBuffer(line, width, 1)
+		for x := 0; x < width; x++ {
+			cell := buf.CellAt(x, 0)
+			if cell.Content == "o" {
+				seen = true
+				if cell.Style.Fg != nil {
+					t.Fatal("ordinary text did not inherit terminal foreground")
+				}
+			}
+		}
+	}
+	if !seen {
+		t.Fatal("paragraph missing")
 	}
 }

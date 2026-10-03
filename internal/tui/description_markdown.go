@@ -9,6 +9,7 @@ import (
 
 	"charm.land/glamour/v2"
 	"charm.land/glamour/v2/styles"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/extension"
@@ -29,20 +30,39 @@ func renderDescriptionMarkdown(body string, width int) ([]string, error) {
 	return renderDescriptionMarkdownForTheme(body, width, theme.Dark)
 }
 
-// renderDescriptionMarkdownForTheme uses Glamour's light palette only when
-// the active TUI theme has a light background. Other themes retain the dark
-// palette, which is legible on terminal and high-contrast backgrounds.
+// renderDescriptionMarkdownForTheme uses the catalog's explicit appearance
+// classification to choose the existing Glamour light or dark baseline.
 func renderDescriptionMarkdownForTheme(body string, width int, themeName string) ([]string, error) {
+	resolved, err := theme.Resolve(themeName, nil)
+	if err != nil {
+		return nil, err
+	}
+	return renderDescriptionMarkdownWithTheme(body, width, resolved)
+}
+
+// renderDescriptionMarkdownWithTheme retains the existing syntax foregrounds
+// while letting explicit base colors own ordinary text and block surfaces.
+func renderDescriptionMarkdownWithTheme(body string, width int, palette theme.Theme) ([]string, error) {
 	if width < 1 {
 		width = 1
 	}
 
 	style := styles.DarkStyle
-	if themeName == theme.Light {
+	if palette.IsLight() {
 		style = styles.LightStyle
 	}
+	hasBase := palette.Syntax(theme.Foreground) != "default" || palette.Syntax(theme.Background) != "default"
+	option := glamour.WithStandardStyle(style)
+	if hasBase {
+		local := *styles.DefaultStyles[style]
+		local.Document.Color = nil
+		local.H1.BackgroundColor = nil
+		local.Code.BackgroundColor = nil
+		local.CodeBlock.BackgroundColor = nil
+		option = glamour.WithStyles(local)
+	}
 	renderer, err := glamour.NewTermRenderer(
-		glamour.WithStandardStyle(style),
+		option,
 		glamour.WithWordWrap(width),
 		glamour.WithTableWrap(true),
 	)
@@ -54,7 +74,30 @@ func renderDescriptionMarkdownForTheme(body string, width int, themeName string)
 	if err != nil {
 		return nil, fmt.Errorf("render markdown description: %w", err)
 	}
-	return strings.Split(strings.TrimSuffix(rendered, "\n"), "\n"), nil
+	lines := strings.Split(strings.TrimSuffix(rendered, "\n"), "\n")
+	if hasBase {
+		lines = descriptionWithoutBackgrounds(lines)
+	}
+	return lines, nil
+}
+
+// Glamour's shared Chroma registry can retain an earlier style. Remove only
+// background channels from trusted renderer output as a final safeguard; keep
+// foregrounds, attributes, hyperlinks, and exact logical text/whitespace.
+func descriptionWithoutBackgrounds(lines []string) []string {
+	for i, line := range lines {
+		width := ansi.StringWidth(line)
+		if width == 0 {
+			continue
+		}
+		buf := themeCanvasBuffer(line, width, 1)
+		for x := 0; x < width; x++ {
+			buf.CellAt(x, 0).Style.Bg = nil
+		}
+		rendered := buf.Render()
+		lines[i] = rendered + strings.Repeat(" ", max(0, width-ansi.StringWidth(rendered)))
+	}
+	return lines
 }
 
 func normalizeDescriptionControls(body string) string {
