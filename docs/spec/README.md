@@ -7,6 +7,7 @@ These documents preserve requirements, acceptance criteria, and the reasoning be
 - [Spec: Configurable guide models with Charm Fantasy](SPEC-MULTI-PROVIDER-GUIDES.md)
 - [Spec: Current-Checkout Pull Request Picker](SPEC-current-checkout-pr-picker.md)
 - [Spec: Interactive TUI Themes](SPEC-custom-themes.md)
+- [Spec: Named TUI Theme Presets](SPEC-theme-presets.md)
 - [Spec: Guide Cache](SPEC-guide-cache.md)
 - [Spec: Guide Evaluation](SPEC-guide-evaluation.md)
 - [Spec: Guide generation modal and remembered model selection](SPEC-GUIDE-GENERATION-MODAL.md)

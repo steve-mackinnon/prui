@@ -303,14 +303,49 @@ Immediately before posting a comment or submitting a review, prui re-reads GitHu
 
 ## Color
 
-The interactive TUI supports four built-in semantic palettes: `terminal` (the
-default), `light`, `dark`, and `high-contrast`. `terminal` uses the terminal's foreground for routine chrome and ANSI/256-color
-accents for focus, changes, and attention states. Light and dark palettes use
-neutral secondary text; high-contrast retains stronger semantic colors. Choose
-a palette for one invocation with `--theme NAME` on `prui`, `open`,
-`resume`, or `prs`; an invalid name exits before normal work begins. The flag
-is accepted with `--plain` but has no visible effect. `verify` does not accept
-`--theme` and never reads personal theme configuration.
+The interactive TUI supports twenty-six built-in themes. The selector shows
+Terminal separately, followed by Dark and Light groups:
+
+| Theme ID | Appearance |
+| --- | --- |
+| `terminal` (default) | Inherited terminal colors with ANSI accents |
+| `light` | Neutral accents for a light terminal |
+| `dark` | Neutral accents for a dark terminal |
+| `high-contrast` | Strong semantic accents |
+| `catppuccin-mocha` | Soft pastels on deep blue |
+| `one-dark` | Cool Atom-inspired colors on charcoal |
+| `tokyo-night` | Blue and violet on a dark night background |
+| `gruvbox-dark` | Warm earthy colors on dark gray |
+| `ayu` | Ayu Light with warm orange accents |
+| `ayu-dark` | Ayu Dark |
+| `gh-dark` | GitHub Dark |
+| `gh-light` | GitHub Light |
+| `gruvbox-light` | Warm Gruvbox Light |
+| `horizon` | Horizon's warm dark palette |
+| `material-dark` | Material Dark |
+| `material-deep-ocean` | Material Deep Ocean |
+| `melange` | Melange's warm dark palette |
+| `monokai` | Classic Monokai |
+| `night-owl` | Night Owl |
+| `one-light` | One Light |
+| `poimandres` | Poimandres |
+| `rose-pine` | Rosé Pine |
+| `rose-pine-dawn` | Rosé Pine Dawn |
+| `vscode-dark` | VS Code Dark |
+| `vscode-light` | VS Code Light |
+| `wombat` | Wombat |
+
+The named family presets paint the entire app viewport with their base
+foreground/background, including blank space, panes, editors, and modals. The
+original four themes retain inherited base colors and their existing accents.
+Selections and semantic change colors remain distinct. Theme colors affect app
+cells only; they do not change terminal default colors.
+
+Choose a theme for one invocation with `--theme NAME` on `prui`, `current`,
+`open`, `resume`, or `prs`; an invalid name exits before normal work begins.
+For example, `prui --theme catppuccin-mocha`. The flag is accepted with `--plain`
+but has no visible effect. `verify` does not accept `--theme` and never reads
+personal theme configuration.
 
 The optional global configuration file is `theme.json`:
 
@@ -331,7 +366,7 @@ It may select a built-in and override the fixed semantic color tokens:
 }
 ```
 
-Supported tokens are `title`, `fileHeader`, `hunk`, `added`, `removed`,
+Supported tokens are `foreground`, `background`, `title`, `fileHeader`, `hunk`, `added`, `removed`,
 `metadata`, `warning`, `unavailable`, `selection`, `focusedBorder`, and
 `border`. Values must be `#RRGGBB`, `default`, an ANSI name (such as `red` or
 `bright-yellow`), or an ANSI palette index from `0` through `255`, written as
@@ -339,14 +374,28 @@ a string. The explicit `--theme` name wins over the file's `theme` value, and
 valid `colors` overrides remain applied. Invalid JSON, duplicate or unknown
 keys, invalid names, and invalid color values are ignored as a whole: the app
 warns safely and uses the terminal palette (or a valid explicit `--theme`).
-Such a file is never overwritten.
+Such a file is never overwritten. `foreground` and `background` are optional
+base-channel overrides; `default` inherits that channel from the terminal.
+Existing configuration files need no migration. Older prui versions reject new theme IDs and the
+two new keys, so omit them when sharing configuration with those versions.
 
 Press `t` in an interactive review or navigation picker to open a
-keyboard-only theme picker. It is unavailable while another modal owns input.
+theme picker. It is unavailable while another modal owns input.
+The list scrolls to keep the candidate visible and shows its position and group.
+Arrows and `j`/`k` follow the displayed order, skipping Dark/Light headings;
+heading clicks do not select or save a theme. At
+60 columns by 18 rows or larger, a synthetic sample previews candidate base
+colors, changes, warnings, and selections using your overrides. Browsing does
+not apply or save a candidate; small terminals retain a compact candidate view.
 Use arrows or `j`/`k` to choose and Enter to save and apply a built-in; Escape
 or `t` cancels. A successful choice atomically updates only the global
 `theme` value, retaining valid configured color overrides. It does not change
 review or session data. A failed save keeps the active palette unchanged.
+
+PR-description Markdown inherits the app background and ordinary foreground
+when base colors are explicit. The preset’s Dark/Light classification selects
+the corresponding existing Markdown baseline. Its Markdown and syntax foreground
+colors remain; these presets do not introduce syntax themes.
 
 Color is still detected once at startup from the terminal and process
 environment. `NO_COLOR` and `TERM=dumb` disable it, `CLICOLOR_FORCE` follows
@@ -356,7 +405,12 @@ text. Themes supplement these accessibility safeguards: color is never the
 only cue, and the picker retains textual names, markers, and controls even
 when color is disabled.
 
-The guarantees, verified by tests, are: styling only wraps whole display lines that were already escaped, so escaping of hostile patch bytes is unchanged; removing every style yields exactly the uncolored render, so no character, label, warning, or line is added, dropped, or reworded by color; colored lines never exceed the terminal width and horizontal scrolling never splits an escape sequence; and `--plain` output is never colored and contains no terminal control sequences, whatever the terminal supports.
+Styling runs after source escaping, layout, and clipping. Logical content and
+width remain unchanged; explicit base colors may add only blank viewport
+padding. Colorless output skips canvas painting and preserves existing logical
+bytes. Colored lines never exceed the terminal width, horizontal scrolling
+never splits an escape sequence, and `--plain` contains no terminal controls.
+Palette sources and licenses are recorded in [theme attribution](THEME-ATTRIBUTION.md).
 
 ## Sessions And Freshness
 

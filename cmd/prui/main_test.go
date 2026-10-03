@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"prui/internal/theme"
 )
 
 func TestOptions(t *testing.T) {
@@ -74,5 +76,57 @@ func TestCheckoutFromDirectoryRequiresRepositoryRoot(t *testing.T) {
 	}
 	if got != want {
 		t.Fatalf("checkout = %q, want %q", got, want)
+	}
+}
+
+func TestOptionsAcceptNewThemeNamesAcrossInteractiveCommands(t *testing.T) {
+	for _, name := range []string{"ayu", "ayu-dark", "gh-dark", "gh-light", "gruvbox-light", "horizon", "material-dark", "material-deep-ocean", "melange", "monokai", "night-owl", "one-light", "poimandres", "rose-pine", "rose-pine-dawn", "vscode-dark", "vscode-light", "wombat"} {
+		if _, err := parseOptions([]string{"current", "--theme", name}); err != nil {
+			t.Errorf("expanded theme %q rejected: %v", name, err)
+		}
+	}
+
+	for _, name := range theme.BuiltInNames() {
+		t.Run(name, func(t *testing.T) {
+			for _, args := range [][]string{
+				{"--theme", name},
+				{"current", "--theme", name},
+				{"open", "https://github.com/o/r/pull/1", "--theme", name},
+				{"open", "1", "--github-repo", "o/r", "--plain", "--theme", name},
+				{"prs", "--theme", name},
+				{"prs", "o/r", "--plain", "--theme", name},
+				{"resume", "0123456789abcdef0123456789abcdef", "--theme", name},
+				{"resume", "0123456789abcdef0123456789abcdef", "--offline", "--plain", "--theme", name},
+			} {
+				got, err := parseOptions(args)
+				if err != nil {
+					t.Fatalf("parseOptions(%v): %v", args, err)
+				}
+				if got.ThemeName != name {
+					t.Fatalf("parseOptions(%v) theme = %q", args, got.ThemeName)
+				}
+			}
+		})
+	}
+}
+
+func TestOptionsRejectInvalidThemeBeforeSourceParsing(t *testing.T) {
+	_, err := parseOptions([]string{"open", "not-a-source", "--theme", "catpuccin"})
+	if err == nil || !strings.Contains(err.Error(), "invalid --theme") {
+		t.Fatalf("theme validation did not precede source parsing: %v", err)
+	}
+	for _, name := range theme.BuiltInNames() {
+		if !strings.Contains(err.Error(), name) {
+			t.Errorf("invalid theme diagnostic omitted %q: %v", name, err)
+		}
+	}
+}
+
+func TestOptionsVerifyRejectsNewPersonalThemes(t *testing.T) {
+	for _, name := range theme.BuiltInNames() {
+		_, err := parseOptions([]string{"verify", "https://github.com/o/r/pull/1", "--artifacts", "/tmp/artifacts", "--theme", name})
+		if err == nil {
+			t.Fatalf("verify accepted personal theme %q", name)
+		}
 	}
 }

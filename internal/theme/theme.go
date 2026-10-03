@@ -17,6 +17,8 @@ import (
 type Token string
 
 const (
+	Foreground    Token = "foreground"
+	Background    Token = "background"
 	Title         Token = "title"
 	FileHeader    Token = "fileHeader"
 	Hunk          Token = "hunk"
@@ -38,11 +40,10 @@ const (
 )
 
 var tokens = []Token{
+	Foreground, Background,
 	Title, FileHeader, Hunk, Added, Removed, Metadata, Warning, Unavailable,
 	Selection, FocusedBorder, Border,
 }
-
-var builtInNames = []string{Terminal, Light, Dark, HighContrast}
 
 // Color is a validated color value. Its source syntax is retained for stable
 // configuration encoding and compatibility tests; rendering consumes Value.
@@ -92,8 +93,14 @@ func (t Theme) Overrides() map[Token]string {
 // deterministic order.
 func Tokens() []Token { return append([]Token(nil), tokens...) }
 
-// BuiltInNames returns the supported built-in theme names in picker order.
-func BuiltInNames() []string { return append([]string(nil), builtInNames...) }
+// BuiltInNames returns the supported built-in theme names in stable catalog order.
+func BuiltInNames() []string {
+	names := make([]string, len(presets))
+	for i, preset := range presets {
+		names[i] = preset.Name
+	}
+	return names
+}
 
 var ansiColors = map[string]color.Color{
 	"black":          lipgloss.Black,
@@ -138,36 +145,17 @@ func ParseColor(s string) (Color, error) {
 	return Color{}, fmt.Errorf("invalid theme color")
 }
 
-var builtIns = map[string]map[Token]string{
-	// Terminal inherits the user's foreground for routine chrome. Keep accents
-	// and change colors in ANSI names so they follow the terminal palette too.
-	Terminal: {
-		Title: "default", FileHeader: "default", Hunk: "default", Added: "green",
-		Removed: "red", Metadata: "default", Warning: "bright-yellow",
-		Unavailable: "bright-red", Selection: "236", FocusedBorder: "cyan", Border: "240",
-	},
-	Light: {
-		Title: "#24292f", FileHeader: "#24292f", Hunk: "#57606a", Added: "#116329",
-		Removed: "#cf222e", Metadata: "#57606a", Warning: "#9a6700",
-		Unavailable: "#cf222e", Selection: "#d0d7de", FocusedBorder: "#0969da", Border: "#8c959f",
-	},
-	Dark: {
-		Title: "#c9d1d9", FileHeader: "#c9d1d9", Hunk: "#8b949e", Added: "#7ee787",
-		Removed: "#ff7b72", Metadata: "#8b949e", Warning: "#e3b341",
-		Unavailable: "#ff7b72", Selection: "#30363d", FocusedBorder: "#58a6ff", Border: "#6e7681",
-	},
-	HighContrast: {
-		Title: "#00ffff", FileHeader: "#ffff00", Hunk: "#ff00ff", Added: "#00ff00",
-		Removed: "#ff5555", Metadata: "#55aaff", Warning: "#ffff00",
-		Unavailable: "#ff5555", Selection: "#555555", FocusedBorder: "#ffffff", Border: "#aaaaaa",
-	},
-}
-
 // Resolve builds a complete palette from a named built-in and optional,
 // already-keyed token overrides. Validation happens before a Theme is returned.
 func Resolve(name string, overrides map[Token]string) (Theme, error) {
-	base, ok := builtIns[name]
-	if !ok {
+	var base map[Token]string
+	for _, preset := range presets {
+		if preset.Name == name {
+			base = preset.colors
+			break
+		}
+	}
+	if base == nil {
 		return Theme{}, fmt.Errorf("unknown theme %q", name)
 	}
 	colors := make(map[Token]Color, len(tokens))

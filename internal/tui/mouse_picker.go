@@ -2,7 +2,6 @@ package tui
 
 import (
 	tea "charm.land/bubbletea/v2"
-	"prui/internal/theme"
 )
 
 func (m *Model) mousePickerAvailable() bool {
@@ -50,9 +49,12 @@ func (m *Model) mousePickerClick(x, y int) tea.Cmd {
 		}
 	case pageThemePicker:
 		left, top, width, available := themePickerBounds(m.Width, m.Height)
-		index := y - top - 2
-		if available && x > left && x < left+width-1 && index >= 0 && index < len(theme.BuiltInNames()) {
-			m.ThemePicker.Index = index
+		index, hit := themePickerLayout(m.Width, m.Height, m.ThemePicker.Index).itemAt(y - top - 1)
+		if available && x > left && x < left+width-1 && hit {
+			rows := themePickerRows()
+			if rows[index].index >= 0 {
+				m.ThemePicker.Index = rows[index].index
+			}
 		}
 		return nil
 	default:

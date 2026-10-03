@@ -2,20 +2,15 @@ package tui
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/colorprofile"
 	"prui/internal/theme"
 )
 
 var errThemeSelectionNotSaved = errors.New("theme selection was not saved; active theme unchanged")
-
-var themeDescriptions = map[string]string{
-	theme.Terminal:     "Use terminal palette",
-	theme.Light:        "Light backgrounds",
-	theme.Dark:         "Dark backgrounds",
-	theme.HighContrast: "Stronger contrast",
-}
 
 // themePickerAvailable limits theme controls to review surfaces and the three
 // existing navigation pickers. Editors, comment actions, loading, help, and
@@ -51,14 +46,25 @@ func (m *Model) themePickerKey(key string) tea.Cmd {
 		m.pop()
 	case "j", "down":
 		m.ThemePicker.clamp(len(theme.BuiltInNames()))
-		m.ThemePicker.Index = min(m.ThemePicker.Index+1, len(theme.BuiltInNames())-1)
+		m.moveThemeCandidate(1)
 	case "k", "up":
 		m.ThemePicker.clamp(len(theme.BuiltInNames()))
-		m.ThemePicker.Index = max(0, m.ThemePicker.Index-1)
+		m.moveThemeCandidate(-1)
 	case "enter":
 		m.applySelectedTheme()
 	}
 	return nil
+}
+
+func (m *Model) moveThemeCandidate(direction int) {
+	rows := themePickerRows()
+	selected := themePickerSelectedRow(rows, m.ThemePicker.Index)
+	for i := selected + direction; i >= 0 && i < len(rows); i += direction {
+		if rows[i].index >= 0 {
+			m.ThemePicker.Index = rows[i].index
+			return
+		}
+	}
 }
 
 func (m *Model) applySelectedTheme() {
@@ -100,6 +106,7 @@ func (m *Model) applySelectedTheme() {
 }
 
 func (m *Model) themePickerView() string {
+	entries := theme.BuiltIns()
 	names := theme.BuiltInNames()
 	m.ThemePicker.clamp(len(names))
 	_, _, modalWidth, available := themePickerBounds(m.Width, m.Height)
@@ -110,9 +117,17 @@ func (m *Model) themePickerView() string {
 	inside := max(1, modalWidth-4)
 	content := []string{
 		"╭" + strings.Repeat("─", modalWidth-2) + "╮",
-		modalLine("  Theme", inside),
+		modalLine(fmt.Sprintf("  Theme · %s · %d/%d", themeGroupLabel(entries[m.ThemePicker.Index].Appearance), themePickerPosition(m.ThemePicker.Index), len(names)), inside),
 	}
-	for i, name := range names {
+	window := themePickerLayout(m.Width, m.Height, m.ThemePicker.Index)
+	rows := themePickerRows()
+	for row := window.start; row < window.end; row++ {
+		if rows[row].index < 0 {
+			content = append(content, m.styleLine(classMetadata, modalLine("  ── "+rows[row].heading+" ──", inside)))
+			continue
+		}
+		i := rows[row].index
+		name := names[i]
 		marker := "  "
 		if name == m.theme.Name {
 			// The current resolved base has a persistent textual marker; the
@@ -121,7 +136,7 @@ func (m *Model) themePickerView() string {
 		} else if i == m.ThemePicker.Index {
 			marker = "> "
 		}
-		line := marker + name + " — " + themeDescriptions[name]
+		line := marker + entries[i].DisplayName + " — " + entries[i].Description
 		if name == m.theme.Name {
 			line += " (active)"
 		}
@@ -130,6 +145,11 @@ func (m *Model) themePickerView() string {
 			line = m.styleLine(selectedClass(true), line)
 		}
 		content = append(content, line)
+	}
+	if m.Width >= 60 && m.Height >= 18 {
+		for _, line := range m.themeCandidateSample(names[m.ThemePicker.Index], inside) {
+			content = append(content, "│ "+line+" │")
+		}
 	}
 	content = append(content,
 		modalLine("", inside),
@@ -152,10 +172,10 @@ func (m *Model) themePickerEnterHint() string {
 func (m *Model) compactThemePickerView(names []string) string {
 	selected := names[m.ThemePicker.Index]
 	lines := []string{
-		clip("Theme: "+selected, m.Width),
+		clip(fmt.Sprintf("%d/%d %s: %s", themePickerPosition(m.ThemePicker.Index), len(names), themeGroupLabel(theme.BuiltIns()[m.ThemePicker.Index].Appearance), selected), m.Width),
 		clip("↑↓/jk choose · "+m.themePickerEnterHint()+" · esc/t cancel", m.Width),
 	}
-	return strings.Join(lines[:min(len(lines), m.Height)], "\n")
+	return strings.Join(lines[:min(len(lines), max(0, m.Height))], "\n")
 }
 
 func placeThemeModal(width, height, modalWidth int, content []string) string {
@@ -168,4 +188,28 @@ func placeThemeModal(width, height, modalWidth int, content []string) string {
 		lines[startRow+i] = strings.Repeat(" ", left) + line
 	}
 	return strings.Join(lines, "\n")
+}
+
+// Samples resolve a local palette; browsing never changes the active model.
+func (m *Model) themeCandidateSample(name string, width int) []string {
+	candidate, err := theme.Resolve(name, m.themeOverrides)
+	if err != nil {
+		return nil
+	}
+	styles := stylesFor(candidate)
+	render := func(class lineClass, text string) string { return styles[class].Render(text) }
+	lines := []string{
+		render(classTitle, "Title") + "  " + render(classHunk, "@@ hunk @@") + "  " + render(classWarning, "warning"),
+		"Plain text  " + render(classAdded, "+ added") + "  " + render(classRemoved, "- removed"),
+		render(classPaneBorder, "│ border") + "  " + render(classPaneBorderFocused, "┃ focused") + "  " + render(classSelection, "› selected") + "  " + render(classSelectionFocused, "› focused"),
+	}
+	for i, line := range lines {
+		lines[i] = clip(line, width)
+		lines[i] += strings.Repeat(" ", max(0, width-visibleWidth(lines[i])))
+	}
+	if m.colorProfile > colorprofile.Ascii {
+		return strings.Split(paintThemeCanvas(strings.Join(lines, "\n"), width, len(lines),
+			themeBaseColor(candidate, theme.Foreground), themeBaseColor(candidate, theme.Background)), "\n")
+	}
+	return lines
 }

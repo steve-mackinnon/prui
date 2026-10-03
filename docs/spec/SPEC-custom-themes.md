@@ -1,3 +1,9 @@
+> Full theme presets update (2026-10-02): [Named TUI Theme Presets](SPEC-theme-presets.md)
+> adds four family presets, optional `foreground`/`background` tokens, and
+> capability-aware canvas painting. Existing four palettes retain inherited base
+> channels. The expanded picker scrolls and offers an isolated candidate sample.
+> This supersedes the older fixed four-theme/eleven-token contract below.
+
 > Quiet workspace update (2026-09-25): the approved option A refresh changes
 > terminal/light/dark default chrome colors to neutral text with restrained
 > focus accents. Earlier promises below of preserving the exact original

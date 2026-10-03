@@ -189,3 +189,50 @@ func TestPersistenceReportsPostReplacementDurabilityWarning(t *testing.T) {
 		t.Fatalf("replaced config = (%+v, %v, %v), want persisted light selection", config, exists, loadErr)
 	}
 }
+
+func TestConfigPersistsNewPaletteAndBaseOverrideProvenance(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "theme.json")
+	input := `{"theme":"catppuccin-mocha","colors":{"foreground":"#cdd6f4","background":"default","added":"green"}}`
+	if err := os.WriteFile(path, []byte(input), 0600); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{OneDark, TokyoNight, GruvboxDark, CatppuccinMocha} {
+		if _, err := PersistSelection(path, name); err != nil {
+			t.Fatal(err)
+		}
+		got, exists, err := LoadConfig(path)
+		if err != nil || !exists {
+			t.Fatalf("LoadConfig: exists %v, error %v", exists, err)
+		}
+		if got.Theme != name || got.Colors[Foreground] != "#cdd6f4" || got.Colors[Background] != "default" || got.Colors[Added] != "green" {
+			t.Fatalf("overrides changed: %+v", got)
+		}
+		resolved, err := Resolve(got.Theme, got.Colors)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if resolved.Overrides()[Foreground] != "#cdd6f4" {
+			t.Fatal("explicit equal-valued override provenance lost")
+		}
+	}
+}
+
+func TestConfigRejectsUnsafeBaseOverrideWithoutReplacement(t *testing.T) {
+	for _, token := range []Token{Foreground, Background} {
+		path := filepath.Join(t.TempDir(), "theme.json")
+		input := `{"theme":"tokyo-night","colors":{"` + string(token) + `":"\u001b[31m"}}`
+		if err := os.WriteFile(path, []byte(input), 0600); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := PersistSelection(path, OneDark); err == nil {
+			t.Fatal("unsafe base override accepted")
+		}
+		got, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(got) != input {
+			t.Fatal("invalid config replaced")
+		}
+	}
+}

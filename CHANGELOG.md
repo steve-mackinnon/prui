@@ -5,6 +5,10 @@ User-visible changes are recorded here before each release. See
 
 ## [Unreleased]
 
+### Added
+
+- Add full foreground/background theming with 22 named presets, bringing the catalog to 26 themes, and group the theme picker into Dark and Light sections with candidate previews.
+
 ### Fixed
 
 - Keep the Guide selection in sync when scrolling or navigating the diff.
