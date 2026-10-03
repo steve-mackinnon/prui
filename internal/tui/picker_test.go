@@ -394,10 +394,10 @@ func TestPullRequestRowsShowViewerReview(t *testing.T) {
 	defer m.Close()
 	m.Width = 80
 	for _, tc := range []struct{ state, marker, detail string }{
-		{"APPROVED", "👁", "Your review: Approved"},
-		{"CHANGES_REQUESTED", "👁", "Your review: Requested Changes"},
-		{"COMMENTED", "👁", "Your review: Commented"},
-		{"DISMISSED", "👁", "Your review: None"},
+		{"APPROVED", "✅", "Your review: Approved"},
+		{"CHANGES_REQUESTED", "🔄", "Your review: Requested Changes"},
+		{"COMMENTED", "💬", "Your review: Commented"},
+		{"DISMISSED", "○", "Your review: None"},
 		{"PENDING", "✎", "Your review: None"},
 		{"", "○", "Your review: None"},
 	} {

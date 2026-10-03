@@ -58,10 +58,15 @@ func (m *Model) compactPullRequestRow(title, author, review, status string) stri
 	authorWidth := min(20, max(1, width-statusWidth-15))
 	author = clip("@"+Escape(author), authorWidth)
 	marker := "○"
-	if review == "PENDING" {
+	switch review {
+	case "APPROVED":
+		marker = "✅"
+	case "COMMENTED":
+		marker = "💬"
+	case "CHANGES_REQUESTED":
+		marker = "🔄"
+	case "PENDING":
 		marker = "✎"
-	} else if review != "" {
-		marker = "👁"
 	}
 	metadata := marker + strings.Repeat(" ", 3-visibleWidth(marker)) + author + strings.Repeat(" ", authorWidth-visibleWidth(author)) + strings.Repeat(" ", 2+statusWidth-visibleWidth(status)) + status
 	title = clip(title, width-visibleWidth(metadata)-2)
