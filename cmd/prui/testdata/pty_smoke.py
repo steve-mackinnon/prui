@@ -342,7 +342,11 @@ def main():
                             all(" | " not in row for row in screen.splitlines()[4:11]),
                             "narrow file pane after resize", start)
         terminal.key(b"?", "Health & help")
-        terminal.key(b"\x1b", "1/2 read")
+        start = len(terminal.output)
+        os.write(terminal.master, b"\x1b")
+        terminal.wait_until(lambda screen: "1/2 read" in screen and
+                            "Health & help" not in screen,
+                            "return from help", start)
         terminal.quit(b"\x03")
     print("PASS resume, keyboard marking, resize, help/back, Ctrl+C, restoration")
 

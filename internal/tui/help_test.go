@@ -8,6 +8,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
+	"prui/internal/theme"
 )
 
 func TestHelpViewportMakesAllControlsReachableAndReturnsToReview(t *testing.T) {
@@ -30,8 +31,14 @@ func TestHelpViewportMakesAllControlsReachableAndReturnsToReview(t *testing.T) {
 				namedKey(m, tea.KeyDown)
 			}
 			for _, b := range bindings {
-				if b.groups&groupHelp != 0 && !strings.Contains(seen, b.keys+": "+b.desc) {
-					t.Fatalf("help binding not reachable: %s: %s", b.keys, b.desc)
+				if b.groups&groupHelp == 0 {
+					continue
+				}
+				// At 120 columns each panel has 55 columns of content.
+				for _, fragment := range strings.Split(ansi.Wrap(b.keys+": "+b.desc, 55, ""), "\n") {
+					if !strings.Contains(seen, fragment) {
+						t.Fatalf("help binding fragment not reachable: %q", fragment)
+					}
 				}
 			}
 			if !strings.Contains(seen, "Reading progress is local") {
@@ -78,5 +85,54 @@ func TestHelpViewportPagesWrapsAndKeepsEscapedText(t *testing.T) {
 	}
 	if strings.Contains(all, "\x1b]") || !strings.Contains(all, "unsafe") || !strings.Contains(all, "tail") {
 		t.Fatal("help lost wrapped error or exposed controls")
+	}
+}
+
+func TestHelpPanelsFitResponsiveWidths(t *testing.T) {
+	for _, width := range []int{1, 7, 8, 40, 99, 100, 120, 159, 160, 240} {
+		t.Run(fmt.Sprint(width), func(t *testing.T) {
+			m := New(context.Background(), nil)
+			t.Cleanup(m.Close)
+			m.Width, m.Height = width, 24
+			lines := m.helpLines()
+			for _, line := range lines {
+				if visibleWidth(line) > width {
+					t.Fatalf("panel exceeds %d columns: %q", width, line)
+				}
+			}
+			if width < 8 {
+				return
+			}
+			want := 1
+			if width >= 160 {
+				want = 3
+			} else if width >= 100 {
+				want = 2
+			}
+			if got := strings.Count(ansi.Strip(lines[0]), "┌"); got != want {
+				t.Fatalf("got %d panel columns, want %d", got, want)
+			}
+		})
+	}
+}
+
+func TestHelpPanelThemePreservesTextAndHighlightsHierarchy(t *testing.T) {
+	m := New(context.Background(), nil)
+	t.Cleanup(m.Close)
+	plain := ansi.Strip(strings.Join(m.helpCard("Navigate", "j/k: move cursor", 40), "\n"))
+	for _, mode := range []string{theme.Dark, theme.Light} {
+		palette, err := theme.Resolve(mode, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		m.SetTheme(palette)
+		styled := strings.Join(m.helpCard("Navigate", "j/k: move cursor", 40), "\n")
+		if ansi.Strip(styled) != plain {
+			t.Fatal("theme changed help panel text or geometry")
+		}
+		if !strings.Contains(styled, m.styleLine(classTitle, "Navigate")) ||
+			!strings.Contains(styled, m.styleLine(classHunk, "j/k:")) {
+			t.Fatal("help panel lost heading or shortcut styling")
+		}
 	}
 }
