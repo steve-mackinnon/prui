@@ -1042,7 +1042,7 @@ func (m *Model) switcherView() string {
 		if result.open {
 			rows[i] = "open " + Escape(result.title)
 			if known {
-				rows[i] = m.compactPullRequestRow(rows[i]+"  "+Escape(pr.Title), pullRequestChecks(pr))
+				rows[i] = m.compactPullRequestRow(rows[i]+"  "+Escape(pr.Title), pr.Author, pr.ViewerReview, pullRequestChecks(pr))
 			}
 		} else {
 			rows[i] = m.pullRequestRow(pr)

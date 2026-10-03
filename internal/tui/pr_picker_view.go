@@ -27,29 +27,43 @@ func (m *Model) pullRequestPickerView() string {
 func pullRequestChecks(pr source.PullRequest) string {
 	switch pr.Checks {
 	case source.ChecksPassed:
-		return "✓ Checks pass"
+		return "✅ Checks pass"
 	case source.ChecksFailed:
-		return "✗ Checks fail"
+		return "❌ Checks fail"
 	case source.ChecksPending:
-		return "… Checks pending"
+		return "⏳ Checks pending"
 	default:
 		return "? Checks unknown"
 	}
 }
 
 func (m *Model) pullRequestRow(pr source.PullRequest) string {
-	return m.compactPullRequestRow(fmt.Sprintf("#%d  %s", pr.Identity.Number, Escape(pr.Title)), pullRequestChecks(pr))
+	return m.compactPullRequestRow(fmt.Sprintf("#%d  %s", pr.Identity.Number, Escape(pr.Title)), pr.Author, pr.ViewerReview, pullRequestChecks(pr))
 }
 
-func (m *Model) compactPullRequestRow(title, status string) string {
+func (m *Model) compactPullRequestRow(title, author, review, status string) string {
 	width := max(0, m.Width-2)
 	// At narrow widths keep the PR identity readable; the selected detail also
 	// carries the full check state when there is room beneath the list.
 	if width < 32 {
 		return clip(title, width)
 	}
-	title = clip(title, width-visibleWidth(status)-2)
-	return title + strings.Repeat(" ", width-visibleWidth(title)-visibleWidth(status)) + status
+	if author == "" {
+		author = "unknown"
+	}
+	// Reserve a stable author column while leaving space for the PR identity.
+	statusWidth := visibleWidth("⏳ Checks pending")
+	authorWidth := min(20, max(1, width-statusWidth-15))
+	author = clip("@"+Escape(author), authorWidth)
+	marker := "○"
+	if review == "PENDING" {
+		marker = "✎"
+	} else if review != "" {
+		marker = "👁"
+	}
+	metadata := marker + strings.Repeat(" ", 3-visibleWidth(marker)) + author + strings.Repeat(" ", authorWidth-visibleWidth(author)) + strings.Repeat(" ", 2+statusWidth-visibleWidth(status)) + status
+	title = clip(title, width-visibleWidth(metadata)-2)
+	return title + strings.Repeat(" ", width-visibleWidth(title)-visibleWidth(metadata)) + metadata
 }
 
 func (m *Model) pullRequestDetail(pr source.PullRequest) []string {
@@ -66,5 +80,23 @@ func (m *Model) pullRequestDetail(pr source.PullRequest) []string {
 	return []string{
 		"Author " + name(pr.Author) + "  ·  Opened " + opened,
 		"Last commit " + name(pr.LastModifier) + "  ·  " + pullRequestChecks(pr),
+		"Your review: " + pullRequestReviewLabel(pr.ViewerReview) + "  ·  👁 reviewed · ○ none · ✎ draft",
+	}
+}
+
+func pullRequestReviewLabel(state string) string {
+	switch state {
+	case "APPROVED":
+		return "Approved"
+	case "CHANGES_REQUESTED":
+		return "Changes requested"
+	case "COMMENTED":
+		return "Commented"
+	case "DISMISSED":
+		return "Dismissed"
+	case "PENDING":
+		return "Draft"
+	default:
+		return "Not reviewed"
 	}
 }

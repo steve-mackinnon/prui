@@ -172,7 +172,7 @@ func TestPullRequestPickerShowsMetadataAndCheckStates(t *testing.T) {
 		{Identity: source.Identity{Number: 4}, Title: "No status", Checks: source.ChecksUnknown},
 	}
 	view := ansi.Strip(m.View().Content)
-	for _, want := range []string{"✓ Checks pass", "#1  Passing", "Author alice  ·  Opened Sep 23, 2026", "Last commit bob", "✗ Checks fail"} {
+	for _, want := range []string{"✅ Checks pass", "#1  Passing", "Author alice  ·  Opened Sep 23, 2026", "Last commit bob", "❌ Checks fail"} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("missing %q in:\n%s", want, view)
 		}
@@ -180,7 +180,7 @@ func TestPullRequestPickerShowsMetadataAndCheckStates(t *testing.T) {
 	for _, tc := range []struct {
 		index int
 		label string
-	}{{2, "… Checks pending"}, {3, "? Checks unknown"}} {
+	}{{2, "⏳ Checks pending"}, {3, "? Checks unknown"}} {
 		m.PullRequestPicker.Index = tc.index
 		if got := ansi.Strip(m.View().Content); !strings.Contains(got, tc.label) {
 			t.Fatalf("missing %q in:\n%s", tc.label, got)
@@ -201,7 +201,7 @@ func TestCompactPullRequestsBoundAndEscapeLongContent(t *testing.T) {
 	m.Width, m.Height = 120, 10
 	m.PullRequests = []source.PullRequest{{Identity: source.Identity{Number: 42}, Title: "\x1b[31m Colorful change " + strings.Repeat("x", 120), Author: "alice", LastModifier: strings.Repeat("b", 100), Checks: source.ChecksFailed}}
 	plain := ansi.Strip(m.View().Content)
-	if strings.ContainsAny(plain, "╭╰") || !strings.Contains(plain, `\x1b[31m`) || !strings.Contains(plain, "Last commit b") || !strings.Contains(plain, "✗ Checks fail") {
+	if strings.ContainsAny(plain, "╭╰") || !strings.Contains(plain, `\x1b[31m`) || !strings.Contains(plain, "Last commit b") || !strings.Contains(plain, "❌ Checks fail") {
 		t.Fatalf("compact row, escaped title, or selected detail missing:\n%s", plain)
 	}
 	for _, line := range strings.Split(plain, "\n") {
@@ -318,7 +318,7 @@ func TestCompactSwitcherUsesOnlyAvailableSelectedMetadata(t *testing.T) {
 	}
 	m.PullRequestPicker.Index = 1
 	view = ansi.Strip(m.View().Content)
-	if !strings.Contains(view, "Author alice") || !strings.Contains(view, "✗ Checks fail") {
+	if !strings.Contains(view, "Author alice") || !strings.Contains(view, "❌ Checks fail") {
 		t.Fatalf("selected remote PR lacks available detail: %s", view)
 	}
 }
@@ -350,6 +350,49 @@ func TestCompactSwitcherKeepsSelectionVisibleAfterResize(t *testing.T) {
 					t.Fatalf("width overflow: %q", line)
 				}
 			}
+		}
+	}
+}
+
+func TestPullRequestRowsPinAuthorsBeforeChecks(t *testing.T) {
+	m := New(context.Background(), nil)
+	defer m.Close()
+	m.Width = 80
+	first := m.pullRequestRow(source.PullRequest{Identity: source.Identity{Number: 1}, Title: strings.Repeat("long title ", 20), Author: "alice", Checks: source.ChecksPassed})
+	second := m.pullRequestRow(source.PullRequest{Identity: source.Identity{Number: 2}, Title: "Short", Author: "bob", Checks: source.ChecksPending})
+	if !strings.Contains(first, "@alice") || !strings.Contains(second, "@bob") {
+		t.Fatalf("authors missing from rows: %q / %q", first, second)
+	}
+	if visibleWidth(first[:strings.Index(first, "@alice")]) != visibleWidth(second[:strings.Index(second, "@bob")]) {
+		t.Fatalf("author columns do not align: %q / %q", first, second)
+	}
+	for _, width := range []int{20, 32, 40, 60, 80} {
+		m.Width = width
+		row := m.pullRequestRow(source.PullRequest{Identity: source.Identity{Number: 42}, Title: strings.Repeat("x", 100), Author: strings.Repeat("a", 100), Checks: source.ChecksPassed})
+		if visibleWidth(row) > width-2 || !strings.Contains(row, "#42") {
+			t.Fatalf("invalid row at width %d: %q", width, row)
+		}
+	}
+}
+
+func TestPullRequestRowsShowViewerReview(t *testing.T) {
+	m := New(context.Background(), nil)
+	defer m.Close()
+	m.Width = 80
+	for _, tc := range []struct{ state, marker, detail string }{
+		{"APPROVED", "👁", "Your review: Approved"},
+		{"CHANGES_REQUESTED", "👁", "Your review: Changes requested"},
+		{"COMMENTED", "👁", "Your review: Commented"},
+		{"DISMISSED", "👁", "Your review: Dismissed"},
+		{"PENDING", "✎", "Your review: Draft"},
+		{"", "○", "Your review: Not reviewed"},
+	} {
+		pr := source.PullRequest{Identity: source.Identity{Number: 1}, Title: "Change", Author: "alice", ViewerReview: tc.state}
+		if row := m.pullRequestRow(pr); !strings.Contains(row, tc.marker) || visibleWidth(row) > m.Width-2 {
+			t.Fatalf("invalid row: %q", row)
+		}
+		if detail := strings.Join(m.pullRequestDetail(pr), "\n"); !strings.Contains(detail, tc.detail) {
+			t.Fatalf("invalid detail: %q", detail)
 		}
 	}
 }

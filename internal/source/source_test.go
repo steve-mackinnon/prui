@@ -342,3 +342,24 @@ func TestGitHubReviewCommentActionsRejectInvalidInputWithoutCallingGH(t *testing
 		}
 	}
 }
+
+func TestGitHubListPullRequestsViewerReview(t *testing.T) {
+	for _, state := range []string{"APPROVED", "CHANGES_REQUESTED", "COMMENTED", "DISMISSED", "PENDING", ""} {
+		t.Run(state, func(t *testing.T) {
+			review := "null"
+			if state != "" {
+				review = fmt.Sprintf(`{"state":%q}`, state)
+			}
+			g := GH{Executable: "trusted-gh", Limits: Defaults(), Runner: listRunner(func(_ context.Context, request Request) ([]byte, error) {
+				if !strings.Contains(request.Args[5], "viewerLatestReview{state}") {
+					t.Fatal("missing viewer review query")
+				}
+				return []byte(fmt.Sprintf(`{"data":{"repository":{"pullRequests":{"nodes":[{"number":1,"title":"Change","createdAt":"2026-09-23T12:00:00Z","viewerLatestReview":%s}]}}}}`, review)), nil
+			})}
+			prs, err := g.ListPullRequests(context.Background(), "owner/repo")
+			if err != nil || len(prs) != 1 || prs[0].ViewerReview != state {
+				t.Fatal(prs, err)
+			}
+		})
+	}
+}

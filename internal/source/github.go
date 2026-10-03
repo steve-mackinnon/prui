@@ -64,6 +64,7 @@ type PullRequest struct {
 	LastModifier string // Author of the latest commit in the PR.
 	OpenedAt     time.Time
 	Checks       CheckStatus
+	ViewerReview string // Latest review state for the authenticated user; empty means no review.
 }
 
 type CheckStatus string
@@ -507,7 +508,7 @@ func (g *GH) ListPullRequests(ctx context.Context, repository string) ([]PullReq
 		return nil, err
 	}
 	parts := strings.Split(repository, "/")
-	const query = `query($owner:String!,$name:String!){repository(owner:$owner,name:$name){pullRequests(first:100,states:OPEN,orderBy:{field:CREATED_AT,direction:DESC}){nodes{number title createdAt author{login} commits(last:1){nodes{commit{author{name user{login}} statusCheckRollup{state}}}}}}}}`
+	const query = `query($owner:String!,$name:String!){repository(owner:$owner,name:$name){pullRequests(first:100,states:OPEN,orderBy:{field:CREATED_AT,direction:DESC}){nodes{number title createdAt author{login} viewerLatestReview{state} commits(last:1){nodes{commit{author{name user{login}} statusCheckRollup{state}}}}}}}}`
 	data, err := g.call(ctx, "api", "--hostname", "github.com", "graphql", "-f", "query="+query, "-F", "owner="+parts[0], "-F", "name="+parts[1])
 	if err != nil {
 		return nil, fmt.Errorf("GitHub pull request list unavailable (check authentication and connectivity): %w", err)
@@ -517,10 +518,13 @@ func (g *GH) ListPullRequests(ctx context.Context, repository string) ([]PullReq
 			Repository *struct {
 				PullRequests struct {
 					Nodes []struct {
-						Number    int       `json:"number"`
-						Title     string    `json:"title"`
-						CreatedAt time.Time `json:"createdAt"`
-						Author    *struct {
+						Number             int       `json:"number"`
+						Title              string    `json:"title"`
+						CreatedAt          time.Time `json:"createdAt"`
+						ViewerLatestReview *struct {
+							State string `json:"state"`
+						} `json:"viewerLatestReview"`
+						Author *struct {
 							Login string `json:"login"`
 						} `json:"author"`
 						Commits struct {
@@ -554,6 +558,14 @@ func (g *GH) ListPullRequests(ctx context.Context, repository string) ([]PullReq
 			return nil, errors.New("invalid pull request list")
 		}
 		pr := PullRequest{Identity: Identity{Repository: repository, Number: item.Number}, Title: item.Title, OpenedAt: item.CreatedAt, Checks: ChecksUnknown}
+		if item.ViewerLatestReview != nil {
+			switch item.ViewerLatestReview.State {
+			case "APPROVED", "CHANGES_REQUESTED", "COMMENTED", "DISMISSED", "PENDING":
+				pr.ViewerReview = item.ViewerLatestReview.State
+			default:
+				return nil, errors.New("invalid pull request viewer review state")
+			}
+		}
 		if item.Author != nil {
 			pr.Author = item.Author.Login
 		}

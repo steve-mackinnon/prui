@@ -93,6 +93,10 @@ between commits from either pane. Captured material also works offline; legacy
 sessions and capture limits are labeled. See the [user reference](docs/REFERENCE.md) for all controls, theme
 configuration, and current limitations.
 
+### Pull request list
+
+Pull request rows show the author, check status, and your latest GitHub review: 👁 for a submitted review, ○ for no review, and ✎ for a draft. The selected row shows whether you approved, requested changes, commented, or had a review dismissed. This records your latest review, even if new commits have arrived since it.
+
 ### Mouse selection and panel resizing
 
 Click a file, guide row, inventory unit, picker item, diff source cell, or
