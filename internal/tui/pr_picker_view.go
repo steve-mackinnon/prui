@@ -42,7 +42,9 @@ func (m *Model) pullRequestRow(pr source.PullRequest) string {
 }
 
 func (m *Model) compactPullRequestRow(title, author, review, status string) string {
-	width := max(0, m.Width-2)
+	// Keep columns together on wide terminals instead of stretching metadata
+	// to the right edge. Narrow terminals still use all available row space.
+	width := min(120, max(0, m.Width-2))
 	// At narrow widths keep the PR identity readable; the selected detail also
 	// carries the full check state when there is room beneath the list.
 	if width < 32 {
@@ -80,7 +82,7 @@ func (m *Model) pullRequestDetail(pr source.PullRequest) []string {
 	return []string{
 		"Author " + name(pr.Author) + "  ·  Opened " + opened,
 		"Last commit " + name(pr.LastModifier) + "  ·  " + pullRequestChecks(pr),
-		"Your review: " + pullRequestReviewLabel(pr.ViewerReview) + "  ·  👁 reviewed · ○ none · ✎ draft",
+		"Your review: " + pullRequestReviewLabel(pr.ViewerReview),
 	}
 }
 
@@ -89,14 +91,10 @@ func pullRequestReviewLabel(state string) string {
 	case "APPROVED":
 		return "Approved"
 	case "CHANGES_REQUESTED":
-		return "Changes requested"
+		return "Requested Changes"
 	case "COMMENTED":
 		return "Commented"
-	case "DISMISSED":
-		return "Dismissed"
-	case "PENDING":
-		return "Draft"
 	default:
-		return "Not reviewed"
+		return "None"
 	}
 }

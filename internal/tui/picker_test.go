@@ -375,23 +375,37 @@ func TestPullRequestRowsPinAuthorsBeforeChecks(t *testing.T) {
 	}
 }
 
+func TestPullRequestRowsKeepColumnsTogetherOnWideTerminals(t *testing.T) {
+	m := New(context.Background(), nil)
+	defer m.Close()
+	pr := source.PullRequest{Identity: source.Identity{Number: 42}, Title: strings.Repeat("long title ", 20), Author: "alice", Checks: source.ChecksPassed}
+	m.Width = 122
+	want := m.pullRequestRow(pr)
+	for _, width := range []int{160, 240, 400} {
+		m.Width = width
+		if got := m.pullRequestRow(pr); got != want {
+			t.Fatalf("columns spread at width %d: %q; want %q", width, got, want)
+		}
+	}
+}
+
 func TestPullRequestRowsShowViewerReview(t *testing.T) {
 	m := New(context.Background(), nil)
 	defer m.Close()
 	m.Width = 80
 	for _, tc := range []struct{ state, marker, detail string }{
 		{"APPROVED", "👁", "Your review: Approved"},
-		{"CHANGES_REQUESTED", "👁", "Your review: Changes requested"},
+		{"CHANGES_REQUESTED", "👁", "Your review: Requested Changes"},
 		{"COMMENTED", "👁", "Your review: Commented"},
-		{"DISMISSED", "👁", "Your review: Dismissed"},
-		{"PENDING", "✎", "Your review: Draft"},
-		{"", "○", "Your review: Not reviewed"},
+		{"DISMISSED", "👁", "Your review: None"},
+		{"PENDING", "✎", "Your review: None"},
+		{"", "○", "Your review: None"},
 	} {
 		pr := source.PullRequest{Identity: source.Identity{Number: 1}, Title: "Change", Author: "alice", ViewerReview: tc.state}
 		if row := m.pullRequestRow(pr); !strings.Contains(row, tc.marker) || visibleWidth(row) > m.Width-2 {
 			t.Fatalf("invalid row: %q", row)
 		}
-		if detail := strings.Join(m.pullRequestDetail(pr), "\n"); !strings.Contains(detail, tc.detail) {
+		if detail := m.pullRequestDetail(pr)[2]; detail != tc.detail {
 			t.Fatalf("invalid detail: %q", detail)
 		}
 	}
