@@ -659,20 +659,24 @@ func (m *Model) guideConsentKey(k string) tea.Cmd {
 		m.guideModelEditing = false
 		m.resetGuideDraft()
 		m.pop()
-	case "tab", "shift+tab":
+	case "tab", "shift+tab", "up", "down":
 		delta := 1
-		if k == "shift+tab" {
+		if k == "shift+tab" || k == "up" {
 			delta = 2
 		}
 		m.guideFocus = (m.guideFocus + delta) % 3
 		m.guideModelEditing = false
-	case "left", "right", "up", "down":
-		if m.guideFocus == 1 && len(m.guideOptions) > 0 {
+	case "left", "right":
+		if len(m.guideOptions) > 1 {
 			step := 1
-			if k == "left" || k == "up" {
+			if k == "left" {
 				step = -1
 			}
 			m.cycleGuideProvider(step)
+			if m.guideFocus == 0 {
+				m.guideFocus = 1
+			}
+			m.guideModelEditing = false
 		}
 	case "backspace", "delete":
 		if m.guideFocus == 2 && m.guideChoice.Provider != "" {

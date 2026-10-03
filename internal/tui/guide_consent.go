@@ -140,14 +140,14 @@ func (m *Model) guideConsentView() string {
 		hasCredential, storeFalse = m.guideHasCredential || m.guideProvider == "", m.guideStoreFalse || m.guideProvider == ""
 	}
 	if hasCredential {
-		uploadSuffix = " and your API key"
+		uploadSuffix = " and API key"
 	}
-	privacy := "Credential filtering can miss secrets. Send only source you are authorized to share. Your API key is not persisted."
+	privacy := "Filtering can miss secrets. Share only authorized source. API key is not saved."
 	if storeFalse {
-		privacy = "Credential filtering can miss secrets. Send only source you are authorized to share. Requests use store:false; your API key is not persisted."
+		privacy = "Filtering can miss secrets. Share only authorized source. Requests use store:false; API key is not saved."
 	}
 	if !hasCredential {
-		privacy = "Credential filtering can miss secrets. Send only source you are authorized to share."
+		privacy = "Filtering can miss secrets. Share only authorized source."
 	}
 	recipient := choice.Destination
 	if recipient == "" {
@@ -156,36 +156,42 @@ func (m *Model) guideConsentView() string {
 	if !m.guideOptionsSet {
 		recipient = m.guideRecipient()
 	}
-	providerPrefix, modelPrefix, actionPrefix := "", "", ""
-	if m.guideFocus == 1 {
-		providerPrefix = "> "
+	field := func(label, value string, focus int) string {
+		valueClass := classTitle
+		if m.guideFocus == focus {
+			valueClass = classSelectionFocused
+		}
+		return selectionMarker(m.guideFocus == focus) + m.styleLine(classMetadata, label+": ") + m.styleLine(valueClass, Escape(value))
 	}
-	if m.guideFocus == 2 {
-		modelPrefix = "> "
-	}
-	if m.guideFocus == 0 {
-		actionPrefix = "> "
-	}
-	action := actionPrefix + "Enter: send source and generate"
+	action := selectionMarker(m.guideFocus == 0) + "Enter: send source and generate"
 	if choice.Provider == "" {
 		action = "Set a provider key or endpoint to enable generation"
-	}
-	if !guideconfig.ValidModel(choice.Model) && choice.Provider != "" {
+	} else if !guideconfig.ValidModel(choice.Model) {
 		action = "Enter a valid model ID to enable generation"
 	}
-	hint := "tab: switch | ←/→: provider | type: model | ctrl+a: clear model | esc: cancel | q: quit"
+	hint := "←/→ change provider & model"
+	if len(m.guideOptions) <= 1 {
+		hint = "Only one provider configured"
+		if choice.Provider == "" {
+			hint = "No provider configured"
+		}
+	}
 	if m.guideFocus == 2 {
-		hint = "tab: switch | type: model | ctrl+a: clear model | esc: cancel"
+		hint += " · type model ID · ctrl+a clear"
 	}
 	paragraphs := []string{
-		"Generate guide?",
-		providerPrefix + "Provider: " + Escape(provider),
-		modelPrefix + "Model: " + Escape(model),
-		"Recipient: " + Escape(recipient),
-		"This sends bounded pinned patches, repository evidence" + uploadSuffix + " to this recipient.",
-		privacy,
-		action,
-		hint,
+		m.styleLine(classTitle, "Generate guide?"),
+		"",
+		field("Provider", provider, 1),
+		field("Model", model, 2),
+		field("Recipient", recipient, -1),
+		"",
+		m.styleLine(classMetadata, "Sends pinned patches, repository evidence"+uploadSuffix+" to the recipient above."),
+		m.styleLine(classMetadata, privacy),
+		"",
+		m.styleLine(classTitle, action),
+		m.styleLine(classMetadata, "Tab / ↑↓ move · Esc cancel"),
+		m.styleLine(classMetadata, hint),
 	}
 	return strings.Join(paragraphs, "\n")
 }
@@ -202,7 +208,10 @@ func renderGuideConsentModal(width, height int, background, body string) string 
 	inside := max(1, min(68, width-6))
 	modalWidth := inside + 4
 	rows := []string{"╭" + strings.Repeat("─", modalWidth-2) + "╮"}
-	for _, paragraph := range strings.Split(body, "\n") {
+	for i, paragraph := range strings.Split(body, "\n") {
+		if i == 0 {
+			paragraph = lipgloss.NewStyle().Width(inside).Align(lipgloss.Center).Render(paragraph)
+		}
 		for _, line := range strings.Split(ansi.Wrap(paragraph, inside, ""), "\n") {
 			rows = append(rows, modalLine(line, inside))
 		}

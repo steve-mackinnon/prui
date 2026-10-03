@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 	"prui/internal/guide"
 )
 
@@ -23,7 +24,7 @@ func TestGuideConsentNamesConfiguredRecipient(t *testing.T) {
 			defer m.Close()
 			completeModelAction(t, m, m.Init())
 			modelKey(m, 'g')
-			view := m.View().Content
+			view := ansi.Strip(m.View().Content)
 			if !strings.Contains(view, tc.want) || strings.Contains(view, "provider.example/api") {
 				t.Fatalf("wrong recipient disclosure: %s", view)
 			}
@@ -47,7 +48,7 @@ func TestGuideConsentNamesConfiguredModelAndRecipient(t *testing.T) {
 	defer m.Close()
 	completeModelAction(t, m, m.Init())
 	modelKey(m, 'g')
-	view := m.View().Content
+	view := ansi.Strip(m.View().Content)
 	for _, want := range []string{"Provider: anthropic", "Model: claude-test", "Recipient: https://api.anthropic.com", "can miss secrets"} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("consent omits %q: %s", want, view)

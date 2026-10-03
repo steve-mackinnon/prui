@@ -13,11 +13,15 @@ User-visible changes are recorded here before each release. See
 
 - Keep the review footer at the bottom of the Description page, including short and empty descriptions.
 
+- Make guide-dialog arrows navigate controls and switch the configured provider/model pair from any control.
+
 - Keep the Guide selection in sync when scrolling or navigating the diff.
 
 - Open the Guide tab at the first section instead of following the current file selection.
 
 ### Changed
+
+- Simplify the Generate guide dialog with a centered header, distinct field labels and values, and grouped consent and keyboard help.
 
 - Default OpenAI reading guides to `gpt-6.1-sol`; configured and remembered model choices still take precedence.
 

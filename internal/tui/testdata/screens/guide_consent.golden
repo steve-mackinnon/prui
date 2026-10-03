@@ -1,0 +1,24 @@
+
+
+
+
+    ╭──────────────────────────────────────────────────────────────────────╮
+    │                           Generate guide?                            │
+    │                                                                      │
+    │   Provider: openai                                                   │
+    │ › Model: gpt-test                                                    │
+    │   Recipient: https://api.openai.com                                  │
+    │                                                                      │
+    │ Sends pinned patches, repository evidence and API key to the         │
+    │ recipient above.                                                     │
+    │ Filtering can miss secrets. Share only authorized source. Requests   │
+    │ use store:false; API key is not saved.                               │
+    │                                                                      │
+    │   Enter: send source and generate                                    │
+    │ Tab / ↑↓ move · Esc cancel                                           │
+    │ Only one provider configured · type model ID · ctrl+a clear          │
+    ╰──────────────────────────────────────────────────────────────────────╯
+
+
+
+

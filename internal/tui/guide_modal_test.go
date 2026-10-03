@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 	"prui/internal/guideconfig"
 	"prui/internal/review"
 )
@@ -27,7 +28,7 @@ func TestGuideModalSelectsExactProviderAndModel(t *testing.T) {
 		return nil, nil
 	})
 	m.push(pageGuideConsent)
-	if view := m.View().Content; !strings.Contains(view, "Provider: openai") || !strings.Contains(view, "Model: gpt-test") || !strings.Contains(view, "Recipient: https://api.openai.com") {
+	if view := ansi.Strip(m.View().Content); !strings.Contains(view, "Provider: openai") || !strings.Contains(view, "Model: gpt-test") || !strings.Contains(view, "Recipient: https://api.openai.com") {
 		t.Fatalf("missing initial selection: %s", view)
 	}
 	m.guideConsentKey("tab")
@@ -39,12 +40,12 @@ func TestGuideModalSelectsExactProviderAndModel(t *testing.T) {
 	m.guideConsentKey("right")
 	m.guideConsentKey("right")
 	m.guideConsentKey("tab")
-	if view := m.View().Content; !strings.Contains(view, "Provider: anthropic") || !strings.Contains(view, "Model: claude-testX") || !strings.Contains(view, "Recipient: https://api.anthropic.com") {
+	if view := ansi.Strip(m.View().Content); !strings.Contains(view, "Provider: anthropic") || !strings.Contains(view, "Model: claude-testX") || !strings.Contains(view, "Recipient: https://api.anthropic.com") {
 		t.Fatalf("selection did not update: %s", view)
 	}
 	m.guideConsentKey("ctrl+a")
 	m.guideConsentKey("N")
-	if !strings.Contains(m.View().Content, "Model: N") {
+	if !strings.Contains(ansi.Strip(m.View().Content), "Model: N") {
 		t.Fatal("clear-and-replace model failed")
 	}
 	m.guideConsentKey("ctrl+a")
@@ -155,7 +156,7 @@ func TestGuideModalOverlayAndEscapedSelection(t *testing.T) {
 	s := guideconfig.Selection{Provider: "openai", Model: "gpt-test\x1b[31m", Destination: "https://api.openai.com", APIKeyEnv: "OPENAI_API_KEY"}
 	m.SetGuideOptions([]guideconfig.Selection{s}, s, nil)
 	m.push(pageGuideConsent)
-	view := m.View().Content
+	view := ansi.Strip(m.View().Content)
 	if !strings.Contains(view, "Generate guide?") || !strings.Contains(view, "Provider: openai") || strings.Contains(view, "\x1b[31m") {
 		t.Fatalf("overlay or escaping failed: %q", view)
 	}
@@ -171,5 +172,58 @@ func TestGuideModalOverlayAndEscapedSelection(t *testing.T) {
 		if !strings.Contains(small, "Provider:") || !strings.Contains(small, "Model:") {
 			t.Fatalf("selection vanished at %v: %q", size, small)
 		}
+	}
+}
+
+func TestGuideModalArrowNavigation(t *testing.T) {
+	m := newModel(context.Background())
+	defer m.Close()
+	m.Width, m.Height = 80, 24
+	options := []guideconfig.Selection{
+		{Provider: "openai", Model: "gpt-test", Destination: "https://api.openai.com"},
+		{Provider: "anthropic", Model: "claude-test", Destination: "https://api.anthropic.com"},
+	}
+	m.SetGuideOptions(options, options[0], nil)
+	m.push(pageGuideConsent)
+	m.Update(tea.KeyPressMsg{Code: tea.KeyRight})
+	if got := m.currentGuideSelection(); got.Provider != "anthropic" || got.Model != "claude-test" {
+		t.Fatalf("right from initial focus did not change selection: %+v", got)
+	}
+	m.Update(tea.KeyPressMsg{Code: tea.KeyDown})
+	if m.guideFocus != 2 {
+		t.Fatalf("down did not focus model: %d", m.guideFocus)
+	}
+	m.Update(tea.KeyPressMsg{Code: tea.KeyLeft})
+	if got := m.currentGuideSelection(); got.Provider != "openai" || got.Model != "gpt-test" {
+		t.Fatalf("left from model did not change selection: %+v", got)
+	}
+	m.Update(tea.KeyPressMsg{Code: tea.KeyUp})
+	if m.guideFocus != 1 {
+		t.Fatalf("up did not focus provider: %d", m.guideFocus)
+	}
+}
+
+func TestGuideModalLayout(t *testing.T) {
+	m := newModel(context.Background())
+	defer m.Close()
+	m.Width, m.Height = 80, 24
+	choice := guideconfig.Selection{Provider: "openai", Model: "gpt-test", Destination: "https://api.openai.com", APIKeyEnv: "OPENAI_API_KEY"}
+	m.SetGuideOptions([]guideconfig.Selection{choice}, choice, nil)
+	m.guideFocus = 2
+	body := m.guideConsentView()
+	if !guideConsentFits(m.Width, m.Height, body) {
+		t.Fatal("normal terminal cannot review consent")
+	}
+	view := ansi.Strip(renderGuideConsentModal(m.Width, m.Height, "", body))
+	lines := strings.Split(view, "\n")
+	for i, line := range lines {
+		if ansi.StringWidth(line) > m.Width {
+			t.Fatalf("line exceeds terminal width: %q", line)
+		}
+		lines[i] = strings.TrimRight(line, " ")
+	}
+	checkScreen(t, "guide_consent", strings.Join(lines, "\n")+"\n")
+	if !strings.Contains(view, "Only one provider configured") || !strings.Contains(view, "type model ID") {
+		t.Fatalf("single-provider editing instructions missing: %s", view)
 	}
 }

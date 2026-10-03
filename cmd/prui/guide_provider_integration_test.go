@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 	"prui/internal/guide"
 	"prui/internal/guideconfig"
 )
@@ -73,7 +74,7 @@ func TestConfiguredGuideProvidersFromInteractiveConsent(t *testing.T) {
 			defer m.Close()
 			completeModelAction(t, m, m.Init())
 			modelKey(m, 'g')
-			consent := m.View().Content
+			consent := ansi.Strip(m.View().Content)
 			for _, want := range []string{"Provider: " + tc.provider, "Model: " + tc.model, "Recipient: " + tc.recipient} {
 				if !strings.Contains(consent, want) {
 					t.Fatalf("consent omits %q: %s", want, consent)
@@ -138,7 +139,7 @@ func TestModalSelectionUsesAndRemembersChosenProvider(t *testing.T) {
 		modelKey(m, ch)
 	}
 	modelKey(m, tea.KeyTab)
-	if view := m.View().Content; !strings.Contains(view, "Provider: anthropic") || !strings.Contains(view, "Model: claude-ui") {
+	if view := ansi.Strip(m.View().Content); !strings.Contains(view, "Provider: anthropic") || !strings.Contains(view, "Model: claude-ui") {
 		t.Fatalf("modal did not show chosen selection: %s", view)
 	}
 	modelKey(m, tea.KeyEnter)
