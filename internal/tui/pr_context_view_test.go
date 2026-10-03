@@ -10,10 +10,36 @@ import (
 	"prui/internal/source"
 )
 
+func TestOpeningPullRequestDefaultsToDescription(t *testing.T) {
+	m := New(context.Background(), nil)
+	t.Cleanup(m.Close)
+	m.openReviewTab(screenSession())
+	if got := m.selectedReviewView(); got != viewDescription {
+		t.Fatalf("new PR view = %v, want description", got)
+	}
+	m.selectReviewView(viewFiles)
+	m.openReviewTab(screenSession())
+	if got := m.selectedReviewView(); got != viewFiles {
+		t.Fatalf("reopened PR view = %v, want preserved files selection", got)
+	}
+}
+
+func TestLocalComparisonDefaultsToFiles(t *testing.T) {
+	m := New(context.Background(), nil)
+	t.Cleanup(m.Close)
+	s := screenSession()
+	s.Inventory.Comparison.Metadata.Identity.Number = 0
+	m.openReviewTab(s)
+	if got := m.selectedReviewView(); got != viewFiles {
+		t.Fatalf("local comparison view = %v, want files", got)
+	}
+}
+
 func TestPRContextViewDefaultsAndCyclesWithoutChangingChangesState(t *testing.T) {
 	m := New(context.Background(), nil)
 	t.Cleanup(m.Close)
 	m.openReviewTab(screenSession())
+	m.selectReviewView(viewFiles)
 	m.Selected, m.Row, m.Focus = 1, 1, paneDiff
 	m.Scroll[1], m.Horizontal = 4, 8
 
@@ -47,8 +73,8 @@ func TestPRContextViewIsOwnedByEachOpenReviewTab(t *testing.T) {
 	m.openReviewTab(first)
 	m.Update(tea.KeyPressMsg{Code: '1', Text: "1"})
 	m.openReviewTab(second)
-	if got := m.selectedReviewView(); got != viewFiles {
-		t.Fatalf("second review view = %v, want changes", got)
+	if got := m.selectedReviewView(); got != viewDescription {
+		t.Fatalf("second review view = %v, want description", got)
 	}
 	m.Update(tea.KeyPressMsg{Code: '4', Text: "4"})
 	if got := m.selectedReviewView(); got != viewCommits {
@@ -92,7 +118,7 @@ func TestPRContextTabsFollowIdentityAndHaveDirectNumberKeys(t *testing.T) {
 	view := ansi.Strip(m.View().Content)
 	_, tabsAndBody, _ := strings.Cut(view, "\n")
 	first, _, _ := strings.Cut(tabsAndBody, "\n")
-	if first != "  Description [1]  › Files [2]    Guide [3]    Commits [4]" {
+	if first != "› Description [1]    Files [2]    Guide [3]    Commits [4]" {
 		t.Fatalf("top row = %q, want direct tab strip below identity", first)
 	}
 	if strings.Contains(first, "review ·") || strings.Contains(first, "ctrl+p") {

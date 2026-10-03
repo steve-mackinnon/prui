@@ -50,7 +50,9 @@ func TestCommandSwitcherOpensOverReviewAndListsOpenTabsFirst(t *testing.T) {
 	second := largeSession(1, 1)
 	second.Inventory.Comparison.Metadata.Identity = source.Identity{Repository: "owner/repo", Number: 2}
 	m.openReviewTab(first)
+	m.selectReviewView(viewFiles)
 	m.openReviewTab(second)
+	m.selectReviewView(viewFiles)
 
 	ctrlKey(m, 'p')
 	if m.top() != pagePullRequestPicker {
@@ -73,7 +75,9 @@ func TestCommandSwitcherFiltersAndActivatesExistingReviewWithoutOpening(t *testi
 	second := largeSession(1, 1)
 	second.Inventory.Comparison.Metadata.Identity = source.Identity{Repository: "owner/repo", Number: 2}
 	m.openReviewTab(first)
+	m.selectReviewView(viewFiles)
 	m.openReviewTab(second)
+	m.selectReviewView(viewFiles)
 	m.PullRequests = []source.PullRequest{
 		{Identity: first.Inventory.Comparison.Metadata.Identity, Title: "duplicate"},
 		{Identity: source.Identity{Repository: "owner/repo", Number: 3}, Title: "database migration"},
@@ -113,6 +117,7 @@ func TestWorkspaceReviewsStartEmptyAndActivateLoadedReview(t *testing.T) {
 func TestReviewControlsExcludeLegacyPlanActions(t *testing.T) {
 	m := New(context.Background(), nil)
 	m.openReviewTab(largeSession(1, 1))
+	m.selectReviewView(viewFiles)
 
 	for _, control := range []rune{'a', 'v', 'o'} {
 		key(m, control)
@@ -132,7 +137,9 @@ func TestCommandSwitcherDoesNotTakeOverGuideTab(t *testing.T) {
 	second := largeSession(1, 1)
 	second.Inventory.Comparison.Metadata.Identity = source.Identity{Repository: "owner/repo", Number: 2}
 	m.openReviewTab(first)
+	m.selectReviewView(viewFiles)
 	m.openReviewTab(second)
+	m.selectReviewView(viewFiles)
 	m.activateTab(0)
 
 	guided, _, _ := guidedSession(t, groupingAnalyzer{path: "a.go"})
@@ -159,6 +166,7 @@ func TestWorkspaceTabsRestoreIndependentReviewState(t *testing.T) {
 	second.Inventory.Comparison.Metadata.Identity = source.Identity{Repository: "owner/repo", Number: 2}
 
 	m.openReviewTab(first)
+	m.selectReviewView(viewFiles)
 	firstErr := errors.New("first failed")
 	m.Selected, m.Row, m.Files = 1, 3, true
 	m.collapsed.guides[0] = true
@@ -168,6 +176,7 @@ func TestWorkspaceTabsRestoreIndependentReviewState(t *testing.T) {
 	m.Err, m.Loading, m.Busy, m.ActionError, m.notice = firstErr, true, true, firstErr, "first notice"
 
 	m.openReviewTab(second)
+	m.selectReviewView(viewFiles)
 	secondErr := errors.New("second failed")
 	m.Selected, m.Row, m.Files = 0, 1, false
 	m.Scroll, m.GuideScroll = map[int]int{0: 2}, map[int]int{1: 7}
@@ -197,6 +206,7 @@ func TestReviewHeaderExposesSwitcherAndFitsViewport(t *testing.T) {
 	s := largeSession(1, 1)
 	s.Inventory.Comparison.Metadata.Identity = source.Identity{Repository: "owner/repository", Number: 42}
 	m.openReviewTab(s)
+	m.selectReviewView(viewFiles)
 	m.Update(tea.WindowSizeMsg{Width: 15, Height: 8})
 
 	lines := strings.Split(ansi.Strip(m.View().Content), "\n")
@@ -210,9 +220,10 @@ func TestReviewHeaderExposesSwitcherAndFitsViewport(t *testing.T) {
 	}
 }
 
-func TestReviewStartsWithFilesAndGuideTabNeedsOptIn(t *testing.T) {
+func TestFilesViewAndGuideTabNeedsOptIn(t *testing.T) {
 	m := New(context.Background(), nil)
 	m.openReviewTab(screenSession())
+	m.selectReviewView(viewFiles)
 	if !m.Files || !strings.Contains(ansi.Strip(m.View().Content), "› Files [2]") {
 		t.Fatal("review did not open on Files")
 	}
@@ -235,6 +246,7 @@ func TestBackgroundComparisonRefreshPreservesReadingAndTabOwnership(t *testing.T
 	old.ReviewedSliceIDs = []string{"file-1"}
 	old.ID = "cached"
 	m.openReviewTab(old)
+	m.selectReviewView(viewFiles)
 	m.Selected = 1
 	fresh := *old
 	fresh.RevisionStatus = session.Current
@@ -245,6 +257,7 @@ func TestBackgroundComparisonRefreshPreservesReadingAndTabOwnership(t *testing.T
 	other := largeSession(1, 1)
 	other.Inventory.Comparison.Metadata.Identity = source.Identity{Repository: "owner/repo", Number: 2}
 	m.openReviewTab(other)
+	m.selectReviewView(viewFiles)
 	changed := largeSession(2, 2)
 	changed.Inventory.Comparison.Metadata = old.Inventory.Comparison.Metadata
 	changed.Inventory.Comparison.Metadata.HeadSHA = strings.Repeat("c", 40)
@@ -389,6 +402,7 @@ func TestRawReviewMockedEndToEnd(t *testing.T) {
 		t.Fatal("loading absent")
 	}
 	completeAction(t, m, m.Init())
+	m.selectReviewView(viewFiles)
 	if m.Session == nil || m.Err != nil {
 		t.Fatal("load failed", m.Err)
 	}
@@ -474,6 +488,7 @@ func TestFullDiffDoesNotScrollPastViewport(t *testing.T) {
 		return review.Open(c, r.Dir, meta.Identity, fakeGitHub{meta}, source.NewRunner(), source.Defaults(), n)
 	})
 	completeAction(t, m, m.Init())
+	m.selectReviewView(viewFiles)
 	m.Update(tea.WindowSizeMsg{Width: 120, Height: 100})
 	for i := range m.Session.Inventory.Units {
 		if strings.Contains(unitText(m.Session, i), "long line") {
@@ -648,6 +663,7 @@ func TestDiffCursorTracksScrollingAndTabStateWithoutChangingReviewSelection(t *t
 	first.Inventory.Comparison.Metadata.Identity = source.Identity{Repository: "owner/repo", Number: 1}
 	second.Inventory.Comparison.Metadata.Identity = source.Identity{Repository: "owner/repo", Number: 2}
 	m.openReviewTab(first)
+	m.selectReviewView(viewFiles)
 	m.Width, m.Height, m.Selected, m.Focus, m.Horizontal = 120, 5, 1, paneDiff, 8
 	key(m, 'n')
 	key(m, 'J')
@@ -657,6 +673,7 @@ func TestDiffCursorTracksScrollingAndTabStateWithoutChangingReviewSelection(t *t
 	}
 
 	m.openReviewTab(second)
+	m.selectReviewView(viewFiles)
 	m.Selected, m.Focus = 1, paneDiff
 	key(m, 'n')
 	secondCursor := m.cursor()
@@ -677,6 +694,7 @@ func TestInactiveTabRestoresCursorTargetAfterWorkspaceResize(t *testing.T) {
 	second.Inventory.Comparison.Metadata.Identity.Number = 2
 	m.Width, m.Height = 160, 30
 	m.openReviewTab(first)
+	m.selectReviewView(viewFiles)
 	m.Selected, m.Focus = 1, paneDiff
 	var target *source.ReviewCommentTarget
 	for i, line := range m.displayDetail() {
@@ -690,6 +708,7 @@ func TestInactiveTabRestoresCursorTargetAfterWorkspaceResize(t *testing.T) {
 		t.Fatal("fixture has no commentable cursor target")
 	}
 	m.openReviewTab(second)
+	m.selectReviewView(viewFiles)
 	m.Update(tea.WindowSizeMsg{Width: 70, Height: 18})
 	m.activateTab(0)
 	got, _ := m.cursorAnchor()
@@ -704,6 +723,7 @@ func TestSideBySideTabPreferenceIsIsolatedAcrossOpenReviews(t *testing.T) {
 	first.Inventory.Comparison.Metadata.Identity.Number = 1
 	second.Inventory.Comparison.Metadata.Identity.Number = 2
 	m.openReviewTab(first)
+	m.selectReviewView(viewFiles)
 	m.Width, m.Height = sideBySideMinimumWidth, 12
 
 	key(m, 'S')
@@ -711,6 +731,7 @@ func TestSideBySideTabPreferenceIsIsolatedAcrossOpenReviews(t *testing.T) {
 		t.Fatal("S did not enable the first tab's side-by-side preference")
 	}
 	m.openReviewTab(second)
+	m.selectReviewView(viewFiles)
 	if m.diffLayout() != diffLayoutUnified {
 		t.Fatal("first tab's side-by-side preference leaked to newly opened tab")
 	}
@@ -729,6 +750,7 @@ func TestDiffLayoutDefaultsToUnifiedAndSTogglesOnlyChanges(t *testing.T) {
 	m := New(context.Background(), nil)
 	m.Loading = false
 	m.openReviewTab(kindsSession())
+	m.selectReviewView(viewFiles)
 	m.Width, m.Height = sideBySideMinimumWidth, 12
 
 	if got := m.diffLayout(); got != diffLayoutUnified {
@@ -749,6 +771,7 @@ func TestDiffLayoutRestoresPreferredSideBySideAtMinimumWidth(t *testing.T) {
 	m := New(context.Background(), nil)
 	m.Loading = false
 	m.openReviewTab(kindsSession())
+	m.selectReviewView(viewFiles)
 	m.Width, m.Height = sideBySideMinimumWidth, 12
 	key(m, 'S')
 
@@ -769,6 +792,7 @@ func TestSideBySideResizePreservesPreferenceScrollCursorAndDraft(t *testing.T) {
 	m := New(context.Background(), nil)
 	m.Loading = false
 	m.openReviewTab(kindsSession())
+	m.selectReviewView(viewFiles)
 	m.Selected, m.Focus = 1, paneDiff
 	m.Update(tea.WindowSizeMsg{Width: sideBySideMinimumWidth, Height: 5})
 	key(m, 'S')
@@ -1040,7 +1064,9 @@ func TestCommentActionResultOnlyChangesOriginatingTabAndPreservesFailureDraft(t 
 	first, second := kindsSession(), kindsSession()
 	second.Inventory.Comparison.Metadata.Identity.Number = 2
 	m.openReviewTab(first)
+	m.selectReviewView(viewFiles)
 	m.openReviewTab(second)
+	m.selectReviewView(viewFiles)
 	m.activateTab(0)
 	m.CommentMenu = &commentActionMenu{CommentID: 7, generation: 1, Draft: "reply"}
 	m.Comments = []source.ReviewComment{{ID: 7}}
@@ -1367,6 +1393,7 @@ func TestReviewStyledUnitKindsKeepWording(t *testing.T) {
 	s := kindsSession()
 	m := New(context.Background(), func(context.Context, func(string)) (*review.Session, error) { return s, nil })
 	m.Update(m.Init()())
+	m.selectReviewView(viewFiles)
 	m.Update(tea.WindowSizeMsg{Width: 200, Height: 24})
 	for i, u := range s.Inventory.Units {
 		m.Selected, m.Focus = i, paneDiff
@@ -1407,6 +1434,7 @@ func TestStrippedViewMatchesUnstyledRender(t *testing.T) {
 	s := kindsSession()
 	m := New(context.Background(), func(context.Context, func(string)) (*review.Session, error) { return s, nil })
 	m.Update(m.Init()())
+	m.selectReviewView(viewFiles)
 	for _, w := range []int{1, 20, 60, 99, 100, 120} {
 		for i := range s.Inventory.Units {
 			for _, focus := range []pane{paneList, paneDiff} {

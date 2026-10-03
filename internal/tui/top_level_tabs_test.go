@@ -15,7 +15,7 @@ func TestTopLevelReviewTabsOrderAndKeyboardSelection(t *testing.T) {
 	defer m.Close()
 	m.openReviewTab(screenSession())
 	m.Width, m.Height = 120, 16
-	want := "  Description [1]  › Files [2]    Guide [3]    Commits [4]"
+	want := "› Description [1]    Files [2]    Guide [3]    Commits [4]"
 	if got := strings.Split(ansi.Strip(m.View().Content), "\n")[1]; got != want {
 		t.Fatalf("tab strip = %q, want %q", got, want)
 	}

@@ -124,6 +124,7 @@ func TestMouseResizeNarrowAndContextCancel(t *testing.T) {
 func TestMouseAndKeyboardResizeShareTabPreference(t *testing.T) {
 	m := largeModel(screenSession(), 160, 24)
 	m.openReviewTab(m.Session)
+	m.selectReviewView(viewFiles)
 	d := m.workspaceGeometry().Divider
 	m.Update(tea.MouseClickMsg{Button: tea.MouseLeft, X: d.Min.X, Y: d.Min.Y})
 	m.Update(tea.MouseMotionMsg{Button: tea.MouseLeft, X: 61, Y: d.Min.Y})
@@ -135,6 +136,7 @@ func TestMouseAndKeyboardResizeShareTabPreference(t *testing.T) {
 	other := screenSession()
 	other.Inventory.Comparison.Metadata.Identity.Number = 43
 	m.openReviewTab(other)
+	m.selectReviewView(viewFiles)
 	if m.listWidth() != 36 {
 		t.Fatal("width leaked to other review")
 	}

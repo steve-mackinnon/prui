@@ -170,7 +170,7 @@ func TestProgramCommitNavigation(t *testing.T) {
 	fixture := commitModel(t).Session
 	m := New(context.Background(), func(context.Context, func(string)) (*review.Session, error) { return fixture, nil })
 	h := runProgram(t, m)
-	h.expect("loaded review", func(f programFrame) bool { return !f.loading && strings.Contains(f.text, "main.go") })
+	h.expect("loaded review", func(f programFrame) bool { return !f.loading && strings.Contains(f.text, "› Description [1]") })
 	h.key('4')
 	h.expect("first commit diff", func(f programFrame) bool { return strings.Contains(f.text, "+First commit") })
 	h.key('j')

@@ -172,6 +172,7 @@ func TestProgramReviewProgressSurvivesRestart(t *testing.T) {
 	}
 	h := open()
 	h.expect("loaded review", func(f programFrame) bool { return f.sessionID == saved.ID && !f.busy })
+	h.key('2')
 	h.key('m')
 	h.expect("durable reading progress", func(f programFrame) bool { return f.read == 1 && !f.busy })
 	h.key('?')
@@ -335,6 +336,7 @@ func TestProgramBackgroundRefreshPreservesPendingProgress(t *testing.T) {
 	})
 	h := runProgram(t, m)
 	h.expect("loaded", func(f programFrame) bool { return f.sessionID == saved.ID })
+	h.key('2')
 	h.key('m')
 	h.expect("marked", func(f programFrame) bool { return f.read == 1 })
 	close(released)

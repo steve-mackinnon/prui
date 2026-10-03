@@ -132,6 +132,7 @@ func TestMouseReviewContextEmptySeparatorAndCommentRows(t *testing.T) {
 func TestMouseReviewVisibleTabsAndNarrowPane(t *testing.T) {
 	m := largeModel(screenSession(), 99, 12)
 	m.openReviewTab(m.Session)
+	m.selectReviewView(viewFiles)
 	m.mouseReviewClick(15, 1)
 	if m.selectedReviewView() != viewDescription {
 		t.Fatal("description tab missed")
@@ -192,6 +193,7 @@ func TestMouseReviewSplitSelectionIsTabOwned(t *testing.T) {
 	s.Inventory.Files[0].OldPath = []byte("main.go")
 	m := largeModel(s, 160, 16)
 	m.openReviewTab(s)
+	m.selectReviewView(viewFiles)
 	m.layout = diffLayoutSideBySide
 	g := m.workspaceGeometry()
 	for i, line := range m.displayDetail() {
@@ -203,6 +205,7 @@ func TestMouseReviewSplitSelectionIsTabOwned(t *testing.T) {
 		other := screenSession()
 		other.Inventory.Comparison.Metadata.Identity.Number = 43
 		m.openReviewTab(other)
+		m.selectReviewView(viewFiles)
 		m.activateTab(0)
 		got, _ := m.cursorAnchor()
 		if got == nil || *got != want {
@@ -218,6 +221,7 @@ func TestMouseReviewInactiveTabResizeKeepsSplitTarget(t *testing.T) {
 	s.Inventory.Files[0].OldPath = []byte("main.go")
 	m := largeModel(s, 160, 16)
 	m.openReviewTab(s)
+	m.selectReviewView(viewFiles)
 	m.layout = diffLayoutSideBySide
 	g := m.workspaceGeometry()
 	_, right := splitCellBounds(m.detailWidth())
@@ -230,6 +234,7 @@ func TestMouseReviewInactiveTabResizeKeepsSplitTarget(t *testing.T) {
 		other := screenSession()
 		other.Inventory.Comparison.Metadata.Identity.Number = 43
 		m.openReviewTab(other)
+		m.selectReviewView(viewFiles)
 		m.Update(tea.WindowSizeMsg{Width: 159, Height: 16})
 		m.activateTab(0)
 		got, _ := m.cursorAnchor()
@@ -249,6 +254,7 @@ func TestMouseReviewInactiveTabResizeKeepsCommentID(t *testing.T) {
 	s := screenSession()
 	m := largeModel(s, 160, 16)
 	m.openReviewTab(s)
+	m.selectReviewView(viewFiles)
 	m.layout = diffLayoutSideBySide
 	target, _ := m.cursorAnchor()
 	m.Comments = []source.ReviewComment{{ID: 42, Target: *target, Body: "saved comment", Author: "reviewer"}}
@@ -261,6 +267,7 @@ func TestMouseReviewInactiveTabResizeKeepsCommentID(t *testing.T) {
 		other := screenSession()
 		other.Inventory.Comparison.Metadata.Identity.Number = 43
 		m.openReviewTab(other)
+		m.selectReviewView(viewFiles)
 		m.Update(tea.WindowSizeMsg{Width: 159, Height: 16})
 		m.activateTab(0)
 		got, id := m.cursorAnchor()

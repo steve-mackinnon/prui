@@ -52,6 +52,7 @@ func TestLifecycleProgressRefreshPickerAndFreshFailure(t *testing.T) {
 		return nil, errors.New("new comparison unavailable")
 	})
 	completeAction(t, m, m.Init())
+	m.selectReviewView(viewFiles)
 	action(t, m, 'm')
 	if len(m.Session.ReviewedSliceIDs) != 1 || !strings.Contains(m.View().Content, "1/1 read") {
 		t.Fatal("progress missing")
@@ -150,6 +151,7 @@ func TestLifecycleCancelRefreshKeepsSnapshot(t *testing.T) {
 	m := New(context.Background(), func(context.Context, func(string)) (*review.Session, error) { return saved, nil })
 	m.SetLifecycle(store, canceledReader{}, nil)
 	m.Update(m.Init()())
+	m.selectReviewView(viewFiles)
 	action(t, m, 'm')
 	_, cmd := m.Update(tea.KeyPressMsg{Code: 'r', Text: "r"})
 	if cmd == nil || !m.Busy {
@@ -226,12 +228,14 @@ func TestLateCommentResultOnlyChangesItsOriginatingTab(t *testing.T) {
 	first.Inventory.Comparison.Metadata.Identity = source.Identity{Repository: "owner/repo", Number: 1}
 	second.Inventory.Comparison.Metadata.Identity = source.Identity{Repository: "owner/repo", Number: 2}
 	m.openReviewTab(first)
+	m.selectReviewView(viewFiles)
 	m.Selected, m.Focus = 1, paneDiff
 	namedKey(m, tea.KeyEnter)
 	m.Composer.Draft, m.Composer.generation = "first draft", 1
 	m.saveActiveCursorAnchor()
 
 	m.openReviewTab(second)
+	m.selectReviewView(viewFiles)
 	m.Selected, m.Focus = 1, paneDiff
 	namedKey(m, tea.KeyEnter)
 	m.Composer.Draft, m.Composer.generation = "second draft", 9
@@ -252,11 +256,13 @@ func TestInactiveReviewResultIsVisibleOnlyWhenOriginTabReturns(t *testing.T) {
 	first.Inventory.Comparison.Metadata.Identity.Number = 1
 	second.Inventory.Comparison.Metadata.Identity.Number = 2
 	m.openReviewTab(first)
+	m.selectReviewView(viewFiles)
 	m.ReviewForm = &reviewForm{Body: "first review", Confirm: true, generation: 3}
 	m.Pending = []source.ReviewComment{{Body: "first pending"}}
 	m.Stack = []page{pageReview, pageReviewSubmit}
 	m.Busy = true
 	m.openReviewTab(second)
+	m.selectReviewView(viewFiles)
 	m.ReviewForm = &reviewForm{Body: "second review"}
 	m.Pending = []source.ReviewComment{{Body: "second pending"}}
 	m.ActionError = errors.New("second tab error")
@@ -293,8 +299,10 @@ func TestInactiveViewerResultKeepsVisibleActionState(t *testing.T) {
 	first.Inventory.Comparison.Metadata.Identity.Number = 1
 	second.Inventory.Comparison.Metadata.Identity.Number = 2
 	m.openReviewTab(first)
+	m.selectReviewView(viewFiles)
 	m.Busy = true
 	m.openReviewTab(second)
+	m.selectReviewView(viewFiles)
 	visibleErr := errors.New("second tab action")
 	m.Busy, m.ActionError = true, visibleErr
 	m.Update(ViewerResult{Target: 0, Viewer: source.Viewer{Login: "alice"}})
@@ -347,6 +355,7 @@ func TestPullRequestPickerListsAndOpens(t *testing.T) {
 	})
 	defer m.Close()
 	m.Update(m.Init()())
+	m.selectReviewView(viewFiles)
 	_, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	m.Update(cmd())
 	if m.top() != pagePullRequestPicker || !strings.Contains(m.View().Content, "Open me") {
@@ -467,6 +476,7 @@ func TestPullRequestOpeningUsesWorkspaceTabsWithoutReplacingOtherReviews(t *test
 		})
 	defer m.Close()
 	m.Update(m.Init()())
+	m.selectReviewView(viewFiles)
 
 	// Open the first PR, then request the second from the overlay. Its delayed
 	// result must not replace the first review after selecting it again.
@@ -515,6 +525,7 @@ func TestPullRequestRefreshKeepsCachedReviewInteractive(t *testing.T) {
 	release := make(chan struct{})
 	m := newModel(context.Background())
 	m.openReviewTab(cached)
+	m.selectReviewView(viewFiles)
 	m.SetPullRequestRefresh(func(ctx context.Context, opened PullRequestRefreshRequest, _ func(string)) (PullRequestFreshness, error) {
 		if opened.Metadata != cached.Inventory.Comparison.Metadata {
 			t.Fatal("wrong frozen metadata")
@@ -560,10 +571,12 @@ func TestPullRequestOpeningCapacityAndFailureRetainBrowserAndReviews(t *testing.
 		})
 	defer m.Close()
 	m.Update(m.Init()())
+	m.selectReviewView(viewFiles)
 	for i := 1; i <= maxTabs; i++ {
 		s := largeSession(1, 1)
 		s.Inventory.Comparison.Metadata.Identity = source.Identity{Repository: "owner/repo", Number: i}
 		m.openReviewTab(s)
+		m.selectReviewView(viewFiles)
 	}
 	cmd := m.openSelectedPullRequest(identity)
 	if cmd != nil || called != 0 || len(m.tabs) != maxTabs || m.ActionError == nil || !strings.Contains(m.ActionError.Error(), "9 reviews") {
@@ -609,6 +622,7 @@ func TestGuideConsentCancelsOrReportsFailedGeneration(t *testing.T) {
 		return store.Create(derived)
 	})
 	m.Update(m.Init()())
+	m.selectReviewView(viewFiles)
 	m.Width = 200
 	action(t, m, 'g')
 	if m.top() != pageGuideConsent || calls != 0 || !strings.Contains(m.View().Content, "store:false") {
@@ -638,6 +652,7 @@ func TestManualRefreshSupersedesPendingBackgroundRefresh(t *testing.T) {
 	m := newModel(context.Background())
 	defer m.Close()
 	m.openReviewTab(saved)
+	m.selectReviewView(viewFiles)
 	newer := saved.Inventory.Comparison.Metadata
 	newer.HeadSHA = strings.Repeat("f", 40)
 	m.SetLifecycle(store, fakeGitHub{newer}, nil)
@@ -666,6 +681,7 @@ func TestBackgroundRefreshIgnoresReplacedSessionAndCanceledModel(t *testing.T) {
 			m := newModel(context.Background())
 			defer m.Close()
 			m.openReviewTab(saved)
+			m.selectReviewView(viewFiles)
 			m.SetLifecycle(store, nil, nil)
 			m.SetPullRequestRefresh(func(context.Context, PullRequestRefreshRequest, func(string)) (PullRequestFreshness, error) {
 				return PullRequestFreshness{Status: session.Current}, nil
@@ -694,6 +710,7 @@ func TestGuideGenerationFailureIsVisibleAndRetainsSnapshot(t *testing.T) {
 			defer m.Close()
 			saved := largeSession(1, 1)
 			m.openReviewTab(saved)
+			m.selectReviewView(viewFiles)
 			m.Loading = false
 			m.Width, m.Height = 120, 40
 			m.generateGuide = func(context.Context, *review.Session, guideconfig.Selection, func(string)) (*review.Session, error) {
@@ -721,6 +738,7 @@ func TestBackgroundReplacementCannotInterruptForegroundReviewAction(t *testing.T
 			m := newModel(context.Background())
 			defer m.Close()
 			m.openReviewTab(saved)
+			m.selectReviewView(viewFiles)
 			m.Loading = false
 			m.SetLifecycle(store, nil, nil)
 			replacement := *saved
@@ -773,6 +791,7 @@ func TestBackgroundReplacementPreservesUnsubmittedDrafts(t *testing.T) {
 	saved.ID = "saved"
 	saved.RevisionStatus = session.Unchecked
 	m.openReviewTab(saved)
+	m.selectReviewView(viewFiles)
 	replacement := *saved
 	replacement.ID = "replacement"
 	m.SetPullRequestRefresh(func(context.Context, PullRequestRefreshRequest, func(string)) (PullRequestFreshness, error) {
@@ -795,6 +814,7 @@ func TestBackgroundReplacementKeepsInactiveTabDraftsAndPersistsStale(t *testing.
 	m := newModel(context.Background())
 	defer m.Close()
 	m.openReviewTab(saved)
+	m.selectReviewView(viewFiles)
 	m.SetLifecycle(store, nil, nil)
 	replacement := *saved
 	replacement.ID = "replacement"
@@ -806,6 +826,7 @@ func TestBackgroundReplacementKeepsInactiveTabDraftsAndPersistsStale(t *testing.
 	other := largeSession(1, 1)
 	other.Inventory.Comparison.Metadata.Identity.Number = 99
 	m.openReviewTab(other)
+	m.selectReviewView(viewFiles)
 	m.Update(background())
 	if m.Session != other || m.tabs[0].review.Session != saved || len(m.tabs[0].review.Pending) != 1 {
 		t.Fatal("background changed active tab or discarded inactive draft")

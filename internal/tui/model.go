@@ -906,9 +906,13 @@ func (m *Model) reviewStateForTarget(target int) *reviewTabState {
 }
 
 func newReviewTabState(s *review.Session) *reviewTabState {
+	initialView := viewFiles
+	if s != nil && s.Inventory.Comparison.Metadata.Identity.Number > 0 {
+		initialView = viewDescription
+	}
 	return &reviewTabState{
 		Session: s, Scroll: map[int]int{}, GuideScroll: map[int]int{}, Cursor: map[int]int{}, GuideCursor: map[int]int{},
-		ContextView: viewFiles, DescriptionScroll: 0, Files: true, collapsed: newExpansion(), Stack: []page{pageReview}, Focus: paneList,
+		ContextView: initialView, DescriptionScroll: 0, Files: true, collapsed: newExpansion(), Stack: []page{pageReview}, Focus: paneList,
 	}
 }
 

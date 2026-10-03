@@ -116,6 +116,8 @@ For offline reading, list session IDs with `prui sessions`, then run
 | `s` | Browse saved sessions |
 | `?` / `q` | Health & help / quit |
 
+Newly opened pull requests start on the Description tab. Use `2` to switch to Files.
+
 Mouse selection, pane resizing, themes, and side-by-side diffs are also available.
 See the [user reference](docs/REFERENCE.md) for all controls and limitations,
 or run `prui --help` for command syntax.

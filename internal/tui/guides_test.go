@@ -64,8 +64,9 @@ func loaded(t *testing.T, s *review.Session, width, height int) *Model {
 	m := New(context.Background(), func(context.Context, func(string)) (*review.Session, error) { return s, nil })
 	t.Cleanup(m.Close)
 	completeAction(t, m, m.Init())
+	m.selectReviewView(viewFiles)
 	if s.Guides != nil && s.Guides.Status == guide.Generated {
-		m.Files = false // guide-focused fixture; production reviews open in Files.
+		m.Files = false // Select the guide workspace for this fixture.
 		m.begin()
 	}
 	m.Update(tea.WindowSizeMsg{Width: width, Height: height})

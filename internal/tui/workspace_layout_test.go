@@ -17,6 +17,7 @@ func TestWorkspaceIdentityPersistsAcrossContextViews(t *testing.T) {
 	s := screenSession()
 	s.Inventory.Comparison.Metadata.Identity = source.Identity{Repository: "owner/repo", Number: 42}
 	m.openReviewTab(s)
+	m.selectReviewView(viewFiles)
 	m.PullRequests = []source.PullRequest{{Identity: s.Inventory.Comparison.Metadata.Identity, Title: "Fix\x1b]52;unsafe\a title"}}
 	for _, view := range []reviewView{viewFiles, viewDescription, viewCommits} {
 		m.selectReviewView(view)
@@ -35,6 +36,7 @@ func TestKeyboardResizesReviewPaneAndKeepsTabPreference(t *testing.T) {
 	second := screenSession()
 	second.Inventory.Comparison.Metadata.Identity = source.Identity{Repository: "owner/repo", Number: 2}
 	m.openReviewTab(first)
+	m.selectReviewView(viewFiles)
 	m.Update(tea.WindowSizeMsg{Width: 120, Height: 24})
 	initial := m.listWidth()
 	key(m, ']')
@@ -52,6 +54,7 @@ func TestKeyboardResizesReviewPaneAndKeepsTabPreference(t *testing.T) {
 		t.Fatalf("divider at %d, list width %d", got, m.listWidth())
 	}
 	m.openReviewTab(second)
+	m.selectReviewView(viewFiles)
 	if got := m.listWidth(); got != initial {
 		t.Fatalf("new tab width = %d, want %d", got, initial)
 	}
@@ -106,6 +109,7 @@ func TestWorkspaceGeometryAndFooterAtResponsiveWidths(t *testing.T) {
 				m := New(context.Background(), nil)
 				t.Cleanup(m.Close)
 				m.openReviewTab(screenSession())
+				m.selectReviewView(viewFiles)
 				m.Width, m.Height = width, height
 				lines := strings.Split(ansi.Strip(m.View().Content), "\n")
 				if len(lines) != height {
@@ -138,6 +142,7 @@ func TestWorkspaceTitleSurvivesReplacingPullRequestList(t *testing.T) {
 	identity := s.Inventory.Comparison.Metadata.Identity
 	m.PullRequests = []source.PullRequest{{Identity: identity, Title: "Remember this title"}}
 	m.openReviewTab(s)
+	m.selectReviewView(viewFiles)
 	m.PullRequests = nil
 	if !strings.Contains(ansi.Strip(m.View().Content), "Remember this title") {
 		t.Fatal("open review lost its title when the PR list changed")
@@ -151,6 +156,7 @@ func TestDescriptionViewportPreservesFooterWhenScrolledToEnd(t *testing.T) {
 	body := strings.Repeat("line\n\n", 30) + "Final description sentence"
 	s.PullRequestDescription = &body
 	m.openReviewTab(s)
+	m.selectReviewView(viewFiles)
 	m.Width, m.Height = 60, 10
 	m.selectReviewView(viewDescription)
 	m.DescriptionScroll = 10000
