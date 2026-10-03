@@ -1,6 +1,6 @@
 # Theme palette attribution
 
-The semantic mappings in `internal/theme/presets.go` and `internal/theme/additional_presets.go` adapt these palette values.
+The semantic mappings in `internal/theme/presets.go` adapt these palette values.
 Selection, borders, and grouping of roles are application-specific mappings;
 no editor syntax theme implementation is copied.
 
