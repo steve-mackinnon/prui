@@ -2200,7 +2200,11 @@ func (m *Model) descriptionView() string {
 	height := m.descriptionBodyHeight()
 	m.DescriptionScroll = max(0, min(m.DescriptionScroll, max(0, len(lines)-height)))
 	end := min(len(lines), m.DescriptionScroll+height)
-	return m.styleLine(classTitle, "Description") + "\nFrozen from GitHub when this review opened.\n" + strings.Join(lines[m.DescriptionScroll:end], "\n")
+	visible := append([]string(nil), lines[m.DescriptionScroll:end]...)
+	for len(visible) < height {
+		visible = append(visible, "")
+	}
+	return m.styleLine(classTitle, "Description") + "\nFrozen from GitHub when this review opened.\n" + strings.Join(visible, "\n")
 }
 
 func (m *Model) descriptionLines() []string {

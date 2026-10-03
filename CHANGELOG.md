@@ -11,6 +11,8 @@ User-visible changes are recorded here before each release. See
 
 ### Fixed
 
+- Keep the review footer at the bottom of the Description page, including short and empty descriptions.
+
 - Keep the Guide selection in sync when scrolling or navigating the diff.
 
 - Open the Guide tab at the first section instead of following the current file selection.

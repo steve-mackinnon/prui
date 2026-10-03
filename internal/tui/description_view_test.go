@@ -181,3 +181,27 @@ func TestDescriptionViewInvalidatesEveryTabCacheWhenThemeChanges(t *testing.T) {
 		t.Fatal("theme change did not rebuild description rendering")
 	}
 }
+
+func TestDescriptionFooterStaysAtBottom(t *testing.T) {
+	for _, body := range []string{"", "Short description", strings.Repeat("Long description\n\n", 30)} {
+		for _, height := range []int{6, 12, 24} {
+			m := New(context.Background(), nil)
+			t.Cleanup(m.Close)
+			s := screenSession()
+			s.PullRequestDescription = &body
+			m.openReviewTab(s)
+			m.Width, m.Height = 80, height
+			m.selectReviewView(viewDescription)
+			for _, scroll := range []int{0, 10000} {
+				m.DescriptionScroll = scroll
+				view := ansi.Strip(m.View().Content)
+				if rows := len(strings.Split(view, "\n")); rows != height {
+					t.Fatalf("description at height %d and scroll %d renders %d rows", height, scroll, rows)
+				}
+				if !strings.HasSuffix(view, ansi.Strip(m.reviewStatus())) {
+					t.Fatalf("description footer is not at bottom: %q", view)
+				}
+			}
+		}
+	}
+}
