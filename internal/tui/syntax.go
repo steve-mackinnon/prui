@@ -97,12 +97,14 @@ func wrappedSyntax(line diffLine, part string, offset *int) diffLine {
 	if at < 0 {
 		line.syntax = nil
 		line.oldSyntax = nil
+		line.wordChanges = nil
 		return line
 	}
 	start := *offset + at
 	line.sourceOffset += start - 1
 	line.syntax = cropSpans(line.syntax, start, start+len(part), 1)
 	line.oldSyntax = cropSpans(line.oldSyntax, start, start+len(part), 1)
+	line.wordChanges = cropSpans(line.wordChanges, start, start+len(part), 1)
 	*offset = start + len(part)
 	return line
 }
@@ -112,6 +114,9 @@ func wrappedSyntax(line diffLine, part string, offset *int) diffLine {
 func (m *Model) syntaxText(line diffLine, horizontal, width int, prefix string) string {
 	if highlighted, ok := m.searchHighlightedText(line, horizontal, width, prefix); ok {
 		return highlighted
+	}
+	if len(line.wordChanges) > 0 && m.colorProfile > colorprofile.Ascii {
+		return m.wordHighlightedText(line, horizontal, width, prefix)
 	}
 	prefix = clip(prefix, width)
 	runes := []rune(line.Text)

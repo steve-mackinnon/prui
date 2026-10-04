@@ -50,6 +50,7 @@ type diffLine struct {
 	sourceOffset int // escaped-source bytes removed by wrapping or marker stripping
 	styledLine
 	syntax, oldSyntax []syntax.Span
+	wordChanges       []syntax.Span
 	oldLine, newLine  int                         // raw source coordinates; zero means absent
 	oldTarget         *source.ReviewCommentTarget // alternate raw context coordinate, used only for ranges
 	target            *source.ReviewCommentTarget

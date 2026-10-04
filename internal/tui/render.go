@@ -309,6 +309,7 @@ func (m *Model) renderSideBySideCell(cell *diffCell, width, horizontal int) stri
 	source.Text = text
 	source.sourceOffset += len(marker)
 	source.syntax = cropSpans(source.syntax, len(marker), len(cell.line.Text), 0)
+	source.wordChanges = cropSpans(source.wordChanges, len(marker), len(cell.line.Text), 0)
 	value := m.syntaxText(source, horizontal, width, gutter)
 	value += strings.Repeat(" ", max(0, width-visibleWidth(value)))
 	return m.styleLine(cell.line.Class, value)
@@ -379,6 +380,7 @@ func textHunkLines(f inventory.FileChange, u inventory.ReviewUnit, patch []byte,
 		}
 		lines = append(lines, row)
 	}
+	attachWordChanges(lines, len(patch))
 	return lines
 }
 

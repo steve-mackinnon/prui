@@ -284,6 +284,7 @@ func (m *Model) searchHighlightedText(line diffLine, horizontal, width int, pref
 		piece.searchID = searchSourceID{}
 		piece.Text = text[a:b]
 		piece.syntax = cropSpans(line.syntax, start+a, start+b, 0)
+		piece.wordChanges = cropSpans(line.wordChanges, start+a, start+b, 0)
 		styled := m.syntaxText(piece, 0, visibleWidth(piece.Text), "")
 		if highlight {
 			styled = m.searchStyle(active).Render(styled)

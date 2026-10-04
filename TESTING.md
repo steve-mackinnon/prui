@@ -259,3 +259,13 @@ I/r/Escape dispatch with real pinned full-source capture and durable v3/v4
 private attempts; asserts unchanged layout/cursors/pins/payload generations,
 canonical targets and read-only source-row identity. Foreign PR/session/workspace
 records are rejected. Main's Alt+R/C/F/slash/Alt+C controls remain covered.
+
+## Word-level highlighting (#37)
+
+`go test ./internal/tui -run 'WordDiff|Syntax|Wrap|Navigation|Whitespace|Search|Anchor' -count=1`
+checks changed-token fixtures (Go, Python, JSON and prose), Unicode/combining and
+wide characters, tabs, wrapping/panning, unified/split styling, raw text and
+canonical comment targets, ambiguous/many-to-many fallback, invalid UTF-8 and
+patch/line/token/work limits. Source/navigation/search regression tests accompany
+the focused word tests. These are synthetic renderer checks; live human terminal
+behavior and accessibility have not been verified for this release.
