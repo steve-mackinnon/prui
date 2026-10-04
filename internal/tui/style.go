@@ -209,5 +209,14 @@ func diffBackground(t theme.Theme, role theme.Token) color.Color {
 	}
 	ar, ag, ab, _ := accent.RGBA()
 	br, bg, bb, _ := background.RGBA()
-	return color.RGBA{R: uint8((ar + 3*br) / 4 >> 8), G: uint8((ag + 3*bg) / 4 >> 8), B: uint8((ab + 3*bb) / 4 >> 8), A: 255}
+	channel := func(accent, base uint32) uint8 {
+		// RGBA channels are 16-bit values; widen the blend and explicitly
+		// bound its result before narrowing to an 8-bit output channel.
+		value := (uint64(accent) + 3*uint64(base)) / 4 >> 8
+		if value > 255 {
+			return 255
+		}
+		return uint8(value)
+	}
+	return color.RGBA{R: channel(ar, br), G: channel(ag, bg), B: channel(ab, bb), A: 255}
 }
