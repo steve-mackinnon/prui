@@ -93,7 +93,12 @@ theme, and baseline test have no diff from the parent. Build and lint then passe
 
 A final range-start guard explicitly reports invalid captured UTF-8 targets
 instead of silently failing to open a composer; its focused regression passes.
-Final full gates and exact-SHA confirmation remain pending; keep this PR draft.
+Independent reviewer `/root/independent_review` approved
+`12acefc84be240def2125b437045df5366a37553`, including the invalid-start regression.
+That commit passed `./scripts/verify.sh` (gofmt, vet, full race suite with
+`-count=1`, build), `golangci-lint run ./...` (0 issues), and `git diff --check`.
+The remaining commit only records this evidence; its exact-SHA review and
+verification results are recorded in the PR before readiness.
 
 Human terminal usability/accessibility remains unverified by render tests alone.
 No checks, thresholds, existing test assertions, or skipped-test policy weakened.
