@@ -1,0 +1,24 @@
+Open pull requests · 2 open
+› #42  Fix retry handling             @alice ✓ │ #42  Fix retry handling
+  #39  Add cache support                @sam … │ Author alice  ·  Opened Sep 23, 2026
+                                               │ Last commit bob  ·  ✅ Checks pass
+                                               │ Your review: None
+                                               │ DESCRIPTION
+                                               │   ## Summary
+                                               │
+                                               │   Preserve cancellation while retrying failed requests.
+                                               │
+                                               │   • Bound the retry count
+                                               │   • Cover cancellation
+                                               │
+                                               │
+                                               │
+                                               │
+                                               │
+                                               │
+                                               │
+                                               │
+                                               │
+                                               │
+                                               │
+j/k: select · tab: preview · enter: open · esc: back · ?: Health & help

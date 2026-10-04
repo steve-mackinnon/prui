@@ -16,12 +16,12 @@ func (m *Model) pullRequestPickerView() string {
 	rows := make([]string, len(m.PullRequests))
 	var detail []string
 	for i, pr := range m.PullRequests {
-		rows[i] = m.pullRequestRow(pr)
+		rows[i] = m.prPickerRow(pr)
 		if i == m.PullRequestPicker.Index {
-			detail = m.pullRequestDetail(pr)
+			detail = m.prPickerDetail(pr)
 		}
 	}
-	return m.pickerScreenDetail(&m.PullRequestPicker, header, rows, detail, "No open pull requests.", "enter: open · esc: back")
+	return m.prPickerScreen(header, rows, detail, "No open pull requests.", "enter: open · esc: back")
 }
 
 func pullRequestChecks(pr source.PullRequest) string {
@@ -48,7 +48,7 @@ func (m *Model) compactPullRequestRow(title, author, review, status string) stri
 	// At narrow widths keep the PR identity readable; the selected detail also
 	// carries the full check state when there is room beneath the list.
 	if width < 32 {
-		return clip(title, width)
+		return m.prPickerTitle(title, width)
 	}
 	if author == "" {
 		author = "unknown"
@@ -68,8 +68,10 @@ func (m *Model) compactPullRequestRow(title, author, review, status string) stri
 	case "PENDING":
 		marker = "✎"
 	}
+	author = m.styleLine(classHunk, author)
+	status = m.styleLine(prCheckAccent(status), status)
 	metadata := marker + strings.Repeat(" ", 3-visibleWidth(marker)) + author + strings.Repeat(" ", authorWidth-visibleWidth(author)) + strings.Repeat(" ", 2+statusWidth-visibleWidth(status)) + status
-	title = clip(title, width-visibleWidth(metadata)-2)
+	title = m.prPickerTitle(title, width-visibleWidth(metadata)-2)
 	return title + strings.Repeat(" ", width-visibleWidth(title)-visibleWidth(metadata)) + metadata
 }
 
@@ -78,7 +80,7 @@ func (m *Model) pullRequestDetail(pr source.PullRequest) []string {
 		if value == "" {
 			return "unknown"
 		}
-		return clip(Escape(value), min(20, max(8, m.Width/4)))
+		return Escape(value)
 	}
 	opened := "unknown"
 	if !pr.OpenedAt.IsZero() {

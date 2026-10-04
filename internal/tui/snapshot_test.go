@@ -145,6 +145,17 @@ func TestScreenSnapshots(t *testing.T) {
 				key(m, 'j')
 			}
 		}},
+
+		{"pull_requests_split", 120, 24, func(m *Model) {
+			m.Session = nil
+			m.Stack = []page{pagePullRequestPicker}
+			m.PullRequests = []source.PullRequest{{Identity: source.Identity{Repository: "example/review", Number: 42}, Title: "Fix retry handling", Author: "alice", LastModifier: "bob", OpenedAt: time.Date(2026, 9, 23, 12, 0, 0, 0, time.UTC), Checks: source.ChecksPassed, Description: "## Summary\n\nPreserve cancellation while retrying failed requests.\n\n- Bound the retry count\n- Cover cancellation"}, {Identity: source.Identity{Number: 39}, Title: "Add cache support", Author: "sam", Checks: source.ChecksPending}}
+		}},
+		{"pull_requests_stacked", 80, 20, func(m *Model) {
+			m.Session = nil
+			m.Stack = []page{pagePullRequestPicker}
+			m.PullRequests = []source.PullRequest{{Identity: source.Identity{Number: 42}, Title: "Fix retry handling", Author: "alice", Description: "Preserve cancellation while retrying requests."}}
+		}},
 		{"pull_requests", 60, 8, func(m *Model) {
 			m.Session = nil
 			m.Stack = []page{pagePullRequestPicker}

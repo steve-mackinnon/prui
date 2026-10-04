@@ -201,7 +201,7 @@ func TestCompactPullRequestsBoundAndEscapeLongContent(t *testing.T) {
 	m.Width, m.Height = 120, 10
 	m.PullRequests = []source.PullRequest{{Identity: source.Identity{Number: 42}, Title: "\x1b[31m Colorful change " + strings.Repeat("x", 120), Author: "alice", LastModifier: strings.Repeat("b", 100), Checks: source.ChecksFailed}}
 	plain := ansi.Strip(m.View().Content)
-	if strings.ContainsAny(plain, "╭╰") || !strings.Contains(plain, `\x1b[31m`) || !strings.Contains(plain, "Last commit b") || !strings.Contains(plain, "❌ Checks fail") {
+	if strings.ContainsAny(plain, "╭╰") || !strings.Contains(plain, `\x1b[31m`) || (!strings.Contains(plain, "Last commit") || !strings.Contains(plain, strings.Repeat("b", 20))) || !strings.Contains(plain, "❌ Checks fail") {
 		t.Fatalf("compact row, escaped title, or selected detail missing:\n%s", plain)
 	}
 	for _, line := range strings.Split(plain, "\n") {
@@ -221,7 +221,7 @@ func TestCompactPullRequestsShowManyChoicesAndSelectedDetail(t *testing.T) {
 	}
 	m.PullRequestPicker.Index = 20
 	view := ansi.Strip(m.View().Content)
-	if strings.Count(view, "Choice ") < 8 || !strings.Contains(view, "› #21") || !strings.Contains(view, "Author author-21") || strings.Contains(view, "Author author-20") {
+	if strings.Count(view, "Choice ") < 6 || !strings.Contains(view, "› #21") || !strings.Contains(view, "Author author-21") || strings.Contains(view, "Author author-20") {
 		t.Fatalf("picker did not prioritize compact choices and selected detail:\n%s", view)
 	}
 }

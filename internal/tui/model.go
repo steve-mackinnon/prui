@@ -198,6 +198,7 @@ type Model struct {
 	SessionPicker        pickerState
 	RepositoryPicker     pickerState
 	PullRequestPicker    pickerState
+	prCarousel           prCarouselState
 	ThemePicker          pickerState
 	Entries              []session.Entry
 	Repositories         []session.Repository
@@ -270,6 +271,7 @@ func newModel(parent context.Context) *Model {
 // any process-global style state, so concurrent models can use different
 // resolved themes safely.
 func (m *Model) SetTheme(t theme.Theme) {
+	m.PullRequestPicker.previewCache = descriptionRenderCache{}
 	m.theme = t
 	m.themeOverrides = t.Overrides()
 	m.styles = stylesFor(t)
@@ -344,6 +346,15 @@ func (m *Model) Init() tea.Cmd {
 	})
 }
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	model, cmd := m.update(msg)
+	carouselCmd := m.syncPRCarousel()
+	if carouselCmd == nil {
+		return model, cmd
+	}
+	return model, tea.Batch(cmd, carouselCmd)
+}
+
+func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	defer func() {
 		if !m.mouseAvailable() {
 			m.cancelMouseDrag()
@@ -356,6 +367,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case DiscussionResult:
 		m.applyDiscussionResult(v)
 		return m, nil
+	case prCarouselTick:
+		return m, m.advancePRCarousel(v)
 	case guidePathTick:
 		if v.generation != m.guidePathGeneration || !m.guidePathScrollEligible() {
 			return m, nil
