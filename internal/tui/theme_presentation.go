@@ -4,6 +4,9 @@ import (
 	"image/color"
 	"strings"
 
+	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
+
 	"github.com/charmbracelet/colorprofile"
 	"prui/internal/theme"
 )
@@ -19,6 +22,51 @@ func themeBaseColor(palette theme.Theme, token theme.Token) color.Color {
 }
 
 func (m *Model) themeContent(content string) string {
+	painted := m.themeContentBase(content)
+	if m.top() != pageThemePicker || m.Loading || m.Busy || m.Err != nil {
+		return painted
+	}
+	left, top, width, available := themePickerBounds(m.Width, m.Height)
+	if !available || (m.Session == nil && len(m.Stack) < 2) {
+		return painted
+	}
+
+	// Render a temporary model so previewing never changes the saved palette or
+	// the underlying page, including its scroll position and Markdown cache.
+	preview := *m
+	if m.reviewTabState != nil {
+		state := *m.reviewTabState
+		preview.reviewTabState = &state
+	}
+	if len(preview.Stack) > 0 {
+		preview.Stack = preview.Stack[:len(preview.Stack)-1]
+	}
+	candidate, err := theme.Resolve(theme.BuiltInNames()[m.ThemePicker.Index], m.themeOverrides)
+	if err != nil {
+		return painted
+	}
+	preview.theme = candidate
+	preview.styles = stylesFor(candidate)
+	preview.descriptionCache = descriptionRenderCache{}
+	background := preview.View().Content
+
+	rows := strings.Split(painted, "\n")
+	height := min(m.Height, len(themePickerRows())+7)
+	if m.Width >= 60 && m.Height >= 18 {
+		height = min(m.Height, len(themePickerRows())+10)
+	}
+	card := make([]string, 0, height)
+	for y := top; y < min(top+height, len(rows)); y++ {
+		card = append(card, ansi.Cut(rows[y], left, left+width))
+	}
+	canvas := lipgloss.NewCanvas(m.Width, m.Height)
+	return canvas.Compose(lipgloss.NewCompositor(
+		lipgloss.NewLayer(background),
+		lipgloss.NewLayer(strings.Join(card, "\n")).X(left).Y(top),
+	)).Render()
+}
+
+func (m *Model) themeContentBase(content string) string {
 	if m.colorProfile <= colorprofile.Ascii {
 		return content
 	}

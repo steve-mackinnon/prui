@@ -294,3 +294,13 @@ regressions using existing dependencies. Human terminal visual QA remains a
 separate release acceptance step.
 
 Plan: [Theme presets implementation plan](../../tasks/theme-presets-plan.md).
+
+## Theme picker context preview
+
+On review and navigation screens, the theme picker overlays the current view.
+Highlighting a candidate temporarily renders the underlying view with that
+palette and the user's overrides; the picker retains the active palette and
+its sample. Enter persists and applies the selection, while Escape or `t`
+cancels without changing the active theme or review position. CLI-locked
+selections still save only for the next launch. Tiny terminals retain the compact
+picker fallback.

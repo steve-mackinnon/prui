@@ -542,3 +542,52 @@ func TestThemePickerEveryGroupedCandidateStaysVisibleOnResize(t *testing.T) {
 		}
 	}
 }
+
+func TestThemePickerPreviewsUnderlyingReviewWithoutApplying(t *testing.T) {
+	m := New(context.Background(), nil)
+	m.Width, m.Height = 140, 60
+	m.colorProfile = colorprofile.TrueColor
+	m.openReviewTab(largeSession(1, 1))
+	base, _ := theme.Resolve(theme.Dark, nil)
+	m.SetTheme(base)
+	before := m.View().Content
+	m.openThemePicker()
+	m.ThemePicker.Index = 1
+	shown := m.View().Content
+	if !strings.Contains(ansi.Strip(shown), "Files") {
+		t.Fatal("theme picker hid the review context")
+	}
+	candidate, _ := theme.Resolve(theme.Light, nil)
+	canvas := themeCanvasBuffer(shown, m.Width, m.Height)
+	if !reflect.DeepEqual(canvas.CellAt(0, 0).Style.Bg, themeBaseColor(candidate, theme.Background)) {
+		t.Fatal("underlying review did not preview the highlighted theme")
+	}
+	if m.theme.Name != theme.Dark {
+		t.Fatal("preview applied theme")
+	}
+	m.themePickerKey("esc")
+	if m.View().Content != before {
+		t.Fatal("cancel did not restore original review")
+	}
+}
+
+func TestThemePickerOverlayPreservesBackgroundCoordinates(t *testing.T) {
+	for _, profile := range []colorprofile.Profile{colorprofile.Ascii, colorprofile.TrueColor} {
+		for _, underlying := range []page{pageReview, pagePicker, pageRepositoryPicker, pagePullRequestPicker} {
+			m := New(context.Background(), nil)
+			m.Width, m.Height = 140, 60
+			m.colorProfile = profile
+			m.openReviewTab(largeSession(1, 1))
+			m.Stack = []page{underlying}
+			before := strings.Split(ansi.Strip(m.View().Content), "\n")[0]
+			m.openThemePicker()
+			shown := strings.Split(ansi.Strip(m.View().Content), "\n")[0]
+			if strings.TrimRight(shown, " ") != strings.TrimRight(before, " ") {
+				t.Fatalf("background moved for page %v profile %v: %q != %q", underlying, profile, shown, before)
+			}
+			if m.top() != pageThemePicker {
+				t.Fatal("rendering changed modal stack")
+			}
+		}
+	}
+}
