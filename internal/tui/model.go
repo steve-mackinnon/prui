@@ -2068,8 +2068,7 @@ func (m *Model) reviewViewForLayout(preferSideBySide bool) string {
 			}
 			continue
 		}
-		runes := []rune(line.Text)
-		detail[i].Text = marker + string(runes[min(m.Horizontal, len(runes)):])
+		detail[i].Text = m.syntaxText(line, m.Horizontal, m.detailWidth(), marker)
 		if line.commentID > 0 && offset+i == cursor {
 			detail[i].Class = selectedClass(true)
 		}
@@ -2095,7 +2094,12 @@ func (m *Model) reviewViewForLayout(preferSideBySide bool) string {
 
 func (m *Model) frameBodyLine(content string, class lineClass, width int, edges bool) string {
 	content = clip(content, width)
-	line := m.styleLine(class, content) + strings.Repeat(" ", max(0, width-visibleWidth(content)))
+	padding := strings.Repeat(" ", max(0, width-visibleWidth(content)))
+	if class == classAdded || class == classRemoved {
+		content += padding
+		padding = ""
+	}
+	line := m.styleLine(class, content) + padding
 	if edges {
 		border := m.styleLine(paneBorderClass(true), "│")
 		return border + line + border

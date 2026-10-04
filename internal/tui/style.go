@@ -6,8 +6,10 @@ import (
 	"strings"
 
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/colorprofile"
 	"prui/internal/inventory"
 	"prui/internal/source"
+	"prui/internal/syntax"
 	"prui/internal/theme"
 )
 
@@ -44,12 +46,13 @@ type styledLine struct {
 // display data. The target is derived from patch bytes, never terminal text.
 type diffLine struct {
 	styledLine
-	oldLine, newLine int // raw source coordinates; zero means absent
-	target           *source.ReviewCommentTarget
-	commentID        int64       // nonzero only for an already anchored overlay comment
-	editor           bool        // true for rows in the active inline editor
-	sideBySide       *diffRow    // non-nil for one logical, aligned source row
-	guideAnchor      *fileAnchor // guide occurrence beginning at this source row
+	syntax, oldSyntax []syntax.Span
+	oldLine, newLine  int // raw source coordinates; zero means absent
+	target            *source.ReviewCommentTarget
+	commentID         int64       // nonzero only for an already anchored overlay comment
+	editor            bool        // true for rows in the active inline editor
+	sideBySide        *diffRow    // non-nil for one logical, aligned source row
+	guideAnchor       *fileAnchor // guide occurrence beginning at this source row
 }
 
 // palette is the semantic style table, named by meaning rather than color.
@@ -70,8 +73,8 @@ func stylesFor(t theme.Theme) map[lineClass]lipgloss.Style {
 		classTitle:       semantic(colorFor(theme.Title), true),
 		classFileHeader:  semantic(colorFor(theme.FileHeader), true),
 		classHunk:        semantic(colorFor(theme.Hunk), false),
-		classAdded:       semantic(colorFor(theme.Added), false),
-		classRemoved:     semantic(colorFor(theme.Removed), false),
+		classAdded:       semantic(colorFor(theme.Added), false).Background(diffBackground(t, theme.Added)),
+		classRemoved:     semantic(colorFor(theme.Removed), false).Background(diffBackground(t, theme.Removed)),
 		classMetadata:    semantic(colorFor(theme.Metadata), false),
 		classWarning:     semantic(colorFor(theme.Warning), true),
 		classUnavailable: semantic(colorFor(theme.Unavailable), true),
@@ -176,5 +179,44 @@ func (m *Model) styleLine(c lineClass, s string) string {
 	if !ok || s == "" {
 		return s
 	}
-	return style.Render(s)
+	rendered := style.Render(s)
+	if (c == classAdded || c == classRemoved) && m.colorProfile > colorprofile.Ascii {
+		role := theme.Added
+		if c == classRemoved {
+			role = theme.Removed
+		}
+		// Nested syntax SGR resets can clear an outer Lip Gloss background.
+		// Resolve the final cells, then restore only missing background channels.
+		rendered = paintThemeCanvas(rendered, visibleWidth(rendered), strings.Count(rendered, "\n")+1, nil, diffBackground(m.theme, role))
+	}
+	return rendered
+}
+
+// Diff backgrounds belong to rows, independently of language support or visible
+// tokens. A quarter accent gives changed blocks a clear surface while retaining
+// readable syntax colors. Inherited themes use their light/dark family baseline.
+func diffBackground(t theme.Theme, role theme.Token) color.Color {
+	background, _ := t.Color(theme.Background)
+	if background == nil || t.Syntax(theme.Background) == "default" {
+		background = color.RGBA{R: 24, G: 24, B: 24, A: 255}
+		if t.IsLight() {
+			background = color.RGBA{R: 255, G: 255, B: 255, A: 255}
+		}
+	}
+	accent, _ := t.Color(role)
+	if accent == nil {
+		return background
+	}
+	ar, ag, ab, _ := accent.RGBA()
+	br, bg, bb, _ := background.RGBA()
+	channel := func(accent, base uint32) uint8 {
+		// RGBA channels are 16-bit values; widen the blend and explicitly
+		// bound its result before narrowing to an 8-bit output channel.
+		value := (uint64(accent) + 3*uint64(base)) / 4 >> 8
+		if value > 255 {
+			return 255
+		}
+		return uint8(value)
+	}
+	return color.RGBA{R: channel(ar, br), G: channel(ag, bg), B: channel(ab, bb), A: 255}
 }

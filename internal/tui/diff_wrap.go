@@ -17,8 +17,9 @@ func wrapDiffLines(lines []diffLine, width int) []diffLine {
 				continue
 			}
 			marker, text := splitPatchMarker(line.Text)
+			offset := len(marker)
 			for _, part := range strings.Split(ansi.Wordwrap(text, max(1, width-1), ""), "\n") {
-				copy := line
+				copy := wrappedSyntax(line, part, &offset)
 				copy.Text = marker + part
 				result = append(result, copy)
 			}
@@ -32,8 +33,9 @@ func wrapDiffLines(lines []diffLine, width int) []diffLine {
 			}
 			marker, text := splitPatchMarker(cell.line.Text)
 			var cells []*diffCell
+			offset := len(marker)
 			for _, part := range strings.Split(ansi.Wordwrap(text, max(1, bounds.Dx()-8), ""), "\n") {
-				source := *cell.line
+				source := wrappedSyntax(*cell.line, part, &offset)
 				source.Text = marker + part
 				copy := *cell
 				copy.line = &source

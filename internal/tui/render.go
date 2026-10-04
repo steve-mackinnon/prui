@@ -12,6 +12,7 @@ import (
 	"prui/internal/inventory"
 	"prui/internal/review"
 	"prui/internal/source"
+	"prui/internal/syntax"
 )
 
 func Escape(s string) string { q := strconv.Quote(s); return q[1 : len(q)-1] }
@@ -96,7 +97,7 @@ func unitLines(s *review.Session, i int) []diffLine {
 	switch u.Kind {
 	case inventory.TextHunk:
 		metadata := s.Inventory.Comparison.Metadata
-		return textHunkLines(f, u, s.Inventory.Patches[u.PatchReference], metadata.Identity, metadata.HeadSHA)
+		return textHunkLines(f, u, s.Inventory.Patches[u.PatchReference], metadata.Identity, metadata.HeadSHA, s.Inventory.Syntax[u.ID])
 	case inventory.FileMetadata:
 		return []diffLine{{styledLine: styledLine{classFileHeader, fileDivider(f)}}}
 	case inventory.Binary:
@@ -214,6 +215,7 @@ func projectSideBySideRows(lines []diffLine) []diffRow {
 			flushDeletions()
 			oldLine := line
 			oldLine.target = nil
+			oldLine.syntax = oldLine.oldSyntax
 			rows = append(rows, diffRow{old: cell(oldLine, oldNumber), new: cell(line, newNumber)})
 			oldNumber++
 			newNumber++
@@ -303,10 +305,10 @@ func (m *Model) renderSideBySideCell(cell *diffCell, width, horizontal int) stri
 	}
 	marker, text := splitPatchMarker(cell.line.Text)
 	gutter := fmt.Sprintf("%5d %s ", cell.number, marker)
-	runes := []rune(text)
-	text = string(runes[min(max(0, horizontal), len(runes)):])
-	text = clip(text, max(0, width-visibleWidth(gutter)))
-	value := clip(gutter+text, width)
+	source := *cell.line
+	source.Text = text
+	source.syntax = cropSpans(source.syntax, len(marker), len(cell.line.Text), 0)
+	value := m.syntaxText(source, horizontal, width, gutter)
 	value += strings.Repeat(" ", max(0, width-visibleWidth(value)))
 	return m.styleLine(cell.line.Class, value)
 }
@@ -326,10 +328,17 @@ func splitPatchMarker(text string) (marker, source string) {
 
 // textHunkLines walks immutable patch bytes once. Coordinates and anchors stay
 // separate from escaped source text so each view can choose its presentation.
-func textHunkLines(f inventory.FileChange, u inventory.ReviewUnit, patch []byte, identity source.Identity, sha string) []diffLine {
+func textHunkLines(f inventory.FileChange, u inventory.ReviewUnit, patch []byte, identity source.Identity, sha string, highlighting ...syntax.Patch) []diffLine {
+	var tokens syntax.Patch
+	if len(highlighting) > 0 {
+		tokens = highlighting[0]
+	}
+	if tokens == nil {
+		tokens = fragmentSyntax(f, patch)
+	}
 	var lines []diffLine
 	old, new, inHunk := u.OldRange.Start, u.NewRange.Start, false
-	for _, raw := range bytes.Split(patch, []byte{'\n'}) {
+	for index, raw := range bytes.Split(patch, []byte{'\n'}) {
 		if isGitFilePreamble(raw) {
 			continue
 		}
@@ -355,6 +364,13 @@ func textHunkLines(f inventory.FileChange, u inventory.ReviewUnit, patch []byte,
 				row.target = target(f.NewPath, "RIGHT", new)
 				old++
 				new++
+			}
+		}
+		if len(raw) > 0 && (row.oldLine > 0 || row.newLine > 0) {
+			row.oldSyntax = escapedSpans(raw[1:], tokens[index].Old)
+			row.syntax = escapedSpans(raw[1:], tokens[index].New)
+			if row.newLine == 0 {
+				row.syntax = row.oldSyntax
 			}
 		}
 		lines = append(lines, row)

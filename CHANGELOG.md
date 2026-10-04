@@ -7,9 +7,13 @@ User-visible changes are recorded here before each release. See
 
 ### Added
 
+- Highlight diff syntax using full pinned-file context, with theme-aware colors and saved token spans for offline reviews.
+
 - Add full foreground/background theming with 22 named presets, bringing the catalog to 26 themes, and group the theme picker into Dark and Light sections with candidate previews.
 
 ### Fixed
+
+- Preserve changed-line backgrounds across syntax-color resets, preventing partially highlighted diff rows.
 
 - Keep the review footer at the bottom of the Description page, including short and empty descriptions.
 
@@ -20,6 +24,8 @@ User-visible changes are recorded here before each release. See
 - Open the Guide tab at the first section instead of following the current file selection.
 
 ### Changed
+
+- Make added and removed diff rows stand out with stronger, full-width green/red backgrounds, including blank lines and files without syntax highlighting.
 
 - Simplify the Generate guide dialog with a centered header, distinct field labels and values, and grouped consent and keyboard help.
 

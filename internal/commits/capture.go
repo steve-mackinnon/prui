@@ -106,10 +106,11 @@ func capture(parent context.Context, v *source.View, p source.PinnedComparison, 
 			}
 			continue
 		}
-		diff := &Diff{Files: inv.Files, Units: inv.Units, Patches: inv.Patches, Complete: inv.Complete, Problems: inv.Problems}
+		diff := &Diff{Files: inv.Files, Units: inv.Units, Patches: inv.Patches, Syntax: inv.Syntax, Complete: inv.Complete, Problems: inv.Problems}
 		// Include structural metadata as well as the bounded source read above.
 		structural := *diff
 		structural.Patches = nil
+		structural.Syntax = nil
 		encoded, _ := json.Marshal(structural)
 		budget.remaining -= len(encoded) + len(parents)*40
 		if budget.remaining < 0 {

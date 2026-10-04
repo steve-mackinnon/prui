@@ -143,6 +143,27 @@ func BoundCommitPayload(snapshot *Snapshot) error {
 }
 
 func boundCommitPayload(snapshot *Snapshot, limit int) error {
+	// Presentation metadata must never displace reviewable source. Copy nested
+	// commit values before dropping it so cached snapshots remain immutable.
+	full, err := json.Marshal(sourcePayload(*snapshot))
+	if err != nil {
+		return err
+	}
+	if len(full) > limit {
+		snapshot.Inventory.Syntax = nil
+		if snapshot.Commits != nil {
+			bundle := *snapshot.Commits
+			bundle.Entries = append([]commits.Entry(nil), bundle.Entries...)
+			for i := range bundle.Entries {
+				if bundle.Entries[i].Diff != nil {
+					diff := *bundle.Entries[i].Diff
+					diff.Syntax = nil
+					bundle.Entries[i].Diff = &diff
+				}
+			}
+			snapshot.Commits = &bundle
+		}
+	}
 	// Commits is the last optional source field. Encoding the baseline once plus
 	// its comma/key and bundle JSON gives the exact final codec size.
 	baseline := sourcePayload(*snapshot)
