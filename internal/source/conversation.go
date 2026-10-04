@@ -33,12 +33,12 @@ type GeneralCommentWriter interface {
 	CreateGeneralComment(context.Context, Identity, string) (ConversationEvent, error)
 }
 type remoteConversationEvent struct {
-	ID                   int64
-	Body, State, HTMLURL string
-	CreatedAt            time.Time `json:"created_at"`
-	SubmittedAt          time.Time `json:"submitted_at"`
-	URL                  string    `json:"html_url"`
-	User                 *struct{ Login string }
+	ID          int64
+	Body, State string
+	CreatedAt   time.Time `json:"created_at"`
+	SubmittedAt time.Time `json:"submitted_at"`
+	URL         string    `json:"html_url"`
+	User        *struct{ Login string }
 }
 
 func normalizeConversation(raw remoteConversationEvent, kind string) (ConversationEvent, error) {
@@ -135,5 +135,9 @@ func (g *GH) CreateGeneralComment(ctx context.Context, id Identity, body string)
 	if !utf8.Valid(data) || json.Unmarshal(data, &raw) != nil {
 		return ConversationEvent{}, errors.New("invalid PR comment response")
 	}
-	return normalizeConversation(raw, "PR comment")
+	event, err := normalizeConversation(raw, "PR comment")
+	if err != nil || event.Body != body {
+		return ConversationEvent{}, errors.New("invalid created PR comment")
+	}
+	return event, nil
 }

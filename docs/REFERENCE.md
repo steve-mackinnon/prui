@@ -523,3 +523,22 @@ handle and prints a JSON report. It never contacts GitHub or a provider, reads
 provider credentials, or creates guides. Structural validation is always included;
 synthetic-corpus checks apply only to matching curated fixtures. A session without
 stored generated guides reports `not_available`.
+
+### Complete PR conversation
+
+`D` opens chronological live activity: general PR comments, submitted review
+bodies and decisions, and each inline-thread comment/reply. UTC timestamps and
+actors are shown; `c` explicitly refreshes while preserving selected activity.
+Partial retrieval, stale snapshots, unavailable reads and offline mode are labeled.
+General comments and reviews each load at most 500 records, with a combined 4 MiB
+response budget and the discussion operation's 60-second deadline.
+
+In conversation, `n` opens a general PR comment; `r` from a general-comment detail
+opens a new @mention PR comment. These replies have no inline anchor. Enter posts
+immediately after comparison freshness checks; Shift+Enter adds a newline and
+Escape discards. Text is memory-only, separate from pending review drafts. An
+unknown posting outcome retains the draft and requires Ctrl+R reconciliation before
+intentional retry; if the attempted body appears as new activity, another post is
+blocked until the reviewer inspects it and starts a new comment. Inline replies
+continue through diff comment actions. `o` on inline detail opens original context.
+See [the conversation contract](spec/SPEC-pr-conversation.md).
