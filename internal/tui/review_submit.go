@@ -27,11 +27,11 @@ type reviewForm struct {
 }
 
 func (m *Model) unsentReviewDrafts() bool {
-	if m.Composer != nil && strings.TrimSpace(m.Composer.Draft) != "" || len(m.Pending) > 0 || m.ReviewForm != nil && strings.TrimSpace(m.ReviewForm.Body) != "" {
+	if m.discussions.published != nil || m.discussions.editor != nil || m.Composer != nil && strings.TrimSpace(m.Composer.Draft) != "" || len(m.Pending) > 0 || m.ReviewForm != nil && strings.TrimSpace(m.ReviewForm.Body) != "" {
 		return true
 	}
 	for i, tab := range m.tabs {
-		if i != m.activeTab && tab.review != nil && (tab.review.Composer != nil && strings.TrimSpace(tab.review.Composer.Draft) != "" || len(tab.review.Pending) > 0 || tab.review.ReviewForm != nil && strings.TrimSpace(tab.review.ReviewForm.Body) != "") {
+		if i != m.activeTab && tab.review != nil && (tab.review.discussions.published != nil || tab.review.discussions.editor != nil || tab.review.Composer != nil && strings.TrimSpace(tab.review.Composer.Draft) != "" || len(tab.review.Pending) > 0 || tab.review.ReviewForm != nil && strings.TrimSpace(tab.review.ReviewForm.Body) != "") {
 			return true
 		}
 	}

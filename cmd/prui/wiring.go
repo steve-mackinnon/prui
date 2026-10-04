@@ -85,6 +85,9 @@ func (a *application) model(ctx context.Context, o options) *tui.Model {
 		m.SetDraftReconciler(a.reconcileDraft)
 	}
 	m.SetCommentActionSubmitter(a.submitReviewCommentAction)
+	if !a.offline {
+		m.SetPublishedSubmitter(a.submitPublished)
+	}
 	_, hasDiscussions := a.gh.(source.DiscussionReader)
 	if _, supported := a.gh.(source.ReviewCommentReader); !a.offline && supported && !hasDiscussions {
 		m.SetCommentReader(a.listReviewComments)

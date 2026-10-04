@@ -32,22 +32,24 @@ type DiscussionResult struct {
 type discussionCount struct{ total, outdated int }
 
 type discussionState struct {
-	anchorIndex      map[source.ReviewCommentTarget][]source.Discussion
-	counts           map[string]discussionCount
-	indexGeneration  uint64
-	cancel           context.CancelFunc
-	snapshot         DiscussionSnapshot
-	loaded           bool
-	generation       uint64
-	editor           *generalCommentEditor
-	selectedID       string
-	confirmed        map[int64]bool
-	confirmedEvents  map[string]source.ConversationEvent
-	selected, scroll int
-	detail           bool
-	notice           string
-	returnCommit     *commitState
-	returnView       reviewView
+	anchorIndex        map[source.ReviewCommentTarget][]source.Discussion
+	counts             map[string]discussionCount
+	indexGeneration    uint64
+	cancel             context.CancelFunc
+	snapshot           DiscussionSnapshot
+	loaded             bool
+	generation         uint64
+	confirmedPublished map[string]confirmedPublished
+	published          *publishedEditor
+	editor             *generalCommentEditor
+	selectedID         string
+	confirmed          map[int64]bool
+	confirmedEvents    map[string]source.ConversationEvent
+	selected, scroll   int
+	detail             bool
+	notice             string
+	returnCommit       *commitState
+	returnView         reviewView
 }
 
 func (m *Model) SetDiscussionReader(read DiscussionReader) { m.readDiscussions = read }
@@ -161,6 +163,8 @@ func (m *Model) applyDiscussionResult(v DiscussionResult) {
 			v.Snapshot.Snapshot.Reason = "Confirmed PR comment not yet observed on refresh"
 		}
 	}
+	reconcilePublished(d, v.Snapshot)
+	retainPublished(d, &v.Snapshot)
 	d.snapshot, d.loaded, d.notice = v.Snapshot, true, ""
 	if d.editor != nil {
 		if v.Snapshot.Snapshot.Complete && v.Snapshot.CurrentVerified {
@@ -302,6 +306,27 @@ func (m *Model) discussionKey(key string) tea.Cmd {
 	d := &m.discussions
 	threads := discussionEntries(d.snapshot.Snapshot)
 	switch key {
+	case "e", "z":
+		if len(threads) == 0 || !d.detail {
+			return nil
+		}
+		t := threads[d.selected]
+		cid := int64(0)
+		if len(t.Comments) > 0 {
+			cid = t.Comments[0].ID
+		}
+		event := ""
+		if t.Kind == "PR comment" {
+			event = t.ID
+		}
+		if key == "e" && m.Viewer == "" {
+			d.notice = "Load authenticated viewer, then press e again"
+			return m.refreshViewer()
+		}
+		if !m.openPublished(cid, event, key == "z") {
+			d.notice = "Published action unavailable or permission denied"
+		}
+		return nil
 	case "n", "r":
 		if m.submitGeneralComment == nil {
 			d.notice = "PR comments unavailable · offline or unsupported"
@@ -486,9 +511,9 @@ func (m *Model) discussionsView() string {
 			}
 		}
 	}
-	footer := "j/k: select/scroll · enter: detail · o: original commit · c: refresh · esc: back"
+	footer := "j/k: select/scroll · enter: detail · e: edit · z: resolve/reopen · c: refresh · esc: back"
 	if d.snapshot.Snapshot.Timeline {
-		footer = "j/k: select/scroll · enter: detail · n: PR comment · r: general reply · c: refresh · esc: back"
+		footer = "enter: detail · e: edit · z: resolve/reopen · n: comment · r: reply · c: refresh · esc: back"
 	}
 	lines = append(lines, clip(footer, m.Width))
 	return strings.Join(lines, "\n")

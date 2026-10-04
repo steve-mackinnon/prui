@@ -436,6 +436,13 @@ func (m *Model) commentActionKey(key tea.KeyPressMsg) tea.Cmd {
 	}
 	if menu.mode == commentActionPick {
 		switch key.String() {
+		case "e", "z":
+			if m.openPublished(menu.CommentID, "", key.String() == "z") {
+				m.CommentMenu = nil
+			} else {
+				m.ActionError = errors.New("published action unavailable or permission denied")
+			}
+			return nil
 		case "r":
 			m.resolveReplyRoot(menu)
 			menu.mode = commentActionReply
