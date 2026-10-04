@@ -36,3 +36,39 @@ func TestPreferencesRestartAndCorruption(t *testing.T) {
 		}
 	}
 }
+
+func TestPreferencesRejectNonregularAndOversized(t *testing.T) {
+	dir := t.TempDir()
+	p := filepath.Join(dir, "layout.json")
+	outside := filepath.Join(t.TempDir(), "outside.json")
+	if err := os.WriteFile(outside, []byte(`{"version":1}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, p); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Load(p); err == nil {
+		t.Fatal("symlink accepted")
+	}
+	if err := Save(p, Preferences{Version: 1}); err == nil {
+		t.Fatal("symlink overwritten")
+	}
+	if err := os.Remove(p); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(p, 0700); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Load(p); err == nil {
+		t.Fatal("directory accepted")
+	}
+	if err := os.Remove(p); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(p, make([]byte, 4097), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Load(p); err == nil {
+		t.Fatal("oversized file accepted")
+	}
+}

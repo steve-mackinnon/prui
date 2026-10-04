@@ -55,7 +55,7 @@ func classifyPath(p string, a map[string]string) Category {
 		defaults = Documentation
 	case strings.HasPrefix(p, "generated/") || strings.HasSuffix(base, ".min.js") || strings.HasSuffix(base, ".pb.go"):
 		defaults = Generated
-	case strings.Contains("|.png|.jpg|.jpeg|.gif|.webp|.svg|.ico|.woff|.woff2|.mp3|.mp4|", "|"+ext+"|") && ext != "":
+	case assetExtension(ext):
 		defaults = Assets
 	case strings.HasPrefix(p, ".github/") || strings.HasPrefix(p, "scripts/") || strings.HasPrefix(base, ".") || base == "go.mod" || base == "go.sum" || strings.HasSuffix(base, "lock.json") || strings.HasSuffix(base, ".lock"):
 		defaults = Support
@@ -69,6 +69,15 @@ func classifyPath(p string, a map[string]string) Category {
 		}
 	}
 	return defaults
+}
+
+func assetExtension(ext string) bool {
+	switch ext {
+	case ".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".ico", ".woff", ".woff2", ".mp3", ".mp4":
+		return true
+	default:
+		return false
+	}
 }
 
 // Only the isolated committed-object view can provide authoritative attributes.

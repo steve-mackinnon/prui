@@ -35,7 +35,7 @@ func Load(path string) (Preferences, error) {
 	if err != nil || !info.Mode().IsRegular() || info.Size() > 4096 {
 		return Preferences{}, errInvalid
 	}
-	f, err := os.Open(path)
+	f, err := os.OpenInRoot(filepath.Dir(path), filepath.Base(path))
 	if errors.Is(err, os.ErrNotExist) {
 		return Preferences{Version: 1}, nil
 	}
@@ -96,7 +96,7 @@ func Save(path string, p Preferences) error {
 	if err = os.Rename(f.Name(), path); err != nil {
 		return errInvalid
 	}
-	d, err := os.Open(dir)
+	d, err := os.OpenInRoot(dir, ".")
 	if err != nil {
 		return errors.New("layout preference saved; directory durability unverified")
 	}
