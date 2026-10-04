@@ -236,3 +236,22 @@
 - Context Update operations preserve private v3/v4 dispatched attempts and
   canonical anchors, frozen source bytes, reading layouts and read-only cursors.
   Cancelled/old-generation/foreign-session/foreign-PR results cannot replace them.
+
+
+# PR Lifecycle Extension (#34)
+
+- Lifecycle writes require an explicit interactive confirmation showing PR, action,
+  method and expected live head. Offline/plain operation never exposes a writer.
+- Re-read canonical head/base/state/draft, permissions, readiness and policy before
+  each write. Merge/auto-enable/enqueue bind expectedHeadOid; other APIs lack an
+  atomic revision guard, which remains visible. No admin bypass, queue jump or
+  protection override is requested. GitHub remains the policy authority.
+- Direct merge requires complete, consistent checks/reviews and validated policy.
+  Richer supported policy may be fulfilled by authoritative CLEAN evidence only
+  after rule shapes are validated; unknown/malformed rules remain unavailable.
+  Auto/queue may wait under valid policy; immediate readiness is not required.
+- Always refresh canonical lifecycle state after an attempted write. Uncertain
+  outcomes lock further writes and reconcile through reads, never automatic replay.
+  All lifecycle state is ephemeral and tab-owned; frozen snapshots are unchanged.
+- Tests use synthetic transports for all writes. Real roadmap PR lifecycle mutation
+  and terminal human QA are not part of automated verification.

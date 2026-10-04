@@ -655,6 +655,14 @@ func discussionCreatedCurrent(c source.ReviewComment) *source.ReviewCommentTarge
 }
 
 func (m *Model) cancelDiscussionReads() {
+	if m.lifecycle.cancel != nil {
+		m.lifecycle.cancel()
+	}
+	for _, tab := range m.tabs {
+		if tab.review != nil && tab.review.lifecycle.cancel != nil {
+			tab.review.lifecycle.cancel()
+		}
+	}
 	if m.readiness.cancel != nil {
 		m.readiness.cancel()
 	}

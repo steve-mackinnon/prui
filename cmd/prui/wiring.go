@@ -78,6 +78,13 @@ func (a *application) model(ctx context.Context, o options) *tui.Model {
 		})
 	}
 	m.SetGuideLifecycle(guideApp.requestGuide)
+	if _, supported := a.gh.(source.LifecycleReader); !a.offline && supported {
+		var submit tui.LifecycleSubmit
+		if _, canWrite := a.gh.(source.LifecycleWriter); canWrite {
+			submit = a.submitLifecycle
+		}
+		m.SetPRLifecycle(a.readLifecycle, submit)
+	}
 	if _, supported := a.gh.(source.ReadinessReader); !a.offline && supported {
 		m.SetReadinessReader(a.readReadiness)
 	}

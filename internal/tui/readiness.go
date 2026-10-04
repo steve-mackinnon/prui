@@ -76,6 +76,9 @@ func (m *Model) applyReadinessResult(v ReadinessResult) {
 }
 func (m *Model) readinessKey(key string) tea.Cmd {
 	switch key {
+	case "l":
+		m.push(pageLifecycle)
+		return m.refreshLifecycle()
 	case "esc":
 		m.pop()
 	case "r", "ctrl+r", "c":
@@ -186,9 +189,9 @@ func (m *Model) readinessView() string {
 	m.readiness.scroll = min(m.readiness.scroll, max(0, len(lines)-height))
 	start := m.readiness.scroll
 	end := min(len(lines), start+height)
-	footer := "r/ctrl+r: refresh | j/k, PgUp/PgDn, Home/End: scroll | esc: back | q: quit"
+	footer := "l: lifecycle | r/ctrl+r: refresh | j/k, PgUp/PgDn, Home/End: scroll | esc: back | q: quit"
 	if m.Width < 80 {
-		footer = "r: refresh | ↑/↓: scroll | esc: back"
+		footer = "l: lifecycle | r: refresh | ↑/↓: scroll | esc: back"
 	}
 	return strings.Join(lines[start:end], "\n") + "\n" + ansi.Truncate(footer, max(1, m.Width), "")
 }
