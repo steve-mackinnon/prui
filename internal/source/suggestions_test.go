@@ -75,3 +75,12 @@ func TestSuggestionMarkdownExamplesAreNotActionable(t *testing.T) {
 		t.Fatal("long closing fence", got, err)
 	}
 }
+
+func TestSuggestionOpeningIndentRemovedWithoutChangingSourceIndent(t *testing.T) {
+	for _, tc := range []struct{ body, want string }{{"  ```suggestion\n  new\n    nested\n x\n  ````", "new\n  nested\nx"}, {"```suggestion\n  new\n```", "  new"}} {
+		got, err := ParseSuggestion(tc.body)
+		if err != nil || got != tc.want {
+			t.Fatalf("indent %q %v want %q", got, err, tc.want)
+		}
+	}
+}

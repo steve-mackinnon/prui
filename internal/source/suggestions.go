@@ -23,6 +23,7 @@ func SuggestionBody(replacement string) (string, error) {
 func ParseSuggestion(body string) (string, error) {
 	lines := strings.Split(body, "\n")
 	start, end := -1, -1
+	openerIndent := 0
 	marker := byte(0)
 	length := 0
 	activeSuggestion := false
@@ -49,6 +50,7 @@ func ParseSuggestion(body string) (string, error) {
 				return "", errors.New("multiple suggestions are unsupported")
 			}
 			start = i
+			openerIndent = len(line) - len(strings.TrimLeft(line, " "))
 			activeSuggestion = true
 		}
 		marker = ch
@@ -57,7 +59,15 @@ func ParseSuggestion(body string) (string, error) {
 	if start < 0 || end <= start {
 		return "", errors.New("no complete supported suggestion")
 	}
-	replacement := strings.Join(lines[start+1:end], "\n")
+	content := append([]string(nil), lines[start+1:end]...)
+	for i, line := range content {
+		remove := 0
+		for remove < openerIndent && remove < len(line) && line[remove] == ' ' {
+			remove++
+		}
+		content[i] = line[remove:]
+	}
+	replacement := strings.Join(content, "\n")
 	_, err := SuggestionBody(replacement)
 	return replacement, err
 }
