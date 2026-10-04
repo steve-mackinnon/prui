@@ -183,7 +183,8 @@ func applyPublishedValue(state *reviewTabState, a PublishedAction, v PublishedVa
 		d.confirmedPublished = map[string]confirmedPublished{}
 	}
 	d.confirmedPublished[publishedKeyID(a)] = confirmedPublished{a, v}
-	if a.Resolve != nil {
+	switch {
+	case a.Resolve != nil:
 		for i := range d.snapshot.Snapshot.Threads {
 			t := &d.snapshot.Snapshot.Threads[i]
 			if t.ID == a.ThreadID {
@@ -192,7 +193,7 @@ func applyPublishedValue(state *reviewTabState, a PublishedAction, v PublishedVa
 				t.CanUnresolve = v.Thread.CanUnresolve
 			}
 		}
-	} else if a.General {
+	case a.General:
 		id := fmt.Sprintf("PR comment:%d", a.CommentID)
 		for i := range d.snapshot.Snapshot.Events {
 			e := &d.snapshot.Snapshot.Events[i]
@@ -201,7 +202,7 @@ func applyPublishedValue(state *reviewTabState, a PublishedAction, v PublishedVa
 				e.Author = v.Comment.Author
 			}
 		}
-	} else {
+	default:
 		for i := range d.snapshot.Snapshot.Threads {
 			for j := range d.snapshot.Snapshot.Threads[i].Comments {
 				c := &d.snapshot.Snapshot.Threads[i].Comments[j]
@@ -255,21 +256,22 @@ func reconcilePublished(d *discussionState, in DiscussionSnapshot) {
 	}
 	a := e.attempted
 	found, matched := false, false
-	if a.Resolve != nil {
+	switch {
+	case a.Resolve != nil:
 		for _, t := range in.Snapshot.Threads {
 			if t.ID == a.ThreadID && t.Resolved != nil {
 				found = true
 				matched = *t.Resolved == *a.Resolve
 			}
 		}
-	} else if a.General {
+	case a.General:
 		for _, v := range in.Snapshot.Events {
 			if v.ID == fmt.Sprintf("PR comment:%d", a.CommentID) && !v.Retained {
 				found = true
 				matched = v.Body == a.Body
 			}
 		}
-	} else {
+	default:
 		for _, t := range in.Snapshot.Threads {
 			for _, c := range t.Comments {
 				if c.ID == a.CommentID && !t.Retained {
@@ -311,7 +313,8 @@ func retainPublished(d *discussionState, in *DiscussionSnapshot) {
 	for key, p := range d.confirmedPublished {
 		a, v := p.Action, p.Value
 		found := false
-		if a.Resolve != nil {
+		switch {
+		case a.Resolve != nil:
 			for i := range in.Snapshot.Threads {
 				t := &in.Snapshot.Threads[i]
 				if t.ID == a.ThreadID {
@@ -332,7 +335,7 @@ func retainPublished(d *discussionState, in *DiscussionSnapshot) {
 					}
 				}
 			}
-		} else if a.General {
+		case a.General:
 			id := fmt.Sprintf("PR comment:%d", a.CommentID)
 			for i := range in.Snapshot.Events {
 				e := &in.Snapshot.Events[i]
@@ -352,7 +355,7 @@ func retainPublished(d *discussionState, in *DiscussionSnapshot) {
 					}
 				}
 			}
-		} else {
+		default:
 			for i := range in.Snapshot.Threads {
 				for j := range in.Snapshot.Threads[i].Comments {
 					c := &in.Snapshot.Threads[i].Comments[j]
