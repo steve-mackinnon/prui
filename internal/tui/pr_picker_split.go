@@ -77,7 +77,8 @@ func (m *Model) prPickerDetail(pr source.PullRequest) []string {
 	for _, line := range lines {
 		wrapped = append(wrapped, strings.Split(ansi.Wrap(line, width, ""), "\n")...)
 	}
-	lines = append(wrapped, "DESCRIPTION")
+	lines = wrapped
+	lines = append(lines, "DESCRIPTION")
 	body := []string{"No description provided."}
 	if pr.Description != "" {
 		cache := &p.previewCache
@@ -156,11 +157,12 @@ func (m *Model) prPickerPreviewKey(key string) bool {
 func (m *Model) prPickerScreen(header, rows, detail []string, empty, footer string) string {
 	g := m.prPickerGeometry(len(header))
 	p := &m.PullRequestPicker
-	if m.Busy {
+	switch {
+	case m.Busy:
 		footer = Escape(m.notice) + " · esc: cancel"
-	} else if m.ActionError != nil {
+	case m.ActionError != nil:
 		footer = "! Action failed: " + Escape(m.ActionError.Error())
-	} else {
+	default:
 		hints := "j/k: select · tab: preview · "
 		if m.Width < 80 && m.Session == nil {
 			hints = "tab: preview · "
