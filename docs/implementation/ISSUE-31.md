@@ -1,0 +1,72 @@
+# Issue 31: suggested changes
+
+Stacked on issue 29 (`5dd00d1`, PR #45, itself on #41). The immutable comparison,
+raw old/new context coordinates, private draft payload version 2 targets (suggestion editor/apply payloads use version 3), and explicit
+remote-write boundaries remain authoritative.
+
+## API decision and evidence (2026-10-04)
+
+GitHub's documented [review-comment REST endpoints](https://docs.github.com/en/rest/pulls/comments)
+create/read/update/delete comments and replies; they do not expose an apply
+suggestion operation. The documented [commit mutation](https://docs.github.com/en/graphql/reference/commits#createcommitonbranch)
+creates a commit and advances the named branch, with required `expectedHeadOid`.
+That documented mechanism is used instead of undocumented web endpoints.
+It applies the replacement as a remote commit; it does not claim to set GitHub's
+native suggestion-applied UI metadata or resolve the review thread.
+
+GitHub [documents write access for applying suggestions](https://docs.github.com/en/pull-requests/how-tos/review-pull-requests/incorporating-feedback-in-your-pull-request).
+The implementation requires canonical `permissions.push` on the actual head
+repository, including forks. Upstream maintainer permission alone does not grant
+this mutation's head-repository write access; that case is visibly unsupported.
+GitHub still enforces credential scopes, rules and branch protections at mutation.
+
+## Compose and preview
+
+In a focused PR diff, Ctrl+S captures the selected right-side line/range and opens
+a replacement editor initialized from raw captured source. Ctrl+V and Ctrl+O
+retain issue 29's range/side controls. Replacement input is distinct from Markdown.
+Enter posts generated suggestion Markdown; Ctrl+P queues it. Empty replacement
+means deletion. Fences grow when replacement source contains backticks.
+
+Existing and draft suggestions show Before/After, escaped for terminals. Pending
+suggestions reopen as replacement editors. Replacement, original text, full target
+coordinates and mode are persisted privately and recover offline. New historical,
+left-side and file-level suggestions are unsupported; existing historical replies
+remain supported. Offset/multiple suggestion blocks are explicitly unsupported.
+
+## Apply and uncertainty
+
+Enter on an existing inline comment opens its actions; Ctrl+A prepares application.
+Preparation refreshes the exact canonical comment ID/body/current anchor, PR pins,
+head repository/ref, permission and committed file. Only ordinary mode 100644 UTF-8
+text files at most 512 KiB are eligible. Executable files, symlinks, binaries and
+unavailable/oversized source are refused. Selected source must match the exact
+captured range; no search or automatic reanchoring is used.
+
+The apply modal displays repository, branch, path/range and Before/After. Enter
+opens confirmation; a second Enter commits. Before dispatch the private draft
+stores the entire exact GraphQL mutation bytes, expected head, prepared full file,
+comment body and source coordinates. Confirmation repeats canonical comment,
+PR/ref/permission/source checks and sends the retained payload on stdin exactly
+once. `expectedHeadOid` protects concurrent pushes/applications after preflight.
+Canonical returned commit/ref OIDs and URL are validated. The frozen snapshot
+stays unchanged; the reviewer explicitly opens a new comparison.
+
+Failed/canceled/interrupted attempts retain their exact payload and block retry.
+Ctrl+R reads remote state only. A changed head with an exact whole-file result is
+conservatively treated as already applied, requiring explicit draft discard.
+Changed content, missing source, offline state, and unchanged heads retain the
+uncertainty block: force-push-back and delayed requests make an unchanged head
+insufficient proof of absence. There is no idempotency guarantee or auto retry.
+Ctrl+D explicitly discards retained work. The same uncertainty state recovers
+after restart; later replacement edits never change the attempted payload.
+
+## Verification
+
+All regressions use synthetic fixtures and fake Runner/client boundaries. No live
+GitHub/provider write or suggestion application is performed. Tests cover selected
+ranges, context/source provenance, nested fences/deletions/EOF, replacement recovery,
+confirmation, canonical edit/delete, pushes, fork permissions, unsupported modes,
+conflicts, response validation and conservative outcome reconciliation.
+Human terminal QA is unverified. Final full gates and exact-SHA independent review
+are recorded in the stacked PR.

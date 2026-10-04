@@ -655,6 +655,13 @@ func (a *application) reconcileDraft(ctx context.Context, metadata source.Metada
 	if err := a.online(ctx); err != nil {
 		return false, err
 	}
+	if draft.Attempted != nil && draft.Attempted.Kind == "suggestion" {
+		applier, ok := a.gh.(source.SuggestionApplier)
+		if !ok || draft.Attempted.Application == nil {
+			return false, errors.New("suggestion outcome reader unavailable")
+		}
+		return applier.SuggestionOutcome(ctx, *draft.Attempted.Application)
+	}
 	reader, ok := a.gh.(source.DraftOutcomeReader)
 	if !ok {
 		return false, errors.New("GitHub draft outcome reader unavailable")

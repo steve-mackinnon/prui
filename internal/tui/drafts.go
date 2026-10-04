@@ -25,15 +25,21 @@ type draftState struct {
 }
 
 func draftContent(state *reviewTabState) session.Draft {
-	d := session.Draft{Version: 2, Pending: state.Pending, Attempt: state.draft.attempt, Attempted: state.draft.attempted}
+	d := session.Draft{Version: 2, SuggestionApply: state.SuggestionApply, Pending: state.Pending, Attempt: state.draft.attempt, Attempted: state.draft.attempted}
 	if f := state.ReviewForm; f != nil {
 		d.Summary, d.Event = f.Body, f.Event
 	}
 	if c := state.Composer; c != nil {
-		d.Composer = &session.DraftEditor{Target: c.Target, Body: c.Draft, PendingIndex: c.PendingIndex, CommitSHA: c.CommitSHA}
+		d.Composer = &session.DraftEditor{Target: c.Target, Body: c.Draft, PendingIndex: c.PendingIndex, CommitSHA: c.CommitSHA, Suggestion: c.Suggestion, Before: c.Before}
 	}
 	if r := state.CommentMenu; r != nil && r.mode == commentActionReply {
 		d.Reply = &session.DraftEditor{Target: r.Target, Body: r.Draft, CommentID: r.CommentID, ReplyToID: r.ReplyToID, RootAnchor: r.RootAnchor}
+	}
+	if d.Attempt == "suggestion" && d.Attempted != nil && d.Attempted.Application != nil {
+		d.SuggestionApply = nil
+	}
+	if d.SuggestionApply != nil || d.Composer != nil && d.Composer.Suggestion || d.Attempt == "suggestion" {
+		d.Version = 3
 	}
 	return d
 }
@@ -61,6 +67,11 @@ func (m *Model) loadDraft(state *reviewTabState) {
 	state.draft.attempt = d.Attempt
 	state.draft.attempted = d.Attempted
 	state.Pending = d.Pending
+	state.SuggestionApply = d.SuggestionApply
+	if state.SuggestionApply == nil && d.Attempted != nil && d.Attempted.Application != nil {
+		copy := *d.Attempted.Application
+		state.SuggestionApply = &copy
+	}
 	state.ReviewForm = nil
 	state.Composer = nil
 	state.CommentMenu = nil
@@ -68,7 +79,7 @@ func (m *Model) loadDraft(state *reviewTabState) {
 		state.ReviewForm = &reviewForm{Body: d.Summary, Cursor: len([]rune(d.Summary)), Event: d.Event}
 	}
 	if c := d.Composer; c != nil {
-		state.Composer = &commentComposer{Target: c.Target, Draft: c.Body, Cursor: len([]rune(c.Body)), PendingIndex: c.PendingIndex, CommitSHA: c.CommitSHA}
+		state.Composer = &commentComposer{Target: c.Target, Draft: c.Body, Cursor: len([]rune(c.Body)), PendingIndex: c.PendingIndex, CommitSHA: c.CommitSHA, Suggestion: c.Suggestion, Before: c.Before}
 	}
 	if c := state.Composer; c != nil && c.CommitSHA != "" {
 		c.CommitBundle = state.Session.Commits
@@ -82,7 +93,7 @@ func (m *Model) loadDraft(state *reviewTabState) {
 	}
 	content, _ := json.Marshal(draftContent(state))
 	state.draft.saved = content
-	if d.Composer != nil || d.Reply != nil || len(d.Pending) > 0 || d.Summary != "" || d.Event != 0 || d.Attempt != "" {
+	if d.SuggestionApply != nil || d.Composer != nil || d.Reply != nil || len(d.Pending) > 0 || d.Summary != "" || d.Event != 0 || d.Attempt != "" {
 		state.Stack = append(state.Stack, pageDraftRecovery)
 	}
 	if d.Attempt != "" {
@@ -136,9 +147,12 @@ func (m *Model) prepareDraftAttempt(kind string) bool {
 	m.draft.attempt = kind
 	m.draft.attempted = &session.DraftAttempt{Kind: kind}
 	switch kind {
+	case "suggestion":
+		copy := *m.SuggestionApply
+		m.draft.attempted.Application = &copy
 	case "comment":
 		c := m.Composer
-		m.draft.attempted.Comment = &source.ReviewComment{Target: c.Target, Body: c.Draft}
+		m.draft.attempted.Comment = &source.ReviewComment{Target: c.Target, Body: composerBody(c)}
 	case "reply":
 		r := m.CommentMenu
 		if !m.resolveReplyRoot(r) {
@@ -242,6 +256,7 @@ func (m *Model) discardDraftsForQuit() bool {
 			continue
 		}
 		state.Composer = nil
+		state.SuggestionApply = nil
 		state.CommentMenu = nil
 		state.ReviewForm = nil
 		state.Pending = nil
@@ -258,6 +273,9 @@ func (m *Model) draftRecoveryView() string {
 	meta := m.Session.Inventory.Comparison.Metadata
 	heading := fmt.Sprintf("Recovered private drafts · %s#%d · head %.12s", Escape(meta.Identity.Repository), meta.Identity.Number, meta.HeadSHA)
 	lines := []string{"Drafts remain anchored to this frozen comparison."}
+	if m.SuggestionApply != nil {
+		lines = append(lines, "Retained suggestion application · "+commentTargetLabel(m.SuggestionApply.Target), Escape(m.SuggestionApply.Replacement))
+	}
 	if m.Composer != nil {
 		lines = append(lines, "Inline comment · "+commentTargetLabel(m.Composer.Target)+": "+Escape(m.Composer.Draft))
 	}
@@ -292,6 +310,11 @@ func (m *Model) draftRecoveryKey(key tea.KeyPressMsg) tea.Cmd {
 	case "home":
 		m.draft.recoveryScroll = 0
 	case "enter", "esc":
+		if m.SuggestionApply != nil {
+			m.pop()
+			m.push(pageSuggestionApply)
+			return nil
+		}
 		if c := m.Composer; c != nil {
 			if c.CommitSHA != "" {
 				m.ContextView = viewCommits
@@ -309,6 +332,7 @@ func (m *Model) draftRecoveryKey(key tea.KeyPressMsg) tea.Cmd {
 	case "ctrl+r":
 		return m.reconcileDraftCommand()
 	case "ctrl+d":
+		m.SuggestionApply = nil
 		m.Composer = nil
 		m.CommentMenu = nil
 		m.ReviewForm = nil

@@ -25,6 +25,8 @@ func DraftKeyFor(m source.Metadata) DraftKey {
 }
 
 type DraftEditor struct {
+	Suggestion           bool
+	Before               string
 	RootAnchor           *source.ReviewCommentTarget
 	CommitSHA            string
 	Target               source.ReviewCommentTarget
@@ -33,13 +35,15 @@ type DraftEditor struct {
 	CommentID, ReplyToID int64
 }
 type DraftAttempt struct {
-	Kind     string
-	Comment  *source.ReviewComment
-	Review   *source.PullRequestReview
-	ParentID int64
+	Application *source.SuggestionApplication
+	Kind        string
+	Comment     *source.ReviewComment
+	Review      *source.PullRequestReview
+	ParentID    int64
 }
 
 type Draft struct {
+	SuggestionApply *source.SuggestionApplication
 	Attempted       *DraftAttempt
 	Version         int
 	Generation      uint64
@@ -82,11 +86,14 @@ const draftWhere = `repository=? AND pr_number=? AND base_sha=? AND head_sha=? A
 
 func validateDraft(k DraftKey, d Draft) error {
 	bad := errors.New("invalid review draft; original retained")
-	if (d.Version != 1 && d.Version != 2) || d.Event < 0 || d.Event > 2 || len(d.Pending) > source.MaxPendingReviewComments || !utf8.ValidString(d.Summary) {
+	if (d.Version != 1 && d.Version != 2 && d.Version != 3) || d.Event < 0 || d.Event > 2 || len(d.Pending) > source.MaxPendingReviewComments || !utf8.ValidString(d.Summary) {
+		return bad
+	}
+	if d.Version < 3 && (d.SuggestionApply != nil || d.Composer != nil && d.Composer.Suggestion || d.Attempt == "suggestion") {
 		return bad
 	}
 	switch d.Attempt {
-	case "", "comment", "reply", "review":
+	case "", "comment", "reply", "review", "suggestion":
 	default:
 		return bad
 	}
@@ -110,6 +117,9 @@ func validateDraft(k DraftKey, d Draft) error {
 			return bad
 		}
 	}
+	if d.SuggestionApply != nil && (source.ValidateSuggestionApplication(*d.SuggestionApply) != nil || DraftKeyFor(d.SuggestionApply.Metadata) != k) {
+		return bad
+	}
 	if !validEditor(d.Composer, false) || !validEditor(d.Reply, true) {
 		return bad
 	}
@@ -129,6 +139,10 @@ func validateDraft(k DraftKey, d Draft) error {
 			return bad
 		}
 		switch a.Kind {
+		case "suggestion":
+			if a.Application == nil || a.Comment != nil || a.Review != nil || source.ValidateSuggestionApplication(*a.Application) != nil || DraftKeyFor(a.Application.Metadata) != k {
+				return bad
+			}
 		case "comment", "reply":
 			if a.Comment == nil || a.Review != nil || a.ParentID < 0 || a.Kind == "reply" && a.ParentID <= 0 || !validEditor(&DraftEditor{Target: a.Comment.Target, Body: a.Comment.Body, CommitSHA: a.Comment.Target.CommitID, CommentID: a.ParentID, ReplyToID: a.ParentID}, a.Kind == "reply") {
 				return bad
@@ -210,6 +224,9 @@ func (s *Store) SaveDraft(ctx context.Context, key DraftKey, expected uint64, d 
 		return Draft{}, err
 	}
 	d.Version = 2
+	if d.SuggestionApply != nil || d.Composer != nil && d.Composer.Suggestion || d.Attempt == "suggestion" {
+		d.Version = 3
+	}
 	d.Generation = 0
 	if expected >= math.MaxInt64 || validateDraft(key, d) != nil {
 		return Draft{}, errors.New("invalid review draft update")

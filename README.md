@@ -277,3 +277,9 @@ Live PR readiness: press `Alt+R` in a review to inspect individual checks, requi
 reviews and merge policies. Press `r` inside readiness to refresh its remote
 evidence independently of pinned code. Unknown, partial and stale data remain
 visible; no merge action is performed. See [readiness contract](docs/spec/SPEC-pr-readiness.md).
+
+Suggested changes have a dedicated replacement editor: `ctrl+s` on right-side
+lines/ranges shows Before/After, Enter posts, and `ctrl+p` queues. On an existing
+inline suggestion, Enter opens actions and `ctrl+a` prepares a separately confirmed
+remote commit. Application checks canonical source, comments, permission and expected
+head without changing your checkout. See [suggestion limits and uncertainty](docs/REFERENCE.md#suggested-changes).

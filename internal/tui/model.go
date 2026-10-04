@@ -128,6 +128,9 @@ type reviewTabState struct {
 	Loading                                              bool
 	Busy                                                 bool
 	ActionError                                          error
+	SuggestionApply                                      *source.SuggestionApplication
+	SuggestionConfirm                                    bool
+	SuggestionScroll                                     int
 	Composer                                             *commentComposer
 	Pending                                              []source.ReviewComment
 	ReviewForm                                           *reviewForm
@@ -161,6 +164,7 @@ const (
 	pageDraftRecovery
 	pageIncremental
 	pageReadiness
+	pageSuggestionApply
 )
 
 // commentComposer is deliberately tab-owned. Its target is copied from the
@@ -171,6 +175,8 @@ type commentComposer struct {
 	CommitSHA       string
 	CommitBundle    *commits.Bundle
 	CommitInventory *inventory.Inventory
+	Suggestion      bool
+	Before          string
 	Draft           string
 	Cursor          int // rune offset, never a byte offset
 	PendingIndex    int // -1 for a new comment; otherwise edits a local pending draft
@@ -200,9 +206,11 @@ const (
 )
 
 type Model struct {
-	reconcileDraft DraftReconciler
-	guideCache     guideDetailCache
-	fileCache      fileDetailCache
+	reconcileDraft    DraftReconciler
+	prepareSuggestion SuggestionPreparer
+	applySuggestion   SuggestionCommitter
+	guideCache        guideDetailCache
+	fileCache         fileDetailCache
 	*reviewTabState
 	drag                 dividerDrag
 	pendingCenter        bool
@@ -515,6 +523,22 @@ func (m *Model) update(msg tea.Msg) (updated tea.Model, command tea.Cmd) {
 		if active != v.target {
 			m.Busy, m.ActionError, m.notice = busy, actionErr, notice
 		}
+	case suggestionPrepared:
+		active := m.activeTab
+		busy, actionErr, notice := m.Busy, m.ActionError, m.notice
+		v.err = m.finishAction(v.err)
+		m.acceptSuggestionPrepared(v)
+		if active != v.target {
+			m.Busy, m.ActionError, m.notice = busy, actionErr, notice
+		}
+	case suggestionApplied:
+		active := m.activeTab
+		busy, actionErr, notice := m.Busy, m.ActionError, m.notice
+		v.err = m.finishAction(v.err)
+		m.acceptSuggestionApplied(v)
+		if active != v.target {
+			m.Busy, m.ActionError, m.notice = busy, actionErr, notice
+		}
 	case CommentResult:
 		active := m.activeTab
 		busy, actionErr, notice := m.Busy, m.ActionError, m.notice
@@ -738,6 +762,9 @@ func (m *Model) update(msg tea.Msg) (updated tea.Model, command tea.Cmd) {
 			if m.discussions.published != nil {
 				return m, m.publishedKey(v)
 			}
+			if m.top() == pageSuggestionApply {
+				return m, m.suggestionApplyKey(v)
+			}
 			if m.Composer != nil {
 				return m, m.commentComposerKey(v)
 			}
@@ -864,6 +891,9 @@ func (m *Model) update(msg tea.Msg) (updated tea.Model, command tea.Cmd) {
 			if v.String() == "ctrl+v" {
 				m.toggleCommentRange()
 				return m, nil
+			}
+			if v.String() == "ctrl+s" {
+				return m, m.openSuggestionComposer()
 			}
 			if v.String() == "ctrl+f" {
 				return m, m.openFileComposer()
@@ -1298,6 +1328,7 @@ func (m *Model) openCommentComposer() tea.Cmd {
 			break
 		}
 	}
+	m.restoreSuggestionEditor(m.Composer)
 	m.editorCursorVisible = true
 	m.editorCursorGeneration++
 	m.ensureCursorVisible()
@@ -1758,6 +1789,16 @@ func (m *Model) reviewCommentLinesAt(comment source.ReviewComment, indent int) [
 	if label := m.publishedStatus(comment.ID); label != "" {
 		lines = append(lines, wrappedLines(classMetadata, label)...)
 	}
+	if replacement, err := source.ParseSuggestion(comment.Body); err == nil {
+		before, ok := m.targetSource(comment.Target)
+		if !ok {
+			before = "(captured source unavailable; application unsupported)"
+		}
+		for _, p := range suggestionPreview(before, replacement) {
+			lines = append(lines, wrappedLines(p.Class, p.Text)...)
+		}
+		lines = append(lines, wrappedLines(classMetadata, "ctrl+a in comment actions: apply suggestion")...)
+	}
 	for _, body := range strings.Split(comment.Body, "\n") {
 		lines = append(lines, wrappedLines(classPlain, body)...)
 	}
@@ -1798,6 +1839,13 @@ func (m *Model) inlineEditorLines() []diffLine {
 		return nil
 	}
 	lines := m.inlineEditorLinesFor(c.Draft, c.Cursor, 0)
+	if c.Suggestion {
+		preview := suggestionPreview(c.Before, c.Draft)
+		for i := range preview {
+			preview[i].editor = true
+		}
+		lines = append(preview, lines...)
+	}
 	if c.Target.StartLine != 0 || c.Target.SubjectType == "file" {
 		label := diffLine{styledLine: styledLine{Class: classWarning, Text: "Comment target · " + commentTargetLabel(c.Target)}, editor: true}
 		lines = append([]diffLine{label}, lines...)
@@ -2124,6 +2172,8 @@ func (m *Model) View() tea.View {
 		text = "Unable to open review\n" + Escape(m.Err.Error()) + "\nNo complete comparison available. q: quit"
 	default:
 		switch m.top() {
+		case pageSuggestionApply:
+			text = renderActionModal(m.Width, m.Height, m.actionModalBackground(), m.suggestionApplyView())
 		case pageDraftRecovery:
 			text = renderActionModal(m.Width, m.Height, m.actionModalBackground(), m.draftRecoveryView(), m.modalSurface)
 		case pageReadiness:

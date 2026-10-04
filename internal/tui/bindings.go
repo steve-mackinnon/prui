@@ -53,6 +53,8 @@ var bindings = []binding{
 	{keys: "enter", desc: "submit inline comment editor", groups: groupHelp, section: "Review"},
 	{keys: "ctrl+o", desc: "choose old/new side of split or context rows", groups: groupHelp, section: "Review"},
 	{keys: "ctrl+v", desc: "start/cancel range; j/k chooses end, enter composes", groups: groupHelp, section: "Review"},
+	{keys: "ctrl+s", desc: "compose a suggestion from selected right-side lines", groups: groupHelp, section: "Review"},
+	{keys: "ctrl+a", desc: "in comment actions, preview and confirm suggestion application", groups: groupHelp, section: "Review"},
 	{keys: "ctrl+f", desc: "compose a file comment (enter posts; queuing unsupported)", groups: groupHelp, section: "Review"},
 	{keys: "ctrl+p", desc: "save inline comment as a local pending draft", groups: groupHelp, section: "Review"},
 	{keys: "shift+enter", desc: "newline in inline comment editor", groups: groupHelp, section: "Review"},
