@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/colorprofile"
 	"prui/internal/inventory"
 	"prui/internal/source"
 	"prui/internal/syntax"
@@ -178,7 +179,17 @@ func (m *Model) styleLine(c lineClass, s string) string {
 	if !ok || s == "" {
 		return s
 	}
-	return style.Render(s)
+	rendered := style.Render(s)
+	if (c == classAdded || c == classRemoved) && m.colorProfile > colorprofile.Ascii {
+		role := theme.Added
+		if c == classRemoved {
+			role = theme.Removed
+		}
+		// Nested syntax SGR resets can clear an outer Lip Gloss background.
+		// Resolve the final cells, then restore only missing background channels.
+		rendered = paintThemeCanvas(rendered, visibleWidth(rendered), strings.Count(rendered, "\n")+1, nil, diffBackground(m.theme, role))
+	}
+	return rendered
 }
 
 // Diff backgrounds belong to rows, independently of language support or visible
