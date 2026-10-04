@@ -14,7 +14,7 @@ Issue #28 runs independently on the #27 conversation stack.
 
 - Ctrl+v starts/cancels a range; j/k chooses its end and Enter opens the editor.
   Selection shows both raw anchors. Ctrl+o selects the old/new side of paired
-  split rows. Reverse selection normalizes increasing raw coordinates.
+  split rows and unchanged context rows. Reverse selection normalizes increasing raw coordinates.
 - Ranges preserve start_line/start_side/line/side through immediate creation,
   local queue editing, persistence, refresh, and submission. Membership requires
   every coordinate within one captured raw hunk on one side and pinned path,
@@ -82,7 +82,11 @@ reply/root provenance; `TestRangeReplyAttemptPreservesAssociatedRawSHA` verifies
 full raw range/SHA persistence and reconciliation after restart. Focused TUI and
 session reply/attempt regressions pass. A new full gate is required for this
 correction; the shared large-gate slot is held by #30, so it has not been started.
-Final full gates and exact-SHA re-review are pending; keep this PR draft.
+Independent reviewer `/root/independent_review` approved code at
+`7fa6eb69e2e78af3199dbb61ee5e0cabc77cc024`: all required findings resolved.
+No implementation changes follow that approval; only help wording and an
+additional file payload identity/subject assertion are added. Final full gates
+and exact-SHA confirmation remain pending; keep this PR draft.
 
 Human terminal usability/accessibility remains unverified by render tests alone.
 No checks, thresholds, existing test assertions, or skipped-test policy weakened.

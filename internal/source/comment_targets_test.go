@@ -41,6 +41,9 @@ func TestExtendedCommentTargets(t *testing.T) {
 	if json.Unmarshal(requests[0].Stdin, &payload) != nil {
 		t.Fatal("payload")
 	}
+	if payload["subject_type"] != "file" || payload["path"] != file.Path || payload["commit_id"] != file.CommitID {
+		t.Fatal("file payload lost target", payload)
+	}
 	for _, key := range []string{"line", "side", "start_line", "start_side"} {
 		if _, ok := payload[key]; ok {
 			t.Fatalf("file invented %s", key)

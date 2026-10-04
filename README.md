@@ -100,8 +100,8 @@ reloads it. Opening a review captures its own frozen description.
 
 Use `ctrl+v` on a raw diff line to set a range start, `j/k` to select its end,
 and Enter to compose. Both endpoints must be on the same side and in one captured
-hunk. In split mode, `ctrl+o` chooses the old/new side of a paired row before
-starting the range. The range anchors remain visible during selection and editing.
+hunk. `ctrl+o` chooses the old/new side of a paired split row or an unchanged
+context row before starting the range. The range anchors remain visible during selection and editing.
 Use `ctrl+f` to compose a comment on the selected changed file, including binary
 and gitlink files with captured metadata. File comments post immediately with
 Enter; GitHub's documented batch review endpoint does not support them, so
@@ -132,7 +132,7 @@ For offline reading, list session IDs with `prui sessions`, then run
 | `P` | Switch PRs |
 | `ctrl+p` | Inside a line/range editor, queue the comment |
 | `ctrl+v` | Start/cancel a range; j/k selects the end |
-| `ctrl+o` | Choose old/new side of a paired split row |
+| `ctrl+o` | Choose old/new side of split or context rows |
 | `ctrl+f` | Compose an immediate file comment |
 | `D` / `c` | Browse discussions / refresh discussions |
 | `C` | Filter the Files/Guide diff by selected commits |
