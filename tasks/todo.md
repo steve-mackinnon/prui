@@ -1948,3 +1948,18 @@ Implementation notes:
 - [x] Promote Guide and rename Diff to Files in the top-level strip.
 - [x] Update existing tests, documentation, and screen baselines.
 - [x] Run the repository verification gate and review the final diff.
+
+# Net Commit Filter tasks (2026-10-04)
+
+- [ ] Contract/capture: optional frozen old/new blob source, bounded capture and
+  validated legacy-compatible codec. Verify commits/session/review focused tests.
+- [ ] Composition: one net inventory from selected changes, clean skip behavior,
+  conflict/limits and immutable source. Verify commits/inventory fixture tests.
+- [ ] Checkpoint: capture and engine contracts integrate; focused tests/build pass.
+- [ ] UI: C picker/mouse, multi-select/All changes, file/code derived inventory,
+  per-review state and read-only guard. Verify TUI model and screen tests.
+- [ ] Integration: Guide organization, empty/narrow/legacy/offline cases, stale
+  results, state restoration. Verify end-to-end synthetic fixture tests.
+- [ ] Docs/review: update controls/spec/changelog, review source/bounds/target safety.
+- [ ] Complete gate: ./scripts/verify.sh and git diff --check pass; save verified
+  changes in logical commits. Human terminal usability remains outstanding.
