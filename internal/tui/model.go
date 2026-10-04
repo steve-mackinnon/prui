@@ -170,6 +170,7 @@ type commentComposer struct {
 }
 
 type commentActionMenu struct {
+	RootAnchor *source.ReviewCommentTarget
 	CommentID  int64
 	ReplyToID  int64 // GitHub permits replies only to the thread's root comment.
 	Target     source.ReviewCommentTarget
@@ -1185,6 +1186,7 @@ func (m *Model) openCommentActionMenu() bool {
 	for _, comment := range m.Comments {
 		if comment.ID == line.commentID {
 			m.CommentMenu = &commentActionMenu{CommentID: comment.ID, ReplyToID: m.topLevelCommentID(comment.ID), Target: comment.Target, Author: comment.Author}
+			m.resolveReplyRoot(m.CommentMenu)
 			m.ensureCursorVisible()
 			return true
 		}

@@ -429,6 +429,7 @@ func (m *Model) commentActionKey(key tea.KeyPressMsg) tea.Cmd {
 	if menu.mode == commentActionPick {
 		switch key.String() {
 		case "r":
+			m.resolveReplyRoot(menu)
 			menu.mode = commentActionReply
 			m.editorCursorVisible = true
 			m.editorCursorGeneration++
@@ -1161,5 +1162,30 @@ func (m *Model) commentActionRequest(menu *commentActionMenu) CommentAction {
 			break
 		}
 	}
+	if menu.mode == commentActionReply && menu.RootAnchor != nil {
+		raw := *menu.RootAnchor
+		action.Comment.CurrentAnchor = &raw
+	}
 	return action
+}
+
+func (m *Model) resolveReplyRoot(menu *commentActionMenu) bool {
+	if menu.RootAnchor != nil {
+		return true
+	}
+	root := menu.ReplyToID
+	if root <= 0 {
+		root = menu.CommentID
+	}
+	for _, c := range m.Comments {
+		if c.ID == root {
+			raw := c.Target
+			if c.CurrentAnchor != nil {
+				raw = *c.CurrentAnchor
+			}
+			menu.RootAnchor = &raw
+			return true
+		}
+	}
+	return false
 }

@@ -25,6 +25,7 @@ func DraftKeyFor(m source.Metadata) DraftKey {
 }
 
 type DraftEditor struct {
+	RootAnchor           *source.ReviewCommentTarget
 	CommitSHA            string
 	Target               source.ReviewCommentTarget
 	Body                 string
@@ -96,6 +97,13 @@ func validateDraft(k DraftKey, d Draft) error {
 		t := e.Target
 		repo, err := normalizeRepository(t.Identity.Repository)
 		return err == nil && repo == k.Repository && t.Identity.Number == k.Number && (t.CommitID == k.HeadSHA || e.CommitSHA == t.CommitID && shaPattern.MatchString(e.CommitSHA) || reply && shaPattern.MatchString(t.CommitID)) && utf8.ValidString(t.Path) && t.Path != "" && t.Line > 0 && (t.Side == "LEFT" || t.Side == "RIGHT") && utf8.ValidString(e.Body) && (!reply || e.CommentID > 0 && e.ReplyToID > 0)
+	}
+	if r := d.Reply; r != nil && r.RootAnchor != nil {
+		raw := r.RootAnchor
+		display := r.Target
+		if raw.Identity != display.Identity || raw.Path != display.Path || raw.Side != display.Side || raw.Line != display.Line || !shaPattern.MatchString(raw.CommitID) {
+			return bad
+		}
 	}
 	if !validEditor(d.Composer, false) || !validEditor(d.Reply, true) {
 		return bad

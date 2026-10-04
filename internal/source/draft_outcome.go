@@ -91,15 +91,19 @@ func (g *GH) ReviewDraftOutcome(ctx context.Context, want PullRequestReview) (bo
 		if err != nil {
 			return false, err
 		}
-		if len(comments) != len(want.Comments) {
-			continue
-		}
-		unmatched := append([]ReviewComment(nil), want.Comments...)
+		parsed := make([]ReviewComment, 0, len(comments))
 		for _, raw := range comments {
 			c, _, err := parseRemoteReviewComment(raw, want.Identity)
 			if err != nil {
 				return false, err
 			}
+			parsed = append(parsed, c)
+		}
+		if len(parsed) != len(want.Comments) {
+			continue
+		}
+		unmatched := append([]ReviewComment(nil), want.Comments...)
+		for _, c := range parsed {
 			for i, w := range unmatched {
 				if c.Body == w.Body && (c.Target == w.Target || c.OriginalAnchor != nil && *c.OriginalAnchor == w.Target) {
 					unmatched = append(unmatched[:i], unmatched[i+1:]...)

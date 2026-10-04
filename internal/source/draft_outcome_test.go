@@ -115,3 +115,20 @@ func TestDraftOutcomeRejectsNullAndMalformedReviewFields(t *testing.T) {
 		}
 	}
 }
+
+func TestReviewDraftOutcomeValidatesCommentsBeforeCountMismatch(t *testing.T) {
+	want := PullRequestReview{Identity: Identity{"owner/repo", 42}, CommitID: strings.Repeat("a", 40), Event: "APPROVE"}
+	g := GH{Executable: "trusted-gh", Limits: Defaults(), Runner: listRunner(func(_ context.Context, r Request) ([]byte, error) {
+		endpoint := r.Args[len(r.Args)-1]
+		if endpoint == "user" {
+			return []byte(`{"login":"reviewer"}`), nil
+		}
+		if strings.Contains(endpoint, "/9/comments") {
+			return []byte(`[{},{}]`), nil
+		}
+		return []byte(`[{"id":9,"body":"","state":"APPROVED","commit_id":"` + want.CommitID + `","user":{"login":"reviewer"}}]`), nil
+	})}
+	if _, err := g.ReviewDraftOutcome(context.Background(), want); err == nil {
+		t.Fatal("malformed count mismatch proved absence")
+	}
+}

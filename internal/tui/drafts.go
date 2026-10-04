@@ -33,7 +33,7 @@ func draftContent(state *reviewTabState) session.Draft {
 		d.Composer = &session.DraftEditor{Target: c.Target, Body: c.Draft, PendingIndex: c.PendingIndex, CommitSHA: c.CommitSHA}
 	}
 	if r := state.CommentMenu; r != nil && r.mode == commentActionReply {
-		d.Reply = &session.DraftEditor{Target: r.Target, Body: r.Draft, CommentID: r.CommentID, ReplyToID: r.ReplyToID}
+		d.Reply = &session.DraftEditor{Target: r.Target, Body: r.Draft, CommentID: r.CommentID, ReplyToID: r.ReplyToID, RootAnchor: r.RootAnchor}
 	}
 	return d
 }
@@ -78,7 +78,7 @@ func (m *Model) loadDraft(state *reviewTabState) {
 		state.commit.focus = paneDiff
 	}
 	if r := d.Reply; r != nil {
-		state.CommentMenu = &commentActionMenu{Target: r.Target, Draft: r.Body, Cursor: len([]rune(r.Body)), CommentID: r.CommentID, ReplyToID: r.ReplyToID, mode: commentActionReply}
+		state.CommentMenu = &commentActionMenu{Target: r.Target, Draft: r.Body, Cursor: len([]rune(r.Body)), CommentID: r.CommentID, ReplyToID: r.ReplyToID, mode: commentActionReply, RootAnchor: r.RootAnchor}
 	}
 	content, _ := json.Marshal(draftContent(state))
 	state.draft.saved = content
@@ -141,6 +141,12 @@ func (m *Model) prepareDraftAttempt(kind string) bool {
 		m.draft.attempted.Comment = &source.ReviewComment{Target: c.Target, Body: c.Draft}
 	case "reply":
 		r := m.CommentMenu
+		if !m.resolveReplyRoot(r) {
+			m.draft.attempt = ""
+			m.draft.attempted = nil
+			m.ActionError = errors.New("refresh discussions to resolve the reply root before submitting")
+			return false
+		}
 		action := m.commentActionRequest(r)
 		raw := action.Comment.Target
 		if action.Comment.CurrentAnchor != nil {

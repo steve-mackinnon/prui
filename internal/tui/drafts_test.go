@@ -117,6 +117,8 @@ func TestReplyDraftAndUncertainMatchSurviveRestart(t *testing.T) {
 	m := draftTestModel(t, store)
 	meta := m.Session.Inventory.Comparison.Metadata
 	m.CommentMenu = &commentActionMenu{Target: source.ReviewCommentTarget{Identity: meta.Identity, CommitID: meta.HeadSHA, Path: "text", Side: "RIGHT", Line: 1}, CommentID: 9, ReplyToID: 7, mode: commentActionReply}
+	m.Comments = []source.ReviewComment{{ID: 7, Target: m.CommentMenu.Target}}
+	m.resolveReplyRoot(m.CommentMenu)
 	key(m, 'x')
 	restarted := draftTestModel(t, store)
 	if restarted.CommentMenu == nil || restarted.CommentMenu.Draft != "x" || restarted.CommentMenu.ReplyToID != 7 {
@@ -289,5 +291,42 @@ func TestReplyAttemptFreezesAssociatedRootAnchor(t *testing.T) {
 	restarted := draftTestModel(t, store)
 	if restarted.draft.attempted.Comment.Target != raw || restarted.CommentMenu.Target != display {
 		t.Fatal("restart conflated raw and display anchors")
+	}
+}
+
+func TestUnsentReplyRecoversRawRootWithoutOverlayAndBlocksUnknownRoot(t *testing.T) {
+	store, err := session.Open(t.TempDir() + "/private")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	m := draftTestModel(t, store)
+	meta := m.Session.Inventory.Comparison.Metadata
+	display := source.ReviewCommentTarget{Identity: meta.Identity, CommitID: meta.HeadSHA, Path: "text", Side: "RIGHT", Line: 1}
+	raw := display
+	raw.CommitID = strings.Repeat("c", 40)
+	m.Comments = []source.ReviewComment{{ID: 7, Target: display, CurrentAnchor: &raw}}
+	m.CommentMenu = &commentActionMenu{CommentID: 9, ReplyToID: 7, Target: display, Draft: "unsent", mode: commentActionReply}
+	m.resolveReplyRoot(m.CommentMenu)
+	if !m.persistDraft(m.reviewTabState) {
+		t.Fatal(m.ActionError)
+	}
+	restarted := draftTestModel(t, store)
+	if len(restarted.Comments) != 0 || restarted.CommentMenu.RootAnchor == nil || *restarted.CommentMenu.RootAnchor != raw {
+		t.Fatal("unsent reply lost raw root")
+	}
+	if !restarted.prepareDraftAttempt("reply") || restarted.draft.attempted.Comment.Target != raw {
+		t.Fatal("no-overlay attempt used display anchor")
+	}
+	action := restarted.commentActionRequest(restarted.CommentMenu)
+	if action.Comment.CurrentAnchor == nil || *action.Comment.CurrentAnchor != raw || action.Comment.ID != 7 {
+		t.Fatal("dispatch differs from frozen intent")
+	}
+	// Legacy/unresolved editors cannot guess an associated SHA or dispatch.
+	restarted.draft.attempt = ""
+	restarted.draft.attempted = nil
+	restarted.CommentMenu.RootAnchor = nil
+	if restarted.prepareDraftAttempt("reply") {
+		t.Fatal("unresolved root allowed dispatch")
 	}
 }
