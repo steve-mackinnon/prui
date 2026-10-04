@@ -618,3 +618,11 @@ Additional context/full files are read-only; canonical patches retain comment
 anchors and progress. Missing source and limited search coverage remain visible.
 Alt+Up/Down open previous/next loaded unresolved-thread detail; unknown resolution
 is excluded. See [the complete policy](spec/SPEC-code-navigation.md).
+
+### Live PR readiness
+
+`C`: open checks/reviews/blockers for the PR. Within the view, `r`/`c`/`ctrl+r`
+refresh remote readiness; j/k, arrows, PgUp/PgDn, u/d, Home/End and the mouse wheel
+scroll; Escape returns. Both pinned and observed live head SHAs are displayed.
+Readiness is ephemeral, unavailable offline and never uploaded in guide material.
+See [the read-only readiness contract](spec/SPEC-pr-readiness.md).

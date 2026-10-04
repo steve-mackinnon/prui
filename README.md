@@ -272,3 +272,8 @@ AI upload. On Files use Ctrl+E for context, Alt+O/N for OLD/NEW, Ctrl+D for diff
 Ctrl+W for whitespace presentation, and / plus F3/Shift+F3 for code search.
 Alt+Up/Down open previous/next loaded unresolved thread.
 [Storage, offline coverage and read-only coordinate policy](docs/spec/SPEC-code-navigation.md).
+
+Live PR readiness: press `C` in a review to inspect individual checks, required
+reviews and merge policies. Press `r` inside readiness to refresh its remote
+evidence independently of pinned code. Unknown, partial and stale data remain
+visible; no merge action is performed. See [readiness contract](docs/spec/SPEC-pr-readiness.md).
