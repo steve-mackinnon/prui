@@ -495,9 +495,15 @@ func (m *Model) discussionsView() string {
 			}
 		}
 	}
-	footer := "j/k: select/scroll · enter: detail · e: edit · z: resolve/reopen · c: refresh · esc: back"
+	footer := "j/k: select · enter: detail · c: refresh · esc: back"
 	if d.snapshot.Snapshot.Timeline {
-		footer = "enter: detail · e: edit · z: resolve/reopen · n: comment · r: reply · c: refresh · esc: back"
+		footer = "j/k: select · enter: detail · n: comment · c: refresh · esc: back"
+	}
+	if d.detail {
+		footer = "j/k: scroll · e: edit · z: resolve/reopen · o: original · c: refresh · esc: back"
+		if d.snapshot.Snapshot.Timeline {
+			footer = "e: edit · z: resolve/reopen · r: general reply · o: original · c: refresh · esc: back"
+		}
 	}
 	lines = append(lines, clip(footer, m.Width))
 	return strings.Join(lines, "\n")

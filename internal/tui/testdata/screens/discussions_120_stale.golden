@@ -10,4 +10,4 @@ Context survives an unavailable commit.
 Historical snippet
 +old
 https://github.com/a/b/pull/1#discussion_r1
-j/k: select/scroll · enter: detail · o: original commit · c: refresh · esc: back
+j/k: scroll · e: edit · z: resolve/reopen · o: original · c: refresh · esc: back

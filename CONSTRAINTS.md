@@ -114,3 +114,28 @@
 - File targets use a captured changed path and `subject_type:file`, with no line/side coordinates. Captured non-text files are eligible; unavailable files and unsafe paths are rejected. The new path is used except for deletion, which uses the old path.
 - Immediate range/file creation uses the documented review-comment endpoint. Queued ranges use the documented batch review fields. File targets cannot be queued through the documented batch endpoint: preserve the draft and show an explicit unsupported error, never omit a target or invent a line.
 - New private drafts use payload version 2, so old binaries reject rather than flatten extended targets. Version 1 remains readable. Editors, pending targets, and immutable attempts retain all coordinates during edit, refresh, restart, and offline recovery. Remote reconciliation compares complete current/original target shapes.
+
+# Published Comment and Thread Action Contract
+
+- Issue #28 adds only explicit published-comment edits and review-thread
+  resolve/reopen actions in the inline and discussion views. General PR comments
+  may be edited; submitted review decisions/bodies are distinct events. Actions
+  use stable remote identities, never inferred code coordinates or outdated state.
+- Editing re-reads comment membership and authenticated authorship. Thread actions
+  re-read GitHub's `viewerCanResolve`/`viewerCanUnresolve` permissions and known
+  resolution state. Missing permissions or identities deny the action. Metadata
+  before and after retrieval must match the frozen repository/base/head pins.
+  GitHub remains authoritative for write authorization.
+- JSON stdin carries mutation data. Offline refusal precedes client/credential
+  access. Canonical successful responses preserve identities and update all local
+  affected views without changing captured anchors, parent IDs or timestamps.
+- Failure retains edits in process memory. Unknown outcomes freeze attempted
+  body/desired resolution and block submission until explicit complete verified
+  refresh establishes that identity's current state. A matching attempt blocks
+  retry; a mismatch permits a separate intentional action. Missing identities
+  remain uncertain. Refresh and background work never retry mutations.
+- Read generations invalidate pre-attempt/pre-success results. Subsequent verified
+  reads may show another client's edits, reopens or deletions. Partial refreshes
+  retain only omitted confirmed/selected identities, deduplicate threads/comments,
+  and label them stale. Retained comments never become current code overlays or
+  editable identities, and never override authoritative incoming siblings.
