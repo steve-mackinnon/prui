@@ -469,7 +469,7 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case draftReconciled:
 		active := m.activeTab
 		busy, actionErr, notice := m.Busy, m.ActionError, m.notice
-		m.finishAction(v.err)
+		v.err = m.finishAction(v.err)
 		m.applyDraftReconciled(v)
 		if active != v.target {
 			m.Busy, m.ActionError, m.notice = busy, actionErr, notice
