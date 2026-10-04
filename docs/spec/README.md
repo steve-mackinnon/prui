@@ -5,6 +5,8 @@ These documents preserve requirements, acceptance criteria, and the reasoning be
 ## Specifications
 
 - [Spec: Commit Filter in the Diff Workspace](SPEC-diff-commit-filter.md)
+- [Spec: Diff Text Search](SPEC-diff-text-search.md)
+
 - [Spec: Configurable guide models with Charm Fantasy](SPEC-MULTI-PROVIDER-GUIDES.md)
 - [Spec: Current-Checkout Pull Request Picker](SPEC-current-checkout-pr-picker.md)
 - [Spec: PR Picker Preview](SPEC-pr-picker-preview.md)

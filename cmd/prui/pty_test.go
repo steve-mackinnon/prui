@@ -42,14 +42,20 @@ func TestPTYSmoke(t *testing.T) {
 				Identity: source.Identity{Repository: "owner/alpha", Number: 42}, BaseRepository: "owner/alpha", HeadRepository: "owner/alpha", BaseSHA: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", HeadSHA: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 			}},
 			Complete: true,
+			Patches:  map[string][]byte{},
 		},
 	}
 	for _, name := range []string{"a.go", "b.go"} {
-		i := len(snapshot.Slices)
+		i := len(snapshot.Inventory.Units)
 		snapshot.Inventory.Files = append(snapshot.Inventory.Files, inventory.FileChange{ID: name, NewPath: []byte(name), Status: "A", NewMode: "100644"})
 		snapshot.Inventory.Units = append(snapshot.Inventory.Units, inventory.ReviewUnit{InventoryID: "pty-inventory", ID: "unit-" + name, FileChangeID: name, Kind: inventory.FileMetadata})
-		snapshot.Slices = append(snapshot.Slices, session.Slice{FileID: name, Units: []int{i}})
-		snapshot.UnitFiles = append(snapshot.UnitFiles, i)
+		patch := []byte("@@ -0,0 +1 @@\n+search-needle-" + name + "\n")
+		ref := fmt.Sprintf("%x", sha256.Sum256(patch))
+		snapshot.Inventory.Patches[ref] = patch
+		snapshot.Inventory.Units = append(snapshot.Inventory.Units, inventory.ReviewUnit{InventoryID: "pty-inventory", ID: "text-" + name, FileChangeID: name, Kind: inventory.TextHunk, PatchReference: ref, NewRange: inventory.Range{Start: 1, Count: 1}})
+		snapshot.Slices = append(snapshot.Slices, session.Slice{FileID: name, Units: []int{i, i + 1}})
+		file := len(snapshot.Slices) - 1
+		snapshot.UnitFiles = append(snapshot.UnitFiles, file, file)
 	}
 	snapshot.Commits = &commits.Bundle{BaseSHA: snapshot.Inventory.Comparison.Metadata.BaseSHA,
 		HeadSHA: snapshot.Inventory.Comparison.Metadata.HeadSHA, Status: commits.Captured, Complete: true}

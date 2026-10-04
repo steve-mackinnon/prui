@@ -573,3 +573,31 @@ intentional retry; if the attempted body appears as new activity, another post i
 blocked until the reviewer inspects it and starts a new comment. Inline replies
 continue through diff comment actions. `o` on inline detail opens original context.
 See [the conversation contract](spec/SPEC-pr-conversation.md).
+
+
+## Find text in diffs
+
+On Files or Guide, press `Ctrl+F` or click **Find (Ctrl+F)** in the diff header.
+Files searches all available saved text hunks, including files hidden by the
+filename filter. Guide searches only the selected section, including collapsed
+children. Select a section or its file row first; a guide heading has no section
+scope. Full inventory mode searches the saved comparison.
+
+Type literal text; matching ignores case and includes additions, deletions, and
+saved unchanged context. It excludes paths, headings, comments, and guide prose.
+The popover groups occurrences by file, with line/side labels and snippets.
+Up/Down or PageUp/PageDown selects a result; Enter or a result click reveals it
+in the diff without opening a comment. Activating a file hidden by the filename
+filter clears that filter and shows a notice. `/` still filters filenames.
+
+Escape closes the popover and keeps highlights. Reopen with Ctrl+F; Tab selects
+Clear or Close, and Enter activates the selected control. Query editing supports
+Left/Right, Home/End, Backspace/Delete, and single-line paste up to 1,024 UTF-8
+bytes. Search owns keyboard input while open; letters such as `q` are query text.
+
+Search stays local and works offline. It searches saved patches, not entire files
+or omitted context. Unavailable/non-text content is labeled as skipped. Results
+are capped at 10,000 with an explicit refine-query notice; visible diff matches
+remain highlighted. Context lines count once in split view, and activation uses
+the valid right-side target. Colorless terminals keep selection and line labels
+without changing source text. Queries and results are not persisted.
