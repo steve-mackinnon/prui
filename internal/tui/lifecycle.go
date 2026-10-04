@@ -1112,7 +1112,11 @@ func (m *Model) repositoryPickerView() string {
 	for i, repository := range m.Repositories {
 		rows[i] = Escape(repository.Repository)
 	}
-	return m.pickerScreen(&m.RepositoryPicker, []string{appHeader("Repositories", ""), "Select a repository to list its open pull requests."}, rows, "No remembered repositories. Open a PR with --repo first.", "enter: open · i: account inbox · r: reload · esc: back")
+	footer := "enter: open · r: reload · esc: back"
+	if m.inbox.load != nil {
+		footer = "enter: open · i: inbox · r: reload · esc: back"
+	}
+	return m.pickerScreen(&m.RepositoryPicker, []string{appHeader("Repositories", ""), "Select a repository to list its open pull requests."}, rows, "No remembered repositories. Open a PR with --repo first.", footer)
 }
 
 func (m *Model) switcherView() string {
@@ -1139,7 +1143,10 @@ func (m *Model) switcherView() string {
 		}
 	}
 	header := []string{appHeader("Switch pull requests", "type to filter"), "filter: " + Escape(m.SwitcherQuery)}
-	footer := "type: filter · enter: switch/open · ctrl+o: inbox · esc: cancel"
+	footer := "type: filter · enter: switch/open · esc: cancel"
+	if m.inbox.load != nil {
+		footer = "type: filter · enter: switch/open · ctrl+o: inbox · esc: cancel"
+	}
 	return m.prPickerScreen(header, rows, detail, "No matching open reviews or pull requests.", footer)
 }
 

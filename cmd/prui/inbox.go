@@ -90,9 +90,8 @@ func (a *application) openInbox(ctx context.Context, _ string, id source.Identit
 	}
 	return a.openFromPullRequestList(ctx, checkout, id, notify)
 }
-func listInbox(w io.Writer, r source.Inbox) {
-	fmt.Fprintln(w, tui.Escape(inbox.Label(r)))
-	fmt.Fprintln(w, "Local activity only · alerts off · refresh explicit · unknown = not marked read")
+func listInbox(w io.Writer, r source.Inbox) error {
+	lines := []string{tui.Escape(inbox.Label(r)), "Local activity only · alerts off · refresh explicit · unknown = not marked read"}
 	for _, i := range r.Items {
 		request := ""
 		if i.PersonalRequest {
@@ -104,9 +103,12 @@ func listInbox(w io.Writer, r source.Inbox) {
 		if !i.RequestsComplete {
 			request += " requests unknown/partial"
 		}
-		fmt.Fprintf(w, "%s#%d [%s%s] %s · @%s · %s draft=%t review=%s\n", tui.Escape(i.PullRequest.Identity.Repository), i.PullRequest.Identity.Number, i.Activity, request, tui.Escape(i.PullRequest.Title), tui.Escape(i.PullRequest.Author), i.State, i.Draft, i.ReviewDecision)
+		lines = append(lines, fmt.Sprintf("%s#%d [%s%s] %s · @%s · %s draft=%t review=%s", tui.Escape(i.PullRequest.Identity.Repository), i.PullRequest.Identity.Number, i.Activity, request, tui.Escape(i.PullRequest.Title), tui.Escape(i.PullRequest.Author), i.State, i.Draft, i.ReviewDecision))
 	}
 	for _, p := range r.Problems {
-		fmt.Fprintln(w, "!", tui.Escape(p))
+		lines = append(lines, "! "+tui.Escape(p))
 	}
+
+	_, err := io.WriteString(w, strings.Join(lines, "\n")+"\n")
+	return err
 }

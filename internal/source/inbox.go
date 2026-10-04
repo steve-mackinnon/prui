@@ -79,9 +79,10 @@ func (o InboxOptions) query(kind string) string {
 		}
 	}
 	if o.View != "requested" {
-		if o.Requests == "personal" {
+		switch o.Requests {
+		case "personal":
 			q += " user-review-requested:@me"
-		} else if o.Requests == "team" {
+		case "team":
 			q += " team-review-requested-user:@me"
 		}
 	}
@@ -91,14 +92,16 @@ func (o InboxOptions) query(kind string) string {
 	if o.Author != "" {
 		q += " author:" + o.Author
 	}
-	if o.State == "" || o.State == "open" {
+	switch o.State {
+	case "", "open":
 		q += " is:open"
-	} else if o.State == "closed" {
+	case "closed":
 		q += " is:closed"
 	}
-	if o.Draft == "yes" {
+	switch o.Draft {
+	case "yes":
 		q += " draft:true"
-	} else if o.Draft == "no" {
+	case "no":
 		q += " draft:false"
 	}
 	if o.Review != "" && o.Review != "all" {

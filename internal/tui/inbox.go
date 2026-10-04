@@ -257,7 +257,7 @@ func (m *Model) applyInboxMessage(msg tea.Msg) tea.Cmd {
 		}
 	case inboxOpenResult:
 		if v.Generation != s.generation {
-			m.finishAction(v.Result.Err)
+			_ = m.finishAction(v.Result.Err)
 			m.ActionError = nil
 			return nil
 		}

@@ -119,7 +119,10 @@ func run(args []string) int {
 			fmt.Fprintln(os.Stderr, tui.Escape(err.Error()))
 			return 1
 		}
-		listInbox(os.Stdout, r)
+		if err := listInbox(os.Stdout, r); err != nil {
+			fmt.Fprintln(os.Stderr, tui.Escape(err.Error()))
+			return 1
+		}
 		if !r.Complete {
 			return 2
 		}

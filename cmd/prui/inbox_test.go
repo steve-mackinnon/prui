@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"path/filepath"
 	"prui/internal/session"
 	"prui/internal/source"
@@ -71,5 +72,22 @@ func TestInboxFrozenOwnSessionRemainsOfflineAndUnchanged(t *testing.T) {
 	}
 	if len(after) != len(before) || persisted.SnapshotReference != original.SnapshotReference || persisted.Generation != original.Generation || persisted.RevisionStatus != original.RevisionStatus || string(opened.Checkout) != string(original.Checkout) {
 		t.Fatal("frozen record changed or borrowed checkout")
+	}
+}
+
+type inboxFailWriter struct{}
+
+func (inboxFailWriter) Write([]byte) (int, error) { return 0, errors.New("output unavailable") }
+func TestInboxPlainOutputEscapesAndReportsWriterFailure(t *testing.T) {
+	r := source.Inbox{Items: []source.InboxItem{{PullRequest: source.PullRequest{Identity: source.Identity{Repository: "o/r", Number: 1}, Title: "bad\x1b[31m"}}}}
+	var output strings.Builder
+	if err := listInbox(&output, r); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(output.String(), "\x1b") {
+		t.Fatal("terminal escape emitted")
+	}
+	if err := listInbox(inboxFailWriter{}, r); err == nil {
+		t.Fatal("output failure ignored")
 	}
 }

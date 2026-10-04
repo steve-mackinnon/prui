@@ -25,11 +25,17 @@ func Open(path string) (*Cache, error) {
 	if !filepath.IsAbs(path) {
 		return nil, errors.New("inbox cache requires an absolute path")
 	}
-	f, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_RDWR, 0600)
+	root, err := os.OpenRoot(filepath.Dir(path))
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = root.Close() }()
+	name := filepath.Base(path)
+	f, err := root.OpenFile(name, os.O_CREATE|os.O_EXCL|os.O_RDWR, 0600)
 	if err == nil {
 		err = f.Close()
 	} else if os.IsExist(err) {
-		info, e := os.Lstat(path)
+		info, e := root.Lstat(name)
 		err = e
 		if e == nil && (!info.Mode().IsRegular() || info.Mode().Perm()&0077 != 0) {
 			err = errors.New("inbox cache must be a private regular file")
