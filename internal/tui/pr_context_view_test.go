@@ -178,7 +178,7 @@ func TestReviewPaneHeadersIdentifyViewWithoutNestedTabs(t *testing.T) {
 	}{{viewFiles, "Files"}, {viewGuide, "Guide"}} {
 		m.selectReviewView(tc.view)
 		header := strings.Split(ansi.Strip(m.View().Content), "\n")[2]
-		if !strings.HasPrefix(header, "┌ "+tc.label+" ") || strings.Contains(header, "(F)") || strings.Contains(header, "(G)") {
+		if !strings.HasPrefix(header, "┌ Commits [C] · All changes · "+tc.label+" ") || strings.Contains(header, "(F)") || strings.Contains(header, "(G)") {
 			t.Fatalf("unexpected pane header: %q", header)
 		}
 	}
