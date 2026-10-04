@@ -1,7 +1,8 @@
 # Spec: Commit Filter in the Diff Workspace
 
-Status: Implementation authorized 2026-10-04. User confirmed one net diff and
-requested sub-agent implementation using the incremental implementation skill.
+Status: Implemented 2026-10-04. User confirmed one net diff and requested
+sub-agent implementation using the incremental implementation skill. Verification
+evidence is recorded in the Net Commit Filter section of `tasks/todo.md`.
 
 ## Objective
 
@@ -221,10 +222,36 @@ CONSTRAINTS.md. No new numeric coverage threshold is introduced.
 6. All changes restores reading state; PR switching preserves isolated filters.
 7. Keyboard/mouse, narrow layouts, offline/legacy cases and repository gates pass.
 
-## Open Decisions
+## Implementation Decisions (2026-10-04)
 
-The user confirmed a singular net diff driving all displayed files and code.
-The baseline/application rule above is the proposed meaning of arbitrary subset
-selection; dependent skipped commits can produce conflicts. Implementation follows the proposed baseline rule, Guide
-organization and read-only filtered mode. The implementation plan must detail the optional source representation and bounded composition engine;
-existing first-parent patches cannot fulfill this requirement by themselves.
+The user confirmed a singular net diff driving all displayed files and code and
+requested delegated implementation. The engine uses optional
+`Bundle.Composition`: sparse trees keyed by original commit/parent SHA and
+content-addressed deduplicated blobs, projected onto captured touched paths.
+Legacy payloads omit this field without changing canonical encoding.
+
+A disposable bare Git object store and index apply full-index binary first-parent
+patches with `git apply --cached --3way`, then the shared inventory builder creates
+one baseline-to-result comparison. No commit, user index or worktree is created.
+Ambiguous first-parent branch ordering and application conflicts are unavailable
+states. Source identities and exact tree changes are checked before composition.
+
+Composition shares one 50 MiB allowance across frozen blob materialization,
+intermediate patches and final inventory reads. The existing capture budget and
+codec ceiling remain unchanged. Paths beyond 4096 bytes or 128 components make
+optional composition unavailable while leaving canonical review/commit browsing
+intact. Context cancellation and bounded process output/storage apply throughout.
+
+The TUI keeps a separate reading state and derived renderer, with no comment
+anchors or progress references. Canonical inventory and drafts stay untouched.
+Guide associations use validated original unit-to-file references; ambiguity is
+shown in the outside-guide group. Human terminal usability still requires review.
+
+## Verification Result
+
+Focused backend and UI tests and the repository verification gate passed,
+including race tests, compiled-binary PTY navigation and build. Synthetic fixtures
+verify filtering after the original repository is removed, skipped-change
+exclusion, cumulative/cancelling edits, conflict and budget handling, keyboard and
+mouse selection, stale-result rejection, and canonical pending-editor restoration.
+Human terminal usability verification remains outstanding under CONSTRAINTS.md.

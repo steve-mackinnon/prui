@@ -1951,15 +1951,22 @@ Implementation notes:
 
 # Net Commit Filter tasks (2026-10-04)
 
-- [ ] Contract/capture: optional frozen old/new blob source, bounded capture and
+- [x] Contract/capture: optional frozen old/new blob source, bounded capture and
   validated legacy-compatible codec. Verify commits/session/review focused tests.
-- [ ] Composition: one net inventory from selected changes, clean skip behavior,
+- [x] Composition: one net inventory from selected changes, clean skip behavior,
   conflict/limits and immutable source. Verify commits/inventory fixture tests.
-- [ ] Checkpoint: capture and engine contracts integrate; focused tests/build pass.
-- [ ] UI: C picker/mouse, multi-select/All changes, file/code derived inventory,
+- [x] Checkpoint: capture and engine contracts integrate; focused tests/build pass.
+- [x] UI: C picker/mouse, multi-select/All changes, file/code derived inventory,
   per-review state and read-only guard. Verify TUI model and screen tests.
-- [ ] Integration: Guide organization, empty/narrow/legacy/offline cases, stale
+- [x] Integration: Guide organization, empty/narrow/legacy/offline cases, stale
   results, state restoration. Verify end-to-end synthetic fixture tests.
-- [ ] Docs/review: update controls/spec/changelog, review source/bounds/target safety.
-- [ ] Complete gate: ./scripts/verify.sh and git diff --check pass; save verified
+- [x] Docs/review: update controls/spec/changelog, review source/bounds/target safety.
+- [x] Complete gate: ./scripts/verify.sh and git diff --check pass; save verified
   changes in logical commits. Human terminal usability remains outstanding.
+
+Verification: focused capture/session/engine/review/TUI tests passed, offline
+restart composition and compiled-binary picker journey passed. Full
+`./scripts/verify.sh` passed formatting, vet, all race tests (including PTY) and
+build. `git diff --check` passed. Review findings on shared source budgets, path
+depth, hit targets, stale selection and pending-editor visibility were resolved.
+Human terminal usability verification remains outstanding.

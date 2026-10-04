@@ -110,6 +110,7 @@ For offline reading, list session IDs with `prui sessions`, then run
 | `v` / `V` | Cycle forward / backward through Description, Files, Guide, and Commits |
 | `ctrl+p` | Switch PRs; inside a line editor, queue the comment |
 | `D` / `c` | Browse discussions / refresh discussions |
+| `C` | Filter the Files/Guide diff by selected commits |
 | `R` | Open review submission |
 | `g` | Choose an AI guide provider and model, then confirm upload |
 | `r` / `N` | Check freshness / start a new comparison |
@@ -119,6 +120,9 @@ For offline reading, list session IDs with `prui sessions`, then run
 Newly opened pull requests start on the Description tab. Use `2` to switch to Files.
 
 Mouse selection, pane resizing, themes, and side-by-side diffs are also available.
+In Files or Guide, select **Commits [C]** to choose commits for one net diff.
+**All changes** restores the full PR comparison. Selected commits are read-only;
+use All changes to mark files or the Commits tab to discuss an individual commit.
 Diff syntax highlighting is captured from the complete pinned old/new files and
 saved as token spans for offline review; no extra full-file source is retained.
 Older sessions use best-effort hunk highlighting. Unsupported languages and files

@@ -202,6 +202,7 @@ columns. Plain output is always unified.
 | `}` / `{` | Next / previous guide, or file slice without guides |
 | `]` / `[` | Widen / narrow the left file and guide pane by two columns |
 | `F` / `G` | Select the Files or Guide tab |
+| `C` | Open the commit filter in Files/Guide |
 | `S` | Toggle side-by-side detail; unified is the default and narrow terminals fall back below 160 columns |
 | `1` / `2` / `3` / `4` | Select Description / Files / Guide / Commits |
 | `v` / `V` | Next / previous PR context view: Description, Files, Guide, or Commits |
@@ -258,6 +259,35 @@ Wheel input scrolls diff and description panes, moves selection in navigation
 lists, and navigates discussions. Double-click activation is not supported. Mouse capture
 may affect native terminal text selection; use your terminal's selection
 modifier (often Shift, depending on the terminal or multiplexer) to copy text.
+
+### Filtering the diff by commits
+
+The **Commits [C]** control in Files and Guide opens a checkbox picker. Use
+up/down or j/k to navigate and Space or Enter to toggle a commit. Select
+**All changes** to restore the original full-PR comparison. Escape or C closes
+the picker and retains the selection. Selecting no commits shows an empty view;
+selecting every commit in a complete captured list restores All changes.
+
+Selected commits contribute to one net diff, which drives both the file list
+and code pane. Repeated edits combine and cancelling changes disappear. Changes
+apply in history order starting from the first selected commit's parent. Skipped
+commits do not contribute changes; a selection that depends on a skipped change
+can conflict. Conflicts or missing frozen source are explained instead of showing
+a misleading partial result. Merge changes use the first parent.
+
+Filtering uses frozen local data and leaves the checkout untouched. Older sessions
+without composition source keep the full comparison and dedicated Commits browser.
+Incomplete commit capture is labeled; selecting all captured entries does not
+silently include uncaptured commits. Filter selection lasts for this process and
+is independent of the Commits tab's selected commit.
+
+Filtered reading does not mark files or compose line comments. Existing pending
+review drafts are preserved. Editing a pending comment from the review form
+returns to All changes so its original target and editor are visible. Return to
+All changes to mark or comment on the PR
+diff, or use the dedicated Commits tab for commit discussions. Guide text remains
+an interpretation of the full PR; filtering does not generate a new guide, and
+unmatched filtered files remain accessible in a separate group.
 
 ### Commit browsing
 
