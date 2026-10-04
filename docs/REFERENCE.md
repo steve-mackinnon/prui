@@ -601,3 +601,15 @@ are capped at 10,000 with an explicit refine-query notice; visible diff matches
 remain highlighted. Context lines count once in split view, and activation uses
 the valid right-side target. Colorless terminals keep selection and line labels
 without changing source text. Queries and results are not persisted.
+
+## Complete pinned source and navigation
+
+`--cache-full-source` is explicit consent to store bounded complete OLD/NEW
+changed-file source locally for newly opened comparisons; it is not remembered
+or AI-upload consent. On Files, Ctrl+E expands unchanged context, Ctrl+O/N opens
+OLD/NEW source, Ctrl+D restores diff and Ctrl+W hides whitespace-only replacement
+runs. Ctrl+F searches that source scope; F3/Shift+F3 step between results.
+Additional context/full files are read-only; canonical patches retain comment
+anchors and progress. Missing source and limited search coverage remain visible.
+Alt+Up/Down open previous/next loaded unresolved-thread detail; unknown resolution
+is excluded. See [the complete policy](spec/SPEC-code-navigation.md).

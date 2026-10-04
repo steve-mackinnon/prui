@@ -167,3 +167,43 @@ func TestDeriveGuideUsesFrozenMaterialWithoutChangingSource(t *testing.T) {
 		t.Fatal("derived guide did not retain frozen patches")
 	}
 }
+
+func TestFullSourceConsentPinsAndUploadBoundary(t *testing.T) {
+	r := testutil.NewRepo(t)
+	old := strings.Repeat("unchanged\n", 12) + "old\n"
+	newText := strings.Repeat("unchanged\n", 12) + "new\n"
+	r.Write("a", old)
+	base := r.Commit()
+	r.Write("a", newText)
+	head := r.Commit()
+	r.Write("a", "UNCOMMITTED CONTENT MUST NEVER BE READ\n")
+	meta := source.Metadata{Identity: source.Identity{Repository: "o/r", Number: 1}, BaseRepository: "o/r", HeadRepository: "o/r", BaseSHA: base, HeadSHA: head}
+	ordinary, err := Open(context.Background(), r.Dir, meta.Identity, FixtureGitHub{meta}, source.NewRunner(), source.Defaults(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ordinary.Inventory.FullSource != nil {
+		t.Fatal("source captured without explicit consent")
+	}
+	cached, err := OpenWithConfig(context.Background(), r.Dir, meta.Identity, FixtureGitHub{meta}, source.NewRunner(), source.Defaults(), nil, Config{CacheFullSource: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, oldSide := range []bool{true, false} {
+		lines, ok := cached.Inventory.SourceLines(0, oldSide)
+		want := newText
+		if oldSide {
+			want = old
+		}
+		if !ok || strings.Join(lines, "\n")+"\n" != want {
+			t.Fatal("did not use complete pinned source", oldSide, lines)
+		}
+	}
+	a := guide.InputFrom(ordinary.Inventory, ordinary.Context, Config{}.Policy, guide.Defaults)
+	b := guide.InputFrom(cached.Inventory, cached.Context, Config{}.Policy, guide.Defaults)
+	aa, _ := json.Marshal(a)
+	bb, _ := json.Marshal(b)
+	if !bytes.Equal(aa, bb) {
+		t.Fatal("local cache changed AI upload material")
+	}
+}

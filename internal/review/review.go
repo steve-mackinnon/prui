@@ -21,9 +21,10 @@ type Session = session.Record
 // deterministic, upload-free review: no exclusions beyond the defaults and no
 // analysis.
 type Config struct {
-	Policy   privacy.Policy
-	Analyzer guide.Analyzer // nil means no analysis for this invocation
-	Timing   *Timing
+	Policy          privacy.Policy
+	Analyzer        guide.Analyzer // nil means no analysis for this invocation
+	CacheFullSource bool           // Explicit consent to additional local complete-source storage.
+	Timing          *Timing
 }
 
 // Timing records optional stage durations for one comparison opening.
@@ -67,6 +68,12 @@ func openWithConfigAttempt(ctx context.Context, checkout string, id source.Ident
 	}
 	if e != nil {
 		return nil, e
+	}
+	if cfg.CacheFullSource {
+		if notify != nil {
+			notify("Capturing full OLD/NEW source for private local offline storage (1 MiB/blob, 4 MiB total; no upload)")
+		}
+		inv.FullSource = inventory.CaptureFullSource(ctx, v, inv, l)
 	}
 	commitBundle, e := commits.Capture(ctx, v, p, gh, l, notify)
 	if e != nil {

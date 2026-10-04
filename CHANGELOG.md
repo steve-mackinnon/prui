@@ -65,3 +65,6 @@ First public release of prui, a terminal interface for reviewing GitHub pull req
 - Requires Git and an authenticated GitHub CLI (`gh`); supports GitHub.com repositories.
 - The 0.x series is under active development. Minor releases may include documented
   breaking changes; patch releases preserve compatibility.
+
+- Add opt-in pinned full OLD/NEW source, expanded unchanged context, local full-file
+  search, whitespace presentation and loaded unresolved-thread navigation (#30).

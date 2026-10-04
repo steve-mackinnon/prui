@@ -1,0 +1,242 @@
+package tui
+
+import (
+	"fmt"
+	"strings"
+
+	"prui/internal/inventory"
+)
+
+type codeNavigation struct {
+	mode       string // empty, expanded, OLD, NEW
+	whitespace bool
+}
+
+func sourceRow(file inventory.FileChange, side string, n int, text string) diffLine {
+	line := diffLine{styledLine: styledLine{classContext, " " + Escape(text)}, rawSource: text, searchID: searchSourceID{file.ID + ":" + side, n}}
+	if side == "OLD" {
+		line.oldLine = n
+	} else {
+		line.newLine = n
+	}
+	return line
+}
+
+// navigationDetail is a pure projection. Complete-source rows have coordinates
+// but deliberately no comment targets; only canonical patch rows can compose.
+func (m *Model) navigationDetail(file int) []diffLine {
+	inv := m.Session.Inventory
+	f := inv.Files[file]
+	var result []diffLine
+	if m.navigation.mode == "OLD" || m.navigation.mode == "NEW" {
+		side := m.navigation.mode
+		result = append(result, diffLine{styledLine: styledLine{classMetadata, "Full " + side + " · pinned source · read-only · Ctrl+D: diff"}})
+		lines, ok := inv.SourceLines(file, side == "OLD")
+		if !ok {
+			return append(result, diffLine{styledLine: styledLine{classUnavailable, "UNAVAILABLE full source · not cached, binary, unsupported or capture limit · search coverage incomplete"}})
+		}
+		if len(lines) > 0 {
+			oldStart, newStart := 0, 1
+			if side == "OLD" {
+				oldStart, newStart = 1, 0
+			}
+			result = append(result, diffLine{styledLine: styledLine{classHunk, fmt.Sprintf("@@ -%d,%d +%d,%d @@ full %s read-only", oldStart, len(lines), newStart, len(lines), side)}})
+		}
+		for i, text := range lines {
+			line := sourceRow(f, side, i+1, text)
+			line.Class = classAdded
+			line.Text = "+" + Escape(text)
+			if side == "OLD" {
+				line.Class = classRemoved
+				line.Text = "-" + Escape(text)
+			}
+			result = append(result, line)
+		}
+		if len(lines) == 0 {
+			result = append(result, diffLine{styledLine: styledLine{classMetadata, "Empty or absent file · complete"}})
+		}
+		return result
+	}
+	old, oldOK := inv.SourceLines(file, true)
+	newLines, newOK := inv.SourceLines(file, false)
+	expanded := m.navigation.mode == "expanded" && oldOK && newOK
+	if m.navigation.mode == "expanded" {
+		label := "Expanded unchanged context · pinned source · added context read-only"
+		if !expanded {
+			label = "UNAVAILABLE expanded context · full source not cached · search coverage limited to patch"
+		}
+		result = append(result, diffLine{styledLine: styledLine{classMetadata, label}})
+	}
+	o, n := 1, 1
+	gap := func(endOld, endNew int) {
+		if !expanded {
+			return
+		}
+		// Only identical bounded regions are unchanged context. Never infer text.
+		if endOld-o != endNew-n || endOld < o || endNew < n || endOld > len(old)+1 || endNew > len(newLines)+1 {
+			result = append(result, diffLine{styledLine: styledLine{classUnavailable, "UNAVAILABLE context gap · captured coordinates do not match full source"}})
+			return
+		}
+		for i := 0; i < endOld-o; i++ {
+			if old[o+i-1] != newLines[n+i-1] {
+				result = append(result, diffLine{styledLine: styledLine{classUnavailable, "UNAVAILABLE context gap · pinned source differs"}})
+				return
+			}
+		}
+		if endOld > o {
+			result = append(result, diffLine{styledLine: styledLine{classHunk, fmt.Sprintf("@@ -%d,%d +%d,%d @@ expanded read-only", o, endOld-o, n, endNew-n)}})
+		}
+		for o < endOld {
+			line := sourceRow(f, "NEW", n, newLines[n-1])
+			line.oldLine = o
+			result = append(result, line)
+			o++
+			n++
+		}
+	}
+	for _, unit := range m.Session.Slices[file].Units {
+		if inv.Units[unit].Kind == inventory.FileMetadata {
+			continue
+		}
+		rows := unitLines(m.Session, unit)
+		if expanded && inv.Units[unit].Kind == inventory.TextHunk {
+			u := inv.Units[unit]
+			oldStart, newStart := u.OldRange.Start, u.NewRange.Start
+			if u.OldRange.Count == 0 {
+				oldStart++
+			}
+			if u.NewRange.Count == 0 {
+				newStart++
+			}
+			gap(max(1, oldStart), max(1, newStart))
+			o = max(1, u.OldRange.Start) + u.OldRange.Count
+			n = max(1, u.NewRange.Start) + u.NewRange.Count
+			// Zero-count ranges are positioned after Start, unlike nonempty ranges.
+			if u.OldRange.Count == 0 {
+				o = u.OldRange.Start + 1
+			}
+			if u.NewRange.Count == 0 {
+				n = u.NewRange.Start + 1
+			}
+		}
+		result = append(result, rows...)
+	}
+	gap(len(old)+1, len(newLines)+1)
+	if m.navigation.whitespace {
+		result = hideWhitespacePairs(result)
+	}
+	return result
+}
+
+func hideWhitespacePairs(lines []diffLine) []diffLine {
+	var out []diffLine
+	for i := 0; i < len(lines); {
+		start := i
+		for i < len(lines) && lines[i].Class == classRemoved {
+			i++
+		}
+		middle := i
+		for i < len(lines) && lines[i].Class == classAdded {
+			i++
+		}
+		end := i
+		same := middle > start && middle-start == end-middle
+		for j := 0; same && j < middle-start; j++ {
+			same = strings.Join(strings.Fields(lines[start+j].rawSource), "") == strings.Join(strings.Fields(lines[middle+j].rawSource), "")
+		}
+		if same {
+			out = append(out, diffLine{styledLine: styledLine{classMetadata, fmt.Sprintf("Whitespace-only change hidden (%d canonical rows) · Ctrl+W: show", end-start)}})
+			// Restore counters for subsequent split rows without inventing targets.
+			last := lines[end-1]
+			lastOld := lines[middle-1]
+			out = append(out, diffLine{styledLine: styledLine{classHunk, fmt.Sprintf("@@ -%d,0 +%d,0 @@ canonical coordinates", lastOld.oldLine+1, last.newLine+1)}})
+		} else if end > start {
+			out = append(out, lines[start:end]...)
+		} else {
+			out = append(out, lines[i])
+			i++
+		}
+	}
+	return out
+}
+
+func (m *Model) codeNavigationKey(key string) bool {
+	if m.Session == nil || !m.fileView() || len(m.Session.Inventory.Files) == 0 {
+		return false
+	}
+	switch key {
+	case "ctrl+e":
+		if m.navigation.mode == "expanded" {
+			m.navigation.mode = ""
+		} else {
+			m.navigation.mode = "expanded"
+		}
+	case "ctrl+o":
+		m.navigation.mode = "OLD"
+	case "ctrl+n":
+		m.navigation.mode = "NEW"
+	case "ctrl+d":
+		m.navigation.mode = ""
+	case "ctrl+w":
+		m.navigation.whitespace = !m.navigation.whitespace
+	default:
+		return false
+	}
+	m.fileCache = fileDetailCache{}
+	m.closeSearchPopovers()
+	m.setOffset(m.fileOffset(m.Session.UnitFiles[m.Selected]))
+	m.notice = "Ctrl+E: context · Ctrl+O/N: OLD/NEW · Ctrl+D: diff · Ctrl+W: whitespace · Alt+↑/↓: unresolved"
+	return true
+}
+
+func (m *Model) nextUnresolved(delta int) {
+	threads := m.discussionEntries()
+	if !m.discussions.loaded {
+		m.notice = "Unresolved threads unavailable · c: explicit online refresh"
+		return
+	}
+	for step := 1; step <= len(threads); step++ {
+		i := (m.discussions.selected + delta*step + len(threads)*2) % len(threads)
+		t := threads[i]
+		if t.Resolved == nil || *t.Resolved {
+			continue
+		}
+		m.discussions.selected = i
+		m.discussions.selectedID = t.ID
+		m.discussions.detail = true
+		m.discussions.scroll = 0
+		if m.top() != pageDiscussions {
+			m.openDiscussions()
+			m.discussions.selected = i
+			m.discussions.detail = true
+		}
+		if !m.discussions.snapshot.Snapshot.Complete {
+			m.discussions.notice = "Partial coverage · navigating loaded unresolved threads only"
+		}
+		return
+	}
+	m.notice = "No loaded unresolved threads · unknown resolution excluded"
+	if !m.discussions.snapshot.Snapshot.Complete {
+		m.notice += " · partial coverage"
+	}
+}
+
+func (m *Model) navigableLine(line diffLine) bool {
+	if line.target != nil || line.commentID > 0 {
+		return true
+	}
+	if !m.fileView() || m.navigation.mode == "" {
+		return false
+	}
+	if line.searchID.Unit != "" {
+		return true
+	}
+	if line.sideBySide != nil {
+		for _, cell := range []*diffCell{line.sideBySide.old, line.sideBySide.new} {
+			if cell != nil && cell.line != nil && cell.line.searchID.Unit != "" {
+				return true
+			}
+		}
+	}
+	return false
+}

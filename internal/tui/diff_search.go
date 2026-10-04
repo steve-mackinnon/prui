@@ -30,6 +30,7 @@ type searchMatch struct {
 	Range    searchRange
 }
 type searchScope struct {
+	Source         string
 	GuideView      bool
 	Guide, Section int
 	Inventory      bool
@@ -145,6 +146,9 @@ func (m *Model) currentSearchScope() searchScope {
 			scope.Guide, scope.Section = r.guide, r.section
 		}
 	}
+	if m.fileView() {
+		scope.Source = m.navigation.mode
+	}
 	return scope
 }
 
@@ -175,6 +179,43 @@ func (m *Model) searchState() *diffSearchState {
 func searchDocuments(ctx context.Context, session *review.Session, scope searchScope) ([]searchDocument, int) {
 	if session == nil || (scope.GuideView && scope.Guide < 0) {
 		return nil, 0
+	}
+	if scope.Source != "" {
+		model := &Model{reviewTabState: &reviewTabState{Session: session, navigation: codeNavigation{mode: scope.Source}}}
+		var docs []searchDocument
+		skipped := 0
+		for f, slice := range session.Slices {
+			if ctx.Err() != nil {
+				return nil, 0
+			}
+			seen := map[searchSourceID]bool{}
+			for _, line := range model.navigationDetail(f) {
+				if line.Class == classUnavailable || strings.HasPrefix(line.Text, "UNAVAILABLE") {
+					skipped++
+					continue
+				}
+				if line.searchID.Unit == "" || seen[line.searchID] {
+					continue
+				}
+				seen[line.searchID] = true
+				unit := slice.Units[0]
+				for _, u := range slice.Units {
+					if session.Inventory.Units[u].ID == line.searchID.Unit {
+						unit = u
+						break
+					}
+				}
+				marker := byte(' ')
+				if line.Class == classAdded {
+					marker = '+'
+				}
+				if line.Class == classRemoved {
+					marker = '-'
+				}
+				docs = append(docs, searchDocument{ID: line.searchID, Text: line.rawSource, File: f, Unit: unit, Old: line.oldLine, New: line.newLine, Marker: marker})
+			}
+		}
+		return docs, skipped
 	}
 	var units []int
 	if scope.Guide >= 0 && !scope.Inventory {
@@ -462,6 +503,11 @@ func (m *Model) activateSearchMatch() {
 		}
 	}
 	m.Selected = doc.Unit
+	if m.navigation.whitespace {
+		m.navigation.whitespace = false
+		m.fileCache = fileDetailCache{}
+		m.notice = "Whitespace changes shown to reveal search result"
+	}
 	m.revealSearchMatch()
 }
 
@@ -491,7 +537,7 @@ func (m *Model) revealSearchMatch() {
 			}
 			m.setCursor(i)
 			m.setSelectedDiffTarget(cell.target)
-			m.cursorActive = cell.target != nil
+			m.cursorActive = true
 			m.setOffset(max(0, i-max(1, m.bodyHeight()/3)))
 			position := min(len(cell.Text), max(0, wanted-cell.sourceOffset))
 			m.Horizontal = max(0, utf8.RuneCountInString(cell.Text[:position])-8)

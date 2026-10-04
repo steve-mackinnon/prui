@@ -1,5 +1,5 @@
 example/review #42                                  ╭──────────────────────────────────────────────────────────────────╮
-  Description [1]  › Files [2]    Guide [3]    Commi│ Find: l▏                                                         │
+  PRs [P]    Description [1]  › Files [2]    Guide [│ Find: l▏                                                         │
 ┌ Files · ▽ Filter (/) ──────────────┬ Find (Ctrl+F)│ Clear  |  Close                                                  │
 │› main.go                           │── main.go    │ Files · saved diff text only                                     │
 │  README.md                         │@@ -1 +1 @@   │ 4 matches in 1 file                                              │

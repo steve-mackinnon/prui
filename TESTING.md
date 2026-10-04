@@ -224,3 +224,11 @@ portable CI thresholds. Deterministic tests enforce cancellation and result caps
 Human terminal review should check light/dark highlight contrast and keyboard/
 mouse discoverability. Automated color-cell assertions and PTY checks do not
 replace that subjective usability review.
+
+Issue #30 focused synthetic/offline regression coverage:
+`go test ./internal/tui ./internal/inventory ./internal/session ./internal/review ./cmd/prui`.
+New tests cover explicit full-source consent, immutable blobs despite changed
+working files, offline restart/deletion/integrity, AI-input equivalence, source
+coverage, insertion/deletion middle/EOF coordinates across display modes,
+whitespace progress/search reveal and loaded unresolved-thread navigation.
+Human terminal QA remains unverified; screen/PTY checks do not establish it.

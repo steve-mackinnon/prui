@@ -42,3 +42,6 @@ These documents preserve requirements, acceptance criteria, and the reasoning be
 Implementation plans and checklists live in [tasks](../../tasks/).
 
 - [Spec: Top-Level Review Tabs](SPEC-top-level-review-tabs.md)
+
+- [Pinned code context and navigation](SPEC-code-navigation.md): #30 full-source
+  consent/storage, expanded context, search scope and immutable coordinate policy.

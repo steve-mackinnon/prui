@@ -108,6 +108,9 @@ func digest(b []byte) string { return fmt.Sprintf("%x", sha256.Sum256(b)) }
 
 func validate(r *Record) error {
 	bad := errors.New("invalid session references or progress; original retained")
+	if !r.Inventory.FullSource.Valid(r.Inventory.Files) {
+		return bad
+	}
 	comparison := r.Inventory.Comparison.Metadata
 	if r.SchemaVersion != SchemaVersion || r.Inventory.Comparison.InventoryID == "" || r.Generation == 0 ||
 		comparison.Identity.Number <= 0 || !shaPattern.MatchString(comparison.BaseSHA) || !shaPattern.MatchString(comparison.HeadSHA) {

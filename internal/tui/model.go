@@ -90,6 +90,7 @@ type descriptionRenderCache struct {
 // review. Window dimensions and services remain shared by the workspace.
 type reviewTabState struct {
 	draft                                                draftState
+	navigation                                           codeNavigation
 	search                                               [2]*diffSearchState
 	discussions                                          discussionState
 	commit                                               commitState
@@ -744,6 +745,29 @@ func (m *Model) update(msg tea.Msg) (updated tea.Model, command tea.Cmd) {
 			}
 			if v.String() == "C" && m.Session != nil && m.diffReviewView() {
 				m.openCommitFilter()
+				return m, nil
+			}
+			if v.String() == "f3" || v.String() == "shift+f3" {
+				s := m.existingSearch()
+				if s != nil && len(s.matches) > 0 {
+					delta := 1
+					if v.String() == "shift+f3" {
+						delta = -1
+					}
+					s.selected = (s.selected + delta + len(s.matches)) % len(s.matches)
+					m.activateSearchMatch()
+				}
+				return m, nil
+			}
+			if m.codeNavigationKey(v.String()) {
+				return m, nil
+			}
+			if v.String() == "alt+up" || v.String() == "alt+down" {
+				delta := 1
+				if v.String() == "alt+up" {
+					delta = -1
+				}
+				m.nextUnresolved(delta)
 				return m, nil
 			}
 			if v.String() == "D" && m.Session != nil {
@@ -1407,7 +1431,7 @@ func (m *Model) selectFile(f int) {
 			end = m.fileOffset(f + 1)
 		}
 		for i, line := range m.displayDetail()[start:end] {
-			if line.target != nil || line.commentID > 0 {
+			if m.navigableLine(line) {
 				m.setCursor(start + i)
 				break
 			}
@@ -1829,11 +1853,11 @@ func (m *Model) cursorInDetail(detail []diffLine) int {
 		return -1
 	}
 	stored, ok := m.cursorValue()
-	if ok && stored >= 0 && stored < len(detail) && (detail[stored].target != nil || detail[stored].commentID > 0) {
+	if ok && stored >= 0 && stored < len(detail) && m.navigableLine(detail[stored]) {
 		return stored
 	}
 	for i, line := range detail {
-		if line.target != nil || line.commentID > 0 {
+		if m.navigableLine(line) {
 			m.setCursor(i)
 			return i
 		}
@@ -1922,7 +1946,7 @@ func (m *Model) moveCursor(delta int) {
 	}
 	targets := make([]int, 0, len(detail))
 	for i, line := range detail {
-		if line.target != nil || line.commentID > 0 {
+		if m.navigableLine(line) {
 			targets = append(targets, i)
 		}
 	}
@@ -1974,7 +1998,7 @@ func (m *Model) cursorInViewport(delta int) {
 	}
 	if delta < 0 {
 		for i := min(len(detail)-1, end-1); i >= start; i-- {
-			if detail[i].target != nil || detail[i].commentID > 0 {
+			if m.navigableLine(detail[i]) {
 				m.setCursor(i)
 				return
 			}
@@ -1982,7 +2006,7 @@ func (m *Model) cursorInViewport(delta int) {
 		return
 	}
 	for i := max(0, start); i < min(len(detail), end); i++ {
-		if detail[i].target != nil || detail[i].commentID > 0 {
+		if m.navigableLine(detail[i]) {
 			m.setCursor(i)
 			return
 		}

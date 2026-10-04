@@ -127,6 +127,9 @@ func (m *Model) searchPopover(background string) string {
 	} else if m.selectedReviewView() == viewGuide {
 		scope = "Current section · saved diff text only"
 	}
+	if s.scope.Source != "" {
+		scope = "Files · pinned " + s.scope.Source + " source only"
+	}
 	if s.skipped > 0 {
 		scope += fmt.Sprintf(" · %d files skipped", s.skipped)
 	}

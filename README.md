@@ -257,3 +257,11 @@ failed or bounded/incomplete history keeps retry blocked. No request is repeated
 automatically. Matching uses the original attempted request, not later edits.
 Identical earlier submissions conservatively count as matches; delayed requests
 still have no GitHub idempotency guarantee.
+
+For complete pinned OLD/NEW source and expanded context, opt in with
+`prui open <PR> --cache-full-source` (also available on `current`, `prs`, and
+`resume --new`). This stores bounded, private, unencrypted local source without
+AI upload. On Files use Ctrl+E for context, Ctrl+O/N for OLD/NEW, Ctrl+D for diff,
+Ctrl+W for whitespace presentation, and Ctrl+F plus F3/Shift+F3 for code search.
+Alt+Up/Down open previous/next loaded unresolved thread.
+[Storage, offline coverage and read-only coordinate policy](docs/spec/SPEC-code-navigation.md).

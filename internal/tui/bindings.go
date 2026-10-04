@@ -19,6 +19,9 @@ type binding struct {
 
 var bindings = []binding{
 	{keys: "C", desc: "filter Files/Guide by captured commits (one read-only net diff)", groups: groupHelp, section: "Views"},
+	{keys: "f3/shift+f3", desc: "next/previous code search match", groups: groupHelp, section: "Navigate"},
+	{keys: "ctrl+e, ctrl+o/n, ctrl+d, ctrl+w", desc: "expand pinned context, full OLD/NEW, diff, whitespace presentation (Files)", groups: groupHelp, section: "Navigate"},
+	{keys: "alt+up/down", desc: "previous/next loaded unresolved thread", groups: groupHelp, section: "Navigate"},
 	{keys: "ctrl+f", desc: "find code text in Files or the current Guide section", groups: groupHelp, section: "Navigate"},
 	{keys: "P", desc: "open the pull-request switcher", groups: groupFooter | groupHelp, section: "App"},
 	{keys: "j/k", desc: "move the focused list or diff cursor", groups: groupNav | groupHelp, section: "Navigate"},
@@ -31,7 +34,7 @@ var bindings = []binding{
 	{keys: "esc", desc: "back", groups: groupNav | groupFooter | groupHelp, section: "Navigate"},
 	{keys: "n/p", desc: "move comment target in File diff; move files, guide rows, or inventory units in list", groups: groupNav | groupFooter | groupHelp, section: "Navigate"},
 	{keys: "{/}", desc: "previous/next guide, or file", groups: groupNav | groupHelp, section: "Navigate"},
-	{keys: "[/]", desc: "narrow/widen the file and guide pane by 2 columns", groups: groupNav | groupHelp, section: "Navigate"},
+	{keys: "alt+up/down", desc: "narrow/widen the file and guide pane by 2 columns", groups: groupNav | groupHelp, section: "Navigate"},
 	{keys: "d/u, pgup/pgdown", desc: "page through diff", groups: groupNav | groupHelp, section: "Navigate"},
 	{keys: "left/right", desc: "horizontal scroll", groups: groupNav | groupHelp, section: "Navigate"},
 	{keys: "home", desc: "reset active diff scroll", groups: groupNav | groupHelp, section: "Navigate"},

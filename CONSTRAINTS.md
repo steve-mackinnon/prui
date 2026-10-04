@@ -139,3 +139,23 @@
   retain only omitted confirmed/selected identities, deduplicate threads/comments,
   and label them stale. Retained comments never become current code overlays or
   editable identities, and never override authoritative incoming siblings.
+
+# Pinned Complete Source Navigation Extension
+
+- Issue #30 permits optional complete OLD/NEW changed-file source in immutable
+  local snapshots only after explicit `--cache-full-source` process consent.
+  Default opening remains patch-only; consent is not persisted across launches.
+- Capture uses pinned inventory OIDs in the isolated object view, never working
+  files or filters. Limits are 1 MiB/blob, 4 MiB distinct text and 100,000 lines,
+  with a 60-second maximum capture deadline and no cache-specific fetch/retry.
+  Invalid UTF-8, NUL/binary, gitlinks, absent capture and exhausted limits remain
+  visibly unavailable. Empty/absent sides are not missing-source failures.
+- Stored source is private local unencrypted data and may include sensitive
+  unchanged content. It extends local storage only, never AI input or permission
+  to write externally. Existing immutable SQLite integrity/deletion rules apply.
+- Context/full-file and whitespace projections never change patches, unit IDs or
+  read progress. Only canonical patch rows retain comment targets; added context
+  and full-source rows stay read-only. Search is local with visible scope, skipped
+  coverage and result limits. Unknown thread resolution never means unresolved.
+- See `docs/spec/SPEC-code-navigation.md` for consent, offline recovery,
+  invalidation, provenance and coordinate mapping policy.
