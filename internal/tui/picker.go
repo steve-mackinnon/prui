@@ -7,11 +7,18 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"prui/internal/session"
+	"prui/internal/source"
 )
 
 // Each picker owns its cursor. Its visible window is derived from that cursor
 // and the current terminal size, so a resize cannot hide the selection.
-type pickerState struct{ Index int }
+type pickerState struct {
+	Index           int
+	previewFocus    bool
+	previewScroll   int
+	previewIdentity source.Identity
+	previewCache    descriptionRenderCache
+}
 
 func (p *pickerState) clamp(count int) {
 	p.Index = max(0, min(p.Index, count-1))
@@ -129,6 +136,9 @@ func (m *Model) pickerScreenDetail(p *pickerState, header, rows, detail []string
 		lines = append(lines, m.styleLine(classMetadata, clip(line, m.Width)))
 	}
 	if window.footerRows > 0 {
+		for len(lines) < max(0, m.Height-1) {
+			lines = append(lines, "")
+		}
 		lines = append(lines, footer)
 	}
 	return strings.Join(lines, "\n")

@@ -76,6 +76,16 @@ prui                                  # browse this checkout's open PRs
 prui open https://github.com/owner/repo/pull/42
 ```
 
+The PR picker shows the list beside a description and metadata preview on wide
+terminals, and stacks them on narrower terminals. Use Tab to focus the preview,
+then `j` / `k` or Page Up / Page Down to scroll; Tab returns to the list.
+Shift+J / Shift+K scroll the preview from either panel without changing focus. Mouse
+clicks focus either panel and the wheel scrolls the panel under the pointer.
+Overflowing selected PR titles scroll horizontally, keeping the PR number and
+metadata fixed. Usernames and check states use distinct theme accents.
+The footer stays at the bottom. Descriptions are captured with the list; `r`
+reloads it. Opening a review captures its own frozen description.
+
 1. Select a PR and press Enter. prui captures a fixed comparison and opens Files.
 2. Use `j` / `k` to select files and `l` to focus the diff. Scroll with up / down;
    press `m` to mark a file as read. Progress saves immediately.

@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -361,5 +362,40 @@ func TestGitHubListPullRequestsViewerReview(t *testing.T) {
 				t.Fatal(prs, err)
 			}
 		})
+	}
+}
+
+func TestGitHubListPullRequestsIncludesDescription(t *testing.T) {
+	g := GH{Executable: "trusted-gh", Dir: t.TempDir(), Limits: Defaults(), Runner: listRunner(func(_ context.Context, request Request) ([]byte, error) {
+		if !strings.Contains(request.Args[5], "number title body") {
+			t.Fatal("description not requested")
+		}
+		return []byte(`{"data":{"repository":{"pullRequests":{"nodes":[{"number":42,"title":"Preview","body":"## Changes\nRead before opening.","createdAt":"2026-09-23T12:00:00Z"}]}}}}`), nil
+	})}
+	prs, err := g.ListPullRequests(context.Background(), "owner/repo")
+	if err != nil || len(prs) != 1 || prs[0].Description != "## Changes\nRead before opening." {
+		t.Fatal(prs, err)
+	}
+}
+
+func TestGitHubListDescriptionBoundsAndNull(t *testing.T) {
+	for _, tc := range []struct {
+		body  string
+		valid bool
+	}{
+		{`null`, true}, {`""`, true}, {`42`, false},
+		{strconv.Quote(strings.Repeat("x", descriptionMaxBytes+1)), false},
+		{"\"bad\xff\"", false},
+	} {
+		g := GH{Executable: "trusted-gh", Dir: t.TempDir(), Limits: Defaults(), Runner: listRunner(func(context.Context, Request) ([]byte, error) {
+			return []byte(`{"data":{"repository":{"pullRequests":{"nodes":[{"number":1,"title":"Preview","createdAt":"2026-09-23T12:00:00Z","body":` + tc.body + `}]}}}}`), nil
+		})}
+		prs, err := g.ListPullRequests(context.Background(), "owner/repo")
+		if tc.valid && (err != nil || len(prs) != 1 || prs[0].Description != "") {
+			t.Fatal(prs, err)
+		}
+		if !tc.valid && err == nil {
+			t.Fatal("accepted invalid description")
+		}
 	}
 }

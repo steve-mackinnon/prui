@@ -30,23 +30,30 @@ func (m *Model) mousePickerClick(x, y int) tea.Cmd {
 	case pageRepositoryPicker:
 		picker, headers, rows = &m.RepositoryPicker, 2, len(m.Repositories)
 	case pagePullRequestPicker:
-		picker, headers, rows = &m.PullRequestPicker, 1, len(m.PullRequests)
-		if rows > 0 {
-			details = len(m.pullRequestDetail(m.PullRequests[max(0, min(picker.Index, rows-1))]))
-		}
+		headers, rows = 1, len(m.PullRequests)
 		if m.Session != nil {
-			results := m.switcherResults()
-			headers, rows, details = 2, len(results), 0
-			if rows > 0 {
-				selected := results[max(0, min(picker.Index, rows-1))]
-				for _, pr := range m.PullRequests {
-					if pr.Identity == selected.identity {
-						details = len(m.pullRequestDetail(pr))
-						break
-					}
-				}
-			}
+			headers, rows = 2, len(m.switcherResults())
 		}
+		g := m.prPickerGeometry(headers)
+		preview := g.previewHeight > 0 && y >= g.previewTop && y < g.previewTop+g.previewHeight
+		if g.split {
+			preview = preview && x >= g.leftWidth+3
+		}
+		if preview {
+			m.PullRequestPicker.previewFocus = true
+			return nil
+		}
+		if y < g.listTop || y >= g.listTop+g.listHeight || g.split && x >= g.leftWidth {
+			return nil
+		}
+		start := max(0, m.PullRequestPicker.Index-g.listHeight+1)
+		index := start + y - g.listTop
+		if index < rows {
+			m.PullRequestPicker.Index = index
+			m.PullRequestPicker.previewFocus = false
+			m.PullRequestPicker.previewScroll = 0
+		}
+		return nil
 	case pageThemePicker:
 		left, top, width, available := themePickerBounds(m.Width, m.Height)
 		index, hit := themePickerLayout(m.Width, m.Height, m.ThemePicker.Index).itemAt(y - top - 1)
