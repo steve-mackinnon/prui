@@ -235,16 +235,17 @@ func (m *Model) nextUnresolved(delta int) {
 		return
 	}
 	chosen := 0
-	if current >= 0 {
+	switch {
+	case current >= 0:
 		chosen = (current + delta + len(candidates)) % len(candidates)
-	} else if delta > 0 {
+	case delta > 0:
 		for j, i := range candidates {
 			if i > d.selected {
 				chosen = j
 				break
 			}
 		}
-	} else {
+	default:
 		chosen = len(candidates) - 1
 		for j := len(candidates) - 1; j >= 0; j-- {
 			if candidates[j] < d.selected {
