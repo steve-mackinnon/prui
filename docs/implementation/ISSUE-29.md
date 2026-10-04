@@ -80,13 +80,20 @@ The next independent review caught an existing-reply regression in the newly
 added historical creation guard. The guard now distinguishes creation from
 reply/root provenance; `TestRangeReplyAttemptPreservesAssociatedRawSHA` verifies
 full raw range/SHA persistence and reconciliation after restart. Focused TUI and
-session reply/attempt regressions pass. A new full gate is required for this
-correction; the shared large-gate slot is held by #30, so it has not been started.
+session reply/attempt regressions pass. A new full gate is required for this correction; the shared large-gate slot
+was subsequently returned by #30.
 Independent reviewer `/root/independent_review` approved code at
 `7fa6eb69e2e78af3199dbb61ee5e0cabc77cc024`: all required findings resolved.
-No implementation changes follow that approval; only help wording and an
-additional file payload identity/subject assertion are added. Final full gates
-and exact-SHA confirmation remain pending; keep this PR draft.
+The reviewer also approved `0ccefa02834da2c82488bd44bf03ecd9fa3ea132`. Its
+full verify run encountered an intermittent failure in unchanged
+`TestLightThemeCatalogSelectsLightMarkdownBaseline/one-light`. The isolated race
+test passed 20 repetitions here and 50 on the exact parent commit; the renderer,
+theme, and baseline test have no diff from the parent. Build and lint then passed
+(0 issues). This does not replace a successful full gate.
+
+A final range-start guard explicitly reports invalid captured UTF-8 targets
+instead of silently failing to open a composer; its focused regression passes.
+Final full gates and exact-SHA confirmation remain pending; keep this PR draft.
 
 Human terminal usability/accessibility remains unverified by render tests alone.
 No checks, thresholds, existing test assertions, or skipped-test policy weakened.

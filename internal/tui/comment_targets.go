@@ -46,8 +46,8 @@ func (m *Model) toggleCommentRange() {
 		return
 	}
 	t := m.commentSelectionTarget()
-	if t == nil {
-		m.ActionError = errors.New("range start requires a captured diff line")
+	if t == nil || source.ValidateReviewCommentTarget(*t) != nil {
+		m.ActionError = errors.New("range start requires a valid captured diff line")
 		return
 	}
 	copy := *t

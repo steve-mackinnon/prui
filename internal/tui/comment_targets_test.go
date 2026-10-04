@@ -286,3 +286,13 @@ func TestRangeReplyAttemptPreservesAssociatedRawSHA(t *testing.T) {
 		t.Fatal("reply reconciliation lost raw range")
 	}
 }
+
+func TestInvalidRangeStartIsExplicitlyRejected(t *testing.T) {
+	m := rangeTestModel()
+	m.Session.Inventory.Files[0].NewPath = []byte{'b', 0xff}
+	selectRawTarget(t, m, "RIGHT", 1)
+	ctrlKey(m, 'v')
+	if m.rangeStart != nil || m.ActionError == nil || !strings.Contains(m.reviewHints(), "valid captured diff line") {
+		t.Fatal("invalid range start silently accepted")
+	}
+}
