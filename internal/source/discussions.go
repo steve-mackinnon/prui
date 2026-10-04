@@ -16,6 +16,9 @@ import (
 // Discussion is readable even when neither coordinate can be placed in a diff.
 // Unknown status is represented by nil, independently for each status.
 type Discussion struct {
+	Kind             string
+	Decision         string
+	CreatedAt        time.Time
 	ID               string
 	OriginalCommitID string
 	OriginalAnchor   *ReviewCommentTarget
@@ -27,6 +30,8 @@ type Discussion struct {
 	URL              string
 }
 type DiscussionSnapshot struct {
+	Events   []ConversationEvent
+	Timeline bool
 	Threads  []Discussion
 	Complete bool
 	Reason   string
@@ -151,7 +156,7 @@ func normalizeDiscussion(raw *remoteDiscussion, id Identity) (Discussion, time.T
 				return Discussion{}, created, errors.New("invalid original commit")
 			}
 		}
-		comment := ReviewComment{ID: cid, ParentID: parent, Author: author, Body: c.Body, URL: discussionURL(c.URL), DiffHunk: c.DiffHunk}
+		comment := ReviewComment{CreatedAt: c.CreatedAt, ID: cid, ParentID: parent, Author: author, Body: c.Body, URL: discussionURL(c.URL), DiffHunk: c.DiffHunk}
 		if i == 0 && parent == 0 {
 			created = c.CreatedAt
 			d.OriginalCommitID = original

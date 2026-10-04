@@ -86,6 +86,7 @@ type GitHub interface {
 // review comment. It is intentionally separate from GitHub, whose operations
 // are otherwise read-only.
 type ReviewComment struct {
+	CreatedAt      time.Time
 	ID             int64
 	ParentID       int64
 	Author         string
