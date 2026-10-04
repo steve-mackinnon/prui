@@ -22,7 +22,7 @@ func TestWorkspaceIdentityPersistsAcrossContextViews(t *testing.T) {
 	for _, view := range []reviewView{viewFiles, viewDescription, viewCommits} {
 		m.selectReviewView(view)
 		first, _, _ := strings.Cut(ansi.Strip(m.View().Content), "\n")
-		if !strings.Contains(first, `owner/repo #42 · Fix\x1b]52;unsafe\a title`) || !strings.Contains(first, "ctrl+p: switch PR") {
+		if !strings.Contains(first, `owner/repo #42 · Fix\x1b]52;unsafe\a title`) {
 			t.Fatalf("view %d identity = %q", view, first)
 		}
 	}

@@ -137,11 +137,11 @@ func TestMouseReviewVisibleTabsAndNarrowPane(t *testing.T) {
 	if m.selectedReviewView() != viewDescription {
 		t.Fatal("description tab missed")
 	}
-	m.mouseReviewClick(33, 1)
+	m.mouseReviewClick(44, 1)
 	if m.Files || m.Inventory {
 		t.Fatal("guide tab missed")
 	}
-	m.mouseReviewClick(22, 1)
+	m.mouseReviewClick(33, 1)
 	if !m.Files {
 		t.Fatal("file tab missed")
 	}

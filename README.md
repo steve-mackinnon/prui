@@ -109,7 +109,8 @@ For offline reading, list session IDs with `prui sessions`, then run
 | `/` | Filter Files by filename or path; Enter keeps the filter, Escape clears it |
 | `1` / `2` / `3` / `4` | Show Description / Files / Guide / Commits |
 | `v` / `V` | Cycle forward / backward through Description, Files, Guide, and Commits |
-| `ctrl+p` | Switch PRs; inside a line editor, queue the comment |
+| `P` | Switch PRs |
+| `ctrl+p` | Inside a line editor, queue the comment |
 | `D` / `c` | Browse discussions / refresh discussions |
 | `R` | Open review submission |
 | `g` | Choose an AI guide provider and model, then confirm upload |

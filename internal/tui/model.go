@@ -666,7 +666,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 				return m, nil
 			}
-			if v.String() == "ctrl+p" {
+			if v.String() == "P" {
 				return m, m.openSwitcher()
 			}
 			if v.String() == "R" && m.Session != nil {
@@ -2194,11 +2194,6 @@ func (m *Model) workspaceIdentity() string {
 			}
 		}
 	}
-	hint := "ctrl+p: switch PR"
-	if m.Width >= 60 {
-		text = clip(text, m.Width-visibleWidth(hint)-3)
-		text += strings.Repeat(" ", max(1, m.Width-visibleWidth(text)-visibleWidth(hint))) + hint
-	}
 	return m.styleLine(classTitle, clip(text, m.Width))
 }
 
@@ -2215,7 +2210,7 @@ func (m *Model) contextViewTabs() string {
 	tabs := m.contextTabLabels()
 	for i, tab := range tabs {
 		class := classTitle
-		if reviewViews[i] == m.selectedReviewView() {
+		if i > 0 && reviewViews[i-1] == m.selectedReviewView() {
 			class = selectedClass(true)
 		}
 		tabs[i] = m.styleLine(class, tab)

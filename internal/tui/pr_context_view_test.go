@@ -118,7 +118,7 @@ func TestPRContextTabsFollowIdentityAndHaveDirectNumberKeys(t *testing.T) {
 	view := ansi.Strip(m.View().Content)
 	_, tabsAndBody, _ := strings.Cut(view, "\n")
 	first, _, _ := strings.Cut(tabsAndBody, "\n")
-	if first != "› Description [1]    Files [2]    Guide [3]    Commits [4]" {
+	if first != "  PRs [P]  › Description [1]    Files [2]    Guide [3]    Commits [4]" {
 		t.Fatalf("top row = %q, want direct tab strip below identity", first)
 	}
 	if strings.Contains(first, "review ·") || strings.Contains(first, "ctrl+p") {
