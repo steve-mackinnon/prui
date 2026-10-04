@@ -126,7 +126,7 @@ func (m *Model) issueContextLines() []string {
 		lines = append(lines, d.notice)
 	}
 	if !d.loaded {
-		return append(lines, "No saved issue context. r explicitly reads GitHub and configured Linear.")
+		return m.wrapIssueContextLines(append(lines, "No saved issue context. r explicitly reads GitHub and configured Linear."))
 	}
 	c := d.snapshot
 	label := "Saved context · freshness unknown (historical)"
@@ -173,6 +173,9 @@ func (m *Model) issueContextLines() []string {
 		lines = append(lines, v.Identifier+" · "+v.Status+" · "+v.Title, v.Description, v.URL)
 	}
 	lines = append(lines, "Context stays local; no additional AI upload")
+	return m.wrapIssueContextLines(lines)
+}
+func (m *Model) wrapIssueContextLines(lines []string) []string {
 	wrapped := []string{}
 	for _, line := range lines {
 		wrapped = append(wrapped, strings.Split(ansi.Wrap(Escape(line), max(1, m.Width), ""), "\n")...)

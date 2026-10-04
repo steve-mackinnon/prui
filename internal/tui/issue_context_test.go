@@ -4,6 +4,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"context"
 	"errors"
+	"github.com/charmbracelet/x/ansi"
 	"prui/internal/source"
 	"strings"
 	"testing"
@@ -86,5 +87,23 @@ func TestIssueContextRefreshFailureBeforeCacheResult(t *testing.T) {
 	m.Update(first())
 	if !m.issues.loaded || m.issues.fresh || !strings.Contains(m.issueContextView(), "stale") || m.issues.snapshot.ReviewDecision != "APPROVED" {
 		t.Fatal("failed refresh hid saved context")
+	}
+}
+
+func TestIssueContextUnloadedNarrowViewport(t *testing.T) {
+	m := commitModel(t)
+	m.Width = 30
+	m.Height = 8
+	for _, notice := range []string{"", "Loading saved context...", "Issue context unavailable: offline mode: network actions are unavailable"} {
+		m.issues = issueContextState{notice: notice}
+		text := m.issueContextView()
+		if len(strings.Split(text, "\n")) > m.Height {
+			t.Fatal("height overflow", text)
+		}
+		for _, line := range strings.Split(text, "\n") {
+			if ansi.StringWidth(line) > m.Width {
+				t.Fatal("unloaded width overflow", line)
+			}
+		}
 	}
 }
