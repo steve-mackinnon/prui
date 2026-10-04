@@ -73,3 +73,26 @@ func TestThreadResolutionCanonicalPermissions(t *testing.T) {
 		}
 	}
 }
+
+func TestPublishedMalformedCanonicalResponsesStayUncertain(t *testing.T) {
+	for _, response := range []string{
+		`{"id":124,"body":"edited","user":{"login":"alice"}}`,
+		`{"id":123,"body":"different","user":{"login":"alice"}}`,
+		`{"id":123,"body":"edited","user":{"login":"\u001bsecret"}}`,
+		`{"data":{"action":{"thread":{"id":"other","isResolved":true,"viewerCanResolve":false,"viewerCanUnresolve":true}}}}`,
+		`{"data":{"action":{"thread":{"id":"thread","isResolved":true}}}}`,
+		`{"errors":[{"message":"private"}],"data":{"action":{"thread":{"id":"thread","isResolved":true,"viewerCanResolve":false,"viewerCanUnresolve":true}}}}`,
+	} {
+		calls := 0
+		g := GH{Executable: "gh", Limits: Defaults(), Runner: listRunner(func(context.Context, Request) ([]byte, error) { calls++; return []byte(response), nil })}
+		var err error
+		if strings.Contains(response, `"id":123`) || strings.Contains(response, `"id":124`) {
+			_, err = g.EditPublishedComment(context.Background(), Identity{"owner/repo", 42}, 123, false, "edited")
+		} else {
+			_, err = g.SetThreadResolved(context.Background(), Identity{"owner/repo", 42}, "thread", true)
+		}
+		if !errors.Is(err, ErrCommentDeliveryUnknown) || calls != 1 || strings.Contains(err.Error(), "private") {
+			t.Fatal("malformed result accepted or retried", err, calls)
+		}
+	}
+}

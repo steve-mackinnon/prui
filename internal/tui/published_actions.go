@@ -54,7 +54,7 @@ func (m *Model) openPublished(commentID int64, eventID string, resolve bool) boo
 	for i := range m.discussions.snapshot.Snapshot.Threads {
 		t := &m.discussions.snapshot.Snapshot.Threads[i]
 		for _, c := range t.Comments {
-			if c.ID == commentID {
+			if c.ID == commentID && !c.Retained && !t.Retained {
 				thread = t
 				author, body = c.Author, c.Body
 				break
@@ -200,6 +200,9 @@ func applyPublishedValue(state *reviewTabState, a PublishedAction, v PublishedVa
 			if e.ID == id {
 				e.Body = v.Comment.Body
 				e.Author = v.Comment.Author
+				if _, ok := d.confirmedEvents[id]; ok {
+					d.confirmedEvents[id] = *e
+				}
 			}
 		}
 	default:
@@ -274,7 +277,7 @@ func reconcilePublished(d *discussionState, in DiscussionSnapshot) {
 	default:
 		for _, t := range in.Snapshot.Threads {
 			for _, c := range t.Comments {
-				if c.ID == a.CommentID && !t.Retained {
+				if c.ID == a.CommentID && !t.Retained && !c.Retained {
 					found = true
 					matched = c.Body == a.Body
 				}
@@ -310,6 +313,7 @@ func publishedKeyID(a PublishedAction) string {
 // are authoritative, including a subsequent external edit/reopen or deletion.
 // A partial read cannot establish absence of a confirmed identity.
 func retainPublished(d *discussionState, in *DiscussionSnapshot) {
+	complete := in.Snapshot.Complete
 	for key, p := range d.confirmedPublished {
 		a, v := p.Action, p.Value
 		found := false
@@ -317,7 +321,7 @@ func retainPublished(d *discussionState, in *DiscussionSnapshot) {
 		case a.Resolve != nil:
 			for i := range in.Snapshot.Threads {
 				t := &in.Snapshot.Threads[i]
-				if t.ID == a.ThreadID {
+				if t.ID == a.ThreadID && !t.Retained {
 					found = true
 					if !in.CurrentVerified {
 						t.Resolved = v.Thread.Resolved
@@ -326,14 +330,8 @@ func retainPublished(d *discussionState, in *DiscussionSnapshot) {
 					}
 				}
 			}
-			if !found && (!in.CurrentVerified || !in.Snapshot.Complete) {
-				for _, t := range d.snapshot.Snapshot.Threads {
-					if t.ID == a.ThreadID {
-						t.CurrentAnchor = nil
-						t.Retained = true
-						in.Snapshot.Threads = append(in.Snapshot.Threads, t)
-					}
-				}
+			if !found && (!in.CurrentVerified || !complete) {
+				retainPublishedComments(d, in, a.ThreadID, 0)
 			}
 		case a.General:
 			id := fmt.Sprintf("PR comment:%d", a.CommentID)
@@ -347,11 +345,23 @@ func retainPublished(d *discussionState, in *DiscussionSnapshot) {
 					}
 				}
 			}
-			if !found && (!in.CurrentVerified || !in.Snapshot.Complete) {
-				for _, e := range d.snapshot.Snapshot.Events {
+			if !found && (!in.CurrentVerified || !complete) {
+				retained := false
+				for i := range in.Snapshot.Events {
+					e := &in.Snapshot.Events[i]
 					if e.ID == id {
-						e.Retained = true
-						in.Snapshot.Events = append(in.Snapshot.Events, e)
+						retained = true
+						e.Body = v.Comment.Body
+						e.Author = v.Comment.Author
+					}
+				}
+				if !retained {
+					for _, e := range d.snapshot.Snapshot.Events {
+						if e.ID == id {
+							e.Retained = true
+							in.Snapshot.Events = append(in.Snapshot.Events, e)
+							break
+						}
 					}
 				}
 			}
@@ -359,7 +369,7 @@ func retainPublished(d *discussionState, in *DiscussionSnapshot) {
 			for i := range in.Snapshot.Threads {
 				for j := range in.Snapshot.Threads[i].Comments {
 					c := &in.Snapshot.Threads[i].Comments[j]
-					if c.ID == a.CommentID && !in.Snapshot.Threads[i].Retained {
+					if c.ID == a.CommentID && !in.Snapshot.Threads[i].Retained && !c.Retained {
 						found = true
 						if !in.CurrentVerified {
 							c.Body = v.Comment.Body
@@ -368,20 +378,11 @@ func retainPublished(d *discussionState, in *DiscussionSnapshot) {
 					}
 				}
 			}
-			if !found && (!in.CurrentVerified || !in.Snapshot.Complete) {
-				for _, t := range d.snapshot.Snapshot.Threads {
-					for _, c := range t.Comments {
-						if c.ID == a.CommentID {
-							t.CurrentAnchor = nil
-							t.Retained = true
-							in.Snapshot.Threads = append(in.Snapshot.Threads, t)
-							break
-						}
-					}
-				}
+			if !found && (!in.CurrentVerified || !complete) {
+				retainPublishedComments(d, in, "", a.CommentID)
 			}
 		}
-		if in.CurrentVerified && (found || in.Snapshot.Complete) {
+		if in.CurrentVerified && (found || complete) {
 			delete(d.confirmedPublished, key)
 		} else {
 			in.Snapshot.Complete = false
@@ -402,4 +403,48 @@ func (m *Model) publishedStatus(cid int64) string {
 		}
 	}
 	return ""
+}
+
+// Merge missing identities into the existing authoritative thread. Retained
+// siblings never replace incoming comments or become current code overlays.
+func retainPublishedComments(d *discussionState, in *DiscussionSnapshot, tid string, cid int64) {
+	for _, old := range d.snapshot.Snapshot.Threads {
+		selected := []source.ReviewComment{}
+		for _, c := range old.Comments {
+			if (tid != "" && old.ID == tid) || (cid > 0 && c.ID == cid) {
+				c.Retained = true
+				selected = append(selected, c)
+			}
+		}
+		if len(selected) == 0 {
+			continue
+		}
+		index := -1
+		for i, t := range in.Snapshot.Threads {
+			if t.ID == old.ID {
+				index = i
+				break
+			}
+		}
+		if index < 0 {
+			old.CurrentAnchor = nil
+			old.Retained = true
+			old.Comments = nil
+			in.Snapshot.Threads = append(in.Snapshot.Threads, old)
+			index = len(in.Snapshot.Threads) - 1
+		}
+		t := &in.Snapshot.Threads[index]
+		for _, c := range selected {
+			exists := false
+			for _, present := range t.Comments {
+				if present.ID == c.ID {
+					exists = true
+					break
+				}
+			}
+			if !exists {
+				t.Comments = append(t.Comments, c)
+			}
+		}
+	}
 }

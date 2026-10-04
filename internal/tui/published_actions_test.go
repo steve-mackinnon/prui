@@ -180,3 +180,72 @@ func TestPublishedFailureStaleResultAndConfirmedRefresh(t *testing.T) {
 		t.Fatal("newer reopen hidden")
 	}
 }
+
+func TestPublishedRetainsOnlyMissingIdentitiesInCanonicalThread(t *testing.T) {
+	for _, incoming := range []bool{false, true} {
+		m := publishedModel(t)
+		state := m.reviewStateForTarget(m.activeTab)
+		for _, cid := range []int64{1, 3} {
+			a := PublishedAction{CommentID: cid}
+			applyPublishedValue(state, a, PublishedValue{Comment: source.PublishedComment{ID: cid, Body: "confirmed", Author: "alice"}})
+		}
+		snap := DiscussionSnapshot{CurrentVerified: true, Snapshot: source.DiscussionSnapshot{Complete: false, Timeline: true}}
+		if incoming {
+			snap.Snapshot.Threads = []source.Discussion{{ID: "thread", Comments: []source.ReviewComment{{ID: 1, Body: "external edit", Author: "alice"}}}}
+		}
+		retainPublished(&m.discussions, &snap)
+		if len(snap.Snapshot.Threads) != 1 || len(snap.Snapshot.Threads[0].Comments) != 2 {
+			t.Fatalf("retention duplicated threads/comments: %+v", snap.Snapshot.Threads)
+		}
+		m.discussions.snapshot = snap
+		if incoming {
+			if !m.openPublished(1, "", false) || m.discussions.published.draft != "external edit" {
+				t.Fatal("stale sibling overrode canonical editor body")
+			}
+			if m.openPublished(3, "", false) {
+				t.Fatal("retained missing identity became editable")
+			}
+		}
+		ids := map[int64]bool{}
+		for _, entry := range m.discussionEntries() {
+			cid := entry.Comments[0].ID
+			if ids[cid] {
+				t.Fatal("duplicate timeline identity")
+			}
+			ids[cid] = true
+		}
+	}
+}
+
+func TestPublishedPartialRefreshSelectionDoesNotDuplicateCanonicalThread(t *testing.T) {
+	m := publishedModel(t)
+	m.discussions.snapshot.Snapshot.Events = nil
+	state := m.reviewStateForTarget(m.activeTab)
+	for _, cid := range []int64{1, 3} {
+		applyPublishedValue(state, PublishedAction{CommentID: cid}, PublishedValue{Comment: source.PublishedComment{ID: cid, Body: "confirmed", Author: "alice"}})
+	}
+	m.discussions.selectedID = "inline:3"
+	m.discussions.detail = true
+	snap := DiscussionSnapshot{CurrentVerified: true, Snapshot: source.DiscussionSnapshot{Complete: false, Timeline: true, Threads: []source.Discussion{{ID: "thread", Comments: []source.ReviewComment{{ID: 1, Author: "alice", Body: "external"}}}}}}
+	for range 2 {
+		m.applyDiscussionResult(DiscussionResult{Target: m.activeTab, Session: m.Session, Generation: m.discussions.generation, Snapshot: snap})
+		if len(m.discussions.snapshot.Snapshot.Threads) != 1 || len(m.discussionEntries()) != 2 {
+			t.Fatalf("canonical refresh duplicated identities threads=%+v entries=%+v", m.discussions.snapshot.Snapshot.Threads, m.discussionEntries())
+		}
+		if !m.openPublished(1, "", false) || m.discussions.published.draft != "external" {
+			t.Fatal("refresh poisoned editor body")
+		}
+		m.discussions.published = nil
+	}
+}
+
+func TestPublishedGeneralPartialRefreshRetainsOneEditedIdentity(t *testing.T) {
+	m := publishedModel(t)
+	state := m.reviewStateForTarget(m.activeTab)
+	m.discussions.confirmedEvents = map[string]source.ConversationEvent{"PR comment:2": m.discussions.snapshot.Snapshot.Events[0]}
+	applyPublishedValue(state, PublishedAction{General: true, CommentID: 2}, PublishedValue{Comment: source.PublishedComment{ID: 2, Body: "edited", Author: "alice"}})
+	m.applyDiscussionResult(DiscussionResult{Target: m.activeTab, Session: m.Session, Generation: m.discussions.generation, Snapshot: DiscussionSnapshot{CurrentVerified: true, Snapshot: source.DiscussionSnapshot{Complete: false, Timeline: true}}})
+	if len(m.discussions.snapshot.Snapshot.Events) != 1 || m.discussions.snapshot.Snapshot.Events[0].Body != "edited" || !m.discussions.snapshot.Snapshot.Events[0].Retained {
+		t.Fatal("general partial retention duplicated or regressed edit", m.discussions.snapshot.Snapshot.Events)
+	}
+}

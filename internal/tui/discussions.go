@@ -94,22 +94,10 @@ func (m *Model) applyDiscussionResult(v DiscussionResult) {
 				seen[c.ID] = true
 			}
 		}
-		// Preserve known creations by numeric identity even after GraphQL replaces
-		// their temporary display identity with an authoritative thread node ID.
-		for _, thread := range d.snapshot.Snapshot.Threads {
-			retain := false
-			for _, c := range thread.Comments {
-				if _, confirmed := d.confirmed[c.ID]; confirmed && !seen[c.ID] {
-					retain = true
-					break
-				}
-			}
-			if !retain {
-				continue
-			}
-			v.Snapshot.Snapshot.Threads = append(v.Snapshot.Snapshot.Threads, thread)
-			for _, c := range thread.Comments {
-				seen[c.ID] = true
+		// Retain only missing confirmed identities in canonical threads.
+		for cid := range d.confirmed {
+			if !seen[cid] {
+				retainPublishedComments(d, &v.Snapshot, "", cid)
 			}
 		}
 	}
@@ -138,11 +126,7 @@ func (m *Model) applyDiscussionResult(v DiscussionResult) {
 			for _, thread := range d.snapshot.Snapshot.Threads {
 				for _, comment := range thread.Comments {
 					if fmt.Sprintf("inline:%d", comment.ID) == d.selectedID {
-						thread.Retained = true
-						thread.ID = "retained:" + strings.TrimPrefix(thread.ID, "retained:")
-						thread.Comments = []source.ReviewComment{comment}
-						thread.CurrentAnchor = nil
-						v.Snapshot.Snapshot.Threads = append(v.Snapshot.Snapshot.Threads, thread)
+						retainPublishedComments(d, &v.Snapshot, "", comment.ID)
 						break
 					}
 				}
@@ -529,6 +513,9 @@ func discussionCurrentComments(snapshot DiscussionSnapshot, s *review.Session) [
 			continue
 		}
 		for _, c := range thread.Comments {
+			if c.Retained || thread.Retained {
+				continue
+			}
 			associated := *thread.CurrentAnchor
 			c.CurrentAnchor = &associated
 			c.Target = *thread.CurrentAnchor
@@ -666,6 +653,7 @@ func discussionEntries(snapshot source.DiscussionSnapshot) []source.Discussion {
 	for _, thread := range snapshot.Threads {
 		for _, comment := range thread.Comments {
 			entry := thread
+			entry.Retained = thread.Retained || comment.Retained
 			entry.ID = fmt.Sprintf("inline:%d", comment.ID)
 			if seen[entry.ID] {
 				continue
