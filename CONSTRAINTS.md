@@ -204,3 +204,28 @@
 - A cross-repository item opens its own frozen session or a checkout whose current
   repository identity is verified. Never fall back to another repository checkout.
 - See `docs/spec/SPEC-review-inbox.md` for filters, controls, bounds and cache policy.
+
+# Reviewer and Issue Context Contract (#36)
+
+- `I` opens independently saved PR-identity context locally. Only `r` within that
+  screen authorizes GitHub context refresh and configured Linear reads. No polling,
+  automatic context fetch, remote write, guide-input expansion, or AI upload.
+- GitHub reviewDecision is authoritative; nil means unknown. Individual decisions
+  come from latestOpinionatedReviews. These labels are context, not merge blockers.
+  Closing issue references come only from GitHub's structured API connection.
+- Linear reads require global secret-free configuration with explicit enablement,
+  allowed repositories, workspace, credential env name and auth mode. Credentials
+  remain in memory/HTTP headers only, never argv, cache, logs or diagnostics.
+  Candidate links in PR description are untrusted; validated provider responses
+  supply metadata. No arbitrary URL, redirect, asset, or repository config fetch.
+- Requests are bounded: one GitHub GraphQL page per connection, 100 records each,
+  1 MiB response, 60-second total refresh; at most 10 Linear issues, 25-second
+  optional slice, 1 MiB per response, 2 MiB aggregate accepted response budget.
+  Errors and limit exhaustion produce visible partial/unavailable states.
+- Context cache is independent of immutable code/guide payloads and progress,
+  keyed by normalized repository/PR with capture timestamp, head, checksum,
+  validation and transactional latest-capture-wins writes. Offline read never
+  touches integration configuration or credentials. Saved context is historical;
+  failed refresh keeps it labelled stale. Cache failure never blocks source review.
+- Synthetic fixtures/transports only in tests. Human terminal usability remains
+  unverified unless explicitly performed.

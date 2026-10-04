@@ -14,7 +14,7 @@ func (m *Model) mouseAvailable() bool {
 		return false
 	}
 	switch m.top() {
-	case pageReadiness, pageDiscussions:
+	case pageReadiness, pageIssueContext, pageDiscussions:
 		return m.Session != nil
 	case pageReview:
 		return m.Session != nil
@@ -53,6 +53,9 @@ func (m *Model) mouseUpdate(msg tea.MouseMsg) tea.Cmd {
 	}
 	m.pendingCenter = false
 	if m.top() == pageReadiness {
+		return nil
+	}
+	if m.top() == pageIssueContext {
 		return nil
 	}
 	if m.top() == pageDiscussions {
@@ -104,6 +107,12 @@ func (m *Model) mouseWheel(wheel tea.MouseWheelMsg) tea.Cmd {
 	}
 	if m.top() == pageReadiness {
 		m.readiness.scroll = max(0, m.readiness.scroll+delta)
+		return nil
+	}
+	if m.top() == pageIssueContext {
+		if wheel.Y >= 1 && wheel.Y < m.Height-1 {
+			m.issues.scroll = max(0, m.issues.scroll+delta)
+		}
 		return nil
 	}
 	if m.top() == pageDiscussions {
