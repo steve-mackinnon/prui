@@ -44,8 +44,9 @@ type CommentSubmission struct {
 type CommentSubmitter func(context.Context, CommentSubmission) (source.ReviewComment, error)
 
 type ReviewSubmission struct {
-	Metadata source.Metadata
-	Review   source.PullRequestReview
+	Inventory *inventory.Inventory
+	Metadata  source.Metadata
+	Review    source.PullRequestReview
 }
 type ReviewSubmitter func(context.Context, ReviewSubmission) error
 type CommentReader func(context.Context, source.Metadata) ([]source.ReviewComment, error)
@@ -345,6 +346,10 @@ func (m *Model) commentComposerKey(key tea.KeyPressMsg) tea.Cmd {
 		m.ActionError = errors.New("offline mode: discussion refresh is unavailable")
 		return nil
 	case "ctrl+p":
+		if composer.Target.SubjectType == "file" {
+			m.ActionError = errors.New("GitHub batch reviews do not support file-level comments; enter posts immediately")
+			return nil
+		}
 		if composer.CommitSHA != "" {
 			m.ActionError = errors.New("commit comments cannot be queued into a PR review")
 			return nil
@@ -389,6 +394,9 @@ func (m *Model) commentComposerKey(key tea.KeyPressMsg) tea.Cmd {
 			Comment:   source.ReviewComment{Target: composer.Target, Body: composer.Draft},
 			CommitSHA: composer.CommitSHA, CommitBundle: composer.CommitBundle, CommitInventory: composer.CommitInventory,
 			Metadata: m.Session.Inventory.Comparison.Metadata,
+		}
+		if submission.CommitInventory == nil {
+			submission.CommitInventory = &m.Session.Inventory
 		}
 		m.notice = "Submitting pull request comment..."
 		ctx := m.beginAction()

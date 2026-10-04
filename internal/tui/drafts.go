@@ -25,7 +25,7 @@ type draftState struct {
 }
 
 func draftContent(state *reviewTabState) session.Draft {
-	d := session.Draft{Version: 1, Pending: state.Pending, Attempt: state.draft.attempt, Attempted: state.draft.attempted}
+	d := session.Draft{Version: 2, Pending: state.Pending, Attempt: state.draft.attempt, Attempted: state.draft.attempted}
 	if f := state.ReviewForm; f != nil {
 		d.Summary, d.Event = f.Body, f.Event
 	}
@@ -53,7 +53,7 @@ func (m *Model) loadDraft(state *reviewTabState) {
 		return
 	}
 	if d.Generation == 0 {
-		empty, _ := json.Marshal(session.Draft{Version: 1})
+		empty, _ := json.Marshal(session.Draft{Version: 2})
 		state.draft.saved = empty
 		return
 	}
@@ -259,7 +259,7 @@ func (m *Model) draftRecoveryView() string {
 	heading := fmt.Sprintf("Recovered private drafts · %s#%d · head %.12s", Escape(meta.Identity.Repository), meta.Identity.Number, meta.HeadSHA)
 	lines := []string{"Drafts remain anchored to this frozen comparison."}
 	if m.Composer != nil {
-		lines = append(lines, "Inline comment: "+Escape(m.Composer.Draft))
+		lines = append(lines, "Inline comment · "+commentTargetLabel(m.Composer.Target)+": "+Escape(m.Composer.Draft))
 	}
 	if m.CommentMenu != nil {
 		lines = append(lines, fmt.Sprintf("Reply to comment %d: %s", m.CommentMenu.ReplyToID, Escape(m.CommentMenu.Draft)))
@@ -268,7 +268,7 @@ func (m *Model) draftRecoveryView() string {
 		lines = append(lines, "Review summary: "+Escape(m.ReviewForm.Body))
 	}
 	for _, c := range m.Pending {
-		lines = append(lines, fmt.Sprintf("Pending %s:%d: %s", Escape(c.Target.Path), c.Target.Line, Escape(c.Body)))
+		lines = append(lines, fmt.Sprintf("Pending %s: %s", commentTargetLabel(c.Target), Escape(c.Body)))
 	}
 	lines = strings.Split(strings.Join(lines, "\n"), "\n")
 	available := max(1, m.Height-5)

@@ -82,7 +82,7 @@ const draftWhere = `repository=? AND pr_number=? AND base_sha=? AND head_sha=? A
 
 func validateDraft(k DraftKey, d Draft) error {
 	bad := errors.New("invalid review draft; original retained")
-	if d.Version != 1 || d.Event < 0 || d.Event > 2 || len(d.Pending) > source.MaxPendingReviewComments || !utf8.ValidString(d.Summary) {
+	if (d.Version != 1 && d.Version != 2) || d.Event < 0 || d.Event > 2 || len(d.Pending) > source.MaxPendingReviewComments || !utf8.ValidString(d.Summary) {
 		return bad
 	}
 	switch d.Attempt {
@@ -96,12 +96,14 @@ func validateDraft(k DraftKey, d Draft) error {
 		}
 		t := e.Target
 		repo, err := normalizeRepository(t.Identity.Repository)
-		return err == nil && repo == k.Repository && t.Identity.Number == k.Number && (t.CommitID == k.HeadSHA || e.CommitSHA == t.CommitID && shaPattern.MatchString(e.CommitSHA) || reply && shaPattern.MatchString(t.CommitID)) && utf8.ValidString(t.Path) && t.Path != "" && t.Line > 0 && (t.Side == "LEFT" || t.Side == "RIGHT") && utf8.ValidString(e.Body) && (!reply || e.CommentID > 0 && e.ReplyToID > 0)
+		return err == nil && repo == k.Repository && t.Identity.Number == k.Number && (t.CommitID == k.HeadSHA || e.CommitSHA == t.CommitID && shaPattern.MatchString(e.CommitSHA) || reply && shaPattern.MatchString(t.CommitID)) && source.ValidateReviewCommentTarget(t) == nil && utf8.ValidString(e.Body) && (!reply || e.CommentID > 0 && e.ReplyToID > 0)
 	}
 	if r := d.Reply; r != nil && r.RootAnchor != nil {
 		raw := r.RootAnchor
 		display := r.Target
-		if raw.Identity != display.Identity || raw.Path != display.Path || raw.Side != display.Side || raw.Line != display.Line || !shaPattern.MatchString(raw.CommitID) {
+		normalized := *raw
+		normalized.CommitID = display.CommitID
+		if normalized != display || source.ValidateReviewCommentTarget(*raw) != nil {
 			return bad
 		}
 	}
@@ -204,7 +206,7 @@ func (s *Store) SaveDraft(ctx context.Context, key DraftKey, expected uint64, d 
 	if err != nil {
 		return Draft{}, err
 	}
-	d.Version = 1
+	d.Version = 2
 	d.Generation = 0
 	if expected >= math.MaxInt64 || validateDraft(key, d) != nil {
 		return Draft{}, errors.New("invalid review draft update")

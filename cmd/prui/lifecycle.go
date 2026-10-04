@@ -110,6 +110,15 @@ func (a *application) submitPullRequestReview(ctx context.Context, submission tu
 	if err := source.ValidatePullRequestReview(review); err != nil {
 		return err
 	}
+	for _, c := range review.Comments {
+		if c.Target.SubjectType == "file" {
+			return errors.New("GitHub batch reviews do not support file-level comments")
+		}
+		inv := submission.Inventory
+		if inv != nil && (!source.SamePinnedRevision(inv.Comparison.Metadata, frozen) || !commits.InventoryContainsTarget(inv.Files, inv.Units, inv.Patches, c.Target)) || inv == nil && c.Target.StartLine != 0 {
+			return errors.New("pending target is not in the captured PR diff")
+		}
+	}
 	if a.setupError != nil {
 		return a.setupError
 	}
@@ -260,12 +269,20 @@ func validReviewCommentSubmission(submission tui.CommentSubmission) error {
 	comment, frozen := submission.Comment, submission.Metadata
 	if !validIdentity(frozen.Identity) || !validIdentity(comment.Target.Identity) || frozen.Identity != comment.Target.Identity ||
 		!validSHA(frozen.BaseSHA) || !validSHA(frozen.HeadSHA) || !validRepository(frozen.BaseRepository) || !validRepository(frozen.HeadRepository) ||
-		(submission.CommitSHA == "" && comment.Target.CommitID != frozen.HeadSHA) || !validSHA(comment.Target.CommitID) || comment.Target.Line <= 0 ||
-		(comment.Target.Side != "LEFT" && comment.Target.Side != "RIGHT") || comment.Target.Path == "" || !utf8.ValidString(comment.Target.Path) ||
+		(submission.CommitSHA == "" && comment.Target.CommitID != frozen.HeadSHA) || !validSHA(comment.Target.CommitID) || source.ValidateReviewCommentTarget(comment.Target) != nil ||
 		comment.Body == "" || !utf8.ValidString(comment.Body) {
 		return errors.New("invalid review comment submission")
 	}
 
+	if submission.CommitSHA == "" && submission.CommitInventory != nil {
+		inv := submission.CommitInventory
+		if !source.SamePinnedRevision(inv.Comparison.Metadata, frozen) || !commits.InventoryContainsTarget(inv.Files, inv.Units, inv.Patches, comment.Target) {
+			return errors.New("comment target is not in the captured PR diff")
+		}
+	}
+	if submission.CommitSHA == "" && (comment.Target.StartLine != 0 || comment.Target.SubjectType == "file") && submission.CommitInventory == nil {
+		return errors.New("extended comment target requires captured source")
+	}
 	if submission.CommitSHA != "" {
 		bundle, inv := submission.CommitBundle, submission.CommitInventory
 		target := comment.Target

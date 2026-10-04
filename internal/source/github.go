@@ -102,11 +102,14 @@ type ReviewComment struct {
 // ReviewCommentTarget identifies the frozen pull request diff line to comment
 // on. Side is either LEFT or RIGHT, following GitHub's review-comment API.
 type ReviewCommentTarget struct {
-	Identity Identity
-	CommitID string
-	Path     string
-	Side     string
-	Line     int
+	Identity    Identity
+	CommitID    string
+	Path        string
+	Side        string
+	Line        int
+	StartLine   int
+	StartSide   string
+	SubjectType string // empty is a line target; file has no coordinates
 }
 
 type ReviewCommenter interface {
@@ -194,7 +197,7 @@ func validateReviewComment(comment ReviewComment) error {
 	if _, err := ParseIdentity(strconv.Itoa(target.Identity.Number), target.Identity.Repository); err != nil {
 		return errors.New("invalid review comment target")
 	}
-	if !shaPattern.MatchString(target.CommitID) || target.Line <= 0 || (target.Side != "LEFT" && target.Side != "RIGHT") || target.Path == "" || !utf8.ValidString(target.Path) || comment.Body == "" || !utf8.ValidString(comment.Body) {
+	if ValidateReviewCommentTarget(target) != nil || comment.Body == "" || !utf8.ValidString(comment.Body) {
 		return errors.New("invalid review comment")
 	}
 	return nil
@@ -209,15 +212,9 @@ func (g *GH) CreateReviewComment(ctx context.Context, comment ReviewComment) (Re
 		return ReviewComment{}, err
 	}
 	payload, err := json.Marshal(struct {
-		Body     string `json:"body"`
+		commentPayload
 		CommitID string `json:"commit_id"`
-		Path     string `json:"path"`
-		Line     int    `json:"line"`
-		Side     string `json:"side"`
-	}{
-		Body: comment.Body, CommitID: comment.Target.CommitID, Path: comment.Target.Path,
-		Line: comment.Target.Line, Side: comment.Target.Side,
-	})
+	}{commentPayloadFor(comment), comment.Target.CommitID})
 	if err != nil {
 		return ReviewComment{}, errors.New("could not prepare review comment")
 	}
@@ -249,6 +246,9 @@ func ValidatePullRequestReview(review PullRequestReview) error {
 		return errors.New("invalid pull request review event")
 	}
 	for _, comment := range review.Comments {
+		if comment.Target.SubjectType == "file" {
+			return errors.New("GitHub batch reviews do not support file-level comments; submit immediately")
+		}
 		if validateReviewComment(comment) != nil || comment.Target.Identity != review.Identity || comment.Target.CommitID != review.CommitID {
 			return errors.New("invalid pending review comment")
 		}
@@ -260,21 +260,15 @@ func (g *GH) CreatePullRequestReview(ctx context.Context, review PullRequestRevi
 	if err := ValidatePullRequestReview(review); err != nil {
 		return err
 	}
-	type inline struct {
-		Path string `json:"path"`
-		Line int    `json:"line"`
-		Side string `json:"side"`
-		Body string `json:"body"`
-	}
-	comments := make([]inline, 0, len(review.Comments))
+	comments := make([]commentPayload, 0, len(review.Comments))
 	for _, c := range review.Comments {
-		comments = append(comments, inline{Path: c.Target.Path, Line: c.Target.Line, Side: c.Target.Side, Body: c.Body})
+		comments = append(comments, commentPayloadFor(c))
 	}
 	payload, err := json.Marshal(struct {
-		CommitID string   `json:"commit_id"`
-		Event    string   `json:"event"`
-		Body     string   `json:"body"`
-		Comments []inline `json:"comments"`
+		CommitID string           `json:"commit_id"`
+		Event    string           `json:"event"`
+		Body     string           `json:"body"`
+		Comments []commentPayload `json:"comments"`
 	}{review.CommitID, review.Event, review.Body, comments})
 	if err != nil {
 		return errors.New("could not prepare pull request review")
@@ -398,7 +392,7 @@ func (g *GH) ListReviewComments(ctx context.Context, id Identity) ([]ReviewComme
 // Outbound writes still require a strictly valid target.
 func parseReviewComment(data []byte, identity Identity) (ReviewComment, error) {
 	comment, anchored, err := parseRemoteReviewComment(data, identity)
-	if err != nil || (!anchored && comment.OriginalAnchor == nil) {
+	if err != nil || (!anchored && comment.OriginalAnchor == nil && comment.CurrentAnchor == nil) {
 		return ReviewComment{}, errors.New("invalid review comment")
 	}
 	return comment, nil
@@ -420,6 +414,7 @@ func parseRemoteReviewComment(data []byte, identity Identity) (ReviewComment, bo
 		OriginalLine      *int      `json:"original_line"`
 		OriginalStartLine *int      `json:"original_start_line"`
 		StartLine         *int      `json:"start_line"`
+		StartSide         string    `json:"start_side"`
 		URL               string    `json:"html_url"`
 		DiffHunk          string    `json:"diff_hunk"`
 		ParentID          int64     `json:"in_reply_to_id"`
@@ -447,7 +442,11 @@ func parseRemoteReviewComment(data []byte, identity Identity) (ReviewComment, bo
 	if raw.SubjectType == "file" {
 		subject = "FILE"
 	}
-	comment.OriginalAnchor = discussionAnchor(identity, raw.OriginalCommitID, raw.Path, raw.Side, raw.OriginalLine, raw.OriginalStartLine, subject)
+	comment.OriginalAnchor = remoteCommentAnchor(identity, raw.OriginalCommitID, raw.Path, raw.Side, raw.OriginalLine, raw.OriginalStartLine, raw.StartSide, subject)
+	comment.CurrentAnchor = remoteCommentAnchor(identity, raw.CommitID, raw.Path, raw.Side, raw.Line, raw.StartLine, raw.StartSide, subject)
+	if comment.CurrentAnchor != nil {
+		comment.Target = *comment.CurrentAnchor
+	}
 	if raw.SubjectType == "file" || raw.Line == nil || raw.StartLine != nil {
 		return comment, false, nil
 	}

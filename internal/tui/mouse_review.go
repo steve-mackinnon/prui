@@ -203,6 +203,13 @@ func (m *Model) selectedDiffTargetForLine(line diffLine) *source.ReviewCommentTa
 		}
 		target, ok = m.CursorTarget[key]
 	}
+	if m.rangeStart != nil && line.sideBySide != nil {
+		for _, candidate := range rowTargets(*line.sideBySide) {
+			if candidate.Side == m.rangeStart.Side {
+				return &candidate
+			}
+		}
+	}
 	if ok && diffLineHasTarget(line, target) {
 		return &target
 	}

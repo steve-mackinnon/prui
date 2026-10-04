@@ -156,3 +156,29 @@ func TestDraftUpdatesNeverChangeImmutableSnapshotOrProgress(t *testing.T) {
 		t.Fatal("draft entered frozen source payload")
 	}
 }
+
+func TestExtendedDraftVersionAndInvalidAttemptTargets(t *testing.T) {
+	store := openSQLiteTestStore(t)
+	ctx := context.Background()
+	meta := fixture().Inventory.Comparison.Metadata
+	meta.BaseRepository, meta.HeadRepository = "owner/repo", "owner/repo"
+	k := DraftKeyFor(meta)
+	target := source.ReviewCommentTarget{Identity: meta.Identity, CommitID: meta.HeadSHA, Path: "a", Side: "RIGHT", Line: 3, StartLine: 1, StartSide: "RIGHT"}
+	d := Draft{Version: 1, Composer: &DraftEditor{Target: target, Body: "work", PendingIndex: -1}, Attempt: "comment", Attempted: &DraftAttempt{Kind: "comment", Comment: &source.ReviewComment{Target: target, Body: "attempt"}}}
+	saved, err := store.SaveDraft(ctx, k, 0, d)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := store.LoadDraft(ctx, k)
+	if err != nil || got.Version != 2 || got.Composer.Target != target || got.Attempted.Comment.Target != target {
+		t.Fatal("target/schema lost", got, err)
+	}
+	got.Attempted.Comment.Target.StartSide = "LEFT"
+	if _, err := store.SaveDraft(ctx, k, saved.Generation, got); err == nil {
+		t.Fatal("invalid immutable attempt accepted")
+	}
+	original, err := store.LoadDraft(ctx, k)
+	if err != nil || original.Attempted.Comment.Target != target {
+		t.Fatal("invalid update destroyed original")
+	}
+}

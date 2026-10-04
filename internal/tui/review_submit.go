@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
+	"prui/internal/commits"
 	"prui/internal/source"
 )
 
@@ -184,7 +185,7 @@ func (m *Model) reviewFormView() string {
 				marker = "› "
 			}
 			first := strings.SplitN(comment.Body, "\n", 2)[0]
-			lines = append(lines, fmt.Sprintf("%s%s:%d %s · %s", marker, Escape(comment.Target.Path), comment.Target.Line, comment.Target.Side, Escape(first)))
+			lines = append(lines, fmt.Sprintf("%s%s · %s", marker, commentTargetLabel(comment.Target), Escape(first)))
 		}
 	}
 	if !m.Session.Inventory.Complete {
@@ -313,7 +314,7 @@ func (m *Model) reviewFormKey(key tea.KeyPressMsg) tea.Cmd {
 			generation, target, submit := f.generation, m.activeTab, m.submitReview
 			metadata := m.Session.Inventory.Comparison.Metadata
 			comments := append([]source.ReviewComment(nil), m.Pending...)
-			submission := ReviewSubmission{Metadata: metadata, Review: source.PullRequestReview{Identity: metadata.Identity, CommitID: metadata.HeadSHA, Event: reviewEvents[f.Event].event, Body: f.Body, Comments: comments}}
+			submission := ReviewSubmission{Inventory: &m.Session.Inventory, Metadata: metadata, Review: source.PullRequestReview{Identity: metadata.Identity, CommitID: metadata.HeadSHA, Event: reviewEvents[f.Event].event, Body: f.Body, Comments: comments}}
 			m.notice = "Submitting pull request review..."
 			ctx := m.beginAction()
 			return m.start(func() tea.Msg {
@@ -411,17 +412,37 @@ func (m *Model) focusPendingTarget(target source.ReviewCommentTarget) bool {
 	if m.Session == nil {
 		return false
 	}
+	if target.SubjectType == "file" {
+		inv := m.Session.Inventory
+		if !commits.InventoryContainsTarget(inv.Files, inv.Units, inv.Patches, target) {
+			return false
+		}
+		for unit, u := range inv.Units {
+			for _, f := range inv.Files {
+				path := f.NewPath
+				if f.Status == "D" {
+					path = f.OldPath
+				}
+				if u.FileChangeID == f.ID && string(path) == target.Path {
+					m.ContextView, m.Files, m.Inventory, m.Selected, m.Focus = viewFiles, true, false, unit, paneDiff
+					m.setOffset(0)
+					return true
+				}
+			}
+		}
+		return false
+	}
 	for unit := range m.Session.Inventory.Units {
 		for _, line := range unitLines(m.Session, unit) {
-			if line.target != nil && *line.target == target {
+			if line.target != nil && targetEndsAt(target, *line.target) {
 				m.resetCommitFilter()
 				m.ContextView, m.Files, m.Inventory, m.Selected, m.Focus = viewFiles, true, false, unit, paneDiff
 				m.cursorActive = true
 				for row, detail := range m.displayDetail() {
-					matches := detail.target != nil && *detail.target == target
+					matches := detail.target != nil && targetEndsAt(target, *detail.target)
 					if detail.sideBySide != nil {
 						for _, candidate := range rowTargets(*detail.sideBySide) {
-							matches = matches || candidate == target
+							matches = matches || targetEndsAt(target, candidate)
 						}
 					}
 					if matches {
@@ -445,7 +466,7 @@ func (m *Model) insertReviewSummary(text string) {
 func (m *Model) pendingLines(target source.ReviewCommentTarget) []diffLine {
 	lines := []diffLine{}
 	for i, comment := range m.Pending {
-		if comment.Target == target {
+		if targetEndsAt(comment.Target, target) {
 			first := strings.SplitN(comment.Body, "\n", 2)[0]
 			lines = append(lines, diffLine{styledLine: styledLine{Class: classWarning, Text: fmt.Sprintf("  [Pending %d] %s · R to review", i+1, Escape(first))}})
 		}

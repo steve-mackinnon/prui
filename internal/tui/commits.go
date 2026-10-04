@@ -211,7 +211,7 @@ func (m *Model) commitRows() []diffLine {
 			continue
 		}
 		overlay := m.commitDiscussionLines(*row.target)
-		if m.Composer != nil && m.Composer.CommitSHA == e.SHA && m.Composer.Target == *row.target {
+		if m.Composer != nil && m.Composer.CommitSHA == e.SHA && targetEndsAt(m.Composer.Target, *row.target) {
 			overlay = append(overlay, body(classMetadata, fmt.Sprintf("Comment on %s · %s:%d · %s", shortCommitSHA(e.SHA), Escape(row.target.Path), row.target.Line, row.target.Side))...)
 			overlay = append(overlay, m.inlineEditorLines()...)
 		}
@@ -474,7 +474,11 @@ func (m *Model) openCommitComposer() tea.Cmd {
 	if cursor >= len(rows) || rows[cursor].target == nil {
 		return nil
 	}
-	target := *rows[cursor].target
+	target, err := m.completeCommentRange(*rows[cursor].target)
+	if err != nil {
+		m.ActionError = err
+		return nil
+	}
 	metadata := m.Session.Inventory.Comparison.Metadata
 	if target.CommitID != metadata.HeadSHA && !commits.HistoricalCommentTarget(m.Session.Commits, target) {
 		m.ActionError = errors.New("commenting on this historical line is unsupported; use an added or context line in a regular commit")
@@ -483,7 +487,7 @@ func (m *Model) openCommitComposer() tea.Cmd {
 	matched := false
 	for i := range m.Session.Inventory.Units {
 		for _, row := range unitLines(m.Session, i) {
-			if row.target != nil && *row.target == target {
+			if row.target != nil && targetEndsAt(target, *row.target) {
 				matched = true
 			}
 		}
@@ -492,6 +496,7 @@ func (m *Model) openCommitComposer() tea.Cmd {
 		m.ActionError = errors.New("this commit line is not in the captured PR diff; commenting unavailable")
 		return nil
 	}
+	m.rangeStart = nil
 	m.Composer = &commentComposer{Target: target, CommitSHA: target.CommitID, CommitBundle: m.Session.Commits, CommitInventory: &m.Session.Inventory, PendingIndex: -1}
 	m.commit.cache = commitRenderCache{}
 	m.editorCursorVisible = true

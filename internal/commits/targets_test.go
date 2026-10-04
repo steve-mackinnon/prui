@@ -79,3 +79,34 @@ func TestHistoricalCommentTargetSupportsVerifiedRightCoordinates(t *testing.T) {
 		t.Fatal("addition rejected")
 	}
 }
+
+func TestRangesRequireEveryRawCoordinateInOneHunk(t *testing.T) {
+	files := []inventory.FileChange{{ID: "f", OldPath: []byte("a"), NewPath: []byte("a")}}
+	units := []inventory.ReviewUnit{{FileChangeID: "f", Kind: inventory.TextHunk, PatchReference: "p"}}
+	patches := map[string][]byte{"p": []byte("@@ -1,2 +1,2 @@\n-old1\n-old2\n+new1\n+new2\n")}
+	for _, side := range []string{"LEFT", "RIGHT"} {
+		target := source.ReviewCommentTarget{Path: "a", Side: side, Line: 2, StartLine: 1, StartSide: side}
+		if !InventoryContainsTarget(files, units, patches, target) {
+			t.Fatal("valid range rejected", side)
+		}
+		target.Line = 3
+		if InventoryContainsTarget(files, units, patches, target) {
+			t.Fatal("missing endpoint accepted")
+		}
+	}
+	target := source.ReviewCommentTarget{Path: "a", SubjectType: "file"}
+	units[0].Kind = inventory.Binary
+	if !InventoryContainsTarget(files, units, patches, target) {
+		t.Fatal("binary file rejected")
+	}
+	units[0].Kind = inventory.Unavailable
+	if InventoryContainsTarget(files, units, patches, target) {
+		t.Fatal("unavailable file accepted")
+	}
+	units[0].Kind = inventory.TextHunk
+	patches["p"] = []byte("@@ -1 +1 @@\n+a\n@@ -2 +2 @@\n+b\n")
+	target = source.ReviewCommentTarget{Path: "a", Side: "RIGHT", Line: 2, StartLine: 1, StartSide: "RIGHT"}
+	if InventoryContainsTarget(files, units, patches, target) {
+		t.Fatal("cross-hunk range accepted")
+	}
+}

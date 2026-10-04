@@ -156,6 +156,17 @@ func (m *Model) reviewStatus() string {
 }
 
 func (m *Model) reviewHints() string {
+	if m.rangeStart != nil {
+		end := m.commentSelectionTarget()
+		text := fmt.Sprintf("Range start %s:%d", m.rangeStart.Side, m.rangeStart.Line)
+		if end != nil {
+			text += fmt.Sprintf(" · end %s:%d", end.Side, end.Line)
+		}
+		if m.ActionError != nil {
+			text += " · ! " + Escape(m.ActionError.Error())
+		}
+		return m.styleLine(classWarning, clip(text+" · enter: compose · esc: cancel", m.Width))
+	}
 	if m.Composer != nil {
 		if m.Composer.CommitSHA != "" {
 			return m.styleLine(classWarning, clip("enter: post now · ctrl+r: refresh · esc: discard · shift+enter: newline", m.Width))
