@@ -26,7 +26,7 @@ func TestDraftEditsSurviveRestartWithoutRemoteWrite(t *testing.T) {
 	m.SetLifecycle(store, nil, nil)
 	m.openReviewTab(s)
 	meta := s.Inventory.Comparison.Metadata
-	m.Composer = &commentComposer{Target: source.ReviewCommentTarget{Identity: meta.Identity, CommitID: meta.HeadSHA, Path: "a.go", Side: "RIGHT", Line: 1}, PendingIndex: -1}
+	m.Composer = &commentComposer{Target: source.ReviewCommentTarget{Identity: meta.Identity, CommitID: meta.HeadSHA, Path: "text", Side: "RIGHT", Line: 1}, PendingIndex: -1}
 	key(m, 'x')
 	restored := New(context.Background(), nil)
 	restored.SetLifecycle(store, nil, nil)
@@ -328,5 +328,31 @@ func TestUnsentReplyRecoversRawRootWithoutOverlayAndBlocksUnknownRoot(t *testing
 	restarted.CommentMenu.RootAnchor = nil
 	if restarted.prepareDraftAttempt("reply") {
 		t.Fatal("unresolved root allowed dispatch")
+	}
+}
+
+func TestRecoveredEditorsBecomeVisibleWithoutRemoteOverlay(t *testing.T) {
+	for _, reply := range []bool{false, true} {
+		store, err := session.Open(t.TempDir() + "/private")
+		if err != nil {
+			t.Fatal(err)
+		}
+		m := draftTestModel(t, store)
+		meta := m.Session.Inventory.Comparison.Metadata
+		target := source.ReviewCommentTarget{Identity: meta.Identity, CommitID: meta.HeadSHA, Path: "text", Side: "RIGHT", Line: 1}
+		if reply {
+			m.CommentMenu = &commentActionMenu{CommentID: 7, ReplyToID: 7, RootAnchor: &target, Target: target, mode: commentActionReply, Draft: "visible recovered reply"}
+		} else {
+			m.Composer = &commentComposer{Target: target, Draft: "visible recovered comment", PendingIndex: -1}
+		}
+		if !m.persistDraft(m.reviewTabState) {
+			t.Fatal(m.ActionError)
+		}
+		restarted := draftTestModel(t, store)
+		namedKey(restarted, tea.KeyEnter)
+		if restarted.top() != pageReview || restarted.ContextView != viewFiles || !strings.Contains(restarted.View().Content, "visible recovered") {
+			t.Fatal("recovered editor not visible after acknowledgement")
+		}
+		store.Close()
 	}
 }

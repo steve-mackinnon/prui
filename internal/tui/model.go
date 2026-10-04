@@ -1471,7 +1471,7 @@ func (m *Model) detail() []diffLine {
 	base := m.baseDetail()
 	// Source rows are immutable; the renderer copies just the visible viewport.
 	// Avoid rebuilding the whole review on every navigation call without overlays.
-	if len(m.Comments) == 0 && len(m.Pending) == 0 && m.Composer == nil {
+	if len(m.Comments) == 0 && len(m.Pending) == 0 && m.Composer == nil && (m.CommentMenu == nil || m.CommentMenu.mode != commentActionReply) {
 		return m.wrapSource(base)
 	}
 	lines := make([]diffLine, 0, len(base)+len(m.Comments)+2)
@@ -1485,6 +1485,7 @@ func (m *Model) detail() []diffLine {
 				lines = append(lines, m.reviewCommentThread(comment, 0)...)
 			}
 		}
+		lines = append(lines, m.recoveredReplyLines(*line.target)...)
 		lines = append(lines, m.pendingLines(*line.target)...)
 		if m.Composer != nil && m.Composer.Target == *line.target {
 			lines = append(lines, m.inlineEditorLines()...)
@@ -1518,7 +1519,7 @@ func (m *Model) sideBySideDetail() []diffLine {
 	} else {
 		base = projectSideBySideDetail(m.baseDetail())
 	}
-	if len(m.Comments) == 0 && len(m.Pending) == 0 && m.Composer == nil {
+	if len(m.Comments) == 0 && len(m.Pending) == 0 && m.Composer == nil && (m.CommentMenu == nil || m.CommentMenu.mode != commentActionReply) {
 		return m.wrapSource(base)
 	}
 	lines := make([]diffLine, 0, len(base)+len(m.Comments)+2)
@@ -1536,6 +1537,7 @@ func (m *Model) sideBySideDetail() []diffLine {
 					lines = append(lines, m.reviewCommentThread(comment, 0)...)
 				}
 			}
+			lines = append(lines, m.recoveredReplyLines(target)...)
 			lines = append(lines, m.pendingLines(target)...)
 			if m.Composer != nil && m.Composer.Target == target {
 				lines = append(lines, m.inlineEditorLines()...)

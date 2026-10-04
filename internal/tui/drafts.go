@@ -292,6 +292,19 @@ func (m *Model) draftRecoveryKey(key tea.KeyPressMsg) tea.Cmd {
 	case "home":
 		m.draft.recoveryScroll = 0
 	case "enter", "esc":
+		if c := m.Composer; c != nil {
+			if c.CommitSHA != "" {
+				m.ContextView = viewCommits
+				m.ensureCommitEditorVisible()
+			} else if !m.focusPendingTarget(c.Target) {
+				m.ActionError = errors.New("recovered target unavailable; draft retained here")
+				return nil
+			}
+		}
+		if r := m.CommentMenu; r != nil && !m.focusPendingTarget(r.Target) {
+			m.ActionError = errors.New("recovered reply target unavailable; draft retained here")
+			return nil
+		}
 		m.pop()
 	case "ctrl+r":
 		return m.reconcileDraftCommand()
@@ -306,4 +319,20 @@ func (m *Model) draftRecoveryKey(key tea.KeyPressMsg) tea.Cmd {
 		m.pop()
 	}
 	return nil
+}
+
+// A recovered reply remains editable at its frozen line even offline or before
+// its remote thread has loaded. It never invents a remote comment overlay.
+func (m *Model) recoveredReplyLines(target source.ReviewCommentTarget) []diffLine {
+	r := m.CommentMenu
+	if r == nil || r.mode != commentActionReply || r.Target != target {
+		return nil
+	}
+	for _, c := range m.Comments {
+		if c.ID == r.CommentID {
+			return nil
+		}
+	}
+	lines := []diffLine{{styledLine: styledLine{Class: classWarning, Text: fmt.Sprintf("  Recovered local reply to comment %d", r.ReplyToID)}}}
+	return append(lines, m.inlineReplyEditorLines(0)...)
 }
