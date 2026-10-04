@@ -70,6 +70,9 @@ func (a *application) submitGeneralComment(ctx context.Context, frozen source.Me
 	if a.setupError != nil {
 		return source.ConversationEvent{}, a.setupError
 	}
+	if err := source.ValidateGeneralComment(body); err != nil {
+		return source.ConversationEvent{}, err
+	}
 	writer, ok := a.gh.(source.GeneralCommentWriter)
 	if !ok {
 		return source.ConversationEvent{}, errors.New("PR comment submission unavailable")

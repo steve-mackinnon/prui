@@ -99,3 +99,45 @@ func TestConversationUnavailableNeverEmptySuccess(t *testing.T) {
 		t.Fatalf("%+v %v", out, err)
 	}
 }
+
+func TestConversationSharedByteBudgetAndMalformedResponse(t *testing.T) {
+	for _, malformed := range []bool{false, true} {
+		calls := 0
+		g := GH{Executable: "gh", Limits: Defaults(), Runner: listRunner(func(_ context.Context, r Request) ([]byte, error) {
+			calls++
+			if strings.Contains(r.Args[len(r.Args)-1], "/reviews?") {
+				return []byte(`[]`), nil
+			}
+			if malformed && calls == 2 {
+				return []byte(`{"invalid":true}`), nil
+			}
+			rows := make([]map[string]any, 100)
+			for i := range rows {
+				rows[i] = map[string]any{"id": (calls-1)*100 + i + 1, "body": strings.Repeat("x", 20000), "created_at": "2026-10-04T01:00:00Z"}
+			}
+			return json.Marshal(rows)
+		})}
+		out, err := g.ListConversation(context.Background(), Identity{"owner/repo", 42})
+		expected := 200
+		if malformed {
+			expected = 100
+		}
+		if err != nil || out.Complete || len(out.Events) != expected {
+			t.Fatalf("complete=%v len=%d err=%v", out.Complete, len(out.Events), err)
+		}
+	}
+}
+func TestGeneralCommentMismatchIsUncertainAndErrorsPrivate(t *testing.T) {
+	for _, fail := range []bool{false, true} {
+		g := GH{Executable: "gh", Limits: Defaults(), Runner: listRunner(func(context.Context, Request) ([]byte, error) {
+			if fail {
+				return nil, errors.New("SECRET diagnostic")
+			}
+			return []byte(`{"id":1,"body":"different","created_at":"2026-10-04T01:00:00Z"}`), nil
+		})}
+		_, err := g.CreateGeneralComment(context.Background(), Identity{"owner/repo", 42}, "original")
+		if !errors.Is(err, ErrCommentDeliveryUnknown) || strings.Contains(err.Error(), "SECRET") {
+			t.Fatal(err)
+		}
+	}
+}

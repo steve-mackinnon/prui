@@ -38,6 +38,9 @@ func TestGeneralCommentOfflineFreshnessAndUnknownOutcome(t *testing.T) {
 		t.Fatal("stale comparison wrote")
 	}
 	g.value = frozen
+	if _, err := app.submitGeneralComment(context.Background(), frozen, ""); err == nil || g.writes != 0 {
+		t.Fatal("invalid body wrote")
+	}
 	if _, err := app.submitGeneralComment(context.Background(), frozen, "hello"); err != nil || g.writes != 1 {
 		t.Fatal(err)
 	}

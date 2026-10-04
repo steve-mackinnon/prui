@@ -7,12 +7,14 @@ import (
 	"fmt"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 	"unicode/utf8"
 )
 
 // Conversation events are live overlay data, never comparison or draft storage.
 type ConversationEvent struct {
+	Retained  bool
 	ID        string
 	Kind      string
 	Decision  string
@@ -119,25 +121,32 @@ func (g *GH) ListConversation(ctx context.Context, id Identity) (ConversationSna
 	}
 	return out, nil
 }
+func ValidateGeneralComment(body string) error {
+	if strings.TrimSpace(body) == "" || !validDiscussionField(body, 65536, true) {
+		return errors.New("invalid PR comment")
+	}
+	return nil
+}
+
 func (g *GH) CreateGeneralComment(ctx context.Context, id Identity, body string) (ConversationEvent, error) {
 	if _, err := ParseIdentity(strconv.Itoa(id.Number), id.Repository); err != nil {
 		return ConversationEvent{}, err
 	}
-	if body == "" || !validDiscussionField(body, 65536, true) {
-		return ConversationEvent{}, errors.New("invalid PR comment")
+	if err := ValidateGeneralComment(body); err != nil {
+		return ConversationEvent{}, err
 	}
 	payload, _ := json.Marshal(map[string]string{"body": body})
 	data, err := g.callWithStdin(ctx, payload, "api", "--hostname", "github.com", "--method", "POST", "--input", "-", fmt.Sprintf("repos/%s/issues/%d/comments", id.Repository, id.Number))
 	if err != nil {
-		return ConversationEvent{}, safeReviewCommentError(err)
+		return ConversationEvent{}, fmt.Errorf("%w: %w", ErrCommentDeliveryUnknown, safeReviewCommentError(err))
 	}
 	var raw remoteConversationEvent
 	if !utf8.Valid(data) || json.Unmarshal(data, &raw) != nil {
-		return ConversationEvent{}, errors.New("invalid PR comment response")
+		return ConversationEvent{}, fmt.Errorf("%w: invalid PR comment response", ErrCommentDeliveryUnknown)
 	}
 	event, err := normalizeConversation(raw, "PR comment")
 	if err != nil || event.Body != body {
-		return ConversationEvent{}, errors.New("invalid created PR comment")
+		return ConversationEvent{}, fmt.Errorf("%w: invalid created PR comment", ErrCommentDeliveryUnknown)
 	}
 	return event, nil
 }

@@ -16,6 +16,7 @@ import (
 // Discussion is readable even when neither coordinate can be placed in a diff.
 // Unknown status is represented by nil, independently for each status.
 type Discussion struct {
+	Retained         bool
 	Kind             string
 	Decision         string
 	CreatedAt        time.Time

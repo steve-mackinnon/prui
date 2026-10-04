@@ -10,7 +10,7 @@ const mouseWheelStep = 3
 
 // Mouse routing obeys the same exclusive surface ownership as keyboard input.
 func (m *Model) mouseAvailable() bool {
-	if m.Loading || m.Busy || m.Err != nil || m.Composer != nil || m.CommentMenu != nil || m.loadingModal().active {
+	if m.Loading || m.Busy || m.Err != nil || m.Composer != nil || m.CommentMenu != nil || m.discussions.editor != nil || m.loadingModal().active {
 		return false
 	}
 	switch m.top() {

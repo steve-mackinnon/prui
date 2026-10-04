@@ -38,7 +38,10 @@ General comments and reviews each fetch at most five pages of 100 records,
 sharing a 4 MiB response budget. Every gh response remains bounded to 1 MiB.
 The entire composed read uses a 60-second deadline. Existing thread bounds remain
 500 threads, 100 replies per thread, 2,000 inline comments and 4 MiB under that
-same deadline. Partial retrieval never means no activity. Unavailable and stale
+same deadline. Partial retrieval retains omitted prior general/review events with an explicit
+`stale retained` label. Selected omitted inline activity remains readable using
+original context; its old current anchor is withheld. Partial retrieval never
+means no activity. Unavailable and stale
 reads retain the prior live snapshot; offline mode performs no network access.
 
 API basis: [GitHub general PR comments](https://docs.github.com/en/rest/issues/comments)

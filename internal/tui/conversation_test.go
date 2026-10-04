@@ -3,6 +3,7 @@ package tui
 import (
 	tea "charm.land/bubbletea/v2"
 	"context"
+	"github.com/charmbracelet/x/ansi"
 	"prui/internal/source"
 	"strings"
 	"testing"
@@ -169,5 +170,52 @@ func TestUncertainAttemptReconciliationUsesOriginalBodyAfterEdit(t *testing.T) {
 	}
 	if m.generalCommentKey(tea.KeyPressMsg{Code: tea.KeyEnter}) != nil {
 		t.Fatal("retried an observed attempt")
+	}
+}
+
+func TestPartialConversationPreservesSelectedPriorActivityAsStale(t *testing.T) {
+	for _, inline := range []bool{false, true} {
+		m := commitModel(t)
+		old := DiscussionSnapshot{CurrentVerified: true, Snapshot: source.DiscussionSnapshot{Complete: true, Timeline: true, Events: []source.ConversationEvent{{ID: "PR comment:2", Kind: "PR comment", Author: "alice", Body: "general"}}}}
+		if inline {
+			old.Snapshot.Events = nil
+			old.Snapshot.Threads = []source.Discussion{{ID: "thread", CurrentAnchor: &source.ReviewCommentTarget{Line: 1}, Comments: []source.ReviewComment{{ID: 1, Body: "inline"}}}}
+		}
+		m.applyDiscussionResult(DiscussionResult{Target: m.activeTab, Session: m.Session, Snapshot: old})
+		m.openDiscussions()
+		m.discussionKey("enter")
+		selected := m.discussions.selectedID
+		m.discussions.scroll = 1
+		partial := DiscussionResult{Target: m.activeTab, Session: m.Session, Snapshot: DiscussionSnapshot{CurrentVerified: true, Snapshot: source.DiscussionSnapshot{Timeline: true, Complete: false, Reason: "general comments unavailable"}}}
+		m.applyDiscussionResult(partial)
+		if m.discussions.selectedID != selected || !m.discussions.detail || len(m.discussionEntries()) != 1 || !strings.Contains(m.discussionsView(), "stale retained") {
+			t.Fatal("partial refresh lost navigation", m.discussions)
+		}
+		m.applyDiscussionResult(partial)
+		if len(m.discussionEntries()) != 1 {
+			t.Fatal("partial refresh duplicated retained event")
+		}
+		if inline && m.discussions.snapshot.Snapshot.Threads[0].CurrentAnchor != nil {
+			t.Fatal("retained current anchor trusted")
+		}
+	}
+}
+func TestGeneralComposerOwnsMouseAndFitsViewport(t *testing.T) {
+	m := commitModel(t)
+	m.Width = 45
+	m.Height = 10
+	m.openDiscussions()
+	m.discussions.editor = &generalCommentEditor{draft: strings.Repeat("long draft\n", 20), cursor: 220}
+	if m.mouseAvailable() {
+		t.Fatal("mouse routed under editor")
+	}
+	text := m.generalCommentView()
+	if len(strings.Split(text, "\n")) > m.Height {
+		t.Fatal("editor escaped viewport")
+	}
+	for _, line := range strings.Split(text, "\n") {
+		if ansi.StringWidth(line) > m.Width {
+			t.Fatal("editor line too wide")
+		}
 	}
 }

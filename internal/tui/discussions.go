@@ -112,10 +112,47 @@ func (m *Model) applyDiscussionResult(v DiscussionResult) {
 		}
 	}
 
+	if !v.Snapshot.Snapshot.Complete && v.Snapshot.Snapshot.Timeline {
+		incoming := map[string]bool{}
+		for _, event := range v.Snapshot.Snapshot.Events {
+			incoming[event.ID] = true
+		}
+		for _, event := range d.snapshot.Snapshot.Events {
+			if !incoming[event.ID] {
+				event.Retained = true
+				v.Snapshot.Snapshot.Events = append(v.Snapshot.Snapshot.Events, event)
+			}
+		}
+		// Keep the selected inline activity readable without treating its old current
+		// anchor as newly verified. Other omitted thread counts remain partial.
+		selectedFound := false
+		for _, entry := range discussionEntries(v.Snapshot.Snapshot) {
+			if entry.ID == d.selectedID {
+				selectedFound = true
+				break
+			}
+		}
+		if !selectedFound {
+			for _, thread := range d.snapshot.Snapshot.Threads {
+				for _, comment := range thread.Comments {
+					if fmt.Sprintf("inline:%d", comment.ID) == d.selectedID {
+						thread.Retained = true
+						thread.ID = "retained:" + strings.TrimPrefix(thread.ID, "retained:")
+						thread.Comments = []source.ReviewComment{comment}
+						thread.CurrentAnchor = nil
+						v.Snapshot.Snapshot.Threads = append(v.Snapshot.Snapshot.Threads, thread)
+						break
+					}
+				}
+			}
+		}
+	}
 	seenEvents := map[string]bool{}
 	for _, event := range v.Snapshot.Snapshot.Events {
 		seenEvents[event.ID] = true
-		delete(d.confirmedEvents, event.ID)
+		if !event.Retained {
+			delete(d.confirmedEvents, event.ID)
+		}
 	}
 	for id, event := range d.confirmedEvents {
 		if !seenEvents[id] {
@@ -163,6 +200,9 @@ func (m *Model) applyDiscussionResult(v DiscussionResult) {
 func discussionStatus(d source.Discussion) string {
 	if d.Kind != "" {
 		label := d.Kind
+		if d.Retained {
+			label += " · stale retained"
+		}
 		if d.Decision != "" {
 			label += " · " + d.Decision
 		}
@@ -384,7 +424,11 @@ func (m *Model) discussionsView() string {
 			if d.snapshot.Snapshot.Complete {
 				lines = append(lines, "No discussions.")
 			} else {
-				lines = append(lines, "No threads loaded.")
+				label := "No threads loaded."
+				if d.snapshot.Snapshot.Timeline {
+					label = "No activity loaded."
+				}
+				lines = append(lines, label)
 			}
 		case d.detail:
 			t := threads[max(0, min(d.selected, len(threads)-1))]
@@ -610,7 +654,7 @@ func discussionEntries(snapshot source.DiscussionSnapshot) []source.Discussion {
 			continue
 		}
 		seen[event.ID] = true
-		entries = append(entries, source.Discussion{ID: event.ID, Kind: event.Kind, Decision: event.Decision, CreatedAt: event.CreatedAt, URL: event.URL, Comments: []source.ReviewComment{{Author: event.Author, Body: event.Body, CreatedAt: event.CreatedAt}}})
+		entries = append(entries, source.Discussion{ID: event.ID, Retained: event.Retained, Kind: event.Kind, Decision: event.Decision, CreatedAt: event.CreatedAt, URL: event.URL, Comments: []source.ReviewComment{{Author: event.Author, Body: event.Body, CreatedAt: event.CreatedAt}}})
 	}
 	sort.SliceStable(entries, func(i, j int) bool {
 		a, b := entries[i], entries[j]
