@@ -2,9 +2,11 @@ package inventory
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"prui/internal/source"
 	"prui/internal/testutil"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -126,5 +128,24 @@ func TestClassificationDeletionRenameBinaryAndInvalidValues(t *testing.T) {
 	}
 	if !inv.Complete || len(inv.Classifications) != len(inv.Files) {
 		t.Fatal("classification damaged inventory")
+	}
+}
+
+func TestClassificationEmptyAttributesCanonicalRoundtrip(t *testing.T) {
+	v, p, _ := fixture(t)
+	inv, e := Build(context.Background(), v, p, source.Defaults())
+	if e != nil {
+		t.Fatal(e)
+	}
+	data, e := json.Marshal(inv)
+	if e != nil {
+		t.Fatal(e)
+	}
+	var restored Inventory
+	if e = json.Unmarshal(data, &restored); e != nil {
+		t.Fatal(e)
+	}
+	if !reflect.DeepEqual(inv.Classifications, restored.Classifications) {
+		t.Fatal("classification differs after frozen storage roundtrip")
 	}
 }

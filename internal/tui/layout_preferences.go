@@ -26,7 +26,6 @@ func (m *Model) applyLayoutPreferences(s *reviewTabState) {
 }
 func (m *Model) saveLayout() {
 	p := layoutprefs.Preferences{Version: 1, Split: m.layout == diffLayoutSideBySide, RailWidth: m.listWidthPreference, CommitWidth: m.commit.width, GroupFiles: m.groupFiles, CollapseGenerated: m.collapseGenerated}
-	m.layoutPreferences = p
 	if m.saveLayoutPreferences != nil {
 		if err := m.saveLayoutPreferences(p); err != nil {
 			m.ActionError = err

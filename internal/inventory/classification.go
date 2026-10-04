@@ -77,6 +77,9 @@ type attributeObjects interface {
 }
 
 func captureClassifications(ctx context.Context, o Objects, files []FileChange, oldSHA, newSHA string) map[string]Classification {
+	if len(files) == 0 {
+		return nil
+	}
 	result := make(map[string]Classification, len(files))
 	names := []string{"review-implementation", "review-test", "review-documentation", "review-generated", "review-assets", "review-agent-guidance", "review-localization", "linguist-generated", "linguist-documentation", "linguist-vendored"}
 	bySHA := map[string][]FileChange{}
@@ -123,6 +126,9 @@ func captureClassifications(ctx context.Context, o Objects, files []FileChange, 
 			if incomplete || !utf8.ValidString(p) {
 				category = Support
 				incomplete = true
+				a = nil
+			}
+			if len(a) == 0 {
 				a = nil
 			}
 			result[f.ID] = Classification{Category: category, SourceSHA: sha, Attributes: a, Partial: incomplete}

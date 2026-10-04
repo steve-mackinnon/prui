@@ -82,8 +82,9 @@ Changes are atomically saved with private permissions and file/directory sync.
 Corrupt/unsupported/oversized/nonregular files stay preserved, with a visible
 warning and defaults. Plain output never reads or writes this preference file.
 
-Open tabs retain independent layout state; new tabs inherit the latest global
-choices. Below 100 columns the active pane fills the screen; below 160 columns
+Open tabs retain independent layout state; new tabs inherit the launch
+preferences. Changes in one open tab never alter another tab or new-tab defaults
+in that same run; the next launch reads the latest saved choices. Below 100 columns the active pane fills the screen; below 160 columns
 split falls back to unified. These fallbacks never overwrite desired widths or
 split choice. Only deliberate resizing changes the saved desired width.
 
