@@ -106,6 +106,7 @@ For offline reading, list session IDs with `prui sessions`, then run
 | `h` / `l` | Focus list / diff |
 | Up / down | Scroll the focused diff |
 | `m` | Mark or unmark a file as read |
+| `/` | Filter Files by filename or path; Enter keeps the filter, Escape clears it |
 | `1` / `2` / `3` / `4` | Show Description / Files / Guide / Commits |
 | `v` / `V` | Cycle forward / backward through Description, Files, Guide, and Commits |
 | `ctrl+p` | Switch PRs; inside a line editor, queue the comment |
@@ -116,7 +117,7 @@ For offline reading, list session IDs with `prui sessions`, then run
 | `s` | Browse saved sessions |
 | `?` / `q` | Health & help / quit |
 
-Newly opened pull requests start on the Description tab. Use `2` to switch to Files.
+Newly opened pull requests start on the Description tab. Use `2` to switch to Files. The file list shows filenames beside muted directories. Click **Filter (/)** in the file header or press `/` to filter filenames and paths (case-insensitive, including previous names for renamed files). Enter returns to navigation with the filter applied; Escape in the list clears it.
 
 Mouse selection, pane resizing, themes, and side-by-side diffs are also available.
 Diff syntax highlighting is captured from the complete pinned old/new files and

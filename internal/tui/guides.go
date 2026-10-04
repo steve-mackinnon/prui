@@ -231,8 +231,9 @@ func (m *Model) toggle(rows []row) {
 }
 
 type listLine struct {
-	row  int
-	text string
+	mutedFrom int
+	row       int
+	text      string
 }
 
 type guidePathTick struct{ generation int }
