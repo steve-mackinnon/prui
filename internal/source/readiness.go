@@ -153,7 +153,7 @@ func (g *GH) ReadReadiness(ctx context.Context, id Identity) (Readiness, error) 
 	} else {
 		r.ViewerPermission = graph.Data.Repository.ViewerPermission
 		f := graph.Data.Repository.PullRequest
-		if f.HeadRefOid != r.HeadSHA || f.BaseRefOid != r.BaseSHA || (f.State != r.State && !(r.State == "CLOSED" && f.State == "MERGED")) || f.IsDraft == nil || *f.IsDraft != r.Draft {
+		if f.HeadRefOid != r.HeadSHA || f.BaseRefOid != r.BaseSHA || (f.State != r.State && (r.State != "CLOSED" || f.State != "MERGED")) || f.IsDraft == nil || *f.IsDraft != r.Draft {
 			revisionsChanged = true
 			r.Problems = append(r.Problems, "PR revisions/state/draft changed or unavailable during readiness retrieval")
 		} else {
