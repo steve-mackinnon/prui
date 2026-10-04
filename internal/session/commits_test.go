@@ -372,3 +372,34 @@ func BenchmarkBoundCommitPayloadManyEntries(b *testing.B) {
 		}
 	}
 }
+
+func TestAbsentCompositionPreservesLegacyCommitBundleEncoding(t *testing.T) {
+	b := commitFixture().Commits
+	legacy := struct {
+		BaseSHA, HeadSHA string
+		Status           commits.Status
+		Reason           string
+		Complete         bool
+		Entries          []commits.Entry
+	}{b.BaseSHA, b.HeadSHA, b.Status, b.Reason, b.Complete, b.Entries}
+	want, err := json.Marshal(legacy)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := json.Marshal(b)
+	if err != nil || !bytes.Equal(want, got) {
+		t.Fatalf("legacy encoding changed: %s", got)
+	}
+}
+
+func TestCompositionValidationRejectsPartialUnavailableSource(t *testing.T) {
+	s := commitFixture()
+	s.Commits.Composition = &commits.Composition{Status: commits.Unavailable, Reason: "budget exhausted"}
+	if !validateCommits(s.Commits, s.Commits.BaseSHA, s.Commits.HeadSHA) {
+		t.Fatal("unavailable rejected")
+	}
+	s.Commits.Composition.Trees = map[string][]commits.TreeEntry{s.Commits.HeadSHA: {}}
+	if validateCommits(s.Commits, s.Commits.BaseSHA, s.Commits.HeadSHA) {
+		t.Fatal("partial source accepted")
+	}
+}
