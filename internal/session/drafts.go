@@ -95,7 +95,7 @@ func validateDraft(k DraftKey, d Draft) error {
 			return true
 		}
 		t := e.Target
-		if (t.StartLine != 0 || t.SubjectType == "file") && t.CommitID != k.HeadSHA {
+		if !reply && (t.StartLine != 0 || t.SubjectType == "file") && t.CommitID != k.HeadSHA {
 			return false
 		}
 		repo, err := normalizeRepository(t.Identity.Repository)
@@ -130,7 +130,7 @@ func validateDraft(k DraftKey, d Draft) error {
 		}
 		switch a.Kind {
 		case "comment", "reply":
-			if a.Comment == nil || a.Review != nil || a.ParentID < 0 || a.Kind == "reply" && a.ParentID <= 0 || !validEditor(&DraftEditor{Target: a.Comment.Target, Body: a.Comment.Body, CommitSHA: a.Comment.Target.CommitID}, false) {
+			if a.Comment == nil || a.Review != nil || a.ParentID < 0 || a.Kind == "reply" && a.ParentID <= 0 || !validEditor(&DraftEditor{Target: a.Comment.Target, Body: a.Comment.Body, CommitSHA: a.Comment.Target.CommitID, CommentID: a.ParentID, ReplyToID: a.ParentID}, a.Kind == "reply") {
 				return bad
 			}
 		case "review":

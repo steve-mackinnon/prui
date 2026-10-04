@@ -257,3 +257,32 @@ func TestPublishedRefreshPreservesRangeAndFileTargets(t *testing.T) {
 		t.Fatal("published refresh flattened target")
 	}
 }
+
+func TestRangeReplyAttemptPreservesAssociatedRawSHA(t *testing.T) {
+	store, err := session.Open(t.TempDir() + "/private")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	m := draftTestModel(t, store)
+	meta := m.Session.Inventory.Comparison.Metadata
+	display := source.ReviewCommentTarget{Identity: meta.Identity, CommitID: meta.HeadSHA, Path: "text", Side: "RIGHT", Line: 2, StartLine: 1, StartSide: "RIGHT"}
+	raw := display
+	raw.CommitID = strings.Repeat("c", 40)
+	m.Comments = []source.ReviewComment{{ID: 7, Target: display, CurrentAnchor: &raw}}
+	m.CommentMenu = &commentActionMenu{CommentID: 7, ReplyToID: 7, Target: display, Draft: "reply", mode: commentActionReply}
+	if !m.prepareDraftAttempt("reply") {
+		t.Fatal("reply raw range rejected", m.ActionError)
+	}
+	restarted := draftTestModel(t, store)
+	if restarted.draft.attempted == nil || restarted.draft.attempted.Comment.Target != raw || restarted.CommentMenu.Target != display || restarted.CommentMenu.RootAnchor == nil || *restarted.CommentMenu.RootAnchor != raw {
+		t.Fatal("reply associated range/SHA lost on restart")
+	}
+	var got session.Draft
+	restarted.SetDraftReconciler(func(_ context.Context, _ source.Metadata, d session.Draft) (bool, error) { got = d; return false, nil })
+	_, cmd := restarted.Update(tea.KeyPressMsg{Code: 'r', Mod: tea.ModCtrl})
+	completeAction(t, restarted, cmd)
+	if got.Attempted.Comment.Target != raw || got.Attempted.ParentID != 7 {
+		t.Fatal("reply reconciliation lost raw range")
+	}
+}

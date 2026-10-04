@@ -73,7 +73,16 @@ Candidate `ad1b9146aae9ad236ba89d03abde1c215bd63b15` passed
 A second independent review found contradictory file coordinates could also
 prove absence; strict raw file/orphan range validation and dedicated regressions
 now cover that case. Durable extended attempts also reject unsupported historical
-commits. Final full gates and exact-SHA re-review are pending; keep this PR draft.
+commits. `96da95e6ca454ee60e757d2816ee5de441a80953` passed `./scripts/verify.sh`
+(formatting, vet, full race suite with five-minute package timeout, build),
+`golangci-lint run ./...` (0 issues), and `git diff --check`.
+The next independent review caught an existing-reply regression in the newly
+added historical creation guard. The guard now distinguishes creation from
+reply/root provenance; `TestRangeReplyAttemptPreservesAssociatedRawSHA` verifies
+full raw range/SHA persistence and reconciliation after restart. Focused TUI and
+session reply/attempt regressions pass. A new full gate is required for this
+correction; the shared large-gate slot is held by #30, so it has not been started.
+Final full gates and exact-SHA re-review are pending; keep this PR draft.
 
 Human terminal usability/accessibility remains unverified by render tests alone.
 No checks, thresholds, existing test assertions, or skipped-test policy weakened.
