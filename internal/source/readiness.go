@@ -15,7 +15,7 @@ import (
 
 // Readiness is ephemeral remote evidence, independent of immutable code pins.
 // Ready is conservative evidence, never authorization to merge. A future writer
-// must fetch a new snapshot and verify ExpectedHead immediately before its write.
+// must fetch a new snapshot and verify the expected head immediately before its write.
 type Readiness struct {
 	ViewerPermission                                                 string
 	Identity                                                         Identity
@@ -44,7 +44,7 @@ type ReadinessReader interface {
 }
 
 func (r Readiness) Ready(expectedHead string) bool {
-	if !shaPattern.MatchString(expectedHead) || !shaPattern.MatchString(r.BaseSHA) {
+	if !shaPattern.MatchString(expectedHead) || !shaPattern.MatchString(r.BaseSHA) || r.RequiredReviews < 0 {
 		return false
 	}
 	if !r.HeadVerified || r.HeadSHA != expectedHead || !r.ChecksComplete || !r.ReviewsComplete || !r.RequirementsKnown || len(r.Problems) > 0 || len(r.Blockers) > 0 || r.State != "OPEN" || r.Draft || r.Mergeable != "MERGEABLE" || r.MergeState != "CLEAN" {
@@ -54,7 +54,16 @@ func (r Readiness) Ready(expectedHead string) bool {
 		return false
 	}
 	for _, c := range r.Checks {
-		if c.Required == "required" && c.State != "success" {
+		if c.SHA != r.HeadSHA {
+			return false
+		}
+		switch c.Required {
+		case "required":
+			if c.State != "success" {
+				return false
+			}
+		case "optional":
+		default:
 			return false
 		}
 	}
@@ -117,7 +126,7 @@ func (g *GH) ReadReadiness(ctx context.Context, id Identity) (Readiness, error) 
 	r := Readiness{Identity: id, HeadSHA: p.Head.SHA, BaseSHA: p.Base.SHA, BaseRef: p.Base.Ref, ObservedAt: time.Now().UTC(), RequiredReviews: -1, State: strings.ToUpper(p.State), Draft: *p.Draft}
 	req := g.readinessRequirements(ctx, id, p.Base.Ref, &r)
 	r.RequirementsKnown = req.known
-	if req.known {
+	if req.known || req.reviews > 0 {
 		r.RequiredReviews = req.reviews
 	}
 	g.readinessChecks(ctx, &r)
@@ -141,19 +150,15 @@ func (g *GH) ReadReadiness(ctx context.Context, id Identity) (Readiness, error) 
 	} else {
 		r.ViewerPermission = graph.Data.Repository.ViewerPermission
 		f := graph.Data.Repository.PullRequest
-		if f.HeadRefOid != r.HeadSHA || f.BaseRefOid != r.BaseSHA {
+		if f.HeadRefOid != r.HeadSHA || f.BaseRefOid != r.BaseSHA || f.State != r.State || f.IsDraft == nil || *f.IsDraft != r.Draft {
 			revisionsChanged = true
-			r.Problems = append(r.Problems, "PR revisions changed during readiness retrieval")
+			r.Problems = append(r.Problems, "PR revisions/state/draft changed or unavailable during readiness retrieval")
 		} else {
 			r.ReviewDecision = f.ReviewDecision
 			r.Mergeable = f.Mergeable
 			r.MergeState = f.MergeStateStatus
 			r.State = f.State
-			if f.IsDraft == nil {
-				r.Problems = append(r.Problems, "PR draft state unavailable")
-			} else {
-				r.Draft = *f.IsDraft
-			}
+			r.Draft = *f.IsDraft
 		}
 	}
 	after, e := g.readinessPull(ctx, id)

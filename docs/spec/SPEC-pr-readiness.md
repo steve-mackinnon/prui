@@ -53,7 +53,8 @@ branch protection, malformed/omitted critical policy fields, unavailable effecti
 rules or unsupported rule types preserve unknown requirements. Known required
 contexts stay required; unmatched contexts stay unknown until *all* requirement
 sources are available. They never become optional as a fallback. Required counts
-combine using the maximum across classic and inherited policies. Strict/up-to-date,
+combine using the maximum across classic and inherited policies. A known positive
+lower bound remains visible when other policy sources are unavailable. Strict/up-to-date,
 code-owner, last-push, thread-resolution, signatures, linear-history, locked branches, push restrictions and unsupported
 rules remain visible policies requiring GitHub inspection; this version does not
 claim to evaluate those policies locally. It may conservatively show unknown or
@@ -82,7 +83,7 @@ The screen says "No observed merge blockers at the verified live head" and print
 viewer permission separately; it does not offer a merge action.
 
 A future explicit writer must fetch a *new* snapshot immediately before its write,
-verify the intended expected head and authorization, and use GitHub's SHA-bound
+verify the intended expected head, current open/non-draft state and authorization, and use GitHub's SHA-bound
 merge request. A snapshot from this screen/cache must never authorize a later
 write, even if the SHA is unchanged. #33 has no mutation endpoint or write test.
 

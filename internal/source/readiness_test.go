@@ -14,11 +14,15 @@ const readinessSHA = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 const readinessBase = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
 
 type readinessFixture struct {
-	responses map[string]any
-	denied    map[string]bool
-	calls     []string
-	pulls     int
-	changed   bool
+	responses  map[string]any
+	denied     map[string]bool
+	calls      []string
+	pulls      int
+	changed    bool
+	draft      bool
+	state      string
+	afterState string
+	afterDraft *bool
 }
 
 func newReadinessFixture() *readinessFixture {
@@ -51,7 +55,16 @@ func (f *readinessFixture) Run(_ context.Context, q Request) ([]byte, error) {
 		if f.changed && f.pulls > 1 {
 			head = strings.Repeat("c", 40)
 		}
-		return json.Marshal(map[string]any{"head": map[string]string{"sha": head}, "base": map[string]string{"sha": readinessBase, "ref": "main"}, "state": "open", "draft": false})
+		state, draft := nonemptyReadiness(f.state, "open"), f.draft
+		if f.pulls > 1 {
+			if f.afterState != "" {
+				state = f.afterState
+			}
+			if f.afterDraft != nil {
+				draft = *f.afterDraft
+			}
+		}
+		return json.Marshal(map[string]any{"head": map[string]string{"sha": head}, "base": map[string]string{"sha": readinessBase, "ref": "main"}, "state": state, "draft": draft})
 	}
 	v, ok := f.responses[p]
 	if !ok {
@@ -316,5 +329,84 @@ func TestReadinessURLSafety(t *testing.T) {
 		if readinessURL(raw) != "" {
 			t.Fatal("unsafe detail link", raw)
 		}
+	}
+}
+
+func TestReadinessSameSHAGraphRESTStateAndDraftDisagreement(t *testing.T) {
+	for _, state := range []string{"open", "closed"} {
+		t.Run(state, func(t *testing.T) {
+			f := newReadinessFixture()
+			f.state = state
+			f.draft = state == "open"
+			r := fixtureReadiness(t, f)
+			if r.HeadVerified || r.Ready(readinessSHA) || len(r.Problems) == 0 {
+				t.Fatal("inconsistent state/draft reported verified readiness", r)
+			}
+		})
+	}
+	f := newReadinessFixture()
+	delete(f.responses["graphql"].(map[string]any)["data"].(map[string]any)["repository"].(map[string]any)["pullRequest"].(map[string]any), "isDraft")
+	r := fixtureReadiness(t, f)
+	if r.HeadVerified || r.Ready(readinessSHA) {
+		t.Fatal("missing graph draft treated as false", r)
+	}
+}
+func TestReadinessPreflightRejectsMalformedEvidence(t *testing.T) {
+	f := newReadinessFixture()
+	requireChecks(f, map[string]any{"context": "ci", "integration_id": 7})
+	f.responses["repos/o/r/commits/"+readinessSHA+"/check-runs?filter=latest&per_page=100&page=1"] = map[string]any{"check_runs": []any{checkRow(1, "ci", "completed", "success", 7)}}
+	baseline := fixtureReadiness(t, f)
+	if !baseline.Ready(readinessSHA) {
+		t.Fatal("baseline")
+	}
+	for _, tc := range []struct {
+		name   string
+		change func(*Readiness)
+	}{
+		{"unknown review count", func(r *Readiness) { r.RequiredReviews = -1 }},
+		{"unknown requirement", func(r *Readiness) { r.Checks[0].Required = "unknown" }},
+		{"invalid requirement", func(r *Readiness) { r.Checks[0].Required = "typo" }},
+		{"wrong check revision", func(r *Readiness) { r.Checks[0].SHA = readinessBase }},
+		{"unverified head", func(r *Readiness) { r.HeadVerified = false }},
+		{"partial checks", func(r *Readiness) { r.ChecksComplete = false }},
+		{"partial reviews", func(r *Readiness) { r.ReviewsComplete = false }},
+		{"unknown requirements", func(r *Readiness) { r.RequirementsKnown = false }},
+		{"required review unapproved", func(r *Readiness) { r.RequiredReviews = 1; r.ReviewDecision = "REVIEW_REQUIRED" }},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			r := baseline
+			r.Checks = append([]ReadinessCheck(nil), baseline.Checks...)
+			tc.change(&r)
+			if r.Ready(readinessSHA) {
+				t.Fatal("invalid preflight passed", r)
+			}
+		})
+	}
+}
+func TestReadinessKnownReviewMinimumWithUnavailableProtection(t *testing.T) {
+	f := newReadinessFixture()
+	f.denied["repos/o/r/branches/main"] = true
+	f.responses["repos/o/r/rules/branches/main?per_page=100&page=1"] = []any{map[string]any{"type": "pull_request", "parameters": map[string]any{"required_approving_review_count": 2, "require_code_owner_review": false, "require_last_push_approval": false, "required_review_thread_resolution": false, "dismiss_stale_reviews_on_push": true}}}
+	r := fixtureReadiness(t, f)
+	if r.RequirementsKnown || r.RequiredReviews != 2 || r.Ready(readinessSHA) {
+		t.Fatal("known required-review lower bound lost or incomplete policy passed", r)
+	}
+}
+
+func TestReadinessSameSHAStateAndDraftChangeInFinalREST(t *testing.T) {
+	for _, kind := range []string{"state", "draft"} {
+		t.Run(kind, func(t *testing.T) {
+			f := newReadinessFixture()
+			if kind == "state" {
+				f.afterState = "closed"
+			} else {
+				v := true
+				f.afterDraft = &v
+			}
+			r := fixtureReadiness(t, f)
+			if r.HeadVerified || r.Ready(readinessSHA) || len(r.Problems) == 0 {
+				t.Fatal("same-SHA final state/draft change passed", r)
+			}
+		})
 	}
 }

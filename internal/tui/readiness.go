@@ -126,6 +126,8 @@ func (m *Model) readinessLines() []string {
 	count := "unknown"
 	if r.RequirementsKnown {
 		count = fmt.Sprint(r.RequiredReviews)
+	} else if r.RequiredReviews > 0 {
+		count = fmt.Sprintf("at least %d (full requirements unknown)", r.RequiredReviews)
 	}
 	lines = append(lines, "Required approving reviews: "+count+" · GitHub review decision: "+nonemptyTUI(r.ReviewDecision, "unknown"))
 	for _, p := range r.Problems {
