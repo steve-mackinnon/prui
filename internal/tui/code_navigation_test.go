@@ -1,6 +1,7 @@
 package tui
 
 import (
+	tea "charm.land/bubbletea/v2"
 	"context"
 	"reflect"
 	"strings"
@@ -13,6 +14,7 @@ import (
 func navigationModel(patch, old, newText string, oldRange, newRange inventory.Range) *Model {
 	s := largeTextSession(1, 1)
 	f := &s.Inventory.Files[0]
+	f.OldPath = append([]byte(nil), f.NewPath...)
 	f.OldOID = "old"
 	f.NewOID = "new"
 	f.OldMode = "100644"
@@ -169,5 +171,107 @@ func TestFullSourceUnavailableCoverageAndSearchActivation(t *testing.T) {
 	docs, skipped := searchDocuments(context.Background(), m.Session, searchScope{Source: "NEW"})
 	if len(docs) != 0 || skipped != 1 {
 		t.Fatal("coverage unavailable not visible")
+	}
+}
+
+func TestUnresolvedNavigationDeduplicatesTimelineAndSkipsRetained(t *testing.T) {
+	m := largeModel(largeTextSession(1, 1), 120, 24)
+	defer m.Close()
+	no := false
+	m.discussions.loaded = true
+	m.discussions.snapshot.Snapshot.Timeline = true
+	m.discussions.snapshot.Snapshot.Threads = []source.Discussion{
+		{ID: "first", Resolved: &no, Comments: []source.ReviewComment{{ID: 1}, {ID: 2, ParentID: 1}}},
+		{ID: "stale", Resolved: &no, Retained: true, Comments: []source.ReviewComment{{ID: 3}}},
+		{ID: "second", Resolved: &no, Comments: []source.ReviewComment{{ID: 4}, {ID: 5, ParentID: 4}}},
+	}
+	m.discussions.selected = 0
+	m.nextUnresolved(1)
+	if m.discussions.selectedID != "inline:4" {
+		t.Fatal("did not skip own reply and retained thread", m.discussions.selectedID)
+	}
+	m.nextUnresolved(1)
+	if m.discussions.selectedID != "inline:1" {
+		t.Fatal("did not wrap to distinct thread", m.discussions.selectedID)
+	}
+	m.nextUnresolved(-1)
+	if m.discussions.selectedID != "inline:4" {
+		t.Fatal("previous navigation revisited reply", m.discussions.selectedID)
+	}
+}
+
+func TestSourceSearchNextPreviousAndResize(t *testing.T) {
+	m := navigationModel("@@ -1 +1 @@\n-a\n+b\n", "a\n", "b\nneedle\nneedle\n", inventory.Range{Start: 1, Count: 1}, inventory.Range{Start: 1, Count: 1})
+	defer m.Close()
+	m.codeNavigationKey("ctrl+n")
+	searchInput(m, "needle")
+	m.activateSearchMatch()
+	keyMsg := func(code rune, mod tea.KeyMod) { m.Update(tea.KeyPressMsg{Code: code, Mod: mod}) }
+	keyMsg(tea.KeyF3, 0)
+	if m.searchState().selected != 1 || !m.searchMatchAtCursor() {
+		t.Fatal("next match")
+	}
+	keyMsg(tea.KeyF3, tea.ModShift)
+	if m.searchState().selected != 0 || !m.searchMatchAtCursor() {
+		t.Fatal("previous match")
+	}
+	m.Update(tea.WindowSizeMsg{Width: 70, Height: 20})
+	if !m.searchMatchAtCursor() || m.selectedDiffTarget() != nil {
+		t.Fatal("resize lost read-only match")
+	}
+	key(m, 'S')
+	if !m.searchMatchAtCursor() || m.selectedDiffTarget() != nil {
+		t.Fatal("split fallback lost read-only match")
+	}
+}
+
+func TestExpandedContextWrappingPreservesCoordinates(t *testing.T) {
+	text := strings.Repeat("long context 日本 ", 30)
+	m := navigationModel("@@ -2 +2 @@\n-old\n+new\n", text+"\nold\ntail\n", text+"\nnew\ntail\n", inventory.Range{Start: 2, Count: 1}, inventory.Range{Start: 2, Count: 1})
+	defer m.Close()
+	m.navigation.mode = "expanded"
+	for _, width := range []int{70, 180, 220} {
+		m.Width = width
+		m.layout = diffLayoutSideBySide
+		rows := m.displayDetail()
+		sourceParts := 0
+		for _, line := range rows {
+			cells := []diffLine{line}
+			if line.sideBySide != nil {
+				cells = nil
+				for _, cell := range []*diffCell{line.sideBySide.old, line.sideBySide.new} {
+					if cell != nil && cell.line != nil {
+						if cell.line.oldLine != 0 && cell.number != cell.line.oldLine || cell.line.newLine != 0 && cell.line.oldLine == 0 && cell.number != cell.line.newLine {
+							t.Fatal("split number differs from pinned coordinate", cell)
+						}
+						cells = append(cells, *cell.line)
+					}
+				}
+			}
+			for _, cell := range cells {
+				if cell.rawSource == text {
+					sourceParts++
+					if cell.target != nil || cell.oldLine != 1 || cell.newLine != 1 {
+						t.Fatal("wrapped context invented target/changed line")
+					}
+				}
+			}
+		}
+		if sourceParts < 2 {
+			t.Fatal("long context not wrapped", width, sourceParts)
+		}
+	}
+}
+
+func TestNavigationScopeDoesNotLeakIntoGuide(t *testing.T) {
+	m := navigationModel("@@ -1 +1 @@\n-a\n+b\n", "a\n", "b\nextra\n", inventory.Range{Start: 1, Count: 1}, inventory.Range{Start: 1, Count: 1})
+	defer m.Close()
+	m.codeNavigationKey("ctrl+n")
+	m.selectReviewView(viewGuide)
+	if m.currentSearchScope().Source != "" || m.codeNavigationKey("ctrl+o") {
+		t.Fatal("source scope leaked into guide")
+	}
+	if strings.Contains(joinNavigation(m.cachedFileDetail(false)), "Full NEW") {
+		t.Fatal("source projection leaked into guide fallback")
 	}
 }

@@ -26,7 +26,8 @@ On Files:
   previous with wrapping. Activating a canonical result reveals any hidden
   whitespace change. Filename filters are cleared when needed to reveal a result.
 - Alt+Down / Alt+Up navigate loaded authoritative unresolved threads, opening
-  thread detail. Unknown resolution is excluded; partial retrieval remains
+  thread detail. Unknown and retained stale resolution are excluded; timeline replies are
+  deduplicated by canonical thread identity. Partial retrieval remains
   visible. Historical or unplaceable threads stay readable in discussion detail,
   with the existing explicit original-context action and fallback snippet/link.
 

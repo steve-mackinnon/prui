@@ -3,7 +3,7 @@ package inventory
 import (
 	"bytes"
 	"context"
-	"crypto/sha1" // Git blob identity, not a security primitive.
+	"crypto/sha1" //nolint:gosec // Git SHA-1 repository object identity requires this algorithm; it is not used for security.
 	"fmt"
 	"strings"
 	"time"
@@ -87,7 +87,7 @@ func (c *FullSource) Valid(files []FileChange) bool {
 }
 
 func (inv Inventory) SourceLines(file int, old bool) ([]string, bool) {
-	if file < 0 || file >= len(inv.Files) || inv.FullSource == nil {
+	if file < 0 || file >= len(inv.Files) {
 		return nil, false
 	}
 	f := inv.Files[file]
@@ -97,6 +97,9 @@ func (inv Inventory) SourceLines(file int, old bool) ([]string, bool) {
 	}
 	if mode == "000000" {
 		return nil, true
+	}
+	if inv.FullSource == nil {
+		return nil, false
 	}
 	b, ok := inv.FullSource.Blobs[oid]
 	if !ok {

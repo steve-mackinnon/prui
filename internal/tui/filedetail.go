@@ -19,12 +19,16 @@ func (m *Model) cachedFileDetail(split bool) []diffLine {
 		m.fileCache = fileDetailCache{}
 		return nil
 	}
+	navigation := m.navigation
+	if m.selectedReviewView() != viewFiles {
+		navigation = codeNavigation{}
+	}
 	c := &m.fileCache
-	if c.session != m.Session || c.navigation != m.navigation {
-		*c = fileDetailCache{session: m.Session, navigation: m.navigation}
+	if c.session != m.Session || c.navigation != navigation {
+		*c = fileDetailCache{session: m.Session, navigation: navigation}
 		for f, slice := range m.Session.Slices {
 			c.lines = append(c.lines, diffLine{styledLine: styledLine{Class: classFileHeader, Text: fileDivider(m.Session.Inventory.Files[f])}})
-			if m.navigation.mode != "" || m.navigation.whitespace {
+			if navigation.mode != "" || navigation.whitespace {
 				c.lines = append(c.lines, m.navigationDetail(f)...)
 				continue
 			}

@@ -53,3 +53,19 @@ func TestFullSourcePinsBoundsAndMissing(t *testing.T) {
 		t.Fatal("legacy session invented source")
 	}
 }
+
+func TestFullSourceAbsentSideNeedsNoCache(t *testing.T) {
+	inv := Inventory{Files: []FileChange{{OldMode: "000000", NewMode: "100644"}, {OldMode: "100644", NewMode: "000000"}}}
+	for _, side := range []struct {
+		file int
+		old  bool
+	}{{0, true}, {1, false}} {
+		lines, ok := inv.SourceLines(side.file, side.old)
+		if !ok || len(lines) != 0 {
+			t.Fatal("known absent side claimed unavailable")
+		}
+	}
+	if _, ok := inv.SourceLines(0, false); ok {
+		t.Fatal("missing existing source claimed available")
+	}
+}

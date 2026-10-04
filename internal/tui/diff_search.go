@@ -146,7 +146,7 @@ func (m *Model) currentSearchScope() searchScope {
 			scope.Guide, scope.Section = r.guide, r.section
 		}
 	}
-	if m.fileView() {
+	if m.fileView() && m.selectedReviewView() == viewFiles {
 		scope.Source = m.navigation.mode
 	}
 	return scope

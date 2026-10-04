@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"prui/internal/inventory"
+	"prui/internal/source"
 )
 
 type codeNavigation struct {
@@ -144,15 +145,16 @@ func hideWhitespacePairs(lines []diffLine) []diffLine {
 		for j := 0; same && j < middle-start; j++ {
 			same = strings.Join(strings.Fields(lines[start+j].rawSource), "") == strings.Join(strings.Fields(lines[middle+j].rawSource), "")
 		}
-		if same {
+		switch {
+		case same:
 			out = append(out, diffLine{styledLine: styledLine{classMetadata, fmt.Sprintf("Whitespace-only change hidden (%d canonical rows) · Ctrl+W: show", end-start)}})
 			// Restore counters for subsequent split rows without inventing targets.
 			last := lines[end-1]
 			lastOld := lines[middle-1]
 			out = append(out, diffLine{styledLine: styledLine{classHunk, fmt.Sprintf("@@ -%d,0 +%d,0 @@ canonical coordinates", lastOld.oldLine+1, last.newLine+1)}})
-		} else if end > start {
+		case end > start:
 			out = append(out, lines[start:end]...)
-		} else {
+		default:
 			out = append(out, lines[i])
 			i++
 		}
@@ -161,7 +163,7 @@ func hideWhitespacePairs(lines []diffLine) []diffLine {
 }
 
 func (m *Model) codeNavigationKey(key string) bool {
-	if m.Session == nil || !m.fileView() || len(m.Session.Inventory.Files) == 0 {
+	if m.Session == nil || !m.fileView() || m.selectedReviewView() != viewFiles || len(m.Session.Inventory.Files) == 0 {
 		return false
 	}
 	switch key {
@@ -190,34 +192,77 @@ func (m *Model) codeNavigationKey(key string) bool {
 }
 
 func (m *Model) nextUnresolved(delta int) {
-	threads := m.discussionEntries()
-	if !m.discussions.loaded {
+	d := &m.discussions
+	if !d.loaded {
 		m.notice = "Unresolved threads unavailable · c: explicit online refresh"
 		return
 	}
-	for step := 1; step <= len(threads); step++ {
-		i := (m.discussions.selected + delta*step + len(threads)*2) % len(threads)
-		t := threads[i]
-		if t.Resolved == nil || *t.Resolved {
+	entries := m.discussionEntries()
+	parentByEntry := map[string]string{}
+	canonical := map[string]source.Discussion{}
+	for _, thread := range d.snapshot.Snapshot.Threads {
+		canonical[thread.ID] = thread
+		parentByEntry[thread.ID] = thread.ID
+		for _, comment := range thread.Comments {
+			parentByEntry[fmt.Sprintf("inline:%d", comment.ID)] = thread.ID
+		}
+	}
+	currentParent := ""
+	if d.selected >= 0 && d.selected < len(entries) {
+		currentParent = parentByEntry[entries[d.selected].ID]
+	}
+	candidates := []int{}
+	seen := map[string]bool{}
+	current := -1
+	for i, entry := range entries {
+		parent := parentByEntry[entry.ID]
+		thread, ok := canonical[parent]
+		if !ok || seen[parent] || thread.Retained || entry.Retained || thread.Resolved == nil || *thread.Resolved {
 			continue
 		}
-		m.discussions.selected = i
-		m.discussions.selectedID = t.ID
-		m.discussions.detail = true
-		m.discussions.scroll = 0
-		if m.top() != pageDiscussions {
-			m.openDiscussions()
-			m.discussions.selected = i
-			m.discussions.detail = true
+		seen[parent] = true
+		if parent == currentParent {
+			current = len(candidates)
 		}
-		if !m.discussions.snapshot.Snapshot.Complete {
-			m.discussions.notice = "Partial coverage · navigating loaded unresolved threads only"
+		candidates = append(candidates, i)
+	}
+	if len(candidates) == 0 {
+		m.notice = "No loaded authoritative unresolved threads · unknown/stale resolution excluded"
+		if !d.snapshot.Snapshot.Complete {
+			m.notice += " · partial coverage"
 		}
+		d.notice = m.notice
 		return
 	}
-	m.notice = "No loaded unresolved threads · unknown resolution excluded"
-	if !m.discussions.snapshot.Snapshot.Complete {
-		m.notice += " · partial coverage"
+	chosen := 0
+	if current >= 0 {
+		chosen = (current + delta + len(candidates)) % len(candidates)
+	} else if delta > 0 {
+		for j, i := range candidates {
+			if i > d.selected {
+				chosen = j
+				break
+			}
+		}
+	} else {
+		chosen = len(candidates) - 1
+		for j := len(candidates) - 1; j >= 0; j-- {
+			if candidates[j] < d.selected {
+				chosen = j
+				break
+			}
+		}
+	}
+	i := candidates[chosen]
+	if m.top() != pageDiscussions {
+		m.openDiscussions()
+	}
+	d.selected = i
+	d.selectedID = entries[i].ID
+	d.detail = true
+	d.scroll = 0
+	if !d.snapshot.Snapshot.Complete {
+		d.notice = "Partial coverage · navigating loaded authoritative unresolved threads only"
 	}
 }
 
