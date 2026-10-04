@@ -112,7 +112,7 @@ func TestRangePayloadAndReconciliationKeepBothEndpoints(t *testing.T) {
 func TestMalformedRangeHistoryNeverProvesAbsence(t *testing.T) {
 	target := ReviewCommentTarget{Identity: Identity{"owner/repo", 42}, CommitID: strings.Repeat("a", 40), Path: "a", Side: "RIGHT", Line: 5, StartLine: 2, StartSide: "RIGHT"}
 	want := ReviewComment{Target: target, Body: "body"}
-	for _, bad := range []map[string]any{{"start_line": -1}, {"start_side": ""}, {"start_line": 5}, {"original_start_line": -1}} {
+	for _, bad := range []map[string]any{{"start_line": -1}, {"start_side": ""}, {"start_line": 5}, {"original_start_line": -1}, {"start_line": nil, "start_side": "RIGHT"}} {
 		record := map[string]any{"id": 3, "body": "body", "commit_id": target.CommitID, "path": "a", "side": "RIGHT", "line": 5, "start_line": 2, "start_side": "RIGHT", "user": map[string]string{"login": "alice"}}
 		for k, v := range bad {
 			record[k] = v
@@ -177,4 +177,44 @@ func TestDiscussionRefreshPreservesExtendedTargets(t *testing.T) {
 	if !strings.Contains(discussionsQuery, "startDiffSide") {
 		t.Fatal("query omits range-side provenance")
 	}
+}
+
+func TestMalformedFileHistoryNeverProvesAbsence(t *testing.T) {
+	target := ReviewCommentTarget{Identity: Identity{"owner/repo", 42}, CommitID: strings.Repeat("a", 40), Path: "a", SubjectType: "file"}
+	want := ReviewComment{Target: target, Body: "body"}
+	for _, key := range []string{"line", "original_line", "start_line", "original_start_line", "start_side"} {
+		record := map[string]any{"id": 3, "body": "body", "commit_id": target.CommitID, "path": "a", "subject_type": "file", "user": map[string]string{"login": "alice"}}
+		record[key] = 5
+		if key == "start_side" {
+			record[key] = "RIGHT"
+		}
+		gh := &GH{Executable: "gh", Limits: Defaults(), Runner: listRunner(func(_ context.Context, q Request) ([]byte, error) {
+			if q.Args[len(q.Args)-1] == "user" {
+				return []byte(`{"login":"alice"}`), nil
+			}
+			return json.Marshal([]any{record})
+		})}
+		if matched, err := gh.CommentDraftOutcome(context.Background(), want, 0); err == nil || matched {
+			t.Fatalf("malformed file %s unlocked retry", key)
+		}
+		if _, _, err := parseRemoteReviewComment(mustCommentJSON(t, record), target.Identity); err == nil {
+			t.Fatalf("malformed file %s accepted", key)
+		}
+	}
+	// A file request cannot be dispatched as an immutable batch review at all.
+	gh := &GH{Executable: "gh", Limits: Defaults(), Runner: listRunner(func(context.Context, Request) ([]byte, error) {
+		t.Fatal("unsupported file review reached history")
+		return nil, nil
+	})}
+	if _, err := gh.ReviewDraftOutcome(context.Background(), PullRequestReview{Identity: target.Identity, CommitID: target.CommitID, Event: "COMMENT", Body: "summary", Comments: []ReviewComment{want}}); err == nil {
+		t.Fatal("file review outcome accepted")
+	}
+}
+func mustCommentJSON(t *testing.T, v any) []byte {
+	t.Helper()
+	b, e := json.Marshal(v)
+	if e != nil {
+		t.Fatal(e)
+	}
+	return b
 }

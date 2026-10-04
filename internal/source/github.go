@@ -432,6 +432,12 @@ func parseRemoteReviewComment(data []byte, identity Identity) (ReviewComment, bo
 		(raw.Side != "" && raw.Side != "LEFT" && raw.Side != "RIGHT") || (raw.Line != nil && *raw.Line <= 0) {
 		return ReviewComment{}, false, errors.New("invalid review comment anchor")
 	}
+	if raw.SubjectType == "file" && (raw.Line != nil || raw.OriginalLine != nil || raw.StartLine != nil || raw.OriginalStartLine != nil || raw.StartSide != "") {
+		return ReviewComment{}, false, errors.New("invalid file comment coordinates")
+	}
+	if raw.StartSide != "" && raw.StartLine == nil && raw.OriginalStartLine == nil {
+		return ReviewComment{}, false, errors.New("range side without a start coordinate")
+	}
 	if err := validateRemoteRange(raw.Line, raw.StartLine, raw.StartSide, raw.Side); err != nil {
 		return ReviewComment{}, false, err
 	}

@@ -95,6 +95,9 @@ func validateDraft(k DraftKey, d Draft) error {
 			return true
 		}
 		t := e.Target
+		if (t.StartLine != 0 || t.SubjectType == "file") && t.CommitID != k.HeadSHA {
+			return false
+		}
 		repo, err := normalizeRepository(t.Identity.Repository)
 		return err == nil && repo == k.Repository && t.Identity.Number == k.Number && (t.CommitID == k.HeadSHA || e.CommitSHA == t.CommitID && shaPattern.MatchString(e.CommitSHA) || reply && shaPattern.MatchString(t.CommitID)) && source.ValidateReviewCommentTarget(t) == nil && utf8.ValidString(e.Body) && (!reply || e.CommentID > 0 && e.ReplyToID > 0)
 	}

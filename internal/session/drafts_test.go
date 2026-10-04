@@ -173,6 +173,15 @@ func TestExtendedDraftVersionAndInvalidAttemptTargets(t *testing.T) {
 	if err != nil || got.Version != 2 || got.Composer.Target != target || got.Attempted.Comment.Target != target {
 		t.Fatal("target/schema lost", got, err)
 	}
+	stale := got
+	attemptCopy := *got.Attempted
+	commentCopy := *attemptCopy.Comment
+	commentCopy.Target.CommitID = strings.Repeat("f", 40)
+	attemptCopy.Comment = &commentCopy
+	stale.Attempted = &attemptCopy
+	if _, err := store.SaveDraft(ctx, k, saved.Generation, stale); err == nil {
+		t.Fatal("unsupported historical extended attempt accepted")
+	}
 	got.Attempted.Comment.Target.StartSide = "LEFT"
 	if _, err := store.SaveDraft(ctx, k, saved.Generation, got); err == nil {
 		t.Fatal("invalid immutable attempt accepted")

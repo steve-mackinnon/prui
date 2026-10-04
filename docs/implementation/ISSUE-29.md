@@ -68,7 +68,12 @@ retain complete targets. Both have dedicated regressions and are corrected.
 The reviewer inverted the range-side validation condition; the focused test
 failed as expected, then the file was restored byte-for-byte. Coordinator feedback
 on old-side context ranges also has raw-provenance and keyboard regressions.
-Final full gates and exact-SHA re-review are pending; keep this PR draft.
+Candidate `ad1b9146aae9ad236ba89d03abde1c215bd63b15` passed
+`go vet ./...`, `go test -race -count=1 ./...`, and `go build ./...`.
+A second independent review found contradictory file coordinates could also
+prove absence; strict raw file/orphan range validation and dedicated regressions
+now cover that case. Durable extended attempts also reject unsupported historical
+commits. Final full gates and exact-SHA re-review are pending; keep this PR draft.
 
 Human terminal usability/accessibility remains unverified by render tests alone.
 No checks, thresholds, existing test assertions, or skipped-test policy weakened.
