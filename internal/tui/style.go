@@ -72,8 +72,8 @@ func stylesFor(t theme.Theme) map[lineClass]lipgloss.Style {
 		classTitle:       semantic(colorFor(theme.Title), true),
 		classFileHeader:  semantic(colorFor(theme.FileHeader), true),
 		classHunk:        semantic(colorFor(theme.Hunk), false),
-		classAdded:       semantic(colorFor(theme.Added), false),
-		classRemoved:     semantic(colorFor(theme.Removed), false),
+		classAdded:       semantic(colorFor(theme.Added), false).Background(diffBackground(t, theme.Added)),
+		classRemoved:     semantic(colorFor(theme.Removed), false).Background(diffBackground(t, theme.Removed)),
 		classMetadata:    semantic(colorFor(theme.Metadata), false),
 		classWarning:     semantic(colorFor(theme.Warning), true),
 		classUnavailable: semantic(colorFor(theme.Unavailable), true),
@@ -179,4 +179,24 @@ func (m *Model) styleLine(c lineClass, s string) string {
 		return s
 	}
 	return style.Render(s)
+}
+
+// Diff backgrounds belong to rows, independently of language support or visible
+// tokens. A quarter accent gives changed blocks a clear surface while retaining
+// readable syntax colors. Inherited themes use their light/dark family baseline.
+func diffBackground(t theme.Theme, role theme.Token) color.Color {
+	background, _ := t.Color(theme.Background)
+	if background == nil || t.Syntax(theme.Background) == "default" {
+		background = color.RGBA{R: 24, G: 24, B: 24, A: 255}
+		if t.IsLight() {
+			background = color.RGBA{R: 255, G: 255, B: 255, A: 255}
+		}
+	}
+	accent, _ := t.Color(role)
+	if accent == nil {
+		return background
+	}
+	ar, ag, ab, _ := accent.RGBA()
+	br, bg, bb, _ := background.RGBA()
+	return color.RGBA{R: uint8((ar + 3*br) / 4 >> 8), G: uint8((ag + 3*bg) / 4 >> 8), B: uint8((ab + 3*bb) / 4 >> 8), A: 255}
 }

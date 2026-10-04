@@ -2,7 +2,6 @@ package tui
 
 import (
 	"context"
-	"image/color"
 	"strings"
 	"unicode/utf8"
 
@@ -153,21 +152,6 @@ func (m *Model) syntaxText(line diffLine, horizontal, width int, prefix string) 
 	base := lipgloss.NewStyle().TabWidth(lipgloss.NoTabConversion)
 	if c, ok := m.theme.Color(theme.Foreground); ok {
 		base = base.Foreground(c)
-	}
-	if line.Class == classAdded || line.Class == classRemoved {
-		role := theme.Added
-		if line.Class == classRemoved {
-			role = theme.Removed
-		}
-		accent, _ := m.theme.Color(role)
-		background, _ := m.theme.Color(theme.Background)
-		// With inherited terminal colors the actual background is unknown. Keep
-		// the gutter cue rather than guessing an opaque background.
-		if accent != nil && background != nil && m.theme.Syntax(theme.Background) != "default" {
-			ar, ag, ab, _ := accent.RGBA()
-			br, bg, bb, _ := background.RGBA()
-			base = base.Background(color.RGBA{R: uint8((ar + 7*br) / 8 >> 8), G: uint8((ag + 7*bg) / 8 >> 8), B: uint8((ab + 7*bb) / 8 >> 8), A: 255})
-		}
 	}
 	return base.Render(out.String())
 }

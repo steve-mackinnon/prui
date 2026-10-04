@@ -31,6 +31,7 @@ renderer does not retry budget-exhausted files as legacy fragments.
 
 Keywords use the theme's focused accent, strings its added color, numbers its
 warning color, comments its metadata color, names its title color, and operators
-its file-header color. Explicit backgrounds blend with added/removed colors;
-inherited terminal backgrounds remain inherited. No new theme configuration
+its file-header color. Changed rows blend 25% added/removed color with the theme background and fill
+the available row width, including lines with no syntax tokens. Inherited
+backgrounds use the theme family’s light/dark baseline for changed rows only. No new theme configuration
 keys or native build dependencies are needed.

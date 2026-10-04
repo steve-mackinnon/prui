@@ -23,6 +23,8 @@ User-visible changes are recorded here before each release. See
 
 ### Changed
 
+- Make added and removed diff rows stand out with stronger, full-width green/red backgrounds, including blank lines and files without syntax highlighting.
+
 - Simplify the Generate guide dialog with a centered header, distinct field labels and values, and grouped consent and keyboard help.
 
 - Default OpenAI reading guides to `gpt-6.1-sol`; configured and remembered model choices still take precedence.

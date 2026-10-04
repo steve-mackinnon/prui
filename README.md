@@ -123,7 +123,8 @@ Diff syntax highlighting is captured from the complete pinned old/new files and
 saved as token spans for offline review; no extra full-file source is retained.
 Older sessions use best-effort hunk highlighting. Unsupported languages and files
 beyond highlighting limits retain ordinary diff styling. Colors follow the active
-theme; explicit theme backgrounds allow subtle addition/deletion backgrounds.
+theme, with full-row green/red backgrounds that keep additions and deletions
+distinct from unchanged code.
 See the [user reference](docs/REFERENCE.md) for all controls and limitations,
 or run `prui --help` for command syntax.
 
