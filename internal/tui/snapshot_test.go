@@ -161,7 +161,7 @@ func TestScreenSnapshots(t *testing.T) {
 			m.openReviewTab(other)
 			m.activateTab(0)
 			m.PullRequests = []source.PullRequest{{Identity: source.Identity{Repository: "example/review", Number: 99}, Title: "Unopened change"}}
-			ctrlKey(m, 'p')
+			key(m, 'P')
 		}},
 		{"action_error", 100, 10, func(m *Model) { m.ActionError = errors.New("synthetic save failure") }},
 	} {

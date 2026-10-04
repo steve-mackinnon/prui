@@ -19,7 +19,10 @@ func (m *Model) mouseReviewClick(x, y int) tea.Cmd {
 		for i, label := range m.contextTabLabels() {
 			width := visibleWidth(label)
 			if x >= start && x < start+width {
-				m.selectReviewView(reviewViews[i])
+				if i == 0 {
+					return m.openSwitcher()
+				}
+				m.selectReviewView(reviewViews[i-1])
 				return m.restartGuidePathScroll()
 			}
 			start += width + 2
@@ -218,5 +221,5 @@ func (m *Model) contextTabLabels() []string {
 		}
 		labels[i] = prefix + label
 	}
-	return labels
+	return append([]string{"  PRs [P]"}, labels...)
 }

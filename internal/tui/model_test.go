@@ -54,9 +54,9 @@ func TestCommandSwitcherOpensOverReviewAndListsOpenTabsFirst(t *testing.T) {
 	m.openReviewTab(second)
 	m.selectReviewView(viewFiles)
 
-	ctrlKey(m, 'p')
+	key(m, 'P')
 	if m.top() != pagePullRequestPicker {
-		t.Fatalf("ctrl+p did not open the PR switcher: %#v", m.Stack)
+		t.Fatalf("P did not open the PR switcher: %#v", m.Stack)
 	}
 	view := ansi.Strip(m.View().Content)
 	if !strings.Contains(view, "Switch pull requests") || !strings.Contains(view, "open owner/repo#1") || !strings.Contains(view, "open owner/repo#2") {
@@ -83,7 +83,7 @@ func TestCommandSwitcherFiltersAndActivatesExistingReviewWithoutOpening(t *testi
 		{Identity: source.Identity{Repository: "owner/repo", Number: 3}, Title: "database migration"},
 	}
 
-	ctrlKey(m, 'p')
+	key(m, 'P')
 	key(m, 'm')
 	key(m, 'i')
 	key(m, 'g')
@@ -1360,12 +1360,12 @@ func TestBindingsRenderHelpAndFooter(t *testing.T) {
 			t.Fatalf("updated help wording missing %q", wording)
 		}
 	}
-	for _, key := range []string{"ctrl+p", "j/k", "J/K", "h/l, ctrl+h/ctrl+l", "esc", "q/ctrl+c"} {
+	for _, key := range []string{"P", "j/k", "J/K", "h/l, ctrl+h/ctrl+l", "esc", "q/ctrl+c"} {
 		if !strings.Contains(help, key) {
 			t.Fatalf("binding %q missing from help", key)
 		}
 	}
-	for _, key := range []string{"ctrl+p", "h/l, ctrl+h/ctrl+l", "esc", "q/ctrl+c", "m", "N"} {
+	for _, key := range []string{"P", "h/l, ctrl+h/ctrl+l", "esc", "q/ctrl+c", "m", "N"} {
 		if !strings.Contains(footer, key) {
 			t.Fatalf("binding %q missing from footer", key)
 		}

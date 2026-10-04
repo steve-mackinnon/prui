@@ -485,7 +485,7 @@ func TestPullRequestOpeningUsesWorkspaceTabsWithoutReplacingOtherReviews(t *test
 	if len(m.tabs) != 1 || m.activeTab != 0 || m.Session != first {
 		t.Fatalf("first open tabs=%d active=%d session=%p", len(m.tabs), m.activeTab, m.Session)
 	}
-	ctrlKey(m, 'p')
+	key(m, 'P')
 	m.PullRequestPicker.Index = 1
 	_, cmd = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	if cmd == nil {
@@ -506,7 +506,7 @@ func TestPullRequestOpeningUsesWorkspaceTabsWithoutReplacingOtherReviews(t *test
 	}
 
 	// Selecting an already open identity activates it without opening again.
-	ctrlKey(m, 'p')
+	key(m, 'P')
 	m.PullRequestPicker.Index = 0
 	_, cmd = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	if cmd != nil || m.activeTab != 0 || calls[firstID] != 1 || len(m.tabs) != 1 {

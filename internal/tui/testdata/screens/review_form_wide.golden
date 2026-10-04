@@ -1,5 +1,5 @@
-example/re╭──────────────────────────────────────────────────────────────────────────────────────────────────╮ switch PR
-  Descript│ Submit review · example/review#42 · head aaaaaaaaaaaa                                            │
+example/re╭──────────────────────────────────────────────────────────────────────────────────────────────────╮
+  PRs [P] │ Submit review · example/review#42 · head aaaaaaaaaaaa                                            │
 ┌ Files · │ 0/2 file slices read · 1 pending comments                                                        │─────────┐
 │› main.go│                                                                                                  │         │
 │  README.│ Review decision (j/k or ↑/↓)                                                                     │         │
