@@ -38,7 +38,7 @@ func TestReadinessRefreshRacesAndPinnedCodeIndependence(t *testing.T) {
 			t.Fatal("missing revision/state", want, text)
 		}
 	}
-	old := ReadinessResult{Target: m.activeTab, Session: s, Generation: m.readiness.generation, Snapshot: source.Readiness{Identity: source.Identity{"wrong/repo", 1}}}
+	old := ReadinessResult{Target: m.activeTab, Session: s, Generation: m.readiness.generation, Snapshot: source.Readiness{Identity: source.Identity{Repository: "wrong/repo", Number: 1}}}
 	m.applyReadinessResult(old)
 	if !m.readiness.stale {
 		t.Fatal("wrong identity accepted")
