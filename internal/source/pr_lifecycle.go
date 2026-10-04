@@ -18,7 +18,7 @@ type Lifecycle struct {
 	Draft, Verified, PolicyKnown                                      bool
 	CanUpdate, CanClose, CanReopen, CanAutoMerge, CanDisableAutoMerge bool
 	AutoMergeAllowed, AutoMerge, QueueRequired, Queued                bool
-	QueueState                                                        string
+	QueueState, QueueMethod                                           string
 	Methods, Problems                                                 []string
 	Readiness                                                         Readiness
 }
@@ -45,7 +45,7 @@ func (s Lifecycle) ValidateAction(a LifecycleAction) error {
 		if !write || !open || s.Draft || !s.PolicyKnown {
 			return errors.New("merge permission, open non-draft PR and known policy required")
 		}
-		if a.Kind == "merge" || a.Kind == "enable-auto" {
+		if a.Kind == "merge" || (a.Kind == "enable-auto" && !s.QueueRequired) {
 			found := false
 			for _, m := range s.Methods {
 				if m == a.Method {
@@ -62,8 +62,8 @@ func (s Lifecycle) ValidateAction(a LifecycleAction) error {
 				return errors.New("current readiness blocks direct merge; required queue or blockers must be resolved")
 			}
 		}
-		if a.Kind == "enable-auto" && (!s.AutoMergeAllowed || !s.CanAutoMerge || s.AutoMerge || s.QueueRequired) {
-			return errors.New("auto-merge unavailable; required queues use enqueue")
+		if a.Kind == "enable-auto" && (!s.AutoMergeAllowed || !s.CanAutoMerge || s.AutoMerge) {
+			return errors.New("auto-merge permission or policy unavailable")
 		}
 		if a.Kind == "enqueue" && (!s.QueueRequired || s.Queued || s.Readiness.Mergeable != "MERGEABLE") {
 			return errors.New("queue unavailable, already queued or mergeability unknown/conflicting")
@@ -157,15 +157,20 @@ func (g *GH) ReadLifecycle(ctx context.Context, id Identity) (Lifecycle, error) 
 	var evidence Readiness
 	req := g.readinessRequirementsWithPolicy(ctx, id, r.BaseRef, &evidence, true)
 	s.PolicyKnown = req.known && req.queueRequired == s.QueueRequired
-	if req.linear {
-		methods := s.Methods[:0]
-		for _, method := range s.Methods {
-			if method != "MERGE" {
+	s.QueueMethod = req.queueMethod
+	methods := s.Methods[:0]
+	for _, method := range s.Methods {
+		if req.linear && method == "MERGE" {
+			continue
+		}
+		for _, allowed := range req.methods {
+			if method == allowed {
 				methods = append(methods, method)
+				break
 			}
 		}
-		s.Methods = methods
 	}
+	s.Methods = methods
 	for _, problem := range r.Problems {
 		if problem != "Required versus optional classification unknown" {
 			s.PolicyKnown = false
@@ -242,7 +247,7 @@ func (g *GH) WriteLifecycle(ctx context.Context, a LifecycleAction) error {
 	if a.Kind == "merge" || a.Kind == "enable-auto" || a.Kind == "enqueue" {
 		input["expectedHeadOid"] = a.Expected.HeadSHA
 	}
-	if a.Kind == "merge" || a.Kind == "enable-auto" {
+	if a.Kind == "merge" || (a.Kind == "enable-auto" && !a.Expected.QueueRequired) {
 		input["mergeMethod"] = a.Method
 	}
 	query := fmt.Sprintf("mutation($input:%s!){%s(input:$input){clientMutationId}}", inputType, mutation)

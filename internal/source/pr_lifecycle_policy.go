@@ -1,6 +1,9 @@
 package source
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"strings"
+)
 
 func lifecyclePolicyAdvisory(s string) bool {
 	switch s {
@@ -33,7 +36,8 @@ func lifecycleRuleValid(kind string, b json.RawMessage) bool {
 		var v struct {
 			Count *int `json:"required_approving_review_count"`
 		}
-		return json.Unmarshal(b, &v) == nil && v.Count != nil && *v.Count >= 0 && *v.Count <= 6 && readinessBooleans(b, "require_code_owner_review", "require_last_push_approval", "required_review_thread_resolution", "dismiss_stale_reviews_on_push")
+		_, methodsValid := lifecycleAllowedMethods(b)
+		return methodsValid && json.Unmarshal(b, &v) == nil && v.Count != nil && *v.Count >= 0 && *v.Count <= 6 && readinessBooleans(b, "require_code_owner_review", "require_last_push_approval", "required_review_thread_resolution", "dismiss_stale_reviews_on_push")
 	case "required_deployments":
 		var v struct {
 			Environments []string `json:"required_deployment_environments"`
@@ -56,13 +60,37 @@ func lifecycleRuleValid(kind string, b json.RawMessage) bool {
 		if json.Unmarshal(b, &v) != nil || json.Unmarshal(b, &fields) != nil || (v.Method != "MERGE" && v.Method != "SQUASH" && v.Method != "REBASE") || (v.Grouping != "ALLGREEN" && v.Grouping != "HEADGREEN") {
 			return false
 		}
+		limits := map[string]int{}
 		for _, name := range []string{"check_response_timeout_minutes", "max_entries_to_build", "max_entries_to_merge", "min_entries_to_merge", "min_entries_to_merge_wait_minutes"} {
 			var n int
-			if json.Unmarshal(fields[name], &n) != nil || n < 0 || (name != "min_entries_to_merge_wait_minutes" && n == 0) {
+			if string(fields[name]) == "null" || json.Unmarshal(fields[name], &n) != nil || n < 0 || (name != "min_entries_to_merge_wait_minutes" && n == 0) {
 				return false
 			}
+			limits[name] = n
 		}
-		return true
+		return limits["min_entries_to_merge"] <= limits["max_entries_to_merge"]
 	}
 	return false
+}
+
+func lifecycleAllowedMethods(b json.RawMessage) ([]string, bool) {
+	var fields map[string]json.RawMessage
+	if json.Unmarshal(b, &fields) != nil || fields == nil {
+		return nil, false
+	}
+	raw, present := fields["allowed_merge_methods"]
+	if !present {
+		return nil, true
+	}
+	var methods []string
+	if json.Unmarshal(raw, &methods) != nil || len(methods) == 0 {
+		return nil, false
+	}
+	for i, m := range methods {
+		if m != "merge" && m != "squash" && m != "rebase" {
+			return nil, false
+		}
+		methods[i] = strings.ToUpper(m)
+	}
+	return methods, true
 }

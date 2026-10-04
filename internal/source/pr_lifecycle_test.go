@@ -277,6 +277,13 @@ func TestLifecycleMalformedClassicPolicyAndUnknownRules(t *testing.T) {
 	if e != nil || s.PolicyKnown {
 		t.Fatal("malformed classic policy accepted", s, e)
 	}
+	protection := f.responses["repos/o/r/branches/main/protection"].(map[string]any)
+	protection["required_status_checks"].(map[string]any)["strict"] = false
+	protection["required_pull_request_reviews"] = map[string]any{"required_approving_review_count": 99, "require_code_owner_reviews": false, "dismiss_stale_reviews": false, "require_last_push_approval": false}
+	s, e = (&GH{Runner: f, Executable: "synthetic", Limits: Defaults()}).ReadLifecycle(context.Background(), s.Identity)
+	if e != nil || s.PolicyKnown {
+		t.Fatal("malformed classic count accepted", s, e)
+	}
 }
 func TestLifecycleMissingQueueAndAutoEvidence(t *testing.T) {
 	for _, field := range []string{"mergeQueue", "autoMergeRequest", "mergeQueueEntry"} {
@@ -303,5 +310,86 @@ func TestLifecycleMergedCanonicalEvidence(t *testing.T) {
 	}
 	if !s.ActionObserved(LifecycleAction{Kind: "merge", Expected: s}) {
 		t.Fatal("merged action not reconciled")
+	}
+}
+
+func TestLifecycleWaitingRejectsMalformedExplicitRuleParameters(t *testing.T) {
+	for _, rule := range []map[string]any{
+		{"type": "pull_request", "parameters": map[string]any{"required_approving_review_count": 99, "require_code_owner_review": false, "require_last_push_approval": false, "required_review_thread_resolution": false, "dismiss_stale_reviews_on_push": false}},
+		{"type": "required_status_checks", "parameters": map[string]any{"required_status_checks": []any{map[string]any{"context": "ci\x1b[31m", "integration_id": 1}}, "strict_required_status_checks_policy": false}},
+	} {
+		f := lifecycleTransportFixture()
+		f.responses["repos/o/r/rules/branches/main?per_page=100&page=1"] = []any{rule}
+		s, e := (&GH{Runner: f, Executable: "synthetic", Limits: Defaults()}).ReadLifecycle(context.Background(), Identity{Repository: "o/r", Number: 1})
+		if e != nil {
+			t.Fatal(e)
+		}
+		if s.PolicyKnown || s.ValidateAction(LifecycleAction{Kind: "enable-auto", Method: "SQUASH", Expected: s}) == nil {
+			t.Fatal("malformed explicit rule authorized waiting", s)
+		}
+	}
+}
+
+func TestLifecycleQueueAutoMergeWaiting(t *testing.T) {
+	s := lifecycleEvidence()
+	s.QueueRequired = true
+	s.Readiness.MergeState = "BLOCKED"
+	s.Readiness.ChecksComplete = false
+	s.Methods = nil
+	a := LifecycleAction{Kind: "enable-auto", Expected: s}
+	if e := s.ValidateAction(a); e != nil {
+		t.Fatal("queue auto-merge must remain achievable under supported waiting policy", e)
+	}
+	f := lifecycleTransportFixture()
+	g := &GH{Runner: f, Executable: "synthetic", Limits: Defaults()}
+	if e := g.WriteLifecycle(context.Background(), a); e != nil {
+		t.Fatal(e)
+	}
+	var body struct {
+		Variables struct{ Input map[string]any }
+	}
+	if json.Unmarshal(f.requests[0].Stdin, &body) != nil {
+		t.Fatal("JSON")
+	}
+	if body.Variables.Input["mergeMethod"] != nil || body.Variables.Input["expectedHeadOid"] != readinessSHA {
+		t.Fatal("queue method override or absent expected head", body)
+	}
+}
+
+func TestLifecycleEffectiveMergeMethodRestrictions(t *testing.T) {
+	f := lifecycleTransportFixture()
+	params := map[string]any{"required_approving_review_count": 0, "require_code_owner_review": false, "require_last_push_approval": false, "required_review_thread_resolution": false, "dismiss_stale_reviews_on_push": false, "allowed_merge_methods": []string{"squash"}}
+	f.responses["repos/o/r/rules/branches/main?per_page=100&page=1"] = []any{map[string]any{"type": "pull_request", "parameters": params}}
+	g := &GH{Runner: f, Executable: "synthetic", Limits: Defaults()}
+	s, e := g.ReadLifecycle(context.Background(), Identity{Repository: "o/r", Number: 1})
+	if e != nil {
+		t.Fatal(e)
+	}
+	if !s.PolicyKnown || s.ValidateAction(LifecycleAction{Kind: "merge", Method: "SQUASH", Expected: s}) != nil {
+		t.Fatal("valid method denied", s)
+	}
+	if s.ValidateAction(LifecycleAction{Kind: "merge", Method: "MERGE", Expected: s}) == nil {
+		t.Fatal("effective forbidden merge method offered")
+	}
+	for _, bad := range []any{nil, []string{}, []string{"unknown"}, "squash"} {
+		params["allowed_merge_methods"] = bad
+		s, e = g.ReadLifecycle(context.Background(), s.Identity)
+		if e != nil || s.PolicyKnown {
+			t.Fatal("malformed method policy accepted", bad, s, e)
+		}
+	}
+}
+
+func TestLifecycleImpossibleQueueParameterBounds(t *testing.T) {
+	params := map[string]any{"merge_method": "SQUASH", "grouping_strategy": "ALLGREEN", "check_response_timeout_minutes": 60, "max_entries_to_build": 5, "max_entries_to_merge": 2, "min_entries_to_merge": 3, "min_entries_to_merge_wait_minutes": 0}
+	b, _ := json.Marshal(params)
+	if lifecycleRuleValid("merge_queue", b) {
+		t.Fatal("impossible queue bounds known")
+	}
+	params["min_entries_to_merge"] = 1
+	params["min_entries_to_merge_wait_minutes"] = nil
+	b, _ = json.Marshal(params)
+	if lifecycleRuleValid("merge_queue", b) {
+		t.Fatal("null queue bound known")
 	}
 }

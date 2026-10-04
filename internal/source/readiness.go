@@ -89,6 +89,8 @@ type readinessRequirements struct {
 	reviews               int
 	known                 bool
 	queueRequired, linear bool
+	queueMethod           string
+	methods               []string
 }
 
 func (g *GH) readinessJSON(ctx context.Context, path string, out any) error {
@@ -201,7 +203,7 @@ func (g *GH) readinessRequirements(ctx context.Context, id Identity, branch stri
 }
 
 func (g *GH) readinessRequirementsWithPolicy(ctx context.Context, id Identity, branch string, r *Readiness, richKnown bool) readinessRequirements {
-	q := readinessRequirements{known: true}
+	q := readinessRequirements{known: true, methods: []string{"MERGE", "SQUASH", "REBASE"}}
 	path := fmt.Sprintf("repos/%s/branches/%s", id.Repository, url.PathEscape(branch))
 	var b struct{ Protected *bool }
 	if g.readinessJSON(ctx, path, &b) != nil || b.Protected == nil {
@@ -290,7 +292,7 @@ func (g *GH) readinessRequirementsWithPolicy(ctx context.Context, id Identity, b
 				if !readinessBooleans(raw["required_pull_request_reviews"], "require_code_owner_reviews", "dismiss_stale_reviews", "require_last_push_approval") {
 					q.known = false
 				}
-				if v.RequiredApprovingReviewCount == nil || *v.RequiredApprovingReviewCount < 0 {
+				if v.RequiredApprovingReviewCount == nil || *v.RequiredApprovingReviewCount < 0 || *v.RequiredApprovingReviewCount > 6 {
 					q.known = false
 				} else {
 					q.reviews = *v.RequiredApprovingReviewCount
@@ -315,6 +317,9 @@ func (g *GH) readinessRequirementsWithPolicy(ctx context.Context, id Identity, b
 			break
 		}
 		for _, rule := range rules {
+			if richKnown && !lifecycleRuleValid(rule.Type, rule.Parameters) {
+				q.known = false
+			}
 			switch rule.Type {
 			case "required_status_checks":
 				var v struct {
@@ -339,13 +344,31 @@ func (g *GH) readinessRequirementsWithPolicy(ctx context.Context, id Identity, b
 					r.Blockers = append(r.Blockers, "Rules require an up-to-date branch; verify on GitHub")
 				}
 			case "pull_request":
+				if richKnown {
+					allowed, valid := lifecycleAllowedMethods(rule.Parameters)
+					if !valid {
+						q.known = false
+					}
+					if allowed != nil {
+						var methods []string
+						for _, m := range q.methods {
+							for _, a := range allowed {
+								if m == a {
+									methods = append(methods, m)
+									break
+								}
+							}
+						}
+						q.methods = methods
+					}
+				}
 				var v struct {
 					Count   *int `json:"required_approving_review_count"`
 					Owners  bool `json:"require_code_owner_review"`
 					Last    bool `json:"require_last_push_approval"`
 					Threads bool `json:"required_review_thread_resolution"`
 				}
-				if json.Unmarshal(rule.Parameters, &v) != nil || v.Count == nil || *v.Count < 0 || !readinessBooleans(rule.Parameters, "require_code_owner_review", "require_last_push_approval", "required_review_thread_resolution", "dismiss_stale_reviews_on_push") {
+				if json.Unmarshal(rule.Parameters, &v) != nil || v.Count == nil || *v.Count < 0 || *v.Count > 6 || !readinessBooleans(rule.Parameters, "require_code_owner_review", "require_last_push_approval", "required_review_thread_resolution", "dismiss_stale_reviews_on_push") {
 					q.known = false
 					continue
 				}
@@ -356,6 +379,12 @@ func (g *GH) readinessRequirementsWithPolicy(ctx context.Context, id Identity, b
 			default:
 				if rule.Type == "merge_queue" {
 					q.queueRequired = true
+					var queue struct {
+						Method string `json:"merge_method"`
+					}
+					if json.Unmarshal(rule.Parameters, &queue) == nil {
+						q.queueMethod = queue.Method
+					}
 				}
 				if rule.Type == "required_linear_history" {
 					q.linear = true
@@ -375,7 +404,7 @@ func (g *GH) readinessRequirementsWithPolicy(ctx context.Context, id Identity, b
 		}
 	}
 	for _, c := range q.contexts {
-		if c.Context == "" || (c.AppID < -1 || c.AppID == 0) {
+		if c.Context == "" || !validDiscussionField(c.Context, 1024, false) || (c.AppID < -1 || c.AppID == 0) {
 			q.known = false
 		}
 	}

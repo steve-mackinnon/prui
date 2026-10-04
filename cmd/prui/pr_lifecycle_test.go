@@ -151,3 +151,20 @@ func TestSubmitLifecyclePermissionAndStateRevalidated(t *testing.T) {
 		}
 	}
 }
+
+func TestSubmitLifecycleMethodPolicyChangedAfterConfirmation(t *testing.T) {
+	a, _ := wiringFixture(t)
+	s := appLifecycleState()
+	s.Methods = []string{"SQUASH"}
+	s.Permission = "WRITE"
+	s.PolicyKnown = true
+	s.CanAutoMerge = true
+	s.AutoMergeAllowed = true
+	g := &lifecycleGH{state: s}
+	g.state.Methods = []string{"REBASE"}
+	a.gh = g
+	out, e := a.submitLifecycle(context.Background(), source.LifecycleAction{Kind: "enable-auto", Method: "SQUASH", Expected: s})
+	if e == nil || out.Attempted || g.writes != 0 {
+		t.Fatal("changed policy method wrote", out, e, g)
+	}
+}

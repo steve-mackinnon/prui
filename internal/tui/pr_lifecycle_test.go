@@ -140,3 +140,41 @@ func TestPRLifecycleCrossTabWriteResults(t *testing.T) {
 		t.Fatal("result retargeted to active tab")
 	}
 }
+
+func TestPRLifecycleQueueAutoMergeConfirmationUsesPolicyMethod(t *testing.T) {
+	m := commitModel(t)
+	s := tuiLifecycleState(m)
+	s.QueueRequired = true
+	s.QueueMethod = "SQUASH"
+	s.PolicyKnown = true
+	s.Permission = "WRITE"
+	s.AutoMergeAllowed = true
+	s.CanAutoMerge = true
+	m.lifecycle = lifecycleState{snapshot: s, loaded: true, selected: 3}
+	m.submitLifecycle = func(context.Context, source.LifecycleAction) (source.LifecycleOutcome, error) {
+		return source.LifecycleOutcome{}, nil
+	}
+	m.prLifecycleKey("enter")
+	if m.lifecycle.confirmation == nil || m.lifecycle.confirmation.Method != "" {
+		t.Fatal("queue method override")
+	}
+	if !strings.Contains(m.lifecycleView(), "queue policy method: SQUASH") || !strings.Contains(m.lifecycleView(), "no method override") {
+		t.Fatal("queue method not reviewable", m.lifecycleView())
+	}
+}
+
+func TestPRLifecycleQueuePolicyRefreshClampsSelection(t *testing.T) {
+	m := commitModel(t)
+	s := tuiLifecycleState(m)
+	m.lifecycle.generation = 1
+	m.lifecycle.selected = 12
+	s.QueueRequired = true
+	m.applyLifecycleResult(LifecycleResult{Target: m.activeTab, Session: m.Session, Generation: 1, Snapshot: s})
+	if m.lifecycle.selected >= len(lifecycleChoices(s)) {
+		t.Fatal("selection outside updated choices")
+	}
+	m.Width = 12
+	m.Height = 2
+	_ = m.lifecycleView()
+	m.prLifecycleKey("enter")
+}

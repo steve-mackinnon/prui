@@ -10,7 +10,10 @@ viewer capabilities, effective rules and current readiness. Unknown permissions,
 unsupported rules and incomplete retrieval remain visible. Supported GitHub policy
 is enforced by GitHub; a readiness snapshot is evidence, never atomic authorization.
 Immediately before each write, re-read and compare PR ID/head/base/state/draft and
-re-evaluate permissions, method, readiness and policy. Never request admin bypass,
+re-evaluate permissions, method, readiness and policy. Intersect repository methods with effective `allowed_merge_methods` and linear
+history restrictions. Queue auto-merge remains available when GitHub permits it;
+confirmation shows the queue policy method and sends no ignored method override.
+Never request admin bypass,
 queue jump, branch updates or protection overrides. Merge, auto-merge enable and
 queue enqueue include `expectedHeadOid`. Other lifecycle APIs lack an atomic head
 condition; label that limitation and retain server authorization.
@@ -29,3 +32,9 @@ unverified. All real roadmap PR merges belong to the user.
 
 API sources: https://docs.github.com/en/graphql/reference/pulls and
 https://docs.github.com/en/graphql/reference/repos .
+
+Known richer policy: queue, linear history, signatures, non-fast-forward and
+required deployments, plus validated status-check and pull-request requirements.
+Unrecognized rule types remain unavailable. Direct merging retains concrete
+check/review failures even when GitHub reports CLEAN; supported richer-policy
+fulfillment uses CLEAN only with complete evidence and validated rule shapes.

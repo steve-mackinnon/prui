@@ -89,6 +89,7 @@ func (m *Model) applyLifecycleResult(v LifecycleResult) {
 	available := v.Err == nil || (v.Action != nil && v.Outcome.Refreshed)
 	if available && v.Snapshot.Identity == v.Session.Inventory.Comparison.Metadata.Identity {
 		d.snapshot = v.Snapshot
+		d.selected = min(d.selected, len(lifecycleChoices(v.Snapshot))-1)
 		d.loaded = true
 		d.stale = !v.Snapshot.Verified
 		if d.uncertain != nil && d.snapshot.ActionObserved(*d.uncertain) {
@@ -108,8 +109,12 @@ func lifecycleChoices(s source.Lifecycle) []source.LifecycleAction {
 	for _, method := range []string{"MERGE", "SQUASH", "REBASE"} {
 		out = append(out, source.LifecycleAction{Kind: "merge", Method: method, Expected: s})
 	}
-	for _, method := range []string{"MERGE", "SQUASH", "REBASE"} {
-		out = append(out, source.LifecycleAction{Kind: "enable-auto", Method: method, Expected: s})
+	if s.QueueRequired {
+		out = append(out, source.LifecycleAction{Kind: "enable-auto", Expected: s})
+	} else {
+		for _, method := range []string{"MERGE", "SQUASH", "REBASE"} {
+			out = append(out, source.LifecycleAction{Kind: "enable-auto", Method: method, Expected: s})
+		}
 	}
 	for _, kind := range []string{"disable-auto", "enqueue", "dequeue", "draft", "ready", "close", "reopen"} {
 		out = append(out, source.LifecycleAction{Kind: kind, Expected: s})
@@ -165,6 +170,9 @@ func (m *Model) prLifecycleKey(key string) tea.Cmd {
 	return nil
 }
 func lifecycleLabel(a source.LifecycleAction) string {
+	if (a.Kind == "enable-auto" || a.Kind == "enqueue") && a.Expected.QueueRequired {
+		return a.Kind + " · queue policy method: " + nonemptyTUI(a.Expected.QueueMethod, "unknown")
+	}
 	if a.Method != "" {
 		return a.Kind + " · " + a.Method
 	}
@@ -181,6 +189,9 @@ func (m *Model) lifecycleView() string {
 		}
 		if a.Kind != "merge" && a.Kind != "enable-auto" && a.Kind != "enqueue" {
 			body = append(body, "API has no atomic head condition; fresh preflight + server permission checks")
+		}
+		if a.Kind == "enable-auto" && a.Expected.QueueRequired {
+			body = append(body, "GitHub queue policy controls the merge method; no method override is sent")
 		}
 		body = append(body, "GitHub enforces policy. No admin bypass or protection override.", "Enter: confirm one write | esc: cancel", d.notice)
 		return renderActionModal(m.Width, m.Height, m.readinessView(), strings.Join(body, "\n"))
