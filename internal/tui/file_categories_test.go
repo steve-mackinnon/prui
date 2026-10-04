@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"encoding/json"
 	"prui/internal/inventory"
 	"reflect"
 	"strings"
@@ -92,4 +93,43 @@ func diffText(lines []diffLine) string {
 		s.WriteByte('\n')
 	}
 	return s.String()
+}
+
+func TestGeneratedCursorCrossingKeepsRawAnchor(t *testing.T) {
+	m := largeModel(largeTextSession(3, 3), 200, 24)
+	m.Session.Inventory.Classifications = map[string]inventory.Classification{}
+	for i, f := range m.Session.Inventory.Files {
+		c := inventory.Implementation
+		if i == 0 {
+			c = inventory.Generated
+		}
+		m.Session.Inventory.Classifications[f.ID] = inventory.Classification{Category: c}
+	}
+	m.collapseGenerated = true
+	beforeState, _ := json.Marshal(m.Session)
+	m.selectFile(0)
+	m.Focus = paneDiff
+	m.cursorActive = true
+	before := m.displayDetail()
+	next := m.fileOffset(1)
+	for i := next; i < len(before); i++ {
+		if before[i].target != nil {
+			next = i
+			break
+		}
+	}
+	want := *before[next].target
+	// moveCursor's selection synchronizer must preserve the new raw anchor when
+	// the formerly selected generated file contracts above it.
+	for steps := 0; m.Session.UnitFiles[m.Selected] == 0 && steps < len(before); steps++ {
+		m.moveCursor(1)
+	}
+	got, _ := m.cursorAnchor()
+	if got == nil || *got != want {
+		t.Fatalf("cursor changed across generated boundary: got %+v want %+v index %d", got, want, m.cursor())
+	}
+	afterState, _ := json.Marshal(m.Session)
+	if string(beforeState) != string(afterState) {
+		t.Fatal("raw source or reading progress changed")
+	}
 }

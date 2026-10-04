@@ -62,10 +62,10 @@ still work for binary/missing content. Explicit false suppresses its matching
 path default and returns Implementation (or Support for suppressed
 Implementation). Attribute failures never hide files as Generated.
 
-Preflight bounds the tree listing to 8 MiB/100,000 entries, each attribute blob
+Preflight bounds the tree listing to 8 MiB/100,000 entries, 256 attribute files, each attribute blob
 to 64 KiB, total attribute content to 2 MiB, the disposable index to 16 MiB,
 paths to 10,000/4 MiB total/4 KiB each, and resolved output to 8 MiB. The existing
-operation deadlines/process-group cancellation apply. Exhaustion, unsupported
+operation deadline covers the entire attribute evaluation; process-group cancellation applies. Exhaustion, unsupported
 attribute blob modes, invalid paths or failed retrieval produce partial Support
 classification; they do not replace raw source with empty success. Temporary
 indices are removed on success/failure/cancellation. Commit-only inventories do

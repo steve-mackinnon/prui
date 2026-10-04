@@ -14,6 +14,8 @@ import (
 // worktree; read-tree and check-attr never run filters or repository commands.
 // The full tree/index and attribute blobs are bounded before index creation.
 func (v *View) Attributes(ctx context.Context, sha string, names []string, paths [][]byte) (map[string]map[string]string, error) {
+	ctx, cancel := context.WithTimeout(ctx, v.limits.Operation)
+	defer cancel()
 	if !shaPattern.MatchString(sha) || len(names) > 16 || len(paths) > 10000 {
 		return nil, ErrLimit
 	}
@@ -26,6 +28,7 @@ func (v *View) Attributes(ctx context.Context, sha string, names []string, paths
 		return nil, ErrLimit
 	}
 	remaining := 2 << 20
+	attributeFiles := 0
 	for _, entry := range entries {
 		header, p, ok := bytes.Cut(entry, []byte{'\t'})
 		if !ok {
@@ -33,6 +36,10 @@ func (v *View) Attributes(ctx context.Context, sha string, names []string, paths
 		}
 		if path.Base(string(p)) != ".gitattributes" {
 			continue
+		}
+		attributeFiles++
+		if attributeFiles > 256 {
+			return nil, ErrLimit
 		}
 		fields := strings.Fields(string(header))
 		if len(fields) != 3 || fields[1] != "blob" || fields[0] != "100644" && fields[0] != "100755" {

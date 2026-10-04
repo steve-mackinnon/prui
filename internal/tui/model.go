@@ -1627,7 +1627,23 @@ func (m *Model) syncFileToLine(index int) {
 	}
 	file = max(0, min(len(m.Session.Slices)-1, file-1))
 	if len(m.Session.Slices[file].Units) > 0 {
+		if !m.collapseGenerated || m.Session.UnitFiles[m.Selected] == file {
+			m.Selected = m.Session.Slices[file].Units[0]
+			return
+		}
+		// A generated body can contract above the current cursor as selection moves.
+		// Preserve its raw target and viewport position, never the old display index.
+		target, commentID := m.cursorAnchor()
+		oldCursor, oldOffset := m.cursor(), m.offset()
+		relativeOffset := oldOffset - m.fileOffset(file)
 		m.Selected = m.Session.Slices[file].Units[0]
+		m.restoreCursorAnchor(target, commentID)
+		after, afterID := m.cursorAnchor()
+		if target != nil && after != nil && *target == *after || commentID > 0 && afterID == commentID {
+			m.setOffset(m.clampOffset(oldOffset + m.cursor() - oldCursor))
+		} else {
+			m.setOffset(m.clampOffset(m.fileOffset(file) + max(0, relativeOffset)))
+		}
 	}
 }
 

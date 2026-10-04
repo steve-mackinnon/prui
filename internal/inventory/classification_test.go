@@ -2,8 +2,10 @@ package inventory
 
 import (
 	"context"
+	"os"
 	"prui/internal/source"
 	"prui/internal/testutil"
+	"strings"
 	"testing"
 )
 
@@ -63,5 +65,66 @@ func TestCategoryOverrideAndSafeDefaults(t *testing.T) {
 		if got := classifyPath(tc.path, tc.attrs); got != tc.want {
 			t.Errorf("%s: %s", tc.path, got)
 		}
+	}
+}
+
+func TestClassificationDeletionRenameBinaryAndInvalidValues(t *testing.T) {
+	r := testutil.NewRepo(t)
+	r.Write(".gitattributes", "gone.go review-test\nold.go review-documentation\n*.png review-assets\n")
+	r.Write("gone.go", "deleted\n")
+	r.Write("old.go", "renamed identical content\n")
+	base := r.Commit()
+	r.Git("rm", "gone.go")
+	r.Git("mv", "old.go", "new.go")
+	r.Write(".gitattributes", "gone.go review-generated\nnew.go review-test\ninvalid.go linguist-generated=maybe\n")
+	r.Write("asset.png", "\x00binary\n")
+	r.Write("invalid.go", "invalid attr\n")
+	r.Write("plain.go", "no attrs\n")
+	head := r.Commit()
+	v, e := source.NewView(context.Background(), r.Dir, source.NewRunner(), source.Defaults())
+	if e != nil {
+		t.Fatal(e)
+	}
+	defer v.Close()
+	inv, e := Build(context.Background(), v, source.PinnedComparison{Metadata: source.Metadata{BaseSHA: base, HeadSHA: head}, MergeBaseSHA: base}, source.Defaults())
+	if e != nil {
+		t.Fatal(e)
+	}
+	expected := map[string]Category{".gitattributes": Support, "gone.go": Tests, "new.go": Tests, "asset.png": Assets, "invalid.go": Support, "plain.go": Implementation}
+	sawRename, sawBinary := false, false
+	for _, f := range inv.Files {
+		p := string(f.NewPath)
+		sha := head
+		if p == "" {
+			p = string(f.OldPath)
+			sha = base
+		}
+		c := inv.Classifications[f.ID]
+		if c.Category != expected[p] || c.SourceSHA != sha {
+			t.Errorf("%s %+v", p, c)
+		}
+		if p == "invalid.go" && !c.Partial {
+			t.Fatal("invalid attr not explicit")
+		}
+		if p == "new.go" {
+			sawRename = strings.HasPrefix(f.Status, "R") && string(f.OldPath) == "old.go"
+		}
+		if p == "asset.png" {
+			for _, u := range inv.Units {
+				if u.FileChangeID == f.ID && u.Kind == Binary {
+					sawBinary = true
+				}
+			}
+		}
+	}
+	if !sawRename || !sawBinary {
+		t.Fatal("missing binary/rename fixture")
+	}
+	// Evidence is completely frozen before the originating checkout disappears.
+	if e := os.RemoveAll(r.Dir); e != nil {
+		t.Fatal(e)
+	}
+	if !inv.Complete || len(inv.Classifications) != len(inv.Files) {
+		t.Fatal("classification damaged inventory")
 	}
 }
