@@ -178,3 +178,28 @@ func TestPRLifecycleQueuePolicyRefreshClampsSelection(t *testing.T) {
 	_ = m.lifecycleView()
 	m.prLifecycleKey("enter")
 }
+
+func TestPRLifecycleClippedConfirmationCannotWrite(t *testing.T) {
+	m := commitModel(t)
+	s := tuiLifecycleState(m)
+	writes := 0
+	m.lifecycle = lifecycleState{snapshot: s, loaded: true, selected: 11}
+	m.submitLifecycle = func(context.Context, source.LifecycleAction) (source.LifecycleOutcome, error) {
+		writes++
+		return source.LifecycleOutcome{}, nil
+	}
+	m.prLifecycleKey("enter")
+	m.Width = 18
+	m.Height = 4
+	if cmd := m.prLifecycleKey("enter"); cmd != nil || m.lifecycle.busy || writes != 0 {
+		t.Fatal("clipped confirmation permitted write")
+	}
+	if !strings.Contains(m.lifecycleView(), "Resize") {
+		t.Fatal("resize requirement missing", m.lifecycleView())
+	}
+	m.Width = 120
+	m.Height = 24
+	if cmd := m.prLifecycleKey("enter"); cmd == nil {
+		t.Fatal("reviewable confirmation never unlocked")
+	}
+}

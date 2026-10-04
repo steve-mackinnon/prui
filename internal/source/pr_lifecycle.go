@@ -42,6 +42,9 @@ func (s Lifecycle) ValidateAction(a LifecycleAction) error {
 	open := s.State == "OPEN"
 	switch a.Kind {
 	case "merge", "enable-auto", "enqueue":
+		if s.QueueRequired != e.QueueRequired || s.QueueMethod != e.QueueMethod {
+			return errors.New("queue applicability or method changed; refresh and confirm again")
+		}
 		if !write || !open || s.Draft || !s.PolicyKnown {
 			return errors.New("merge permission, open non-draft PR and known policy required")
 		}

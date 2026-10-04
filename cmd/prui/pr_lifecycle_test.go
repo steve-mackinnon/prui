@@ -168,3 +168,27 @@ func TestSubmitLifecycleMethodPolicyChangedAfterConfirmation(t *testing.T) {
 		t.Fatal("changed policy method wrote", out, e, g)
 	}
 }
+
+func TestSubmitLifecycleQueuePolicyChangedAfterConfirmation(t *testing.T) {
+	for _, introduce := range []bool{false, true} {
+		a, _ := wiringFixture(t)
+		s := appLifecycleState()
+		s.Permission = "WRITE"
+		s.PolicyKnown = true
+		s.CanAutoMerge = true
+		s.AutoMergeAllowed = true
+		s.Methods = []string{"SQUASH"}
+		s.QueueRequired = !introduce
+		if s.QueueRequired {
+			s.QueueMethod = "SQUASH"
+		}
+		g := &lifecycleGH{state: s}
+		g.state.QueueRequired = true
+		g.state.QueueMethod = "MERGE"
+		a.gh = g
+		out, e := a.submitLifecycle(context.Background(), source.LifecycleAction{Kind: "enable-auto", Method: "SQUASH", Expected: s})
+		if e == nil || out.Attempted || g.writes != 0 {
+			t.Fatal("unconfirmed queue policy wrote", out, e, g)
+		}
+	}
+}

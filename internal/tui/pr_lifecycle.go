@@ -4,6 +4,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"context"
 	"fmt"
+	"github.com/charmbracelet/x/ansi"
 	"prui/internal/review"
 	"prui/internal/source"
 	"strings"
@@ -134,6 +135,10 @@ func (m *Model) prLifecycleKey(key string) tea.Cmd {
 			if m.submitLifecycle == nil || d.uncertain != nil || d.stale || d.loading {
 				return nil
 			}
+			if _, fits := m.lifecycleConfirmationBody(); !fits {
+				d.notice = "Resize terminal to review the complete PR, expected head and method before confirming"
+				return nil
+			}
 			action := *d.confirmation
 			d.busy = true
 			d.notice = "Revalidating head, readiness, permissions and policy before one write"
@@ -182,19 +187,11 @@ func (m *Model) lifecycleView() string {
 	d := &m.lifecycle
 	s := d.snapshot
 	if d.confirmation != nil {
-		a := d.confirmation
-		body := []string{"Confirm PR lifecycle action", lifecycleLabel(*a), "PR: " + Escape(a.Expected.Identity.URL()), "Expected head: " + Escape(a.Expected.HeadSHA), "Expected base: " + Escape(a.Expected.BaseSHA), "Pinned code head: " + m.Session.Inventory.Comparison.Metadata.HeadSHA}
-		if a.Expected.HeadSHA != m.Session.Inventory.Comparison.Metadata.HeadSHA {
-			body = append(body, "Live head differs from the frozen reviewed code")
+		body, fits := m.lifecycleConfirmationBody()
+		if !fits {
+			body = "Resize to confirm\n" + body
 		}
-		if a.Kind != "merge" && a.Kind != "enable-auto" && a.Kind != "enqueue" {
-			body = append(body, "API has no atomic head condition; fresh preflight + server permission checks")
-		}
-		if a.Kind == "enable-auto" && a.Expected.QueueRequired {
-			body = append(body, "GitHub queue policy controls the merge method; no method override is sent")
-		}
-		body = append(body, "GitHub enforces policy. No admin bypass or protection override.", "Enter: confirm one write | esc: cancel", d.notice)
-		return renderActionModal(m.Width, m.Height, m.readinessView(), strings.Join(body, "\n"))
+		return renderActionModal(m.Width, m.Height, m.readinessView(), body)
 	}
 	lines := []string{"PR lifecycle · live state; frozen code stays unchanged", d.notice}
 	if d.loaded {
@@ -230,4 +227,35 @@ func (m *Model) lifecycleView() string {
 	end := min(len(lines), d.scroll+height)
 	body := strings.Join(viewportLines(strings.Join(lines[d.scroll:end], "\n"), m.Width, height), "\n")
 	return body + "\n" + strings.Join(viewportLines("↑/↓: select | enter: review/confirm | r: refresh | esc: back", m.Width, 1), "")
+}
+
+func (m *Model) lifecycleConfirmationBody() (string, bool) {
+	d := &m.lifecycle
+	if d.confirmation == nil || m.Session == nil {
+		return "", false
+	}
+	a := d.confirmation
+	body := []string{"Confirm PR lifecycle action", lifecycleLabel(*a), "PR: " + Escape(a.Expected.Identity.URL()), "Expected head: " + Escape(a.Expected.HeadSHA), "Expected base: " + Escape(a.Expected.BaseSHA), "Pinned code head: " + m.Session.Inventory.Comparison.Metadata.HeadSHA}
+	if a.Expected.HeadSHA != m.Session.Inventory.Comparison.Metadata.HeadSHA {
+		body = append(body, "Live head differs from the frozen reviewed code")
+	}
+	if a.Kind != "merge" && a.Kind != "enable-auto" && a.Kind != "enqueue" {
+		body = append(body, "API has no atomic head condition; fresh preflight + server permission checks")
+	}
+	if a.Kind == "enable-auto" && a.Expected.QueueRequired {
+		body = append(body, "GitHub queue policy controls the merge method; no method override is sent")
+	}
+	body = append(body, "GitHub enforces policy. No admin bypass or protection override.", "Enter: confirm one write | esc: cancel", d.notice)
+
+	inside := max(1, m.Width)
+	framed := m.Width >= 20 && m.Height >= 8
+	if framed {
+		inside = min(96, m.Width-8)
+	}
+	wrapped := ansi.Hardwrap(ansi.Wrap(strings.Join(body, "\n"), inside, ""), inside, false)
+	rows := strings.Count(wrapped, "\n") + 1
+	if framed {
+		rows += 2
+	}
+	return wrapped, inside >= 40 && rows <= m.Height
 }

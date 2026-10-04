@@ -2,6 +2,9 @@
 
 Lifecycle controls are tab-owned live state opened from the readiness page with `l`.
 Each action shows repository/PR, expected live head and method, then requires Enter.
+Confirmation wraps all evidence and disables submission until the terminal can
+show the complete body with at least 40 columns inside the modal. Queue
+applicability/method changes after confirmation require reconfirmation.
 Pinned source, session progress, pending reviews and analysis privacy remain unchanged.
 Offline and plain modes expose no writers.
 

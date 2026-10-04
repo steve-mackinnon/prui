@@ -393,3 +393,25 @@ func TestLifecycleImpossibleQueueParameterBounds(t *testing.T) {
 		t.Fatal("null queue bound known")
 	}
 }
+
+func TestLifecycleQueueConfirmationBinding(t *testing.T) {
+	for _, kind := range []string{"enable-auto", "enqueue"} {
+		old := lifecycleEvidence()
+		old.QueueRequired = true
+		old.QueueMethod = "SQUASH"
+		action := LifecycleAction{Kind: kind, Expected: old}
+		current := old
+		current.QueueMethod = "MERGE"
+		if current.ValidateAction(action) == nil {
+			t.Fatal("queue method changed after confirmation", kind)
+		}
+	}
+	old := lifecycleEvidence()
+	action := LifecycleAction{Kind: "enable-auto", Method: "SQUASH", Expected: old}
+	current := old
+	current.QueueRequired = true
+	current.QueueMethod = "MERGE"
+	if current.ValidateAction(action) == nil {
+		t.Fatal("new queue changed confirmed auto-merge method")
+	}
+}
