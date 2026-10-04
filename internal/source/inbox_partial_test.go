@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -109,5 +110,80 @@ func TestInboxLaterPageErrorRetainsEvidence(t *testing.T) {
 	r, err := g.ReadInbox(context.Background(), InboxOptions{View: "authored"})
 	if err != nil || r.Complete || len(r.Items) != 1 || calls != 2 || strings.Contains(strings.Join(r.Problems, " "), "credential") {
 		t.Fatalf("%+v %v", r, err)
+	}
+}
+
+func TestInboxChangingCountsAndConflictingUnionAreIncomplete(t *testing.T) {
+	for _, mode := range []string{"count", "union", "coverage"} {
+		calls := 0
+		g := &GH{Runner: listRunner(func(context.Context, Request) ([]byte, error) {
+			calls++
+			f := inboxFixture()
+			search := f["data"].(map[string]any)["search"].(map[string]any)
+			if mode == "count" {
+				search["issueCount"] = 3
+				if calls == 1 {
+					search["pageInfo"] = map[string]any{"hasNextPage": true, "endCursor": "next"}
+				} else {
+					search["issueCount"] = 2
+					search["nodes"].([]any)[0].(map[string]any)["number"] = 2
+				}
+			} else if calls == 2 {
+				n := search["nodes"].([]any)[0].(map[string]any)
+				n["headRefOid"] = strings.Repeat("b", 40)
+				if mode == "coverage" {
+					n["reviewRequests"] = nil
+				}
+			}
+			return json.Marshal(f)
+		}), Limits: Defaults(), Dir: t.TempDir()}
+		o := InboxOptions{View: "authored"}
+		if mode != "count" {
+			o.View = "requested"
+		}
+		r, err := g.ReadInbox(context.Background(), o)
+		if err != nil || r.Complete || calls != 2 || len(r.Items) != map[string]int{"count": 2, "union": 1, "coverage": 1}[mode] {
+			t.Fatalf("%s: %+v %v", mode, r, err)
+		}
+		if mode == "coverage" && r.Items[0].RequestsComplete {
+			t.Fatal("merged incomplete evidence lost partial coverage")
+		}
+	}
+}
+func TestInboxSearchPaginationIsBounded(t *testing.T) {
+	calls := 0
+	g := &GH{Runner: listRunner(func(context.Context, Request) ([]byte, error) {
+		calls++
+		f := inboxFixture()
+		s := f["data"].(map[string]any)["search"].(map[string]any)
+		s["issueCount"] = 1001
+		s["pageInfo"] = map[string]any{"hasNextPage": true, "endCursor": fmt.Sprint(calls)}
+		s["nodes"].([]any)[0].(map[string]any)["number"] = calls
+		return json.Marshal(f)
+	}), Limits: Defaults(), Dir: t.TempDir()}
+	r, err := g.ReadInbox(context.Background(), InboxOptions{View: "requested"})
+	if err != nil || r.Complete || calls != 20 || r.Requests != 20 || len(r.Items) != 20 {
+		t.Fatal(r, err, calls)
+	}
+}
+func TestInboxParticipatedIncludesReviewedStream(t *testing.T) {
+	calls := 0
+	g := &GH{Runner: listRunner(func(_ context.Context, r Request) ([]byte, error) {
+		calls++
+		args := strings.Join(r.Args, " ")
+		want := "involves:@me"
+		if calls == 2 {
+			want = "reviewed-by:@me"
+		}
+		if !strings.Contains(args, want) {
+			t.Fatal(args)
+		}
+		f := inboxFixture()
+		f["data"].(map[string]any)["search"].(map[string]any)["nodes"].([]any)[0].(map[string]any)["number"] = calls
+		return json.Marshal(f)
+	}), Limits: Defaults(), Dir: t.TempDir()}
+	r, err := g.ReadInbox(context.Background(), InboxOptions{View: "participated"})
+	if err != nil || !r.Complete || calls != 2 || len(r.Items) != 2 {
+		t.Fatal(r, err)
 	}
 }

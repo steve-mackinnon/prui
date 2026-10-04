@@ -44,11 +44,11 @@ func (a *application) inbox(ctx context.Context, o source.InboxOptions, refresh 
 	if err := c.Save(ctx, o, r); err != nil {
 		return r, err
 	}
-	loaded, err := c.Load(ctx, o)
+	loaded, err := c.LoadViewer(ctx, o, r.Viewer)
 	if err != nil {
 		return r, err
 	}
-	loaded.Cached = false
+	loaded.Cached = !loaded.ObservedAt.Equal(r.ObservedAt)
 	return loaded, nil
 }
 func (a *application) markInboxRead(ctx context.Context, viewer string, item source.InboxItem) error {

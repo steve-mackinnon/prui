@@ -741,6 +741,9 @@ func (m *Model) update(msg tea.Msg) (updated tea.Model, command tea.Cmd) {
 		m.cancelMouseDrag()
 		pendingCenter := m.pendingCenter
 		m.pendingCenter = false
+		if m.top() == pageInbox && v.String() != "ctrl+c" && v.String() != "q" {
+			return m, m.inboxKey(v.String())
+		}
 		if m.Busy && v.String() == "esc" && m.cancelAction != nil {
 			m.cancelCurrentAction()
 			return m, nil

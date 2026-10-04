@@ -21,7 +21,7 @@ func (m *Model) pullRequestPickerView() string {
 			detail = m.prPickerDetail(pr)
 		}
 	}
-	return m.prPickerScreen(header, rows, detail, "No open pull requests.", "enter: open · esc: back")
+	return m.prPickerScreen(header, rows, detail, "No open pull requests.", "enter: open · ctrl+o: account inbox · esc: back")
 }
 
 func pullRequestChecks(pr source.PullRequest) string {

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
 	"regexp"
 	"sort"
 	"strconv"
@@ -14,7 +15,7 @@ import (
 
 // Inbox is mutable triage evidence. It never changes a frozen review snapshot.
 type InboxOptions struct {
-	View, Repository, Author, Review, State, Draft, Requests, Activity string
+	View, Repository, Author, Review, State, Draft, Requests, Activity, Account string
 }
 type InboxItem struct {
 	PullRequest                                           PullRequest
@@ -50,6 +51,9 @@ func (o InboxOptions) Validate() error {
 	}
 	if !allowed(o.View, "requested", "authored", "participated") || !allowed(o.State, "", "open", "closed", "all") || !allowed(o.Draft, "", "all", "yes", "no") || !allowed(o.Review, "", "all", "none", "required", "approved", "changes_requested") || !allowed(o.Requests, "", "all", "personal", "team") || !allowed(o.Activity, "", "all", "changed", "unknown", "read") {
 		return errors.New("invalid inbox view or filter")
+	}
+	if o.Account != "" && !loginPattern.MatchString(o.Account) {
+		return errors.New("invalid inbox account")
 	}
 	if o.Repository != "" && !repositoryPattern.MatchString(o.Repository) || o.Author != "" && !loginPattern.MatchString(o.Author) {
 		return errors.New("invalid inbox repository or author")
@@ -159,6 +163,7 @@ func (g *GH) ReadInbox(ctx context.Context, o InboxOptions) (Inbox, error) {
 		cursor := ""
 		cursors := map[string]bool{}
 		scopeSeen := map[Identity]bool{}
+		expectedCount := -1
 		for page := 0; page < 10; page++ {
 			args := []string{"api", "--hostname", "github.com", "graphql", "-f", "query=" + inboxQuery, "-f", "q=" + o.query(kind)}
 			if cursor != "" {
@@ -190,7 +195,17 @@ func (g *GH) ReadInbox(ctx context.Context, o InboxOptions) (Inbox, error) {
 			if result.Viewer != "" && result.Viewer != raw.Data.Viewer.Login {
 				return Inbox{}, errors.New("inbox account changed during pagination")
 			}
+			if o.Account != "" && !strings.EqualFold(o.Account, raw.Data.Viewer.Login) {
+				return Inbox{}, errors.New("authenticated inbox account differs from selected account")
+			}
 			result.Viewer = raw.Data.Viewer.Login
+			count := *raw.Data.Search.IssueCount
+			if expectedCount < 0 {
+				expectedCount = count
+			} else if expectedCount != count {
+				result.Complete = false
+				result.Problems = append(result.Problems, "search count changed during pagination")
+			}
 			for _, n := range *raw.Data.Search.Nodes {
 				id, err := ParseIdentity(strconv.Itoa(n.Number), n.Repository.NameWithOwner)
 				if err != nil || !validListText(n.Title) || !validListText(n.Author.Login) || n.CreatedAt.IsZero() || n.UpdatedAt.IsZero() || !shaPattern.MatchString(n.HeadRefOid) || (n.State != "OPEN" && n.State != "CLOSED" && n.State != "MERGED") || n.IsDraft == nil || (n.ReviewDecision != nil && *n.ReviewDecision != "APPROVED" && *n.ReviewDecision != "CHANGES_REQUESTED" && *n.ReviewDecision != "REVIEW_REQUIRED") {
@@ -252,6 +267,17 @@ func (g *GH) ReadInbox(ctx context.Context, o InboxOptions) (Inbox, error) {
 					}
 				}
 				if index, ok := seen[id]; ok {
+					previous := result.Items[index]
+					current := item
+					previous.TeamRequest = false
+					previous.PersonalRequest = false
+					current.TeamRequest = false
+					current.PersonalRequest = false
+					if !reflect.DeepEqual(previous, current) {
+						result.Complete = false
+						result.Problems = append(result.Problems, "conflicting PR observations across search streams; refresh again")
+					}
+					result.Items[index].RequestsComplete = result.Items[index].RequestsComplete && item.RequestsComplete
 					result.Items[index].TeamRequest = result.Items[index].TeamRequest || item.TeamRequest
 					result.Items[index].PersonalRequest = result.Items[index].PersonalRequest || item.PersonalRequest
 				} else {
@@ -261,7 +287,7 @@ func (g *GH) ReadInbox(ctx context.Context, o InboxOptions) (Inbox, error) {
 			}
 			info := raw.Data.Search.PageInfo
 			if !*info.HasNextPage {
-				if len(scopeSeen) < *raw.Data.Search.IssueCount {
+				if len(scopeSeen) != *raw.Data.Search.IssueCount {
 					result.Complete = false
 					result.Problems = append(result.Problems, "search count exceeds returned evidence; incomplete")
 				}

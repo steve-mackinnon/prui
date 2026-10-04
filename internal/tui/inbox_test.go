@@ -1,6 +1,7 @@
 package tui
 
 import (
+	tea "charm.land/bubbletea/v2"
 	"context"
 	"errors"
 	"strings"
@@ -88,5 +89,21 @@ func TestInboxLateOpenCannotReplaceEscapedReview(t *testing.T) {
 	m.Update(inboxOpenResult{Generation: 2, Result: PullRequestOpenResult{Session: &review.Session{}}})
 	if m.Session != nil {
 		t.Fatal("late opening replaced session")
+	}
+}
+
+func TestInboxEscapeThroughKeyboardDispatcherCancelsInitialOpen(t *testing.T) {
+	m := New(context.Background(), nil)
+	defer m.Close()
+	m.SetInbox(nil, nil, nil, source.InboxOptions{}, true, false)
+	ctx := m.beginAction()
+	m.Busy = true
+	_, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
+	if ctx.Err() == nil || m.inbox.generation != 1 || cmd == nil {
+		t.Fatal("initial inbox escape was blocked")
+	}
+	m.Update(inboxOpenResult{Generation: 0, Result: PullRequestOpenResult{Session: &review.Session{}}})
+	if m.Session != nil {
+		t.Fatal("cancelled initial open replaced session")
 	}
 }

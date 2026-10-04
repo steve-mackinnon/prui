@@ -3,7 +3,7 @@
 `prui inbox` opens cached account triage; `--refresh` explicitly reads GitHub.
 `--offline` rejects refresh before client/credential access. `--plain` prints
 escaped metadata and exits 2 for incomplete results. In the existing repository
-picker, `i` opens the inbox; in the PR picker/switcher, `ctrl+i` opens it.
+picker, `i` opens the inbox; in the PR picker/switcher, `ctrl+o` opens it.
 No timer, notifications, alerts, AI upload or remote writes are introduced.
 
 Views cover the authenticated account's accessible GitHub repositories, without
@@ -12,6 +12,11 @@ restricting results to remembered repositories. Requested-from-me unions
 `author:@me`. Participated unions `involves:@me` and `reviewed-by:@me` so a review
 without a conversation comment is included. Team membership uses GitHub search
 rather than inferring it from team names. The item repository is authoritative.
+
+`--account LOGIN` selects a specific cached account; online refresh must match
+the authenticated account. With no account selected, cached mode displays the
+most recently captured account visibly. Captures and read marks remain isolated
+per account; a refresh always reloads that same account.
 
 Filters: `--view requested|authored|participated`, `--repository owner/repo`,
 `--author LOGIN`, `--review all|none|required|approved|changes_requested`,

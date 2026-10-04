@@ -925,7 +925,7 @@ func (m *Model) pullRequestPickerKey(k string) tea.Cmd {
 			m.PullRequestPicker.previewScroll = 0
 		}
 	}()
-	if k == "ctrl+i" && m.inbox.load != nil {
+	if k == "ctrl+o" && m.inbox.load != nil {
 		m.push(pageInbox)
 		return m.loadInbox(false)
 	}
@@ -1139,7 +1139,7 @@ func (m *Model) switcherView() string {
 		}
 	}
 	header := []string{appHeader("Switch pull requests", "type to filter"), "filter: " + Escape(m.SwitcherQuery)}
-	footer := "type: filter · enter: switch/open · esc: cancel"
+	footer := "type: filter · enter: switch/open · ctrl+o: inbox · esc: cancel"
 	return m.prPickerScreen(header, rows, detail, "No matching open reviews or pull requests.", footer)
 }
 

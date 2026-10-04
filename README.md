@@ -295,7 +295,7 @@ cached triage by default; `prui inbox --refresh` explicitly searches your accoun
 Use `--view authored` or `--view participated`, repository/author/review/state/draft
 filters, and `--requests personal|team` / `--activity changed` to control noise.
 `--offline --plain` reads cached metadata without credentials or network access.
-In the repository picker press `i`; in the PR switcher press `ctrl+i`. In the
+In the repository picker press `i`; in the PR switcher press `ctrl+o`. In the
 inbox, `f` edits filters, `r` refreshes, `m` marks captured activity read, and Enter
 opens the PR's own frozen session or verified checkout. There are no alerts or
 background polling. See [inbox controls and limits](docs/spec/SPEC-review-inbox.md).

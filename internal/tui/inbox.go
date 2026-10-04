@@ -75,6 +75,9 @@ func (m *Model) inboxKey(k string) tea.Cmd {
 	s.picker.clamp(len(s.data.Items))
 	switch k {
 	case "esc":
+		if m.Busy {
+			m.cancelCurrentAction()
+		}
 		if s.cancel != nil {
 			s.cancel()
 		}
@@ -111,6 +114,9 @@ func (m *Model) inboxKey(k string) tea.Cmd {
 		id := s.data.Items[s.picker.Index].PullRequest.Identity
 		for i, tab := range m.tabs {
 			if tab.identity == id {
+				if m.Busy {
+					m.cancelCurrentAction()
+				}
 				m.pop()
 				m.activateTab(i)
 				return nil
@@ -252,6 +258,7 @@ func (m *Model) applyInboxMessage(msg tea.Msg) tea.Cmd {
 	case inboxOpenResult:
 		if v.Generation != s.generation {
 			m.finishAction(v.Result.Err)
+			m.ActionError = nil
 			return nil
 		}
 		_, cmd := m.Update(v.Result)

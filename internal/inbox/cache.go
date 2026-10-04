@@ -57,7 +57,7 @@ func Open(path string) (*Cache, error) {
 			err = errors.New("unsupported inbox cache; original retained")
 		}
 		if err == nil {
-			_, err = db.ExecContext(ctx, `BEGIN IMMEDIATE; CREATE TABLE captures (key TEXT PRIMARY KEY, observed TEXT NOT NULL, payload BLOB NOT NULL, digest TEXT NOT NULL); CREATE TABLE reads (viewer TEXT NOT NULL, identity TEXT NOT NULL, digest TEXT NOT NULL, PRIMARY KEY(viewer,identity)); PRAGMA application_id=1347569998; PRAGMA user_version=1; COMMIT;`)
+			_, err = db.ExecContext(ctx, `BEGIN IMMEDIATE; CREATE TABLE captures (viewer TEXT NOT NULL COLLATE NOCASE, key TEXT NOT NULL, observed TEXT NOT NULL, payload BLOB NOT NULL, digest TEXT NOT NULL, PRIMARY KEY(viewer,key)); CREATE TABLE reads (viewer TEXT NOT NULL COLLATE NOCASE, identity TEXT NOT NULL, digest TEXT NOT NULL, PRIMARY KEY(viewer,identity)); PRAGMA application_id=1347569998; PRAGMA user_version=1; COMMIT;`)
 		}
 	}
 	if err != nil {
@@ -66,8 +66,13 @@ func Open(path string) (*Cache, error) {
 	}
 	return &Cache{db}, nil
 }
-func (c *Cache) Close() error          { return c.db.Close() }
-func key(o source.InboxOptions) string { o.Activity = ""; b, _ := json.Marshal(o); return string(b) }
+func (c *Cache) Close() error { return c.db.Close() }
+func key(o source.InboxOptions) string {
+	o.Activity = ""
+	o.Account = ""
+	b, _ := json.Marshal(o)
+	return string(b)
+}
 func identity(i source.InboxItem) string {
 	return i.PullRequest.Identity.Repository + "#" + strconv.Itoa(i.PullRequest.Identity.Number)
 }
@@ -99,16 +104,27 @@ func (c *Cache) Save(ctx context.Context, o source.InboxOptions, r source.Inbox)
 		return errors.New("inbox cache budget exceeded")
 	}
 	// Later captures win; a slow refresh cannot overwrite newer provenance.
-	_, err = c.db.ExecContext(ctx, `INSERT INTO captures(key,observed,payload,digest) VALUES(?,?,?,?) ON CONFLICT(key) DO UPDATE SET observed=excluded.observed,payload=excluded.payload,digest=excluded.digest WHERE excluded.observed>captures.observed`, key(o), r.ObservedAt.UTC().Format("2006-01-02T15:04:05.000000000Z"), b, payloadDigest(b))
+	_, err = c.db.ExecContext(ctx, `INSERT INTO captures(viewer,key,observed,payload,digest) VALUES(?,?,?,?,?) ON CONFLICT(viewer,key) DO UPDATE SET observed=excluded.observed,payload=excluded.payload,digest=excluded.digest WHERE excluded.observed>captures.observed`, r.Viewer, key(o), r.ObservedAt.UTC().Format("2006-01-02T15:04:05.000000000Z"), b, payloadDigest(b))
 	return err
 }
 func (c *Cache) Load(ctx context.Context, o source.InboxOptions) (source.Inbox, error) {
+	return c.LoadViewer(ctx, o, o.Account)
+}
+func (c *Cache) LoadViewer(ctx context.Context, o source.InboxOptions, viewer string) (source.Inbox, error) {
+
 	if err := o.Validate(); err != nil {
 		return source.Inbox{}, err
 	}
 	var b []byte
 	var expected string
-	err := c.db.QueryRowContext(ctx, "SELECT payload,digest FROM captures WHERE key=?", key(o)).Scan(&b, &expected)
+	query := "SELECT payload,digest FROM captures WHERE key=?"
+	args := []any{key(o)}
+	if viewer != "" {
+		query += " AND viewer=?"
+		args = append(args, viewer)
+	}
+	query += " ORDER BY observed DESC,viewer ASC LIMIT 1"
+	err := c.db.QueryRowContext(ctx, query, args...).Scan(&b, &expected)
 	if errors.Is(err, sql.ErrNoRows) {
 		return source.Inbox{}, errors.New("no cached inbox for these filters; explicitly refresh online")
 	}
