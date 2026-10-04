@@ -7,6 +7,7 @@ import (
 	"prui/internal/commits"
 	reviewcontext "prui/internal/context"
 	"prui/internal/guide"
+	"prui/internal/incremental"
 	"prui/internal/inventory"
 	"prui/internal/privacy"
 	"prui/internal/session"
@@ -25,6 +26,7 @@ type Config struct {
 	Analyzer        guide.Analyzer // nil means no analysis for this invocation
 	CacheFullSource bool           // Explicit consent to additional local complete-source storage.
 	Timing          *Timing
+	Previous        *Session // explicit immutable predecessor; never selected from checkout refs
 }
 
 // Timing records optional stage durations for one comparison opening.
@@ -103,6 +105,15 @@ func openWithConfigAttempt(ctx context.Context, checkout string, id source.Ident
 	}
 	if err := session.BoundCommitPayload(&s.Snapshot); err != nil {
 		return nil, err
+	}
+	if cfg.Previous != nil {
+		old := cfg.Previous
+		s.Incremental, e = incremental.Capture(ctx, v, old.ID, old.SnapshotReference, old.Inventory.Comparison.Metadata, p.Metadata, gh, l, notify)
+		if e != nil {
+			return nil, e
+		}
+		s.Incremental.PreviousGeneration = old.Generation
+		s.ReviewedSliceIDs = incremental.Carry(old.Inventory, inv, old.ReviewedSliceIDs, s.Incremental)
 	}
 	return s, nil
 }

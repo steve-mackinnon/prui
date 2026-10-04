@@ -7,6 +7,7 @@ import (
 	"prui/internal/commits"
 	reviewcontext "prui/internal/context"
 	"prui/internal/guide"
+	"prui/internal/incremental"
 	"prui/internal/inventory"
 	"regexp"
 	"strings"
@@ -31,11 +32,12 @@ type Slice struct {
 }
 
 type Snapshot struct {
-	Checkout  []byte
-	Inventory inventory.Inventory
-	Slices    []Slice
-	UnitFiles []int
-	Context   reviewcontext.ContextBundle
+	Incremental *incremental.Bundle `json:"incremental,omitempty"`
+	Checkout    []byte
+	Inventory   inventory.Inventory
+	Slices      []Slice
+	UnitFiles   []int
+	Context     reviewcontext.ContextBundle
 	// PullRequestDescription distinguishes an unavailable body from a captured empty body.
 	PullRequestDescription *string `json:"pull_request_description,omitempty"`
 	// Commits holds optional frozen commit history for offline browsing.
@@ -120,6 +122,9 @@ func validate(r *Record) error {
 		return bad
 	}
 	if !validateCommits(r.Commits, comparison.BaseSHA, comparison.HeadSHA) {
+		return bad
+	}
+	if !validateIncremental(r.Incremental, comparison) {
 		return bad
 	}
 	switch r.RevisionStatus {

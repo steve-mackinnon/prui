@@ -128,8 +128,9 @@ type PullRequestOpenResult struct {
 
 // PullRequestRefreshRequest contains only immutable values, never live UI state.
 type PullRequestRefreshRequest struct {
-	Metadata source.Metadata
-	Checkout string
+	SessionID string
+	Metadata  source.Metadata
+	Checkout  string
 }
 
 // PullRequestFreshness is metadata for the existing comparison, or a new frozen
@@ -179,7 +180,7 @@ func (m *Model) refreshOpenedPullRequest(target int, opened *review.Session) tea
 	m.tabs[target].freshnessGeneration++
 	generation := m.tabs[target].freshnessGeneration
 	refresh, sessionID := m.refreshPullRequest, opened.ID
-	request := PullRequestRefreshRequest{Metadata: opened.Inventory.Comparison.Metadata, Checkout: string(opened.Checkout)}
+	request := PullRequestRefreshRequest{SessionID: opened.ID, Metadata: opened.Inventory.Comparison.Metadata, Checkout: string(opened.Checkout)}
 	ctx, notify := m.ctx, m.notify
 	if notify == nil {
 		notify = func(string) {}
@@ -1140,6 +1141,9 @@ func progress(s *review.Session) string {
 	}
 	if state == session.Unchecked || state == session.CheckFailed {
 		text += " | freshness unknown"
+	}
+	if s.Incremental != nil {
+		text += " | unchanged proof only · 5: changes/drafts"
 	}
 	return text
 }
