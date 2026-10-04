@@ -16,19 +16,20 @@ import (
 // Discussion is readable even when neither coordinate can be placed in a diff.
 // Unknown status is represented by nil, independently for each status.
 type Discussion struct {
-	Retained         bool
-	Kind             string
-	Decision         string
-	CreatedAt        time.Time
-	ID               string
-	OriginalCommitID string
-	OriginalAnchor   *ReviewCommentTarget
-	CurrentAnchor    *ReviewCommentTarget
-	Outdated         *bool
-	Resolved         *bool
-	Comments         []ReviewComment
-	DiffHunk         string
-	URL              string
+	CanResolve, CanUnresolve *bool
+	Retained                 bool
+	Kind                     string
+	Decision                 string
+	CreatedAt                time.Time
+	ID                       string
+	OriginalCommitID         string
+	OriginalAnchor           *ReviewCommentTarget
+	CurrentAnchor            *ReviewCommentTarget
+	Outdated                 *bool
+	Resolved                 *bool
+	Comments                 []ReviewComment
+	DiffHunk                 string
+	URL                      string
 }
 type DiscussionSnapshot struct {
 	Events   []ConversationEvent
@@ -64,11 +65,12 @@ type remoteDiscussion struct {
 	ID, Path, DiffSide, StartDiffSide, SubjectType   string
 	Line, OriginalLine, StartLine, OriginalStartLine *int
 	IsOutdated, IsResolved                           *bool
+	ViewerCanResolve, ViewerCanUnresolve             *bool
 	Comments                                         discussionComments
 }
 
 const discussionCommentFields = `fullDatabaseId body url diffHunk createdAt author{login} commit{oid} originalCommit{oid} replyTo{fullDatabaseId}`
-const discussionFields = `id path diffSide startDiffSide subjectType line originalLine startLine originalStartLine isOutdated isResolved comments(first:20){nodes{` + discussionCommentFields + `} pageInfo{hasNextPage endCursor}}`
+const discussionFields = `id path diffSide startDiffSide subjectType line originalLine startLine originalStartLine isOutdated isResolved viewerCanResolve viewerCanUnresolve comments(first:20){nodes{` + discussionCommentFields + `} pageInfo{hasNextPage endCursor}}`
 const discussionsQuery = `query($owner:String!,$name:String!,$number:Int!,$cursor:String){repository(owner:$owner,name:$name){pullRequest(number:$number){reviewThreads(first:100,after:$cursor){nodes{` + discussionFields + `} pageInfo{hasNextPage endCursor}}}}}`
 const discussionRepliesQuery = `query($id:ID!,$cursor:String){node(id:$id){... on PullRequestReviewThread{comments(first:20,after:$cursor){nodes{` + discussionCommentFields + `} pageInfo{hasNextPage endCursor}}}}}`
 
@@ -112,7 +114,7 @@ func normalizeDiscussion(raw *remoteDiscussion, id Identity) (Discussion, time.T
 			return Discussion{}, time.Time{}, errors.New("invalid discussion line")
 		}
 	}
-	d := Discussion{ID: raw.ID, Outdated: raw.IsOutdated, Resolved: raw.IsResolved}
+	d := Discussion{ID: raw.ID, Outdated: raw.IsOutdated, Resolved: raw.IsResolved, CanResolve: raw.ViewerCanResolve, CanUnresolve: raw.ViewerCanUnresolve}
 	seen := map[int64]bool{}
 	var created time.Time
 	for i, c := range raw.Comments.Nodes {
