@@ -18,6 +18,7 @@ type binding struct {
 }
 
 var bindings = []binding{
+	{keys: "ctrl+f", desc: "find code text in Files or the current Guide section", groups: groupHelp, section: "Navigate"},
 	{keys: "ctrl+p", desc: "open the pull-request switcher", groups: groupFooter | groupHelp, section: "App"},
 	{keys: "j/k", desc: "move the focused list or diff cursor", groups: groupNav | groupHelp, section: "Navigate"},
 	{keys: "up/down", desc: "move list selection or scroll continuous diff", groups: groupNav | groupHelp, section: "Navigate"},

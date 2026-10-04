@@ -4,6 +4,8 @@ These documents preserve requirements, acceptance criteria, and the reasoning be
 
 ## Specifications
 
+- [Spec: Diff Text Search](SPEC-diff-text-search.md)
+
 - [Spec: Configurable guide models with Charm Fantasy](SPEC-MULTI-PROVIDER-GUIDES.md)
 - [Spec: Current-Checkout Pull Request Picker](SPEC-current-checkout-pr-picker.md)
 - [Spec: Interactive TUI Themes](SPEC-custom-themes.md)

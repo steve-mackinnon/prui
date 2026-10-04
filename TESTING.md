@@ -192,3 +192,23 @@ both macOS and Linux; a cross-build alone does not establish runtime behavior.
 The driver is embedded and requires no user-installed SQLite tools or library.
 Windows support and verification remain deferred. See
 [SQLite verification evidence](docs/SQLITE-VERIFICATION.md) for measured results.
+
+
+## Diff text search
+
+Run `go test ./internal/tui -run TestDiffSearch -count=1` for matching,
+current-section scope, source navigation, stale-result rejection, result limits,
+wrapping/split/resize behavior, escaping, colorless output, and mouse ownership.
+`TestPTYSmoke` also drives Ctrl+F, query editing, and result activation through the
+compiled binary in an offline synthetic review, asserting no GitHub invocation.
+
+Run `go test ./internal/tui -run '^$' -bench BenchmarkDiffSearch -benchmem -count=3`
+for a 100,020-line fixture. On Apple M2 Max / Go 1.26.8, warm absent-query scans
+measured 5.36–5.49 ms mean and 5.93–5.95 ms p95 (2026-10-04), with 497 B/op.
+The capped 10,000-result popover measured 0.67–0.76 ms per render; only nearby
+snippets are formatted. These exclude terminal output and are observations, not
+portable CI thresholds. Deterministic tests enforce cancellation and result caps.
+
+Human terminal review should check light/dark highlight contrast and keyboard/
+mouse discoverability. Automated color-cell assertions and PTY checks do not
+replace that subjective usability review.

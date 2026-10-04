@@ -1,6 +1,6 @@
 example/review #42                                                                                                                            ctrl+p: switch PR
   Description [1]  › Files [2]    Guide [3]    Commits [4]
-┌ Files · ▽ Filter (/) ──────────────┬ Diff · FILES 2 · file 1/2 · side-by-side needs 160 columns ────────────────────────────────────────────────────────────┐
+┌ Files · ▽ Filter (/) ──────────────┬ Find (Ctrl+F) · Diff · FILES 2 · file 1/2 · side-by-side needs 160 columns ────────────────────────────────────────────┐
 │› main.go                           │── main.go                                                                                                              │
 │  README.md                         │@@ -1 +1 @@                                                                                                             │
 │                                    │-old greeting                                                                                                           │

@@ -88,6 +88,7 @@ type descriptionRenderCache struct {
 // reviewTabState is the reviewer-visible state that must travel with an open
 // review. Window dimensions and services remain shared by the workspace.
 type reviewTabState struct {
+	search                                               [2]*diffSearchState
 	discussions                                          discussionState
 	commit                                               commitState
 	savedCursorTarget                                    *source.ReviewCommentTarget
@@ -343,13 +344,29 @@ func (m *Model) Init() tea.Cmd {
 		return Loaded{s, e}
 	})
 }
-func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m *Model) Update(msg tea.Msg) (updated tea.Model, command tea.Cmd) {
+	defer func() {
+		if m.Session != nil && m.diffReviewView() && m.existingSearch() != nil {
+			s := m.searchState()
+			if s.scope != m.currentSearchScope() {
+				command = tea.Batch(command, m.startSearch())
+			}
+		}
+	}()
 	defer func() {
 		if !m.mouseAvailable() {
 			m.cancelMouseDrag()
 		}
 	}()
 	switch v := msg.(type) {
+	case diffSearchResult:
+		m.applySearchResult(v)
+		return m, nil
+	case tea.PasteMsg:
+		if m.searchOpen() {
+			return m, m.insertSearchText(v.Content)
+		}
+		return m, nil
 	case tea.ColorProfileMsg:
 		m.colorProfile = v.Profile
 		return m, nil
@@ -584,6 +601,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.ensureCommitEditorVisible()
 			return m, nil
 		}
+		keepSearchMatch := m.searchMatchAtCursor()
 		cursorTarget, cursorCommentID := m.cursorAnchor()
 		m.Width = max(1, v.Width)
 		m.Height = max(1, v.Height)
@@ -595,6 +613,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.cursorInViewport(1)
 		}
 		m.ensureReplyEditorVisible()
+		if keepSearchMatch {
+			m.revealSearchMatch()
+		}
 		return m, m.restartGuidePathScroll()
 	case tea.KeyPressMsg:
 		m.cancelMouseDrag()
@@ -608,6 +629,14 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// The modal owns Enter/Escape; an underlying composer must never
 			// interpret discard confirmation as a remote comment submission.
 			return m, m.pageKey(pageQuitPending, v)
+		}
+		if m.searchAvailable() {
+			if m.searchOpen() && v.String() != "ctrl+c" {
+				return m, m.searchKey(v)
+			}
+			if v.String() == "ctrl+f" {
+				return m, m.openSearch()
+			}
 		}
 		if m.top() == pageReview && m.fileView() && m.Composer == nil && m.CommentMenu == nil && !m.Busy {
 			if m.fileFilterEditing && v.String() != "ctrl+c" {
@@ -736,9 +765,13 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.selectReviewView(viewGuide)
 		case "S":
 			if m.diffReviewView() {
+				keepSearchMatch := m.searchMatchAtCursor()
 				target, commentID := m.cursorAnchor()
 				m.layout = m.layout.toggled()
 				m.restoreCursorAnchor(target, commentID)
+				if keepSearchMatch {
+					m.revealSearchMatch()
+				}
 			}
 		case "e":
 			m.push(pageEvidence)
@@ -902,6 +935,7 @@ func (m *Model) registerReviewTab(s *review.Session, activate bool) {
 }
 
 func (m *Model) activateTab(index int) bool {
+	m.closeSearchPopovers()
 	if index < 0 || index >= len(m.tabs) {
 		return false
 	}
@@ -990,6 +1024,7 @@ func (m *Model) cycleReviewView(delta int) {
 }
 
 func (m *Model) selectReviewView(view reviewView) {
+	m.closeSearchPopovers()
 	m.cancelMouseDrag()
 	if m.Session == nil {
 		return
@@ -1925,6 +1960,9 @@ func (m *Model) View() tea.View {
 			}
 		}
 	}
+	if m.searchOpen() {
+		text = m.searchPopover(text)
+	}
 	if modal := m.loadingModal(); modal.active {
 		text = renderLoadingModal(m.Width, m.Height, text, modal)
 	}
@@ -2011,7 +2049,7 @@ func (m *Model) reviewViewForLayout(preferSideBySide bool) string {
 	if m.Inventory {
 		leftLabel = "Full inventory (i)"
 	}
-	rightLabel := "Diff · " + text
+	rightLabel := "Find (Ctrl+F) · Diff · " + text
 	header := m.paneFrameHeader(leftLabel, rightLabel)
 	bodyHeight := m.bodyHeight()
 	list, selectedRow := m.reviewListPresentation()
@@ -2154,7 +2192,7 @@ func (m *Model) paneFrameHeader(listLabel, detailLabel string) string {
 	if m.Width < 100 {
 		label := listLabel + " · List"
 		if m.Focus == paneDiff {
-			label = listLabel + " · Diff"
+			label = listLabel + " · Find (Ctrl+F) · Diff"
 		}
 		return m.styleLine(classPaneHeaderFocused, "┌"+paneHeaderText(label, m.Width-2)+"┐")
 	}

@@ -7,6 +7,9 @@ User-visible changes are recorded here before each release. See
 
 ### Added
 
+- Find code text with Ctrl+F in Files and the current Guide section, with results
+  grouped by file, direct match navigation, and highlights in unified and split diffs.
+
 - Highlight diff syntax using full pinned-file context, with theme-aware colors and saved token spans for offline reviews.
 
 - Add full foreground/background theming with 22 named presets, bringing the catalog to 26 themes, and group the theme picker into Dark and Light sections with candidate previews.
