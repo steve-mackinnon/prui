@@ -52,7 +52,7 @@ type CommentReader func(context.Context, source.Metadata) ([]source.ReviewCommen
 type ViewerReader func(context.Context) (source.Viewer, error)
 
 // CommentAction is deliberately small and tab-local. Body is used only for a
-// reply; Reaction is one of the finite GitHub values. Neither is persisted.
+// reply; Reaction is one of the finite GitHub values. Reply bodies follow the private draft contract; reactions remain transient.
 type CommentAction struct {
 	Metadata source.Metadata
 	Comment  source.ReviewComment
@@ -280,6 +280,10 @@ func commentOverlay(comments []source.ReviewComment, session *review.Session) []
 
 func (m *Model) commentComposerKey(key tea.KeyPressMsg) tea.Cmd {
 	composer := m.Composer
+	if m.draft.attempt != "" && key.String() != "esc" && key.String() != "ctrl+r" {
+		m.ActionError = errors.New("delivery uncertain: ctrl+r to check GitHub or esc to discard")
+		return nil
+	}
 	if composer == nil {
 		m.pop()
 		return nil
@@ -290,8 +294,15 @@ func (m *Model) commentComposerKey(key tea.KeyPressMsg) tea.Cmd {
 	}
 	switch key.String() {
 	case "esc":
+		if m.draft.attempt == "comment" && composer.PendingIndex >= 0 && composer.PendingIndex < len(m.Pending) {
+			m.Pending = append(m.Pending[:composer.PendingIndex], m.Pending[composer.PendingIndex+1:]...)
+		}
 		m.commit.cache = commitRenderCache{}
 		m.Composer = nil
+		if m.draft.attempt == "comment" {
+			m.draft.attempt = ""
+			m.draft.attempted = nil
+		}
 		return nil
 	case "left":
 		composer.Cursor = max(0, composer.Cursor-1)
@@ -322,6 +333,9 @@ func (m *Model) commentComposerKey(key tea.KeyPressMsg) tea.Cmd {
 		composer.Draft, composer.Cursor = insertEditorText(composer.Draft, composer.Cursor, "\n")
 		return nil
 	case "ctrl+r":
+		if m.draft.attempt != "" {
+			return m.reconcileDraftCommand()
+		}
 		if m.readDiscussions != nil {
 			return m.refreshDiscussions()
 		}
@@ -362,6 +376,9 @@ func (m *Model) commentComposerKey(key tea.KeyPressMsg) tea.Cmd {
 			m.ActionError = errors.New("review comment body is required")
 			return nil
 		}
+		if !m.prepareDraftAttempt("comment") {
+			return nil
+		}
 		composer.generation++
 		generation, target, submit := composer.generation, m.activeTab, m.submitComment
 		if m.Session == nil {
@@ -388,11 +405,22 @@ func (m *Model) commentComposerKey(key tea.KeyPressMsg) tea.Cmd {
 
 func (m *Model) commentActionKey(key tea.KeyPressMsg) tea.Cmd {
 	menu := m.CommentMenu
+	if m.draft.attempt != "" && key.String() != "esc" && key.String() != "ctrl+r" {
+		m.ActionError = errors.New("delivery uncertain: ctrl+r to check GitHub or esc to discard")
+		return nil
+	}
 	if menu == nil {
 		return nil
 	}
+	if key.String() == "ctrl+r" && m.draft.attempt != "" {
+		return m.reconcileDraftCommand()
+	}
 	if key.String() == "esc" {
 		m.CommentMenu = nil
+		if m.draft.attempt == "reply" {
+			m.draft.attempt = ""
+			m.draft.attempted = nil
+		}
 		return nil
 	}
 	if menu.mode == commentActionReply {
@@ -477,19 +505,12 @@ func (m *Model) commentActionKey(key tea.KeyPressMsg) tea.Cmd {
 		m.ActionError = errors.New("review comment action unavailable")
 		return nil
 	}
+	if menu.mode == commentActionReply && !m.prepareDraftAttempt("reply") {
+		return nil
+	}
 	menu.generation++
 	generation, target, submit := menu.generation, m.activeTab, m.submitCommentAction
-	commentID := menu.CommentID
-	if menu.mode == commentActionReply && menu.ReplyToID > 0 {
-		commentID = menu.ReplyToID
-	}
-	action := CommentAction{Metadata: m.Session.Inventory.Comparison.Metadata, Comment: source.ReviewComment{ID: commentID, Author: menu.Author, Target: menu.Target}, Body: menu.Draft, Reaction: menu.Reaction, Delete: menu.mode == commentActionDeleteConfirm}
-	for _, existing := range m.Comments {
-		if existing.ID == commentID {
-			action.Comment = existing
-			break
-		}
-	}
+	action := m.commentActionRequest(menu)
 	m.notice = "Submitting review comment action..."
 	ctx := m.beginAction()
 	return m.start(func() tea.Msg {
@@ -518,6 +539,8 @@ func (m *Model) applyCommentResult(result CommentResult) {
 			state.Pending = append(state.Pending[:i], state.Pending[i+1:]...)
 		}
 		state.Composer = nil
+		state.draft.attempt = ""
+		state.draft.attempted = nil
 	}
 }
 
@@ -548,6 +571,8 @@ func (m *Model) applyCommentActionResult(result CommentActionResult) {
 	}
 	updateDiscussionAction(state, result)
 	state.CommentMenu = nil
+	state.draft.attempt = ""
+	state.draft.attempted = nil
 }
 
 func (m *Model) start(work func() tea.Msg) tea.Cmd {
@@ -1120,4 +1145,21 @@ func readMarker(s *review.Session, id string) string {
 		return "[x] "
 	}
 	return "[ ] "
+}
+
+// commentActionRequest freezes the root comment and associated raw anchor once
+// for both durable intent and the explicit dispatch path.
+func (m *Model) commentActionRequest(menu *commentActionMenu) CommentAction {
+	commentID := menu.CommentID
+	if menu.mode == commentActionReply && menu.ReplyToID > 0 {
+		commentID = menu.ReplyToID
+	}
+	action := CommentAction{Metadata: m.Session.Inventory.Comparison.Metadata, Comment: source.ReviewComment{ID: commentID, Author: menu.Author, Target: menu.Target}, Body: menu.Draft, Reaction: menu.Reaction, Delete: menu.mode == commentActionDeleteConfirm}
+	for _, existing := range m.Comments {
+		if existing.ID == commentID {
+			action.Comment = existing
+			break
+		}
+	}
+	return action
 }

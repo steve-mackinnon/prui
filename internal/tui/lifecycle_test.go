@@ -762,7 +762,7 @@ func TestBackgroundReplacementCannotInterruptForegroundReviewAction(t *testing.T
 				m.push(pageGuideConsent)
 				m.guideConsentKey("enter")
 			case "comment":
-				m.Composer = &commentComposer{Draft: "keep draft", Target: source.ReviewCommentTarget{Path: "a", Line: 1, Side: "RIGHT"}}
+				m.Composer = &commentComposer{Draft: "keep draft", PendingIndex: -1, Target: source.ReviewCommentTarget{Identity: saved.Inventory.Comparison.Metadata.Identity, CommitID: saved.Inventory.Comparison.Metadata.HeadSHA, Path: "a", Line: 1, Side: "RIGHT"}}
 				m.submitComment = func(ctx context.Context, _ CommentSubmission) (source.ReviewComment, error) {
 					<-ctx.Done()
 					return source.ReviewComment{}, ctx.Err()

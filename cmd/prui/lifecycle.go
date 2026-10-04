@@ -600,3 +600,30 @@ func listPullRequests(out io.Writer, repository string, prs []source.PullRequest
 		_, _ = fmt.Fprintln(out, "No open pull requests.")
 	}
 }
+
+func (a *application) reconcileDraft(ctx context.Context, metadata source.Metadata, draft session.Draft) (bool, error) {
+	if err := a.online(ctx); err != nil {
+		return false, err
+	}
+	reader, ok := a.gh.(source.DraftOutcomeReader)
+	if !ok {
+		return false, errors.New("GitHub draft outcome reader unavailable")
+	}
+	if draft.Attempted == nil {
+		return false, errors.New("missing immutable attempted submission")
+	}
+	attempt := draft.Attempted
+	switch attempt.Kind {
+	case "comment", "reply":
+		if attempt.Comment == nil {
+			return false, errors.New("missing attempted comment")
+		}
+		return reader.CommentDraftOutcome(ctx, *attempt.Comment, attempt.ParentID)
+	case "review":
+		if attempt.Review == nil {
+			return false, errors.New("missing attempted review")
+		}
+		return reader.ReviewDraftOutcome(ctx, *attempt.Review)
+	}
+	return false, errors.New("no attempted submission")
+}
