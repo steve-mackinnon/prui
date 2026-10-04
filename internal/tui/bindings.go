@@ -24,6 +24,8 @@ var bindings = []binding{
 	{keys: "ctrl+e, alt+o/n, ctrl+d, ctrl+w", desc: "expand pinned context, full OLD/NEW, diff, whitespace presentation (Files)", groups: groupHelp, section: "Navigate"},
 	{keys: "alt+up/down", desc: "previous/next loaded unresolved thread", groups: groupHelp, section: "Navigate"},
 	{keys: "/", desc: "find code text in Files or the current Guide section", groups: groupHelp, section: "Navigate"},
+	{keys: "B", desc: "toggle file category grouping (remembered)", groups: groupHelp, section: "Views"},
+	{keys: "alt+c", desc: "collapse/reveal generated files (remembered); filter always reveals matches", groups: groupHelp, section: "Views"},
 	{keys: "P", desc: "open the pull-request switcher", groups: groupFooter | groupHelp, section: "App"},
 	{keys: "j/k", desc: "move the focused list or diff cursor", groups: groupNav | groupHelp, section: "Navigate"},
 	{keys: "up/down", desc: "move list selection or scroll continuous diff", groups: groupNav | groupHelp, section: "Navigate"},

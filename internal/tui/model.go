@@ -15,6 +15,7 @@ import (
 	"prui/internal/commits"
 	"prui/internal/guideconfig"
 	"prui/internal/inventory"
+	"prui/internal/layoutprefs"
 	"prui/internal/review"
 	"prui/internal/session"
 	"prui/internal/source"
@@ -110,6 +111,7 @@ type reviewTabState struct {
 	Row                                                  int
 	fileFilter                                           string
 	fileFilterEditing                                    bool
+	groupFiles, collapseGenerated                        bool
 	Files                                                bool
 	collapsed                                            expansion
 	Scroll                                               map[int]int
@@ -212,6 +214,9 @@ type Model struct {
 	guideCache        guideDetailCache
 	fileCache         fileDetailCache
 	*reviewTabState
+	layoutPreferences     layoutprefs.Preferences
+	saveLayoutPreferences func(layoutprefs.Preferences) error
+
 	drag                 dividerDrag
 	pendingCenter        bool
 	helpScroll           int
@@ -947,11 +952,24 @@ func (m *Model) update(msg tea.Msg) (updated tea.Model, command tea.Cmd) {
 			m.openFileFilter()
 		case "G":
 			m.selectReviewView(viewGuide)
+		case "B":
+			if m.fileView() {
+				m.groupFiles = !m.groupFiles
+				m.saveLayout()
+			}
+		case "C":
+			if m.fileView() {
+				target, commentID := m.cursorAnchor()
+				m.collapseGenerated = !m.collapseGenerated
+				m.restoreCursorAnchor(target, commentID)
+				m.saveLayout()
+			}
 		case "S":
 			if m.diffReviewView() {
 				keepSearchMatch := m.searchMatchAtCursor()
 				target, commentID := m.cursorAnchor()
 				m.layout = m.layout.toggled()
+				m.saveLayout()
 				m.restoreCursorAnchor(target, commentID)
 				if keepSearchMatch {
 					m.revealSearchMatch()
@@ -1451,7 +1469,7 @@ func (m *Model) listWidth() int {
 }
 
 func (m *Model) clampListWidth(width int) int {
-	return min(max(18, width), m.Width-3-40)
+	return min(max(18, width), m.Width-3-40, 4096)
 }
 
 func (m *Model) resizeList(delta int) {
@@ -1464,6 +1482,7 @@ func (m *Model) resizeList(delta int) {
 	}
 	target, commentID := m.cursorAnchor()
 	m.listWidthPreference = m.clampListWidth(m.listWidth() + delta)
+	m.saveLayout()
 	m.restoreCursorAnchor(target, commentID)
 	if m.diffLayout() != diffLayoutSideBySide {
 		m.cursorInViewport(1)
@@ -1479,7 +1498,7 @@ func (m *Model) file(delta int) {
 		return
 	}
 	f := m.Session.UnitFiles[m.Selected]
-	if m.fileView() && m.fileFilter != "" {
+	if m.fileView() && (m.fileFilter != "" || m.groupFiles || m.collapseGenerated) {
 		files := m.filteredFiles()
 		if len(files) == 0 {
 			return
@@ -1617,7 +1636,7 @@ func (m *Model) baseDetail() []diffLine {
 		return m.cachedGuideDetail(guide).lines
 	}
 	if m.fileView() {
-		return m.cachedFileDetail(false)
+		return m.presentedFileDetail(false)
 	}
 	if m.Session == nil || m.Selected < 0 || m.Selected >= len(m.Session.Inventory.Units) {
 		return nil
@@ -1683,7 +1702,7 @@ func (m *Model) sideBySideDetail() []diffLine {
 	if guide, ok := m.activeGuide(); ok {
 		base = m.cachedGuideDetail(guide).splitLines
 	} else if m.fileView() {
-		base = m.cachedFileDetail(true)
+		base = m.presentedFileDetail(true)
 	} else {
 		base = projectSideBySideDetail(m.baseDetail())
 	}

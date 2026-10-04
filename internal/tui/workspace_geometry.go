@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/charmbracelet/x/ansi"
 	"image"
+	"prui/internal/inventory"
 )
 
 type workspaceGeometry struct{ Rail, Detail, Divider image.Rectangle }
@@ -52,12 +53,22 @@ func (m *Model) reviewListPresentation() ([]listLine, int) {
 		list = append(list, listLine{row: -1, text: "No guide yet. Press g to generate."})
 	default:
 		selectedRow = s.UnitFiles[m.Selected]
+		var lastCategory inventory.Category
+		counts := m.categoryCounts()
 		for _, i := range m.filteredFiles() {
+			category := m.fileCategory(i)
+			if m.groupFiles && category != lastCategory {
+				list = append(list, listLine{row: -1, text: categoryLabel(category) + fmt.Sprintf(" · %d", counts[category])})
+				lastCategory = category
+			}
 			f := s.Inventory.Files[i]
 			marker := selectionMarker(i == selectedRow)
 			prefix := marker + readMarker(s, f.ID)
 			name, width := fileRailName(f, leftWidth-visibleWidth(prefix))
 			text := prefix + name
+			if c, ok := s.Inventory.Classifications[f.ID]; ok && c.Partial {
+				text += " [category unavailable]"
+			}
 			mutedFrom := 0
 			path := fileDirectory(f)
 			pathWidth := width - visibleWidth(name) - 2
@@ -74,13 +85,18 @@ func (m *Model) reviewListPresentation() ([]listLine, int) {
 			list = append(list, listLine{row: i, text: text, mutedFrom: mutedFrom})
 		}
 	}
+
 	var pinned []listLine
+	if m.fileView() && m.collapseGenerated && m.categoryCounts()[inventory.Generated] > 0 {
+		pinned = append(pinned, listLine{row: -1, text: fmt.Sprintf("Generated · %d · C: reveal all", m.categoryCounts()[inventory.Generated])})
+		bodyHeight = max(0, bodyHeight-1)
+	}
 	if m.fileView() && (m.fileFilterEditing || m.fileFilter != "") {
 		label := "Filter files: " + Escape(m.fileFilter)
 		if m.fileFilterEditing {
 			label += "▏"
 		}
-		pinned = []listLine{{row: -1, text: middleTruncate(label, leftWidth)}}
+		pinned = append(pinned, listLine{row: -1, text: middleTruncate(label, leftWidth)})
 		bodyHeight = max(0, bodyHeight-1)
 		if len(list) == 0 {
 			list = append(list, listLine{row: -1, text: "No matching files"})

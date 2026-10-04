@@ -321,6 +321,7 @@ func (m *Model) commitKey(key string) {
 				delta = 2
 			}
 			m.commit.width = m.clampListWidth(m.commitListWidth() + delta)
+			m.saveLayout()
 		}
 	case "j", "down", "k", "up", "d", "pgdown", "u", "pgup", "home", "end":
 		delta := 1

@@ -57,6 +57,7 @@ func (m *Model) mouseResize(msg tea.MouseMsg) (tea.Cmd, bool) {
 		width := m.clampListWidth(event.X - m.drag.grabOffset - 1)
 		if m.selectedReviewView() == viewCommits {
 			m.commit.width = width
+			m.saveLayout()
 			m.commitOffset()
 			return nil, true
 		}
@@ -69,6 +70,7 @@ func (m *Model) mouseResize(msg tea.MouseMsg) (tea.Cmd, bool) {
 		}
 		target, commentID := m.cursorAnchor()
 		m.listWidthPreference = width
+		m.saveLayout()
 		m.restoreCursorAnchor(target, commentID)
 		m.setOffset(m.clampOffset(m.offset()))
 		if m.cursorActive {

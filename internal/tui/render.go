@@ -533,6 +533,16 @@ func (m *Model) evidenceView() string {
 	for _, o := range c.OmittedPaths {
 		lines = append(lines, fmt.Sprintf("[omitted] %s: %s", Escape(string(o.Path)), Escape(o.Reason)))
 	}
+	if m.Selected >= 0 && m.Selected < len(m.Session.UnitFiles) {
+		f := m.Session.Inventory.Files[m.Session.UnitFiles[m.Selected]]
+		if classification, ok := m.Session.Inventory.Classifications[f.ID]; ok {
+			state := "captured committed attributes"
+			if classification.Partial {
+				state = "classification unavailable; safe support default"
+			}
+			lines = append(lines, fmt.Sprintf("File category: %s · %s · tree %.12s", Escape(string(classification.Category)), state, Escape(classification.SourceSHA)))
+		}
+	}
 	lines = append(lines, "esc: back | raw inventory remains available | omissions are not missing diff entries")
 	return strings.Join(lines, "\n")
 }

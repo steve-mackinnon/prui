@@ -41,14 +41,15 @@ type ReviewUnit struct {
 	PatchReference, UnavailableReason string
 }
 type Inventory struct {
-	FullSource *FullSource `json:"full_source,omitempty"`
-	Comparison source.PinnedComparison
-	Files      []FileChange
-	Units      []ReviewUnit
-	Patches    map[string][]byte
-	Syntax     map[string]syntax.Patch `json:"syntax,omitempty"`
-	Complete   bool
-	Problems   []string
+	FullSource      *FullSource `json:"full_source,omitempty"`
+	Comparison      source.PinnedComparison
+	Files           []FileChange
+	Units           []ReviewUnit
+	Patches         map[string][]byte
+	Classifications map[string]Classification `json:"classifications,omitempty"`
+	Syntax          map[string]syntax.Patch   `json:"syntax,omitempty"`
+	Complete        bool
+	Problems        []string
 }
 type Objects interface {
 	Git(context.Context, int, ...string) ([]byte, error)
@@ -266,6 +267,12 @@ func build(ctx context.Context, objects Objects, oldSHA, newSHA string, p *sourc
 			inv.Syntax[inv.Units[len(inv.Units)-1].ID] = tokens
 			syntaxSpans += count
 		}
+	}
+	if p != nil {
+		inv.Classifications = captureClassifications(ctx, objects, inv.Files, oldSHA, newSHA)
+	}
+	if ctx.Err() != nil {
+		return inv, ctx.Err()
 	}
 	return inv, nil
 }
