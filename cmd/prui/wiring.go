@@ -32,6 +32,8 @@ func (a *application) model(ctx context.Context, o options) *tui.Model {
 	a.resolveGuideSelection()
 	var m *tui.Model
 	switch o.Command {
+	case "inbox":
+		m = tui.NewPullRequestBrowser(ctx, a.store, a.listPullRequests, a.openFromPullRequestList)
 	case "prs":
 		m = tui.NewPullRequestBrowser(ctx, a.store, a.listPullRequests, a.openFromPullRequestList)
 	case "current":
@@ -53,6 +55,7 @@ func (a *application) model(ctx context.Context, o options) *tui.Model {
 		return a.fresh(c, old, override, notify)
 	})
 	m.SetPullRequestLifecycle(a.listPullRequests, a.openFromPullRequestList)
+	m.SetInbox(a.inbox, a.markInboxRead, a.openInbox, o.Inbox, o.Command == "inbox", o.InboxRefresh)
 	if o.Command == "prs" || o.Command == "current" || o.Command == "open" {
 		m.SetPullRequestRefresh(a.refreshOpenedPullRequest)
 	}

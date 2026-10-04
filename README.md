@@ -289,3 +289,13 @@ reveals generated files, and `F` finds every changed path including collapsed
 files. Split/unified and pane widths persist across runs; narrow terminals keep
 the desired wide layout for later restoration. See
 [attribute rules, pinned provenance, defaults and limits](docs/spec/SPEC-file-categories-layout.md).
+
+The cross-repository review inbox is available with `prui inbox`. It shows local
+cached triage by default; `prui inbox --refresh` explicitly searches your account.
+Use `--view authored` or `--view participated`, repository/author/review/state/draft
+filters, and `--requests personal|team` / `--activity changed` to control noise.
+`--offline --plain` reads cached metadata without credentials or network access.
+In the repository picker press `i`; in the PR switcher press `ctrl+i`. In the
+inbox, `f` edits filters, `r` refreshes, `m` marks captured activity read, and Enter
+opens the PR's own frozen session or verified checkout. There are no alerts or
+background polling. See [inbox controls and limits](docs/spec/SPEC-review-inbox.md).

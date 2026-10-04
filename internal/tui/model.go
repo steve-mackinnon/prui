@@ -156,6 +156,8 @@ const (
 	pageHelp
 	pageURL
 	pagePicker
+	pageInbox
+	pageInboxFilters
 	pageRepositoryPicker
 	pagePullRequestPicker
 	pageGuideConsent
@@ -213,6 +215,7 @@ type Model struct {
 	applySuggestion   SuggestionCommitter
 	guideCache        guideDetailCache
 	fileCache         fileDetailCache
+	inbox inboxState
 	*reviewTabState
 	layoutPreferences     layoutprefs.Preferences
 	saveLayoutPreferences func(layoutprefs.Preferences) error
@@ -356,6 +359,9 @@ func NewCurrentRepositoryBrowser(parent context.Context, store *session.Store, r
 }
 func (m *Model) SetNotifier(f func(string)) { m.notify = f }
 func (m *Model) Init() tea.Cmd {
+	if m.inbox.initial {
+		return m.loadInbox(m.inbox.refresh)
+	}
 	if m.currentRepository != "" {
 		return m.loadPullRequests(m.currentRepository)
 	}
@@ -606,11 +612,14 @@ func (m *Model) update(msg tea.Msg) (updated tea.Model, command tea.Cmd) {
 		busy, actionErr, notice := m.Busy, m.ActionError, m.notice
 		v.Err = m.finishAction(v.Err)
 		if v.Err == nil && v.Session != nil {
-			if active == v.Target && m.top() == pagePullRequestPicker {
+			if active == v.Target && (m.top() == pagePullRequestPicker || m.top() == pageInbox) {
 				m.pop()
 			}
 			m.registerReviewTab(v.Session, active == v.Target)
 			if active == v.Target {
+				if v.Frozen {
+					return m, nil
+				}
 				return m, tea.Batch(m.refreshDiscussions(), m.refreshCommentsInBackground(), m.refreshOpenedPullRequest(m.activeTab, v.Session))
 			}
 		}
@@ -679,6 +688,8 @@ func (m *Model) update(msg tea.Msg) (updated tea.Model, command tea.Cmd) {
 		if active != v.Target {
 			m.Busy, m.ActionError, m.notice = busy, actionErr, notice
 		}
+	case inboxResult, inboxReadResult, inboxOpenResult:
+		return m, m.applyInboxMessage(v)
 	case SessionListResult:
 		if m.finishAction(v.Err) == nil {
 			m.Entries = v.Entries
@@ -765,9 +776,12 @@ func (m *Model) update(msg tea.Msg) (updated tea.Model, command tea.Cmd) {
 			}
 		}
 		editingReviewText := m.discussions.published != nil || m.top() == pageReviewSubmit || (m.top() == pageDiscussions && m.discussions.editor != nil)
+		if m.top() == pageInboxFilters && v.String() != "ctrl+c" {
+			return m, m.inboxFilterKey(v.String())
+		}
 		editingGuideModel := m.top() == pageGuideConsent && m.guideFocus == 2
 		if (v.String() != "q" || editingReviewText || editingGuideModel) && v.String() != "ctrl+c" {
-			if m.Busy && (m.top() != pagePullRequestPicker || m.Session == nil) {
+			if m.Busy && ((m.top() != pagePullRequestPicker && m.top() != pageInbox) || m.Session == nil) {
 				return m, nil
 			}
 			if m.discussions.published != nil {
@@ -1289,6 +1303,10 @@ func (m *Model) back() {
 func (m *Model) pageKey(p page, key tea.KeyPressMsg) tea.Cmd {
 	k := key.String()
 	switch p {
+	case pageInbox:
+		return m.inboxKey(k)
+	case pageInboxFilters:
+		return m.inboxFilterKey(k)
 	case pagePicker:
 		return m.pickerKey(k)
 	case pageRepositoryPicker:
@@ -2302,6 +2320,10 @@ func (m *Model) View() tea.View {
 			text = m.discussionsView()
 		case pageIncremental:
 			text = m.incrementalView()
+		case pageInbox:
+			text = m.inboxView()
+		case pageInboxFilters:
+			text = m.inboxFiltersView()
 		case pagePicker:
 			text = m.pickerView()
 		case pageRepositoryPicker:

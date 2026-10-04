@@ -18,6 +18,9 @@ prui --version
 prui [--theme NAME] [--cache-full-source]
 prui open <PR-URL-or-number> [--github-repo owner/repo] [--plain] [--theme NAME] [--cache-full-source]
 prui prs [owner/repo] [--plain] [--theme NAME] [--cache-full-source]
+prui inbox [--view requested|authored|participated] [--refresh] [--offline] [--plain]
+  [--repository owner/repo] [--author LOGIN] [--review all|none|required|approved|changes_requested]
+  [--state open|closed|all] [--draft all|yes|no] [--requests all|personal|team] [--activity all|changed|read|unknown]
 prui sessions
 prui resume <id> [--offline] [--plain] [--new] [--repo <checkout>] [--theme NAME]
 prui eval-guides <id>
@@ -27,6 +30,8 @@ Resume checks metadata unless --offline. --new creates an unreviewed comparison;
 Open and verify must be launched from the root of the local repository checkout.`
 
 type options struct {
+	Inbox               source.InboxOptions
+	InboxRefresh        bool
 	Command, SessionID  string
 	ThemeName           string
 	ThemeConfigPath     string
@@ -86,6 +91,19 @@ func parseOptions(args []string) (options, error) {
 		} else {
 			start = 1
 		}
+	case "inbox":
+		start = 1
+		f.StringVar(&o.Inbox.View, "view", "requested", "account inbox view")
+		f.StringVar(&o.Inbox.Repository, "repository", "", "repository filter")
+		f.StringVar(&o.Inbox.Author, "author", "", "author filter")
+		f.StringVar(&o.Inbox.Review, "review", "all", "review state")
+		f.StringVar(&o.Inbox.State, "state", "open", "PR state")
+		f.StringVar(&o.Inbox.Draft, "draft", "all", "draft filter")
+		f.StringVar(&o.Inbox.Requests, "requests", "all", "personal/team request noise")
+		f.StringVar(&o.Inbox.Activity, "activity", "all", "local activity noise")
+		f.BoolVar(&o.InboxRefresh, "refresh", false, "explicitly refresh account search")
+		f.BoolVar(&o.Offline, "offline", false, "cached inbox only; no credential access")
+		f.BoolVar(&o.Plain, "plain", false, "escaped text output")
 	case "sessions":
 		start = 1
 	case "current":
@@ -106,6 +124,14 @@ func parseOptions(args []string) (options, error) {
 	}
 	if f.NArg() != 0 || o.Offline && o.New || o.CacheFullSource && (o.Offline || o.Command == "resume" && !o.New) {
 		return o, errors.New(usage)
+	}
+	if o.Command == "inbox" {
+		if err := o.Inbox.Validate(); err != nil {
+			return o, err
+		}
+		if o.Offline && o.InboxRefresh {
+			return o, errors.New("offline inbox cannot refresh")
+		}
 	}
 	if o.ThemeName != "" {
 		if _, err := theme.Resolve(o.ThemeName, nil); err != nil {
