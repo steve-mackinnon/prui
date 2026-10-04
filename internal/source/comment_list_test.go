@@ -37,10 +37,10 @@ func TestGitHubListReviewCommentsKeepsInlineThreadsInMixedPage(t *testing.T) {
 		return data, nil
 	})}
 	comments, err := g.ListReviewComments(context.Background(), Identity{Repository: "owner/repo", Number: 42})
-	if err != nil || len(comments) != 2 {
+	if err != nil || len(comments) != 3 {
 		t.Fatalf("comments = %#v, err = %v", comments, err)
 	}
-	if comments[0].ID != 3 || comments[1].ID != 4 || comments[1].ParentID != 3 || comments[0].Target.Line != 2 || calls != 1 {
+	if comments[0].ID != 1 || comments[0].Target.SubjectType != "file" || comments[0].Target.Line != 0 || comments[0].Target.Side != "" || comments[1].ID != 3 || comments[2].ID != 4 || comments[2].ParentID != 3 || comments[1].Target.Line != 2 || calls != 1 {
 		t.Fatal(comments, calls)
 	}
 }

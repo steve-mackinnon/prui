@@ -434,12 +434,12 @@ func (m *Model) focusPendingTarget(target source.ReviewCommentTarget) bool {
 	}
 	for unit := range m.Session.Inventory.Units {
 		for _, line := range unitLines(m.Session, unit) {
-			if line.target != nil && targetEndsAt(target, *line.target) {
+			if lineHasEndpoint(line, target) {
 				m.resetCommitFilter()
 				m.ContextView, m.Files, m.Inventory, m.Selected, m.Focus = viewFiles, true, false, unit, paneDiff
 				m.cursorActive = true
 				for row, detail := range m.displayDetail() {
-					matches := detail.target != nil && targetEndsAt(target, *detail.target)
+					matches := lineHasEndpoint(detail, target)
 					if detail.sideBySide != nil {
 						for _, candidate := range rowTargets(*detail.sideBySide) {
 							matches = matches || targetEndsAt(target, candidate)
@@ -447,6 +447,9 @@ func (m *Model) focusPendingTarget(target source.ReviewCommentTarget) bool {
 					}
 					if matches {
 						m.setCursor(row)
+						endpoint := target
+						endpoint.StartLine, endpoint.StartSide = 0, ""
+						m.setSelectedDiffTarget(&endpoint)
 						m.ensureCursorVisible()
 						return true
 					}

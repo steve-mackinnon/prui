@@ -125,7 +125,7 @@ func (m *Model) openFileComposer() tea.Cmd {
 
 // switchCommentSide provides a keyboard choice on a paired split row.
 func (m *Model) switchCommentSide() {
-	if !m.sideBySideEnabled() || m.Focus != paneDiff {
+	if m.Focus != paneDiff {
 		return
 	}
 	current := m.selectedDiffTarget()
@@ -134,14 +134,41 @@ func (m *Model) switchCommentSide() {
 		return
 	}
 	line := m.displayDetail()[cursor]
-	if line.sideBySide == nil {
-		return
+	targets := sourceLineTargets(line)
+	if line.sideBySide != nil {
+		targets = rowTargets(*line.sideBySide)
 	}
-	for _, t := range rowTargets(*line.sideBySide) {
+	for _, t := range targets {
 		if t.Side != current.Side {
 			m.rangeStart = nil
 			m.setSelectedDiffTarget(&t)
 			return
 		}
 	}
+}
+
+func sourceLineTargets(line diffLine) []source.ReviewCommentTarget {
+	var targets []source.ReviewCommentTarget
+	if line.target != nil {
+		targets = append(targets, *line.target)
+	}
+	if line.oldTarget != nil {
+		targets = append(targets, *line.oldTarget)
+	}
+	return targets
+}
+func targetIsOldContext(line diffLine, t source.ReviewCommentTarget) bool {
+	if line.oldTarget != nil && *line.oldTarget == t {
+		return true
+	}
+	return line.sideBySide != nil && line.sideBySide.old != nil && line.sideBySide.old.line != nil && line.sideBySide.old.line.oldTarget != nil && *line.sideBySide.old.line.oldTarget == t
+}
+
+func lineHasEndpoint(line diffLine, target source.ReviewCommentTarget) bool {
+	for _, candidate := range sourceLineTargets(line) {
+		if targetEndsAt(target, candidate) {
+			return true
+		}
+	}
+	return false
 }

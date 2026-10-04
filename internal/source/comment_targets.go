@@ -72,3 +72,12 @@ func remoteCommentAnchor(id Identity, sha, path, side string, line, start *int, 
 	}
 	return &t
 }
+
+// Malformed history cannot prove absence of an attempted write. Cross-side
+// remote ranges are valid GitHub data but are not supported outbound targets.
+func validateRemoteRange(line, start *int, side, endSide string) error {
+	if start != nil && (*start <= 0 || line != nil && side == endSide && *start >= *line || side != "LEFT" && side != "RIGHT") {
+		return errors.New("invalid review comment range")
+	}
+	return nil
+}

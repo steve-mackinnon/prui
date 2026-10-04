@@ -434,6 +434,12 @@ func (m *Model) discussionsView() string {
 			t := threads[max(0, min(d.selected, len(threads)-1))]
 			body := []string{discussionStatus(t)}
 			general := t.Kind == "PR comment" || t.Kind == "Review"
+			if t.CurrentAnchor != nil {
+				body = append(body, "Current target · "+commentTargetLabel(*t.CurrentAnchor))
+			}
+			if t.OriginalAnchor != nil {
+				body = append(body, "Original target · "+commentTargetLabel(*t.OriginalAnchor))
+			}
 			captured := false
 			for _, e := range m.commitEntries() {
 				if e.SHA == t.OriginalCommitID {
@@ -607,7 +613,7 @@ func (m *Model) discussionOriginalAvailable(t source.Discussion) bool {
 }
 
 func discussionCreatedCurrent(c source.ReviewComment) *source.ReviewCommentTarget {
-	if c.Target.Line <= 0 {
+	if source.ValidateReviewCommentTarget(c.Target) != nil {
 		return nil
 	}
 	target := c.Target

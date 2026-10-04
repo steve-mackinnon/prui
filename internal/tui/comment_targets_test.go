@@ -197,3 +197,63 @@ func TestExtendedDraftOfflineRecoveryAndImmutableAttempt(t *testing.T) {
 		})
 	}
 }
+
+func TestKeyboardOldRangeCanStartEndAndSpanContext(t *testing.T) {
+	for _, split := range []bool{false, true} {
+		t.Run(map[bool]string{false: "unified", true: "split"}[split], func(t *testing.T) {
+			m := rangeTestModel()
+			m.Session.Inventory.Patches["p"] = []byte("@@ -1,5 +1,5 @@\n before\n-old\n+new\n middle\n-old2\n+new2\n after\n")
+			if split {
+				m.layout = diffLayoutSideBySide
+			}
+			selectRawTarget(t, m, "RIGHT", 1)
+			ctrlKey(m, 'o')
+			ctrlKey(m, 'v')
+			if m.rangeStart == nil || m.rangeStart.Side != "LEFT" || m.rangeStart.Line != 1 {
+				t.Fatal("old context start inaccessible by keyboard")
+			}
+			for n := 0; n < 10; n++ {
+				end := m.commentSelectionTarget()
+				if end != nil && end.Side == "LEFT" && end.Line == 5 {
+					break
+				}
+				key(m, 'j')
+			}
+			namedKey(m, tea.KeyEnter)
+			if m.Composer == nil || m.Composer.Target.Side != "LEFT" || m.Composer.Target.StartLine != 1 || m.Composer.Target.Line != 5 {
+				t.Fatal("old contextual range inaccessible", m.ActionError)
+			}
+			want := m.Composer.Target
+			key(m, 'x')
+			ctrlKey(m, 'p')
+			key(m, 'R')
+			m.ReviewForm.Focus = 2
+			namedKey(m, tea.KeyEnter)
+			if m.Composer == nil || m.Composer.Target != want || !strings.Contains(m.View().Content, "start 1 → end 5") {
+				t.Fatal("old-context endpoint lost on edit", m.ActionError)
+			}
+		})
+	}
+}
+
+func TestPublishedRefreshPreservesRangeAndFileTargets(t *testing.T) {
+	m := rangeTestModel()
+	meta := m.Session.Inventory.Comparison.Metadata
+	rangeTarget := source.ReviewCommentTarget{Identity: meta.Identity, CommitID: meta.HeadSHA, Path: "text", Side: "RIGHT", Line: 2, StartLine: 1, StartSide: "RIGHT"}
+	fileTarget := source.ReviewCommentTarget{Identity: meta.Identity, CommitID: meta.HeadSHA, Path: "image.png", SubjectType: "file"}
+	comments := []source.ReviewComment{{ID: 1, Target: rangeTarget, Body: "range"}, {ID: 2, Target: fileTarget, Body: "file"}}
+	got := commentOverlay(comments, m.Session)
+	if len(got) != 2 || got[0].Target != rangeTarget || got[1].Target != fileTarget {
+		t.Fatal("overlay lost extended targets")
+	}
+	m.Comments = got
+	if !strings.Contains(m.View().Content, "range") {
+		t.Fatal("range not placed at endpoint")
+	}
+	m.Composer = &commentComposer{Target: rangeTarget, PendingIndex: -1, Draft: "keep"}
+	no := false
+	m.applyDiscussionResult(DiscussionResult{Target: m.activeTab, Session: m.Session, Generation: m.discussions.generation, Snapshot: DiscussionSnapshot{CurrentVerified: true, Snapshot: source.DiscussionSnapshot{Complete: true, Threads: []source.Discussion{{ID: "range", CurrentAnchor: &rangeTarget, Outdated: &no, Comments: []source.ReviewComment{comments[0]}}, {ID: "file", CurrentAnchor: &fileTarget, Outdated: &no, Comments: []source.ReviewComment{comments[1]}}}}}})
+	if m.Composer.Target != rangeTarget || len(m.Comments) != 2 || m.Comments[0].Target != rangeTarget || m.Comments[1].Target != fileTarget {
+		t.Fatal("published refresh flattened target")
+	}
+}

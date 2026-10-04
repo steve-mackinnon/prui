@@ -265,14 +265,14 @@ func commentOverlay(comments []source.ReviewComment, session *review.Session) []
 	targets := map[source.ReviewCommentTarget]bool{}
 	for i := range session.Inventory.Units {
 		for _, line := range unitLines(session, i) {
-			if line.target != nil {
-				targets[*line.target] = true
+			for _, t := range sourceLineTargets(line) {
+				targets[t] = true
 			}
 		}
 	}
 	out := make([]source.ReviewComment, 0, len(comments))
 	for _, comment := range comments {
-		if comment.Target.Identity == metadata.Identity && comment.Target.CommitID == metadata.HeadSHA && targets[comment.Target] {
+		if comment.Target.Identity == metadata.Identity && comment.Target.CommitID == metadata.HeadSHA && (targets[comment.Target] || (comment.Target.StartLine != 0 || comment.Target.SubjectType == "file") && commits.InventoryContainsTarget(session.Inventory.Files, session.Inventory.Units, session.Inventory.Patches, comment.Target)) {
 			out = append(out, comment)
 		}
 	}

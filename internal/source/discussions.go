@@ -61,14 +61,14 @@ type discussionComments struct {
 	PageInfo *discussionPageInfo
 }
 type remoteDiscussion struct {
-	ID, Path, DiffSide, SubjectType                  string
+	ID, Path, DiffSide, StartDiffSide, SubjectType   string
 	Line, OriginalLine, StartLine, OriginalStartLine *int
 	IsOutdated, IsResolved                           *bool
 	Comments                                         discussionComments
 }
 
 const discussionCommentFields = `fullDatabaseId body url diffHunk createdAt author{login} commit{oid} originalCommit{oid} replyTo{fullDatabaseId}`
-const discussionFields = `id path diffSide subjectType line originalLine startLine originalStartLine isOutdated isResolved comments(first:20){nodes{` + discussionCommentFields + `} pageInfo{hasNextPage endCursor}}`
+const discussionFields = `id path diffSide startDiffSide subjectType line originalLine startLine originalStartLine isOutdated isResolved comments(first:20){nodes{` + discussionCommentFields + `} pageInfo{hasNextPage endCursor}}`
 const discussionsQuery = `query($owner:String!,$name:String!,$number:Int!,$cursor:String){repository(owner:$owner,name:$name){pullRequest(number:$number){reviewThreads(first:100,after:$cursor){nodes{` + discussionFields + `} pageInfo{hasNextPage endCursor}}}}}`
 const discussionRepliesQuery = `query($id:ID!,$cursor:String){node(id:$id){... on PullRequestReviewThread{comments(first:20,after:$cursor){nodes{` + discussionCommentFields + `} pageInfo{hasNextPage endCursor}}}}}`
 
@@ -102,12 +102,6 @@ func discussionID(raw json.RawMessage) (int64, error) {
 		return 0, errors.New("invalid discussion comment identity")
 	}
 	return id, nil
-}
-func discussionAnchor(id Identity, sha, path, side string, line, start *int, subject string) *ReviewCommentTarget {
-	if !shaPattern.MatchString(sha) || !validDiscussionField(path, 4096, false) || path == "" || (side != "LEFT" && side != "RIGHT") || line == nil || *line <= 0 || start != nil || subject != "LINE" {
-		return nil
-	}
-	return &ReviewCommentTarget{Identity: id, CommitID: sha, Path: path, Side: side, Line: *line}
 }
 func normalizeDiscussion(raw *remoteDiscussion, id Identity) (Discussion, time.Time, error) {
 	if raw == nil || raw.ID == "" || !validDiscussionField(raw.ID, 256, false) || !validDiscussionField(raw.Path, 4096, false) || raw.Path == "" || len(raw.Comments.Nodes) == 0 || raw.Comments.PageInfo == nil || raw.Comments.PageInfo.HasNextPage == nil || (raw.DiffSide != "LEFT" && raw.DiffSide != "RIGHT") || (raw.SubjectType != "LINE" && raw.SubjectType != "FILE") {
@@ -161,12 +155,13 @@ func normalizeDiscussion(raw *remoteDiscussion, id Identity) (Discussion, time.T
 		if i == 0 && parent == 0 {
 			created = c.CreatedAt
 			d.OriginalCommitID = original
-			d.OriginalAnchor = discussionAnchor(id, original, raw.Path, raw.DiffSide, raw.OriginalLine, raw.OriginalStartLine, raw.SubjectType)
-			d.CurrentAnchor = discussionAnchor(id, sha, raw.Path, raw.DiffSide, raw.Line, raw.StartLine, raw.SubjectType)
+			d.OriginalAnchor = remoteCommentAnchor(id, original, raw.Path, raw.DiffSide, raw.OriginalLine, raw.OriginalStartLine, raw.StartDiffSide, raw.SubjectType)
+			d.CurrentAnchor = remoteCommentAnchor(id, sha, raw.Path, raw.DiffSide, raw.Line, raw.StartLine, raw.StartDiffSide, raw.SubjectType)
 			d.URL = comment.URL
 			d.DiffHunk = c.DiffHunk
 		}
 		comment.OriginalAnchor = d.OriginalAnchor
+		comment.CurrentAnchor = d.CurrentAnchor
 		if d.CurrentAnchor != nil {
 			comment.Target = *d.CurrentAnchor
 		}

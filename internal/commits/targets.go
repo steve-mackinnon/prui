@@ -100,6 +100,9 @@ func InventoryContainsTarget(files []inventory.FileChange, units []inventory.Rev
 				oldLine++
 			case ' ':
 				path, side, line = string(f.NewPath), "RIGHT", newLine
+				if target.StartLine != 0 && target.Side == "LEFT" {
+					path, side, line = string(f.OldPath), "LEFT", oldLine
+				}
 				oldLine++
 				newLine++
 			default:

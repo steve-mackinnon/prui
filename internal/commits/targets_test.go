@@ -110,3 +110,24 @@ func TestRangesRequireEveryRawCoordinateInOneHunk(t *testing.T) {
 		t.Fatal("cross-hunk range accepted")
 	}
 }
+
+func TestLeftRangesIncludeRawUnchangedContext(t *testing.T) {
+	files := []inventory.FileChange{{ID: "f", OldPath: []byte("old"), NewPath: []byte("new")}}
+	units := []inventory.ReviewUnit{{FileChangeID: "f", Kind: inventory.TextHunk, PatchReference: "p"}}
+	patches := map[string][]byte{"p": []byte("@@ -7,5 +9,5 @@\n before\n-old\n+new\n middle\n-old2\n+new2\n after\n")}
+	target := source.ReviewCommentTarget{Path: "old", Side: "LEFT", Line: 11, StartLine: 7, StartSide: "LEFT"}
+	if !InventoryContainsTarget(files, units, patches, target) {
+		t.Fatal("old range spanning context rejected")
+	}
+	target.StartLine = 0
+	target.StartSide = ""
+	if InventoryContainsTarget(files, units, patches, target) {
+		t.Fatal("single old context changed semantics")
+	}
+	target.StartLine = 7
+	target.StartSide = "LEFT"
+	target.Path = "new"
+	if InventoryContainsTarget(files, units, patches, target) {
+		t.Fatal("old range used new rename path")
+	}
+}

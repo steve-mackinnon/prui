@@ -99,8 +99,8 @@ type ReviewComment struct {
 	DiffHunk       string
 }
 
-// ReviewCommentTarget identifies the frozen pull request diff line to comment
-// on. Side is either LEFT or RIGHT, following GitHub's review-comment API.
+// ReviewCommentTarget identifies a frozen line, same-side range, or file.
+// File targets have SubjectType=file and no coordinates; ranges retain both ends.
 type ReviewCommentTarget struct {
 	Identity    Identity
 	CommitID    string
@@ -432,6 +432,12 @@ func parseRemoteReviewComment(data []byte, identity Identity) (ReviewComment, bo
 		(raw.Side != "" && raw.Side != "LEFT" && raw.Side != "RIGHT") || (raw.Line != nil && *raw.Line <= 0) {
 		return ReviewComment{}, false, errors.New("invalid review comment anchor")
 	}
+	if err := validateRemoteRange(raw.Line, raw.StartLine, raw.StartSide, raw.Side); err != nil {
+		return ReviewComment{}, false, err
+	}
+	if err := validateRemoteRange(raw.OriginalLine, raw.OriginalStartLine, raw.StartSide, raw.Side); err != nil {
+		return ReviewComment{}, false, err
+	}
 	comment := ReviewComment{CreatedAt: raw.CreatedAt, ID: raw.ID, ParentID: raw.ParentID, Author: raw.User.Login, Body: raw.Body, Target: ReviewCommentTarget{Identity: identity, CommitID: raw.CommitID, Path: raw.Path, Side: raw.Side}}
 	if !validDiscussionField(raw.Body, 65536, true) || !validDiscussionField(raw.User.Login, 256, false) || !validDiscussionField(raw.Path, 4096, false) || !validDiscussionField(raw.DiffHunk, 65536, true) || (raw.OriginalCommitID != "" && !shaPattern.MatchString(raw.OriginalCommitID)) || (raw.OriginalLine != nil && *raw.OriginalLine <= 0) {
 		return ReviewComment{}, false, errors.New("invalid review comment")
@@ -448,7 +454,7 @@ func parseRemoteReviewComment(data []byte, identity Identity) (ReviewComment, bo
 		comment.Target = *comment.CurrentAnchor
 	}
 	if raw.SubjectType == "file" || raw.Line == nil || raw.StartLine != nil {
-		return comment, false, nil
+		return comment, comment.CurrentAnchor != nil, nil
 	}
 	if raw.Side == "" {
 		return ReviewComment{}, false, errors.New("invalid review comment anchor")

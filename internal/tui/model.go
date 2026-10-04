@@ -2,6 +2,7 @@ package tui
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -1177,6 +1178,10 @@ func (m *Model) openCommentComposer() tea.Cmd {
 		m.ActionError = err
 		return nil
 	}
+	if selected.Side == "LEFT" && selected.StartLine == 0 && targetIsOldContext(m.displayDetail()[cursor], selected) {
+		m.ActionError = errors.New("old-side context requires a multiline range; use ctrl+v")
+		return nil
+	}
 	m.rangeStart = nil
 	m.Composer = &commentComposer{Target: selected, PendingIndex: -1}
 	for i, pending := range m.Pending {
@@ -1502,18 +1507,17 @@ func (m *Model) detail() []diffLine {
 	lines := make([]diffLine, 0, len(base)+len(m.Comments)+2)
 	for _, line := range base {
 		lines = append(lines, m.wrapSource([]diffLine{line})...)
-		if line.target == nil {
-			continue
-		}
-		for _, comment := range m.Comments {
-			if comment.Target == *line.target && comment.ParentID == 0 {
-				lines = append(lines, m.reviewCommentThread(comment, 0)...)
+		for _, target := range sourceLineTargets(line) {
+			for _, comment := range m.Comments {
+				if targetEndsAt(comment.Target, target) && comment.ParentID == 0 {
+					lines = append(lines, m.reviewCommentThread(comment, 0)...)
+				}
 			}
-		}
-		lines = append(lines, m.recoveredReplyLines(*line.target)...)
-		lines = append(lines, m.pendingLines(*line.target)...)
-		if m.Composer != nil && targetEndsAt(m.Composer.Target, *line.target) {
-			lines = append(lines, m.inlineEditorLines()...)
+			lines = append(lines, m.recoveredReplyLines(target)...)
+			lines = append(lines, m.pendingLines(target)...)
+			if m.Composer != nil && targetEndsAt(m.Composer.Target, target) {
+				lines = append(lines, m.inlineEditorLines()...)
+			}
 		}
 	}
 	return lines
@@ -1561,7 +1565,7 @@ func (m *Model) sideBySideDetail() []diffLine {
 		// order stable: old/LEFT before new/RIGHT.
 		for _, target := range rowTargets(row) {
 			for _, comment := range m.Comments {
-				if comment.Target == target && comment.ParentID == 0 {
+				if targetEndsAt(comment.Target, target) && comment.ParentID == 0 {
 					lines = append(lines, m.reviewCommentThread(comment, 0)...)
 				}
 			}
@@ -1577,8 +1581,8 @@ func (m *Model) sideBySideDetail() []diffLine {
 
 func rowTargets(row diffRow) []source.ReviewCommentTarget {
 	targets := make([]source.ReviewCommentTarget, 0, 2)
-	if row.old != nil && row.old.line != nil && row.old.line.target != nil {
-		targets = append(targets, *row.old.line.target)
+	if row.old != nil && row.old.line != nil {
+		targets = append(targets, sourceLineTargets(*row.old.line)...)
 	}
 	if row.new != nil && row.new.line != nil && row.new.line.target != nil {
 		targets = append(targets, *row.new.line.target)

@@ -108,3 +108,73 @@ func TestRangePayloadAndReconciliationKeepBothEndpoints(t *testing.T) {
 		})
 	}
 }
+
+func TestMalformedRangeHistoryNeverProvesAbsence(t *testing.T) {
+	target := ReviewCommentTarget{Identity: Identity{"owner/repo", 42}, CommitID: strings.Repeat("a", 40), Path: "a", Side: "RIGHT", Line: 5, StartLine: 2, StartSide: "RIGHT"}
+	want := ReviewComment{Target: target, Body: "body"}
+	for _, bad := range []map[string]any{{"start_line": -1}, {"start_side": ""}, {"start_line": 5}, {"original_start_line": -1}} {
+		record := map[string]any{"id": 3, "body": "body", "commit_id": target.CommitID, "path": "a", "side": "RIGHT", "line": 5, "start_line": 2, "start_side": "RIGHT", "user": map[string]string{"login": "alice"}}
+		for k, v := range bad {
+			record[k] = v
+		}
+		gh := &GH{Executable: "gh", Limits: Defaults(), Runner: listRunner(func(_ context.Context, q Request) ([]byte, error) {
+			endpoint := q.Args[len(q.Args)-1]
+			if endpoint == "user" {
+				return []byte(`{"login":"alice"}`), nil
+			}
+			if strings.Contains(endpoint, "reviews?") {
+				return []byte(`[{"id":9,"body":"summary","state":"COMMENTED","commit_id":"` + target.CommitID + `","user":{"login":"alice"}}]`), nil
+			}
+			return json.Marshal([]any{record})
+		})}
+		if matched, err := gh.CommentDraftOutcome(context.Background(), want, 0); err == nil || matched {
+			t.Fatalf("malformed comment history proved absence: %v", bad)
+		}
+		if matched, err := gh.ReviewDraftOutcome(context.Background(), PullRequestReview{Identity: target.Identity, CommitID: target.CommitID, Event: "COMMENT", Body: "summary", Comments: []ReviewComment{want}}); err == nil || matched {
+			t.Fatalf("malformed review history proved absence: %v", bad)
+		}
+	}
+}
+
+func TestDiscussionRefreshPreservesExtendedTargets(t *testing.T) {
+	for _, file := range []bool{false, true} {
+		rawMap := discussionFixture()
+		rawMap["line"] = 5
+		rawMap["originalLine"] = 5
+		rawMap["startLine"] = 2
+		rawMap["originalStartLine"] = 2
+		rawMap["startDiffSide"] = "RIGHT"
+		if file {
+			rawMap["subjectType"] = "FILE"
+			rawMap["line"] = nil
+			rawMap["originalLine"] = nil
+			rawMap["startLine"] = nil
+			rawMap["originalStartLine"] = nil
+			rawMap["startDiffSide"] = nil
+		}
+		data, _ := json.Marshal(rawMap)
+		var raw remoteDiscussion
+		if json.Unmarshal(data, &raw) != nil {
+			t.Fatal("fixture")
+		}
+		d, _, err := normalizeDiscussion(&raw, Identity{"owner/repo", 42})
+		if err != nil || d.CurrentAnchor == nil || d.OriginalAnchor == nil {
+			t.Fatal("lost refreshed target", d, err)
+		}
+		if file {
+			if d.CurrentAnchor.SubjectType != "file" || d.CurrentAnchor.Line != 0 || d.CurrentAnchor.Side != "" {
+				t.Fatal("file invented coordinates")
+			}
+		} else {
+			if d.CurrentAnchor.StartLine != 2 || d.CurrentAnchor.StartSide != "RIGHT" || d.CurrentAnchor.Line != 5 {
+				t.Fatal("range flattened")
+			}
+		}
+		if d.Comments[0].Target != *d.CurrentAnchor || d.Comments[0].OriginalAnchor == nil || *d.Comments[0].OriginalAnchor != *d.OriginalAnchor {
+			t.Fatal("comment anchor lost")
+		}
+	}
+	if !strings.Contains(discussionsQuery, "startDiffSide") {
+		t.Fatal("query omits range-side provenance")
+	}
+}
