@@ -17,6 +17,7 @@ func sameRepositories(a, b source.Metadata) bool {
 // paths and every raw unit. Equal displayed text or a path is never proof.
 func unchanged(a, b inventory.Inventory, x, y inventory.FileChange) bool {
 	if !a.Complete || !b.Complete || !sameRepositories(a.Comparison.Metadata, b.Comparison.Metadata) ||
+		strings.HasPrefix(x.Status, "R") || strings.HasPrefix(y.Status, "R") ||
 		a.Comparison.DiffSettings != b.Comparison.DiffSettings || a.Comparison.InventoryVersion != b.Comparison.InventoryVersion ||
 		x.Status != y.Status || x.OldOID != y.OldOID || x.NewOID != y.NewOID || x.OldMode != y.OldMode || x.NewMode != y.NewMode ||
 		!bytes.Equal(x.OldPath, y.OldPath) || !bytes.Equal(x.NewPath, y.NewPath) {
@@ -156,14 +157,10 @@ func Assess(old, next inventory.Inventory, t source.ReviewCommentTarget, uncerta
 					continue
 				}
 				o.Kind = AnchorChanged
-				candidate := t
-				candidate.CommitID = next.Comparison.Metadata.HeadSHA
-				if unchanged(old, next, x, y) && commits.InventoryContainsTarget(next.Files, next.Units, next.Patches, candidate) {
-					o.Kind = AnchorUnchanged
-					o.Proposed = &candidate
-				} else if y.Status == "D" && x.Status != "D" && t.Side != "LEFT" {
+				switch {
+				case y.Status == "D" && x.Status != "D" && t.Side != "LEFT":
 					o.Kind = AnchorRemoved
-				} else if strings.HasPrefix(y.Status, "R") && !bytes.Equal(x.NewPath, y.NewPath) {
+				case strings.HasPrefix(y.Status, "R") && !bytes.Equal(x.NewPath, y.NewPath):
 					o.Kind = AnchorRenamed
 				}
 				return o

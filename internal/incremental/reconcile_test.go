@@ -189,3 +189,34 @@ func TestProofRejectsPathTextOnlyModesPartialAndPolicyChanges(t *testing.T) {
 		})
 	}
 }
+
+func TestExistingRenameDoesNotCarryOnLaterPush(t *testing.T) {
+	_, old, next, b := fixture(t)
+	// An already-renamed record remains unchanged on both sides at a later
+	// revision. The conservative policy still requires explicit review.
+	for i := range old.Files {
+		if string(old.Files[i].NewPath) == "stable" {
+			old.Files[i].Status = "R100"
+			old.Files[i].OldPath = []byte("original")
+		}
+	}
+	for i := range next.Files {
+		if string(next.Files[i].NewPath) == "stable" {
+			next.Files[i].Status = "R100"
+			next.Files[i].OldPath = []byte("original")
+		}
+	}
+	var stable inventory.FileChange
+	for _, f := range old.Files {
+		if string(f.NewPath) == "stable" {
+			stable = f
+		}
+	}
+	if got := Carry(old, next, []string{stable.ID}, b); len(got) != 0 {
+		t.Fatalf("rename carried %v", got)
+	}
+	target := source.ReviewCommentTarget{Identity: old.Comparison.Metadata.Identity, CommitID: old.Comparison.Metadata.HeadSHA, Path: "stable", SubjectType: "file"}
+	if got := Assess(old, next, target, false); got.Kind == AnchorUnchanged || got.Proposed != nil {
+		t.Fatalf("rename auto-proposal %#v", got)
+	}
+}
