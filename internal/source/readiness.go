@@ -85,9 +85,10 @@ type requiredContext struct {
 	AppID   int64 `json:"app_id"`
 }
 type readinessRequirements struct {
-	contexts []requiredContext
-	reviews  int
-	known    bool
+	contexts              []requiredContext
+	reviews               int
+	known                 bool
+	queueRequired, linear bool
 }
 
 func (g *GH) readinessJSON(ctx context.Context, path string, out any) error {
@@ -150,7 +151,7 @@ func (g *GH) ReadReadiness(ctx context.Context, id Identity) (Readiness, error) 
 	} else {
 		r.ViewerPermission = graph.Data.Repository.ViewerPermission
 		f := graph.Data.Repository.PullRequest
-		if f.HeadRefOid != r.HeadSHA || f.BaseRefOid != r.BaseSHA || f.State != r.State || f.IsDraft == nil || *f.IsDraft != r.Draft {
+		if f.HeadRefOid != r.HeadSHA || f.BaseRefOid != r.BaseSHA || (f.State != r.State && !(r.State == "CLOSED" && f.State == "MERGED")) || f.IsDraft == nil || *f.IsDraft != r.Draft {
 			revisionsChanged = true
 			r.Problems = append(r.Problems, "PR revisions/state/draft changed or unavailable during readiness retrieval")
 		} else {
@@ -196,6 +197,10 @@ func nonemptyReadiness(s, fallback string) string {
 }
 
 func (g *GH) readinessRequirements(ctx context.Context, id Identity, branch string, r *Readiness) readinessRequirements {
+	return g.readinessRequirementsWithPolicy(ctx, id, branch, r, false)
+}
+
+func (g *GH) readinessRequirementsWithPolicy(ctx context.Context, id Identity, branch string, r *Readiness, richKnown bool) readinessRequirements {
 	q := readinessRequirements{known: true}
 	path := fmt.Sprintf("repos/%s/branches/%s", id.Repository, url.PathEscape(branch))
 	var b struct{ Protected *bool }
@@ -240,6 +245,9 @@ func (g *GH) readinessRequirements(ctx context.Context, id Identity, branch stri
 					q.known = false
 					r.Problems = append(r.Problems, "Policy unavailable: "+key)
 				} else if *policy.Enabled {
+					if key == "required_linear_history" {
+						q.linear = true
+					}
 					r.Blockers = append(r.Blockers, "Branch policy: "+key+" (verify on GitHub)")
 				}
 			}
@@ -346,7 +354,15 @@ func (g *GH) readinessRequirements(ctx context.Context, id Identity, branch stri
 					r.Blockers = append(r.Blockers, "Rules require owner/last-push approval or resolved threads; verify on GitHub")
 				}
 			default:
-				q.known = false
+				if rule.Type == "merge_queue" {
+					q.queueRequired = true
+				}
+				if rule.Type == "required_linear_history" {
+					q.linear = true
+				}
+				if !richKnown || !lifecycleRuleValid(rule.Type, rule.Parameters) {
+					q.known = false
+				}
 				r.Blockers = append(r.Blockers, "Effective rule: "+rule.Type+" (verify on GitHub)")
 			}
 		}
