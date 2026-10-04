@@ -52,6 +52,14 @@ func (m *Model) mouseReviewClick(x, y int) tea.Cmd {
 	if !m.diffReviewView() || len(m.Session.Inventory.Units) == 0 {
 		return nil
 	}
+	if m.fileView() && y == 2 {
+		_, control := m.fileFilterHeader()
+		if image.Pt(x, y).In(control) {
+			m.openFileFilter()
+			return m.restartGuidePathScroll()
+		}
+		return nil
+	}
 	g := m.workspaceGeometry()
 	p := image.Pt(x, y)
 	if p.In(g.Rail) {
@@ -67,7 +75,7 @@ func (m *Model) mouseReviewClick(x, y int) tea.Cmd {
 		} else if m.Inventory {
 			m.move(row - m.Selected)
 		} else {
-			m.file(row - m.Session.UnitFiles[m.Selected])
+			m.selectFile(row)
 		}
 		return m.restartGuidePathScroll()
 	}

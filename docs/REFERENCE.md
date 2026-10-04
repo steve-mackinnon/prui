@@ -203,6 +203,7 @@ columns. Plain output is always unified.
 | `]` / `[` | Widen / narrow the left file and guide pane by two columns |
 | `F` / `G` | Select the Files or Guide tab |
 | `S` | Toggle side-by-side detail; unified is the default and narrow terminals fall back below 160 columns |
+| `/` | Filter Files by filename or path; Enter keeps the filter, Escape clears it |
 | `1` / `2` / `3` / `4` | Select Description / Files / Guide / Commits |
 | `v` / `V` | Next / previous PR context view: Description, Files, Guide, or Commits |
 | `tab` | Expand / collapse the selected guide or section |

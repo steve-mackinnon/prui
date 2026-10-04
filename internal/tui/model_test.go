@@ -328,7 +328,7 @@ func TestSelectedFilePathScrollsAcrossFullName(t *testing.T) {
 		t.Fatal("selected file path did not advance")
 	}
 	_, _, pathWidth, _ := m.guidePathScrollTarget()
-	for m.guidePathOffset < visibleWidth(path)-pathWidth {
+	for m.guidePathOffset < visibleWidth(fileDirectory(m.Session.Inventory.Files[0]))-pathWidth {
 		m.Update(guidePathTick{generation: m.guidePathGeneration})
 	}
 	if !strings.Contains(ansi.Strip(m.View().Content), "overflow_test.go") {

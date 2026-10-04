@@ -100,6 +100,8 @@ type reviewTabState struct {
 	Err                                                  error
 	Selected                                             int
 	Row                                                  int
+	fileFilter                                           string
+	fileFilterEditing                                    bool
 	Files                                                bool
 	collapsed                                            expansion
 	Scroll                                               map[int]int
@@ -606,6 +608,20 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// The modal owns Enter/Escape; an underlying composer must never
 			// interpret discard confirmation as a remote comment submission.
 			return m, m.pageKey(pageQuitPending, v)
+		}
+		if m.top() == pageReview && m.fileView() && m.Composer == nil && m.CommentMenu == nil && !m.Busy {
+			if m.fileFilterEditing && v.String() != "ctrl+c" {
+				m.fileFilterKey(v)
+				return m, m.restartGuidePathScroll()
+			}
+			if v.String() == "/" {
+				m.openFileFilter()
+				return m, nil
+			}
+			if v.String() == "esc" && m.fileFilter != "" && m.Focus == paneList {
+				m.fileFilter = ""
+				return m, nil
+			}
 		}
 		editingReviewText := m.top() == pageReviewSubmit
 		editingGuideModel := m.top() == pageGuideConsent && m.guideFocus == 2
@@ -1167,7 +1183,8 @@ func (m *Model) guidePathScrollTarget() (row, string, int, string) {
 	if m.Files {
 		file := m.Session.UnitFiles[m.Selected]
 		prefix := selectionMarker(true) + readMarker(m.Session, m.Session.Inventory.Files[file].ID)
-		return row{}, prefix, m.listWidth() - visibleWidth(prefix), pathLabel(m.Session.Inventory.Files[file])
+		name, width := fileRailName(m.Session.Inventory.Files[file], m.listWidth()-visibleWidth(prefix))
+		return row{}, prefix, width - visibleWidth(name) - 2, fileDirectory(m.Session.Inventory.Files[file])
 	}
 	rows := m.rows()
 	if m.Row < 0 || m.Row >= len(rows) || rows[m.Row].kind != portionRow {
@@ -1215,7 +1232,23 @@ func (m *Model) file(delta int) {
 		return
 	}
 	f := m.Session.UnitFiles[m.Selected]
-	f = max(0, min(len(m.Session.Slices)-1, f+delta))
+	if m.fileView() && m.fileFilter != "" {
+		files := m.filteredFiles()
+		if len(files) == 0 {
+			return
+		}
+		index := slices.Index(files, f)
+		if index < 0 {
+			index = 0
+		}
+		f = files[max(0, min(len(files)-1, index+delta))]
+	} else {
+		f = max(0, min(len(m.Session.Slices)-1, f+delta))
+	}
+	m.selectFile(f)
+}
+
+func (m *Model) selectFile(f int) {
 	m.Selected = m.Session.Slices[f].Units[0]
 	if !m.Inventory {
 		start := m.fileOffset(f)
@@ -1971,7 +2004,7 @@ func (m *Model) reviewViewForLayout(preferSideBySide bool) string {
 	if preferSideBySide && !useSideBySide {
 		text += " · side-by-side needs 160 columns"
 	}
-	leftLabel := "Files"
+	leftLabel, _ := m.fileFilterHeader()
 	if m.selectedReviewView() == viewGuide {
 		leftLabel = "Guide"
 	}
@@ -2079,8 +2112,10 @@ func (m *Model) reviewViewForLayout(preferSideBySide bool) string {
 	for row := 0; row < bodyHeight; row++ {
 		left, right := "", ""
 		class, leftClass := classPlain, classPlain
+		mutedFrom := 0
 		if row < len(list) {
 			left = list[row].text
+			mutedFrom = list[row].mutedFrom
 			if list[row].row == selectedRow {
 				leftClass = selectedClass(m.Focus == paneList)
 			}
@@ -2088,7 +2123,7 @@ func (m *Model) reviewViewForLayout(preferSideBySide bool) string {
 		if row < len(detail) {
 			right, class = detail[row].Text, detail[row].Class
 		}
-		body = append(body, m.paneBodyRow(styledLine{Class: leftClass, Text: left}, styledLine{Class: class, Text: right}, m.listWidth(), m.detailWidth(), m.Focus, borders))
+		body = append(body, m.paneBodyRow(styledLine{Class: leftClass, Text: left}, styledLine{Class: class, Text: right}, m.listWidth(), m.detailWidth(), m.Focus, borders, mutedFrom))
 	}
 	return title + "\n" + header + "\n" + strings.Join(body, "\n") + "\n" + m.paneFrameFooter() + "\n" + m.reviewStatus()
 }

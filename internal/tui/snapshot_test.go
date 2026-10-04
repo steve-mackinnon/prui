@@ -43,6 +43,15 @@ func TestScreenSnapshots(t *testing.T) {
 		width, height int
 		setup         func(*Model)
 	}{
+		{"files_paths_filter", 120, 14, func(m *Model) {
+			m.Session.Inventory.Files[0].NewPath = []byte("internal/tui/model.go")
+			m.Session.Inventory.Files[1].NewPath = []byte("internal/tui/file_filter.go")
+			key(m, '/')
+			for _, r := range "tui" {
+				key(m, r)
+			}
+			namedKey(m, tea.KeyEnter)
+		}},
 		{"review_wide", 120, 12, func(m *Model) { m.Focus = paneDiff }},
 		{"review_narrow", 60, 10, func(m *Model) { m.Focus = paneDiff }},
 		{"review_side_by_side_wide", 160, 12, func(m *Model) {

@@ -52,20 +52,40 @@ func (m *Model) reviewListPresentation() ([]listLine, int) {
 		list = append(list, listLine{row: -1, text: "No guide yet. Press g to generate."})
 	default:
 		selectedRow = s.UnitFiles[m.Selected]
-		for i, f := range s.Inventory.Files {
+		for _, i := range m.filteredFiles() {
+			f := s.Inventory.Files[i]
 			marker := selectionMarker(i == selectedRow)
 			prefix := marker + readMarker(s, f.ID)
-			path := pathLabel(f)
-			width := leftWidth - visibleWidth(prefix)
-			if i == selectedRow && m.Focus == paneList && visibleWidth(path) > width {
-				path = ansi.Cut(path, m.guidePathOffset, m.guidePathOffset+max(0, width))
-			} else {
-				path = middleTruncate(path, width)
+			name, width := fileRailName(f, leftWidth-visibleWidth(prefix))
+			text := prefix + name
+			mutedFrom := 0
+			path := fileDirectory(f)
+			pathWidth := width - visibleWidth(name) - 2
+			if path != "" && pathWidth > 0 {
+				text += "  "
+				mutedFrom = visibleWidth(text)
+				if i == selectedRow && m.Focus == paneList && visibleWidth(path) > pathWidth {
+					path = ansi.Cut(path, m.guidePathOffset, m.guidePathOffset+pathWidth)
+				} else {
+					path = middleTruncate(path, pathWidth)
+				}
+				text += path
 			}
-			list = append(list, listLine{row: i, text: prefix + path})
+			list = append(list, listLine{row: i, text: text, mutedFrom: mutedFrom})
 		}
 	}
 	var pinned []listLine
+	if m.fileView() && (m.fileFilterEditing || m.fileFilter != "") {
+		label := "Filter files: " + Escape(m.fileFilter)
+		if m.fileFilterEditing {
+			label += "▏"
+		}
+		pinned = []listLine{{row: -1, text: middleTruncate(label, leftWidth)}}
+		bodyHeight = max(0, bodyHeight-1)
+		if len(list) == 0 {
+			list = append(list, listLine{row: -1, text: "No matching files"})
+		}
+	}
 	if rows != nil && !m.Inventory && bodyHeight >= 3 && len(list) > 0 {
 		guide := rows[selectedRow].guide
 		pinned = []listLine{list[0], {row: -1, text: fmt.Sprintf("  %02d / %02d · { previous · } next", guide+1, len(s.Guides.Items))}}
@@ -74,7 +94,7 @@ func (m *Model) reviewListPresentation() ([]listLine, int) {
 	}
 	selectedLine := firstDisplayLine(list, selectedRow)
 	contextEnd := selectedLine + 1
-	for contextEnd < len(list) && list[contextEnd].row < 0 {
+	for contextEnd < len(list) && (list[contextEnd].row < 0 || list[contextEnd].row == selectedRow) {
 		contextEnd++
 	}
 	// Keep the selection and its explanation together when navigating down.
