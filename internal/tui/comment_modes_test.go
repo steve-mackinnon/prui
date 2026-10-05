@@ -80,6 +80,49 @@ func TestCommentTypeCyclingKeepsEditorVisible(t *testing.T) {
 	}
 }
 
+func TestFileCommentReturnsToOriginalLine(t *testing.T) {
+	for _, layout := range []diffLayout{diffLayoutUnified, diffLayoutSideBySide} {
+		for _, tc := range []struct {
+			draft     string
+			startLine int
+		}{{"short draft", 0}, {strings.Repeat("draft\n", 12), 0}, {strings.Repeat("draft\n", 12), 2}} {
+			m := rangeTestModel()
+			defer m.Close()
+			m.layout, m.Height = layout, 14
+			selectRawTarget(t, m, "RIGHT", 3)
+			namedKey(m, tea.KeyEnter)
+			if tc.startLine != 0 {
+				m.Composer.Target.StartLine, m.Composer.Target.StartSide = tc.startLine, "RIGHT"
+			}
+			target := m.Composer.Target
+			m.Composer.Draft = tc.draft
+			m.Update(tea.KeyPressMsg{Code: tea.KeyTab, Mod: tea.ModShift})
+			if m.Composer.Target.SubjectType != "file" {
+				t.Fatal("did not switch to file comment")
+			}
+			namedKey(m, tea.KeyTab)
+			if m.Composer.Target != target || m.Composer.Draft != tc.draft {
+				t.Fatal("original comment was not restored")
+			}
+			row := -1
+			endpoint := target
+			endpoint.StartLine, endpoint.StartSide = 0, ""
+			for i, line := range m.displayDetail() {
+				if diffLineHasTarget(line, endpoint) {
+					row = i
+					break
+				}
+			}
+			if row < m.offset() || row >= m.offset()+m.bodyHeight() || row == m.offset() && stickyFileHeader(m.displayDetail(), m.offset()) >= 0 {
+				t.Fatalf("layout=%v: target row %d hidden by viewport [%d,%d)", layout, row, m.offset(), m.offset()+m.bodyHeight())
+			}
+			if m.cursor() != row {
+				t.Fatalf("layout=%v: cursor %d did not return to target row %d", layout, m.cursor(), row)
+			}
+		}
+	}
+}
+
 func TestCommentTypeSelectorSkipsUnsupportedSuggestions(t *testing.T) {
 	m := rangeTestModel()
 	defer m.Close()
