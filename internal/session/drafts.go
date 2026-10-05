@@ -24,7 +24,13 @@ func DraftKeyFor(m source.Metadata) DraftKey {
 	return DraftKey{m.Identity.Repository, m.Identity.Number, m.BaseSHA, m.HeadSHA, m.BaseRepository, m.HeadRepository}
 }
 
+type CommentModes struct {
+	LineTarget *source.ReviewCommentTarget
+	Drafts     map[string]string
+}
+
 type DraftEditor struct {
+	Modes                *CommentModes `json:",omitempty"`
 	Suggestion           bool
 	Before               string
 	RootAnchor           *source.ReviewCommentTarget
@@ -130,6 +136,26 @@ func validateDraft(k DraftKey, d Draft) error {
 		}
 		repo, err := normalizeRepository(t.Identity.Repository)
 		return err == nil && repo == k.Repository && t.Identity.Number == k.Number && (t.CommitID == k.HeadSHA || e.CommitSHA == t.CommitID && shaPattern.MatchString(e.CommitSHA) || reply && shaPattern.MatchString(t.CommitID)) && source.ValidateReviewCommentTarget(t) == nil && utf8.ValidString(e.Body) && (!reply || e.CommentID > 0 && e.ReplyToID > 0)
+	}
+	if c := d.Composer; c != nil && c.Modes != nil {
+		modes := c.Modes
+		if c.CommitSHA != "" || len(modes.Drafts) > 3 {
+			return bad
+		}
+		if c.Target.SubjectType != "file" && (modes.LineTarget == nil || *modes.LineTarget != c.Target) {
+			return bad
+		}
+		if modes.LineTarget != nil {
+			line := *modes.LineTarget
+			if line.SubjectType != "" || !validEditor(&DraftEditor{Target: line}, false) || line.Identity != c.Target.Identity || line.CommitID != c.Target.CommitID || line.Path != c.Target.Path {
+				return bad
+			}
+		}
+		for mode, body := range modes.Drafts {
+			if (mode != "Comment" && mode != "Suggestion" && mode != "File comment") || !utf8.ValidString(body) {
+				return bad
+			}
+		}
 	}
 	if r := d.Reply; r != nil && r.RootAnchor != nil {
 		raw := r.RootAnchor
