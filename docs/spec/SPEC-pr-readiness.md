@@ -1,9 +1,10 @@
 # PR readiness (#33)
 
-`C` in an open PR review opens a read-only readiness screen from Description,
+`Alt+R` in an open PR review opens a read-only readiness screen from Description,
 Files, Guide or Commits. Each opening requests remote evidence. `r`, `c`,
 or `ctrl+r` refresh only readiness. Escape returns to pinned code. Arrow keys,
 j/k, PageUp/PageDown, u/d, Home/End and the mouse wheel scroll the wrapped view.
+`C` retains the captured-commit filter; `Alt+R` never steals active editor input.
 The footer adapts to narrow terminals. State has text labels independent of color.
 Human terminal accessibility/usability QA is unverified.
 

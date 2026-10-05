@@ -802,7 +802,7 @@ func (m *Model) update(msg tea.Msg) (updated tea.Model, command tea.Cmd) {
 				m.nextUnresolved(delta)
 				return m, nil
 			}
-			if v.String() == "C" && m.Session != nil {
+			if v.String() == "alt+r" && m.Session != nil {
 				m.push(pageReadiness)
 				return m, m.refreshReadiness()
 			}

@@ -621,7 +621,7 @@ is excluded. See [the complete policy](spec/SPEC-code-navigation.md).
 
 ### Live PR readiness
 
-`C`: open checks/reviews/blockers for the PR. Within the view, `r`/`c`/`ctrl+r`
+`Alt+R`: open checks/reviews/blockers for the PR. Within the view, `r`/`c`/`ctrl+r`
 refresh remote readiness; j/k, arrows, PgUp/PgDn, u/d, Home/End and the mouse wheel
 scroll; Escape returns. Both pinned and observed live head SHAs are displayed.
 Readiness is ephemeral, unavailable offline and never uploaded in guide material.

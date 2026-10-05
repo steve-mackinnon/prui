@@ -410,3 +410,18 @@ func TestReadinessSameSHAStateAndDraftChangeInFinalREST(t *testing.T) {
 		})
 	}
 }
+
+func TestReadinessMissingReviewTimestampCannotImplyReadiness(t *testing.T) {
+	for _, bad := range []any{nil, "0001-01-01T00:00:00Z", "not-a-time"} {
+		t.Run(fmt.Sprint(bad), func(t *testing.T) {
+			f := newReadinessFixture()
+			row := reviewRow(1, "alice", "APPROVED", readinessSHA).(map[string]any)
+			row["submitted_at"] = bad
+			f.responses["repos/o/r/pulls/1/reviews?per_page=100&page=1"] = []any{row}
+			r := fixtureReadiness(t, f)
+			if r.ReviewsComplete || r.Ready(readinessSHA) || len(r.Reviews) > 0 {
+				t.Fatal("unknown review timestamp implied current readiness", r)
+			}
+		})
+	}
+}

@@ -171,7 +171,7 @@
 # Read-only PR Readiness Contract
 
 - Issue #33 adds ephemeral, exact-head-labelled readiness evidence, independent
-  of immutable code, source caches, progress and AI guide inputs. `C` opens it;
+  of immutable code, source caches, progress and AI guide inputs. `Alt+R` opens it;
   explicit readiness refresh never refreshes pinned source or writes remotely.
 - Unknown protection/rules, permission failures, bounded/partial retrieval,
   skipped/cancelled/unknown required checks and mismatched revisions cannot imply
