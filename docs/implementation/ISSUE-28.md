@@ -17,11 +17,27 @@ Files-filter handling while a conversation/published editor owns input. Tests
 verify commit-filter open/close still preserves frozen comparison state, `/` stays
 in the edit, resize retains the editor and Escape restores the original view.
 
-Focused source/TUI/application published-action, conversation, discussion,
-commit-filter and modal suites pass after rebase. Broad verification waits for the
-coordinator's release from PR #41; fresh independent rebase review is pending.
-The exact final repaired head and gate results will be recorded in PR #44 and
-below after completion.
+Repaired implementation SHA: `509177756d7a2c01d190ecc464c77f6290998d23`, based
+on main `7d88c50d635bf799cec00bb1ce884151c5d362da`. Focused source/TUI/application
+published-action, conversation, discussion, commit-filter and modal suites pass.
+After the coordinator released PR #41's broad reservation, the full
+`GOFLAGS=-p=2 ./scripts/verify.sh` passed formatting, `go vet ./...`, all
+`go test -race -count=1 -timeout=5m ./...` packages, and `go build ./...`.
+`GOFLAGS=-p=2 golangci-lint run ./...` reported 0 issues; `git diff --check` passed.
+The broad reservation was released after terminal success.
+
+Fresh independent `rebase_review` inspected the full diff against this main and
+approved exact implementation SHA `509177756d7a2c01d190ecc464c77f6290998d23`, with
+no required findings. Its isolated mutation removing the new editor ownership
+guard failed the intended Files slash-input regression; source was restored.
+A proposed quit-modal concern was retracted after verifying existing keyboard
+policy, with no unrelated policy change.
+
+All five CI checks passed on that implementation: macOS and Ubuntu Verify, Lint,
+Secrets and Vulnerabilities ([workflow run](https://github.com/steve-mackinnon/prui/actions/runs/37254619337)).
+Final documentation-only head/re-review/CI are recorded in PR #44. Root alone
+merges. If main advances with PR #41 first, combined draft/thread integration must
+be revalidated before merging this PR.
 
 ## Behavior and boundaries
 
