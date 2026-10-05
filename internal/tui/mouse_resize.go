@@ -70,10 +70,14 @@ func (m *Model) mouseResize(msg tea.MouseMsg) (tea.Cmd, bool) {
 			return nil, true
 		}
 		keepSearchMatch := m.searchMatchAtCursor()
+		sourceRestore := m.sourceCursorRestorer()
 		target, commentID := m.cursorAnchor()
 		m.listWidthPreference = width
 		m.saveLayout()
 		m.restoreCursorAnchor(target, commentID)
+		if sourceRestore != nil {
+			sourceRestore()
+		}
 		if keepSearchMatch {
 			m.revealSearchMatch()
 		}

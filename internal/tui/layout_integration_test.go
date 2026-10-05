@@ -118,6 +118,15 @@ func TestLayoutRealCapturePrivateDraftOfflineRecovery(t *testing.T) {
 			if m.displayDetail()[m.cursor()].searchID != wantID {
 				t.Fatal("read-only source moved during layout")
 			}
+			// Clear search entirely: manual source navigation has the same anchor.
+			m.search = [2]*diffSearchState{}
+			m.Update(tea.KeyPressMsg{Code: 'c', Mod: tea.ModAlt})
+			m.resizeList(5)
+			m.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
+			m.Update(tea.WindowSizeMsg{Width: 200, Height: 24})
+			if m.displayDetail()[m.cursor()].searchID != wantID || m.selectedDiffTarget() != nil {
+				t.Fatal("manual read-only source moved or became target")
+			}
 			ctrlKey(m, 's')
 			if m.Composer != nil {
 				t.Fatal("read-only row became suggestion")
