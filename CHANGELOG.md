@@ -7,11 +7,15 @@ User-visible changes are recorded here before each release. See
 
 ### Added
 
+- Filter Files and Guide by selected commits with `C`, showing one net diff while retaining the dedicated Commits browser.
+
 - Highlight diff syntax using full pinned-file context, with theme-aware colors and saved token spans for offline reviews.
 
 - Add full foreground/background theming with 22 named presets, bringing the catalog to 26 themes, and group the theme picker into Dark and Light sections with candidate previews.
 
 ### Fixed
+
+- Show the commit filter as a modal over the current review, retaining the underlying Files/Guide workspace.
 
 - Preserve changed-line backgrounds across syntax-color resets, preventing partially highlighted diff rows.
 

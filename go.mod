@@ -16,6 +16,8 @@ require (
 	modernc.org/sqlite v1.59.0
 )
 
+require github.com/pjbgf/sha1cd v0.3.2
+
 require (
 	cloud.google.com/go v0.123.0 // indirect
 	cloud.google.com/go/auth v0.23.1 // indirect

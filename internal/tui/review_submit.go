@@ -394,6 +394,7 @@ func (m *Model) focusPendingTarget(target source.ReviewCommentTarget) bool {
 	for unit := range m.Session.Inventory.Units {
 		for _, line := range unitLines(m.Session, unit) {
 			if line.target != nil && *line.target == target {
+				m.resetCommitFilter()
 				m.ContextView, m.Files, m.Inventory, m.Selected, m.Focus = viewFiles, true, false, unit, paneDiff
 				m.cursorActive = true
 				for row, detail := range m.displayDetail() {

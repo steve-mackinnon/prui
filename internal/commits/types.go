@@ -19,6 +19,7 @@ type Bundle struct {
 	Reason           string
 	Complete         bool
 	Entries          []Entry
+	Composition      *Composition `json:"composition,omitempty"`
 }
 
 type Entry struct {
@@ -36,4 +37,17 @@ type Diff struct {
 	Syntax   map[string]syntax.Patch `json:"syntax,omitempty"`
 	Complete bool
 	Problems []string
+}
+
+// Composition freezes sparse trees projected onto all captured changed paths.
+// A missing path is absent; gitlink OIDs are metadata and need no blob bytes.
+type Composition struct {
+	Status Status
+	Reason string
+	Trees  map[string][]TreeEntry
+	Blobs  map[string][]byte
+}
+type TreeEntry struct {
+	Path      []byte
+	Mode, OID string
 }

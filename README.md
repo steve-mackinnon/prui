@@ -76,6 +76,16 @@ prui                                  # browse this checkout's open PRs
 prui open https://github.com/owner/repo/pull/42
 ```
 
+The PR picker shows the list beside a description and metadata preview on wide
+terminals, and stacks them on narrower terminals. Use Tab to focus the preview,
+then `j` / `k` or Page Up / Page Down to scroll; Tab returns to the list.
+Shift+J / Shift+K scroll the preview from either panel without changing focus. Mouse
+clicks focus either panel and the wheel scrolls the panel under the pointer.
+Overflowing selected PR titles scroll horizontally, keeping the PR number and
+metadata fixed. Usernames and check states use distinct theme accents.
+The footer stays at the bottom. Descriptions are captured with the list; `r`
+reloads it. Opening a review captures its own frozen description.
+
 1. Select a PR and press Enter. prui captures a fixed comparison and opens Files.
 2. Use `j` / `k` to select files and `l` to focus the diff. Scroll with up / down;
    press `m` to mark a file as read. Progress saves immediately.
@@ -112,6 +122,7 @@ For offline reading, list session IDs with `prui sessions`, then run
 | `P` | Switch PRs |
 | `ctrl+p` | Inside a line editor, queue the comment |
 | `D` / `c` | Browse discussions / refresh discussions |
+| `C` | Filter the Files/Guide diff by selected commits |
 | `R` | Open review submission |
 | `g` | Choose an AI guide provider and model, then confirm upload |
 | `r` / `N` | Check freshness / start a new comparison |
@@ -121,6 +132,9 @@ For offline reading, list session IDs with `prui sessions`, then run
 Newly opened pull requests start on the Description tab. Use `2` to switch to Files. The file list shows filenames beside muted directories. Click **Filter (/)** in the file header or press `/` to filter filenames and paths (case-insensitive, including previous names for renamed files). Enter returns to navigation with the filter applied; Escape in the list clears it.
 
 Mouse selection, pane resizing, themes, and side-by-side diffs are also available.
+In Files or Guide, select **Commits [C]** to choose commits for one net diff.
+**All changes** restores the full PR comparison. Selected commits are read-only;
+use All changes to mark files or the Commits tab to discuss an individual commit.
 Diff syntax highlighting is captured from the complete pinned old/new files and
 saved as token spans for offline review; no extra full-file source is retained.
 Older sessions use best-effort hunk highlighting. Unsupported languages and files

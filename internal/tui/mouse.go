@@ -35,6 +35,9 @@ func (m *Model) mouseUpdate(msg tea.MouseMsg) tea.Cmd {
 		m.cancelMouseDrag()
 		return nil
 	}
+	if cmd, handled := m.commitFilterMouse(msg); handled {
+		return cmd
+	}
 	if cmd, handled := m.mouseResize(msg); handled {
 		return cmd
 	}
@@ -64,6 +67,30 @@ func (m *Model) mouseWheel(wheel tea.MouseWheelMsg) tea.Cmd {
 	case tea.MouseWheelDown:
 		delta = mouseWheelStep
 	default:
+		return nil
+	}
+	if m.top() == pagePullRequestPicker {
+		headers := 1
+		if m.Session != nil {
+			headers = 2
+		}
+		g := m.prPickerGeometry(headers)
+		if wheel.X < 0 || wheel.Y < 0 || wheel.X >= m.Width || wheel.Y >= m.Height {
+			return nil
+		}
+		if wheel.Y >= g.previewTop && wheel.Y < g.previewTop+g.previewHeight && (!g.split || wheel.X >= g.leftWidth+3) {
+			if pr, ok := m.selectedPickerPR(); ok {
+				lines := m.prPickerDetail(pr)
+				m.PullRequestPicker.previewScroll = max(0, min(m.PullRequestPicker.previewScroll+delta, max(0, len(lines)-g.previewHeight)))
+			}
+		} else if wheel.Y >= g.listTop && wheel.Y < g.listTop+g.listHeight && (!g.split || wheel.X < g.leftWidth) {
+			count := len(m.PullRequests)
+			if m.Session != nil {
+				count = len(m.switcherResults())
+			}
+			m.PullRequestPicker.Index = max(0, min(m.PullRequestPicker.Index+delta, max(0, count-1)))
+			m.PullRequestPicker.previewScroll = 0
+		}
 		return nil
 	}
 	if m.top() == pageDiscussions {

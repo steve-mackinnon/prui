@@ -136,7 +136,7 @@ func (m *Model) themePickerView() string {
 		} else if i == m.ThemePicker.Index {
 			marker = "> "
 		}
-		line := marker + entries[i].DisplayName + " — " + entries[i].Description
+		line := marker + entries[i].DisplayName
 		if name == m.theme.Name {
 			line += " (active)"
 		}
@@ -159,7 +159,7 @@ func (m *Model) themePickerView() string {
 		"╰"+strings.Repeat("─", modalWidth-2)+"╯",
 	)
 
-	return placeThemeModal(m.Width, m.Height, modalWidth, content)
+	return placeThemeModal(m.Width, m.Height, modalWidth, strings.Split(m.modalSurface(strings.Join(content, "\n")), "\n"))
 }
 
 func (m *Model) themePickerEnterHint() string {
@@ -175,7 +175,7 @@ func (m *Model) compactThemePickerView(names []string) string {
 		clip(fmt.Sprintf("%d/%d %s: %s", themePickerPosition(m.ThemePicker.Index), len(names), themeGroupLabel(theme.BuiltIns()[m.ThemePicker.Index].Appearance), selected), m.Width),
 		clip("↑↓/jk choose · "+m.themePickerEnterHint()+" · esc/t cancel", m.Width),
 	}
-	return strings.Join(lines[:min(len(lines), max(0, m.Height))], "\n")
+	return m.modalSurface(strings.Join(lines[:min(len(lines), max(0, m.Height))], "\n"))
 }
 
 func placeThemeModal(width, height, modalWidth int, content []string) string {

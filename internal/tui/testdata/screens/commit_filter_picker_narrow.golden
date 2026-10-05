@@ -1,0 +1,10 @@
+example/review #42
+  ╭──────────────────────────────────────────────────────╮Co
+┌ │ Commits [C] · All changes                            │─┐
+│›│ Select commits for one net diff.                     │ │
+│ │ › [x] All changes                                    │ │
+│ │   [ ] aaaaaaaaaaaa First commit · Alice              │ │
+│ │   [ ] bbbbbbbbbbbb Second commit · Alice             │ │
+└─│ Space/Enter: toggle · j/k: move · Esc/C: close       │─┘
+0/╰──────────────────────────────────────────────────────╯
+j/k: files · enter: diff · m: mark file · ?: Help

@@ -90,6 +90,7 @@ type descriptionRenderCache struct {
 type reviewTabState struct {
 	discussions                                          discussionState
 	commit                                               commitState
+	commitFilter                                         commitFilterState
 	savedCursorTarget                                    *source.ReviewCommentTarget
 	savedCursorCommentID                                 int64
 	CursorTarget, GuideCursorTarget                      map[int]source.ReviewCommentTarget
@@ -198,6 +199,7 @@ type Model struct {
 	SessionPicker        pickerState
 	RepositoryPicker     pickerState
 	PullRequestPicker    pickerState
+	prCarousel           prCarouselState
 	ThemePicker          pickerState
 	Entries              []session.Entry
 	Repositories         []session.Repository
@@ -271,6 +273,7 @@ func newModel(parent context.Context) *Model {
 // any process-global style state, so concurrent models can use different
 // resolved themes safely.
 func (m *Model) SetTheme(t theme.Theme) {
+	m.PullRequestPicker.previewCache = descriptionRenderCache{}
 	m.theme = t
 	m.themeOverrides = t.Overrides()
 	m.styles = stylesFor(t)
@@ -345,6 +348,15 @@ func (m *Model) Init() tea.Cmd {
 	})
 }
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	model, cmd := m.update(msg)
+	carouselCmd := m.syncPRCarousel()
+	if carouselCmd == nil {
+		return model, cmd
+	}
+	return model, tea.Batch(cmd, carouselCmd)
+}
+
+func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	defer func() {
 		if !m.mouseAvailable() {
 			m.cancelMouseDrag()
@@ -357,9 +369,14 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case GeneralCommentResult:
 		m.applyGeneralCommentResult(v)
 		return m, nil
+	case commitFilterResult:
+		m.applyCommitFilterResult(v)
+		return m, nil
 	case DiscussionResult:
 		m.applyDiscussionResult(v)
 		return m, nil
+	case prCarouselTick:
+		return m, m.advancePRCarousel(v)
 	case guidePathTick:
 		if v.generation != m.guidePathGeneration || !m.guidePathScrollEligible() {
 			return m, nil
@@ -415,6 +432,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if v.Err == nil && v.Session != nil {
 			m.Session = v.Session
 			if v.Reset {
+				if m.commitFilter.cancel != nil {
+					m.commitFilter.cancel()
+				}
+				m.commitFilter = commitFilterState{}
 				if m.discussions.cancel != nil {
 					m.discussions.cancel()
 				}
@@ -581,6 +602,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.mouseUpdate(v)
 	case tea.WindowSizeMsg:
 		m.cancelMouseDrag()
+		if m.commitFilter.subset && m.diffReviewView() {
+			m.Width, m.Height = max(1, v.Width), max(1, v.Height)
+			return m, nil
+		}
 		if m.selectedReviewView() == viewCommits {
 			m.Width, m.Height = max(1, v.Width), max(1, v.Height)
 			m.commitRail()
@@ -613,7 +638,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// interpret discard confirmation as a remote comment submission.
 			return m, m.pageKey(pageQuitPending, v)
 		}
-		if m.top() == pageReview && m.fileView() && m.Composer == nil && m.CommentMenu == nil && !m.Busy {
+		if m.top() == pageReview && m.fileView() && !m.commitFilter.open && !m.commitFilter.subset && m.Composer == nil && m.CommentMenu == nil && !m.Busy {
 			if m.fileFilterEditing && v.String() != "ctrl+c" {
 				m.fileFilterKey(v)
 				return m, m.restartGuidePathScroll()
@@ -658,6 +683,13 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if p := m.top(); p != pageReview {
 				return m, m.pageKey(p, v)
 			}
+			if m.commitFilter.open {
+				return m, m.commitFilterKey(v.String())
+			}
+			if v.String() == "C" && m.Session != nil && m.diffReviewView() {
+				m.openCommitFilter()
+				return m, nil
+			}
 			if v.String() == "D" && m.Session != nil {
 				m.openDiscussions()
 				return m, nil
@@ -665,10 +697,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if v.String() == "c" && m.readDiscussions != nil {
 				return m, tea.Batch(m.refreshDiscussions(), m.refreshComments())
 			}
-			if v.String() == "esc" && m.restoreDiscussionContext() {
+			if v.String() == "esc" && !m.commitFilter.subset && m.restoreDiscussionContext() {
 				return m, nil
 			}
-			if v.String() == "z" && m.diffReviewView() && m.Focus == paneDiff {
+			if v.String() == "z" && !m.commitFilter.subset && m.diffReviewView() && m.Focus == paneDiff {
 				if pendingCenter {
 					m.centerCursor()
 				} else {
@@ -713,6 +745,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					return m, m.openCommitComposer()
 				}
 				m.commitKey(v.String())
+				return m, nil
+			}
+			if m.commitFilter.subset && m.diffReviewView() && m.filteredReadingKey(v.String()) {
 				return m, nil
 			}
 			if cmd, handled := m.lifecycleKey(v.String()); handled {
@@ -1010,6 +1045,9 @@ func (m *Model) selectReviewView(view reviewView) {
 		m.Files, m.Inventory = true, false
 	case viewGuide:
 		m.Files, m.Inventory = false, false
+		if m.commitFilter.subset {
+			return
+		}
 		m.begin()
 		if _, ok := m.activeGuide(); ok {
 			m.setOffset(0)
@@ -1223,6 +1261,10 @@ func (m *Model) clampListWidth(width int) int {
 
 func (m *Model) resizeList(delta int) {
 	if m.Width < 100 || m.Session == nil || !m.diffReviewView() {
+		return
+	}
+	if m.commitFilter.subset {
+		m.listWidthPreference = m.clampListWidth(m.listWidth() + delta)
 		return
 	}
 	target, commentID := m.cursorAnchor()
@@ -1918,11 +1960,11 @@ func (m *Model) View() tea.View {
 		case pageURL:
 			text = m.Session.Inventory.Comparison.Metadata.Identity.URL() + "\nOpen this URL in your browser.\nesc: back | q: quit"
 		case pageGuideConsent:
-			text = renderGuideConsentModal(m.Width, m.Height, m.reviewView(), m.guideConsentView())
+			text = renderGuideConsentModal(m.Width, m.Height, m.reviewView(), m.guideConsentView(), m.modalSurface)
 		case pageReviewSubmit:
 			text = m.reviewFormModalView()
 		case pageQuitPending:
-			text = renderActionModal(m.Width, m.Height, m.actionModalBackground(), "Discard unsent review drafts and quit?\n\nenter: discard and quit · esc: keep reviewing")
+			text = renderActionModal(m.Width, m.Height, m.actionModalBackground(), "Discard unsent review drafts and quit?\n\nenter: discard and quit · esc: keep reviewing", m.modalSurface)
 		case pageThemePicker:
 			text = m.themePickerView()
 		case pageEvidence:
@@ -1935,8 +1977,11 @@ func (m *Model) View() tea.View {
 			}
 		}
 	}
+	if m.commitFilter.open && m.top() == pageReview && m.diffReviewView() {
+		text = m.commitFilterModalView(text)
+	}
 	if modal := m.loadingModal(); modal.active {
-		text = renderLoadingModal(m.Width, m.Height, text, modal)
+		text = renderLoadingModal(m.Width, m.Height, text, modal, m.modalSurface)
 	}
 	lines := strings.Split(text, "\n")
 	if len(lines) > m.Height {
@@ -1983,8 +2028,11 @@ func (m *Model) reviewViewForLayout(preferSideBySide bool) string {
 		}
 		return title + "\n" + m.commitsView() + "\n" + m.reviewStatus()
 	}
+	if m.commitFilter.subset {
+		return m.filteredReviewView(title)
+	}
 	if len(s.Inventory.Units) == 0 {
-		return title + "\nEmpty comparison: no net tree changes.\n" + m.reviewStatus()
+		return title + "\nCommits [C] · " + m.commitFilterLabel() + "\nEmpty comparison: no net tree changes.\n" + m.reviewStatus()
 	}
 	kind := s.Inventory.Units[m.Selected].Kind
 	label := "File slices"
@@ -2022,6 +2070,11 @@ func (m *Model) reviewViewForLayout(preferSideBySide bool) string {
 		leftLabel = "Full inventory (i)"
 	}
 	rightLabel := "Diff · " + text
+	if m.Width < 100 {
+		leftLabel += " · Commits [C] · " + m.commitFilterLabel()
+	} else {
+		rightLabel = "Commits [C] · " + m.commitFilterLabel() + " · " + rightLabel
+	}
 	header := m.paneFrameHeader(leftLabel, rightLabel)
 	bodyHeight := m.bodyHeight()
 	list, selectedRow := m.reviewListPresentation()

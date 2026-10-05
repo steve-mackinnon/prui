@@ -864,10 +864,19 @@ func (m *Model) pullRequestRepository() string {
 }
 
 func (m *Model) pullRequestPickerKey(k string) tea.Cmd {
+	before := m.PullRequestPicker.Index
+	defer func() {
+		if before != m.PullRequestPicker.Index {
+			m.PullRequestPicker.previewScroll = 0
+		}
+	}()
 	if m.Session != nil {
 		return m.switcherKey(k)
 	}
 	m.PullRequestPicker.clamp(len(m.PullRequests))
+	if m.prPickerPreviewKey(k) {
+		return nil
+	}
 	switch k {
 	case "esc":
 		if m.currentRepository != "" && len(m.Stack) == 1 {
@@ -927,8 +936,17 @@ func (m *Model) pullRequestPickerKey(k string) tea.Cmd {
 }
 
 func (m *Model) switcherKey(k string) tea.Cmd {
+	before := m.PullRequestPicker.Index
+	defer func() {
+		if before != m.PullRequestPicker.Index {
+			m.PullRequestPicker.previewScroll = 0
+		}
+	}()
 	results := m.switcherResults()
 	m.PullRequestPicker.clamp(len(results))
+	if m.prPickerPreviewKey(k) {
+		return nil
+	}
 	switch k {
 	case "esc":
 		m.pop()
@@ -1049,15 +1067,15 @@ func (m *Model) switcherView() string {
 				rows[i] = m.compactPullRequestRow(rows[i]+"  "+Escape(pr.Title), pr.Author, pr.ViewerReview, pullRequestChecks(pr))
 			}
 		} else {
-			rows[i] = m.pullRequestRow(pr)
+			rows[i] = m.prPickerRow(pr)
 		}
 		if i == m.PullRequestPicker.Index && known {
-			detail = m.pullRequestDetail(pr)
+			detail = m.prPickerDetail(pr)
 		}
 	}
 	header := []string{appHeader("Switch pull requests", "type to filter"), "filter: " + Escape(m.SwitcherQuery)}
 	footer := "type: filter · enter: switch/open · esc: cancel"
-	return m.pickerScreenDetail(&m.PullRequestPicker, header, rows, detail, "No matching open reviews or pull requests.", footer)
+	return m.prPickerScreen(header, rows, detail, "No matching open reviews or pull requests.", footer)
 }
 
 func (m *Model) footer() string {

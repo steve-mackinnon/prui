@@ -58,6 +58,7 @@ type Metadata struct {
 }
 
 type PullRequest struct {
+	Description  string
 	Identity     Identity
 	Title        string
 	Author       string
@@ -510,7 +511,7 @@ func (g *GH) ListPullRequests(ctx context.Context, repository string) ([]PullReq
 		return nil, err
 	}
 	parts := strings.Split(repository, "/")
-	const query = `query($owner:String!,$name:String!){repository(owner:$owner,name:$name){pullRequests(first:100,states:OPEN,orderBy:{field:CREATED_AT,direction:DESC}){nodes{number title createdAt author{login} viewerLatestReview{state} commits(last:1){nodes{commit{author{name user{login}} statusCheckRollup{state}}}}}}}}`
+	const query = `query($owner:String!,$name:String!){repository(owner:$owner,name:$name){pullRequests(first:100,states:OPEN,orderBy:{field:CREATED_AT,direction:DESC}){nodes{number title body createdAt author{login} viewerLatestReview{state} commits(last:1){nodes{commit{author{name user{login}} statusCheckRollup{state}}}}}}}}`
 	data, err := g.call(ctx, "api", "--hostname", "github.com", "graphql", "-f", "query="+query, "-F", "owner="+parts[0], "-F", "name="+parts[1])
 	if err != nil {
 		return nil, fmt.Errorf("GitHub pull request list unavailable (check authentication and connectivity): %w", err)
@@ -522,6 +523,7 @@ func (g *GH) ListPullRequests(ctx context.Context, repository string) ([]PullReq
 					Nodes []struct {
 						Number             int       `json:"number"`
 						Title              string    `json:"title"`
+						Body               string    `json:"body"`
 						CreatedAt          time.Time `json:"createdAt"`
 						ViewerLatestReview *struct {
 							State string `json:"state"`
@@ -550,16 +552,16 @@ func (g *GH) ListPullRequests(ctx context.Context, repository string) ([]PullReq
 		} `json:"data"`
 		Errors []json.RawMessage `json:"errors"`
 	}
-	if err := json.Unmarshal(data, &raw); err != nil || raw.Data.Repository == nil || len(raw.Errors) > 0 || len(raw.Data.Repository.PullRequests.Nodes) > 100 {
+	if err := json.Unmarshal(data, &raw); err != nil || !utf8.Valid(data) || raw.Data.Repository == nil || len(raw.Errors) > 0 || len(raw.Data.Repository.PullRequests.Nodes) > 100 {
 		return nil, errors.New("invalid pull request list")
 	}
 	prs := make([]PullRequest, 0, len(raw.Data.Repository.PullRequests.Nodes))
 	seen := map[int]bool{}
 	for _, item := range raw.Data.Repository.PullRequests.Nodes {
-		if item.Number <= 0 || seen[item.Number] || item.CreatedAt.IsZero() || !validListText(item.Title) || len(item.Commits.Nodes) > 1 {
+		if item.Number <= 0 || seen[item.Number] || item.CreatedAt.IsZero() || !validListText(item.Title) || !utf8.ValidString(item.Body) || len(item.Body) > descriptionMaxBytes || len(item.Commits.Nodes) > 1 {
 			return nil, errors.New("invalid pull request list")
 		}
-		pr := PullRequest{Identity: Identity{Repository: repository, Number: item.Number}, Title: item.Title, OpenedAt: item.CreatedAt, Checks: ChecksUnknown}
+		pr := PullRequest{Identity: Identity{Repository: repository, Number: item.Number}, Title: item.Title, Description: item.Body, OpenedAt: item.CreatedAt, Checks: ChecksUnknown}
 		if item.ViewerLatestReview != nil {
 			switch item.ViewerLatestReview.State {
 			case "APPROVED", "CHANGES_REQUESTED", "COMMENTED", "DISMISSED", "PENDING":

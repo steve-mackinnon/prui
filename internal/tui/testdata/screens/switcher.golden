@@ -2,4 +2,9 @@ Switch pull requests · type to filter
 filter:
 › open example/review#7
   #99  Unopened change                ○  @unknown               ? Checks unknown
-type: filter · enter: switch/open · esc: cancel · ?: Health & help
+
+
+
+
+
+j/k: select · tab: preview · type: filter · enter: switch/open · esc: cancel · ?

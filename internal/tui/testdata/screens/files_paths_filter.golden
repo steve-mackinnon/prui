@@ -1,6 +1,6 @@
 example/review #42
   PRs [P]    Description [1]  › Files [2]    Guide [3]    Commits [4]
-┌ Files · ▽ Filter (/) ──────────────┬ Diff · FILES 2 · file 1/2 ──────────────────────────────────────────────────────┐
+┌ Files · ▽ Filter (/) ──────────────┬ Commits [C] · All changes · Diff · FILES 2 · file 1/2 ──────────────────────────┐
 │Filter files: tui                   │── internal/tui/model.go                                                         │
 │› model.go  internal/tui            │@@ -1 +1 @@                                                                      │
 │  file_filter.go  internal/tui      │-old greeting                                                                    │

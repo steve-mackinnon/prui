@@ -124,6 +124,10 @@ func capture(parent context.Context, v *source.View, p source.PinnedComparison, 
 		entry.Status = Captured
 		entry.Reason = ""
 	}
+	bundle.Composition = captureComposition(ctx, bundle, budget, l)
+	if !ValidateComposition(bundle) {
+		bundle.Composition = &Composition{Status: Unavailable, Reason: "Frozen composition source failed validation."}
+	}
 	return bundle, nil
 }
 
