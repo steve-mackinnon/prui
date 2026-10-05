@@ -136,7 +136,7 @@ func (m *Model) themePickerView() string {
 		} else if i == m.ThemePicker.Index {
 			marker = "> "
 		}
-		line := marker + entries[i].DisplayName + " — " + entries[i].Description
+		line := marker + entries[i].DisplayName
 		if name == m.theme.Name {
 			line += " (active)"
 		}
