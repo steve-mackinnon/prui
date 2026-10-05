@@ -113,4 +113,12 @@ func (m *Model) cycleCommentType(reverse bool) {
 	c.Draft, c.Cursor = draft, len([]rune(draft))
 	m.ActionError = nil
 	m.ensureInlineEditorVisible()
+	if current == "File comment" && mode == "Comment" {
+		// A restored draft may be taller than the viewport. Return to its
+		// source line even when the entire editor cannot fit beside it.
+		target := c.Target
+		target.StartLine, target.StartSide = 0, ""
+		m.restoreCursorAnchor(&target, 0)
+		m.ensureCursorVisible()
+	}
 }
