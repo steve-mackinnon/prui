@@ -41,6 +41,9 @@ func (a *application) readIssueContext(ctx context.Context, id source.Identity, 
 		linearCtx, linearCancel := context.WithTimeout(ctx, 25*time.Second)
 		c.Linear, c.LinearReason = (issuecontext.Linear{Config: config, Getenv: os.Getenv, Transport: a.issueContextTransport}).Read(linearCtx, id.Repository, c.Body)
 		linearCancel()
+		if len(c.Linear) > 0 {
+			c.LinearWorkspace, c.LinearAuth = config.Workspace, config.Auth
+		}
 	}
 	c.Body = ""
 	if c.Identity != id || !source.ValidateIssueContext(c) {

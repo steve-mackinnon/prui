@@ -15,19 +15,20 @@ import (
 // IssueContext is mutable provider context. Body is only a candidate-link input
 // and is never persisted or supplied to AI analysis by this feature.
 type IssueContext struct {
-	Identity       Identity
-	HeadSHA        string
-	CapturedAt     time.Time
-	Complete       bool
-	Reason         string
-	ReviewDecision string // authoritative aggregate; empty means unknown
-	Requested      []ContextReviewer
-	Reviews        []ContextReview
-	Labels         []string
-	Issues         []ContextIssue
-	Linear         []ContextIssue
-	LinearReason   string
-	Body           string `json:"-"`
+	Identity                    Identity
+	HeadSHA                     string
+	CapturedAt                  time.Time
+	Complete                    bool
+	Reason                      string
+	ReviewDecision              string // authoritative aggregate; empty means unknown
+	Requested                   []ContextReviewer
+	Reviews                     []ContextReview
+	Labels                      []string
+	Issues                      []ContextIssue
+	Linear                      []ContextIssue
+	LinearWorkspace, LinearAuth string
+	LinearReason                string
+	Body                        string `json:"-"`
 }
 type ContextReviewer struct{ Kind, Name string }
 type ContextReview struct{ Author, Decision string }
@@ -187,6 +188,14 @@ func ValidateIssueContext(c IssueContext) bool {
 	if c.Complete && c.Reason != "" || !c.Complete && c.Reason == "" {
 		return false
 	}
+	if !validDiscussionField(c.LinearWorkspace, 100, false) || (c.LinearWorkspace == "") != (c.LinearAuth == "") {
+		return false
+	}
+	switch c.LinearAuth {
+	case "", "api_key", "oauth":
+	default:
+		return false
+	}
 	switch c.ReviewDecision {
 	case "", "APPROVED", "CHANGES_REQUESTED", "REVIEW_REQUIRED":
 	default:
@@ -232,7 +241,7 @@ func ValidateIssueContext(c IssueContext) bool {
 	for _, v := range c.Linear {
 		u, _ := url.Parse(v.URL)
 		parts := strings.Split(strings.TrimPrefix(u.Path, "/"), "/")
-		if u.Host != "linear.app" || len(parts) < 3 || len(parts) > 4 || parts[1] != "issue" || parts[2] != v.Identifier {
+		if u.Host != "linear.app" || len(parts) < 3 || len(parts) > 4 || parts[1] != "issue" || parts[2] != v.Identifier || c.LinearWorkspace != "" && parts[0] != c.LinearWorkspace {
 			return false
 		}
 	}

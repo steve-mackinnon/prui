@@ -166,6 +166,14 @@ func (m *Model) issueContextLines() []string {
 		lines = append(lines, v.Identifier+" · "+v.Status+" · "+v.Title, v.URL)
 	}
 	lines = append(lines, "Linear issues:")
+	if len(c.Linear) > 0 {
+		if c.LinearWorkspace != "" {
+			lines = append(lines, "Captured Linear workspace: "+c.LinearWorkspace+" · auth: "+c.LinearAuth)
+		} else {
+			lines = append(lines, "Captured Linear authorization provenance unavailable (legacy cache)")
+		}
+		lines = append(lines, "Historical authorization at capture only; current account access unknown")
+	}
 	if c.LinearReason != "" {
 		lines = append(lines, c.LinearReason)
 	}
