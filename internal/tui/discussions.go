@@ -32,22 +32,24 @@ type DiscussionResult struct {
 type discussionCount struct{ total, outdated int }
 
 type discussionState struct {
-	anchorIndex      map[source.ReviewCommentTarget][]source.Discussion
-	counts           map[string]discussionCount
-	indexGeneration  uint64
-	cancel           context.CancelFunc
-	snapshot         DiscussionSnapshot
-	loaded           bool
-	generation       uint64
-	editor           *generalCommentEditor
-	selectedID       string
-	confirmed        map[int64]bool
-	confirmedEvents  map[string]source.ConversationEvent
-	selected, scroll int
-	detail           bool
-	notice           string
-	returnCommit     *commitState
-	returnView       reviewView
+	anchorIndex        map[source.ReviewCommentTarget][]source.Discussion
+	counts             map[string]discussionCount
+	indexGeneration    uint64
+	cancel             context.CancelFunc
+	snapshot           DiscussionSnapshot
+	loaded             bool
+	generation         uint64
+	confirmedPublished map[string]confirmedPublished
+	published          *publishedEditor
+	editor             *generalCommentEditor
+	selectedID         string
+	confirmed          map[int64]bool
+	confirmedEvents    map[string]source.ConversationEvent
+	selected, scroll   int
+	detail             bool
+	notice             string
+	returnCommit       *commitState
+	returnView         reviewView
 }
 
 func (m *Model) SetDiscussionReader(read DiscussionReader) { m.readDiscussions = read }
@@ -92,22 +94,10 @@ func (m *Model) applyDiscussionResult(v DiscussionResult) {
 				seen[c.ID] = true
 			}
 		}
-		// Preserve known creations by numeric identity even after GraphQL replaces
-		// their temporary display identity with an authoritative thread node ID.
-		for _, thread := range d.snapshot.Snapshot.Threads {
-			retain := false
-			for _, c := range thread.Comments {
-				if _, confirmed := d.confirmed[c.ID]; confirmed && !seen[c.ID] {
-					retain = true
-					break
-				}
-			}
-			if !retain {
-				continue
-			}
-			v.Snapshot.Snapshot.Threads = append(v.Snapshot.Snapshot.Threads, thread)
-			for _, c := range thread.Comments {
-				seen[c.ID] = true
+		// Retain only missing confirmed identities in canonical threads.
+		for cid := range d.confirmed {
+			if !seen[cid] {
+				retainPublishedComments(d, &v.Snapshot, "", cid)
 			}
 		}
 	}
@@ -136,11 +126,7 @@ func (m *Model) applyDiscussionResult(v DiscussionResult) {
 			for _, thread := range d.snapshot.Snapshot.Threads {
 				for _, comment := range thread.Comments {
 					if fmt.Sprintf("inline:%d", comment.ID) == d.selectedID {
-						thread.Retained = true
-						thread.ID = "retained:" + strings.TrimPrefix(thread.ID, "retained:")
-						thread.Comments = []source.ReviewComment{comment}
-						thread.CurrentAnchor = nil
-						v.Snapshot.Snapshot.Threads = append(v.Snapshot.Snapshot.Threads, thread)
+						retainPublishedComments(d, &v.Snapshot, "", comment.ID)
 						break
 					}
 				}
@@ -161,6 +147,8 @@ func (m *Model) applyDiscussionResult(v DiscussionResult) {
 			v.Snapshot.Snapshot.Reason = "Confirmed PR comment not yet observed on refresh"
 		}
 	}
+	reconcilePublished(d, v.Snapshot)
+	retainPublished(d, &v.Snapshot)
 	d.snapshot, d.loaded, d.notice = v.Snapshot, true, ""
 	if d.editor != nil {
 		if v.Snapshot.Snapshot.Complete && v.Snapshot.CurrentVerified {
@@ -302,6 +290,27 @@ func (m *Model) discussionKey(key string) tea.Cmd {
 	d := &m.discussions
 	threads := discussionEntries(d.snapshot.Snapshot)
 	switch key {
+	case "e", "z":
+		if len(threads) == 0 || !d.detail {
+			return nil
+		}
+		t := threads[d.selected]
+		cid := int64(0)
+		if len(t.Comments) > 0 {
+			cid = t.Comments[0].ID
+		}
+		event := ""
+		if t.Kind == "PR comment" {
+			event = t.ID
+		}
+		if key == "e" && m.Viewer == "" {
+			d.notice = "Load authenticated viewer, then press e again"
+			return m.refreshViewer()
+		}
+		if !m.openPublished(cid, event, key == "z") {
+			d.notice = "Published action unavailable or permission denied"
+		}
+		return nil
 	case "n", "r":
 		if m.submitGeneralComment == nil {
 			d.notice = "PR comments unavailable · offline or unsupported"
@@ -486,9 +495,15 @@ func (m *Model) discussionsView() string {
 			}
 		}
 	}
-	footer := "j/k: select/scroll · enter: detail · o: original commit · c: refresh · esc: back"
+	footer := "j/k: select · enter: detail · c: refresh · esc: back"
 	if d.snapshot.Snapshot.Timeline {
-		footer = "j/k: select/scroll · enter: detail · n: PR comment · r: general reply · c: refresh · esc: back"
+		footer = "j/k: select · enter: detail · n: comment · c: refresh · esc: back"
+	}
+	if d.detail {
+		footer = "j/k: scroll · e: edit · z: resolve/reopen · o: original · c: refresh · esc: back"
+		if d.snapshot.Snapshot.Timeline {
+			footer = "e: edit · z: resolve/reopen · r: general reply · o: original · c: refresh · esc: back"
+		}
 	}
 	lines = append(lines, clip(footer, m.Width))
 	return strings.Join(lines, "\n")
@@ -504,6 +519,9 @@ func discussionCurrentComments(snapshot DiscussionSnapshot, s *review.Session) [
 			continue
 		}
 		for _, c := range thread.Comments {
+			if c.Retained || thread.Retained {
+				continue
+			}
 			associated := *thread.CurrentAnchor
 			c.CurrentAnchor = &associated
 			c.Target = *thread.CurrentAnchor
@@ -641,6 +659,7 @@ func discussionEntries(snapshot source.DiscussionSnapshot) []source.Discussion {
 	for _, thread := range snapshot.Threads {
 		for _, comment := range thread.Comments {
 			entry := thread
+			entry.Retained = thread.Retained || comment.Retained
 			entry.ID = fmt.Sprintf("inline:%d", comment.ID)
 			if seen[entry.ID] {
 				continue

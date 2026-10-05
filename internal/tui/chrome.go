@@ -174,7 +174,7 @@ func (m *Model) reviewHints() string {
 		return m.styleLine(classWarning, clip("enter: post now · ctrl+p: save pending · esc: discard · shift+enter: newline", m.Width))
 	}
 	if menu := m.CommentMenu; menu != nil {
-		text := "Comment actions: r reply · a react · esc cancel"
+		text := "Comment actions: r reply · a react · z resolve/reopen · esc cancel"
 		switch menu.mode {
 		case commentActionReply:
 			text = "Reply editor open · enter submit · esc cancel"
@@ -188,7 +188,7 @@ func (m *Model) reviewHints() string {
 			text = "Delete this comment? enter confirm · esc cancel"
 		default:
 			if menu.Author == m.Viewer && m.Viewer != "" {
-				text += " · d delete"
+				text += " · e edit · d delete"
 			}
 		}
 		return m.styleLine(classWarning, clip(text, m.Width))

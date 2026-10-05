@@ -242,6 +242,7 @@ type Model struct {
 	submitGeneralComment GeneralCommentSubmitter
 	readDiscussions      DiscussionReader
 	readComments         CommentReader
+	submitPublished      PublishedSubmitter
 	readViewer           ViewerReader
 	submitCommentAction  CommentActionSubmitter
 	cancelAction         context.CancelFunc
@@ -495,6 +496,8 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if active == v.Target && v.Err == nil {
 			return m, tea.Batch(m.refreshDiscussions(), m.refreshComments())
 		}
+	case PublishedResult:
+		m.applyPublishedResult(v)
 	case CommentActionResult:
 		active := m.activeTab
 		busy, actionErr, notice := m.Busy, m.ActionError, m.notice
@@ -560,7 +563,7 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if current == nil || current.ID != v.SessionID {
 			return m, nil
 		}
-		keepDrafts := state.Composer != nil || len(state.Pending) > 0 || state.ReviewForm != nil || state.CommentMenu != nil || slices.Contains(state.Stack, pageGuideConsent)
+		keepDrafts := state.discussions.published != nil || state.discussions.editor != nil || state.Composer != nil || len(state.Pending) > 0 || state.ReviewForm != nil || state.CommentMenu != nil || slices.Contains(state.Stack, pageGuideConsent)
 		if v.Freshness.Session != nil && keepDrafts {
 			// Keep local editing anchored to its frozen source; write preflights
 			// still reject the stale comparison. Opening a new one stays explicit.
@@ -659,7 +662,7 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// interpret discard confirmation as a remote comment submission.
 			return m, m.pageKey(pageQuitPending, v)
 		}
-		if m.top() == pageReview && m.fileView() && !m.commitFilter.open && !m.commitFilter.subset && m.Composer == nil && m.CommentMenu == nil && !m.Busy {
+		if m.top() == pageReview && m.fileView() && m.discussions.published == nil && m.discussions.editor == nil && !m.commitFilter.open && !m.commitFilter.subset && m.Composer == nil && m.CommentMenu == nil && !m.Busy {
 			if m.fileFilterEditing && v.String() != "ctrl+c" {
 				m.fileFilterKey(v)
 				return m, m.restartGuidePathScroll()
@@ -673,11 +676,14 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 		}
-		editingReviewText := m.top() == pageReviewSubmit || (m.top() == pageDiscussions && m.discussions.editor != nil)
+		editingReviewText := m.discussions.published != nil || m.top() == pageReviewSubmit || (m.top() == pageDiscussions && m.discussions.editor != nil)
 		editingGuideModel := m.top() == pageGuideConsent && m.guideFocus == 2
 		if (v.String() != "q" || editingReviewText || editingGuideModel) && v.String() != "ctrl+c" {
 			if m.Busy && (m.top() != pagePullRequestPicker || m.Session == nil) {
 				return m, nil
+			}
+			if m.discussions.published != nil {
+				return m, m.publishedKey(v)
 			}
 			if m.Composer != nil {
 				return m, m.commentComposerKey(v)
@@ -1649,6 +1655,9 @@ func (m *Model) reviewCommentLinesAt(comment source.ReviewComment, indent int) [
 	}
 	lines := []diffLine{{styledLine: styledLine{Class: classMetadata, Text: border}, commentID: comment.ID}}
 	lines = append(lines, wrappedLines(classMetadata, "@"+author)...)
+	if label := m.publishedStatus(comment.ID); label != "" {
+		lines = append(lines, wrappedLines(classMetadata, label)...)
+	}
 	for _, body := range strings.Split(comment.Body, "\n") {
 		lines = append(lines, wrappedLines(classPlain, body)...)
 	}
@@ -2053,6 +2062,9 @@ func (m *Model) View() tea.View {
 	}
 	if m.commitFilter.open && m.top() == pageReview && m.diffReviewView() {
 		text = m.commitFilterModalView(text)
+	}
+	if m.discussions.published != nil {
+		text = m.publishedView()
 	}
 	if modal := m.loadingModal(); modal.active {
 		text = renderLoadingModal(m.Width, m.Height, text, modal, m.modalSurface)
