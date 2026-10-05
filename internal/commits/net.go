@@ -15,7 +15,7 @@ import (
 )
 
 // Compose builds one offline net comparison without touching the reviewed checkout.
-func Compose(ctx context.Context, bundle *Bundle, selected []string, limits source.Limits) (inventory.Inventory, error) {
+func Compose(ctx context.Context, bundle *Bundle, selected []string, limits source.Limits) (result inventory.Inventory, resultErr error) {
 	empty := inventory.Inventory{Complete: true, Files: []inventory.FileChange{}, Units: []inventory.ReviewUnit{}, Patches: map[string][]byte{}}
 	if ctx.Err() != nil {
 		return empty, ctx.Err()
@@ -79,7 +79,12 @@ func Compose(ctx context.Context, bundle *Bundle, selected []string, limits sour
 	if err != nil {
 		return empty, err
 	}
-	defer os.RemoveAll(store.dir)
+	defer func() {
+		if cleanupErr := os.RemoveAll(store.dir); cleanupErr != nil {
+			result = empty
+			resultErr = errors.Join(resultErr, fmt.Errorf("remove composition store: %w", cleanupErr))
+		}
+	}()
 	remaining := min(limits.ContentBytes, 50<<20)
 	for oid, data := range bundle.Composition.Blobs {
 		if len(data) > limits.BlobBytes || len(data) > remaining {

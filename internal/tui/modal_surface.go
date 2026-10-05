@@ -32,11 +32,13 @@ func modalBackground(palette theme.Theme) color.Color {
 	}
 	r, g, b, _ := base.RGBA()
 	blend := func(channel uint32) uint8 {
-		v := channel >> 8
+		v := uint16((channel >> 8) & 0xff)
 		if palette.IsLight() {
-			return uint8(v * 95 / 100)
+			v = v * 95 / 100
+		} else {
+			v += (255 - v) * 10 / 100
 		}
-		return uint8(v + (255-v)*10/100)
+		return uint8(v & 0xff)
 	}
 	return color.RGBA{R: blend(r), G: blend(g), B: blend(b), A: 255}
 }

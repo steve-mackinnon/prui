@@ -212,11 +212,12 @@ func (m *Model) commitFilterPickerView() string {
 	if !m.commitFilterPickerBordered() {
 		return text + strings.Join(rows, "\n") + "\nEsc/C: close"
 	}
-	if len(m.commitEntries()) == 0 {
+	switch {
+	case len(m.commitEntries()) == 0:
 		text += m.commitSafeState() + "\n"
-	} else if !m.Session.Commits.Complete {
+	case !m.Session.Commits.Complete:
 		text += "Incomplete captured list; additional commits may exist.\n"
-	} else {
+	default:
 		text += "Select commits for one net diff.\n"
 	}
 	footer := "Space/Enter: toggle · j/k: move · Esc/C: close"

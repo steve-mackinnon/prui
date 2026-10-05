@@ -3,9 +3,9 @@ package commits
 import (
 	"bytes"
 	"context"
-	"crypto/sha1"
 	"encoding/json"
 	"fmt"
+	"github.com/pjbgf/sha1cd"
 	"prui/internal/source"
 	"regexp"
 	"strings"
@@ -221,10 +221,10 @@ func ValidateComposition(b *Bundle) bool {
 		if len(data) > 1<<20 {
 			return false
 		}
-		h := sha1.New()
-		fmt.Fprintf(h, "blob %d%c", len(data), 0)
-		h.Write(data)
-		if fmt.Sprintf("%x", h.Sum(nil)) != oid {
+		// Git blob identities use SHA-1; reject collision attacks explicitly.
+		object := append([]byte(fmt.Sprintf("blob %d\x00", len(data))), data...)
+		digest, collision := sha1cd.Sum(object)
+		if collision || fmt.Sprintf("%x", digest) != oid {
 			return false
 		}
 		size += len(oid) + len(data)
