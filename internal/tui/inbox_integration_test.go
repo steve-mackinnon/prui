@@ -3,6 +3,8 @@ package tui
 import (
 	"bytes"
 	"context"
+	"database/sql"
+	"encoding/base64"
 	"encoding/json"
 	"path/filepath"
 	"strings"
@@ -46,7 +48,15 @@ func inboxIntegrationDraft(t *testing.T, store *session.Store, s *review.Session
 	file.Line = 0
 	pending := []source.ReviewComment{{Target: target, Body: "```suggestion\n" + body + "\n```"}, {Target: file, Body: body + " file"}}
 	attempt := source.PullRequestReview{Identity: meta.Identity, CommitID: meta.HeadSHA, Event: "COMMENT", Body: body + " summary", Comments: pending[:1]}
-	d, err := store.SaveDraft(context.Background(), session.DraftKeyFor(meta), 0, session.Draft{Version: 2, Summary: attempt.Body, Pending: pending, Attempt: "review", Attempted: &session.DraftAttempt{Kind: "review", Review: &attempt}})
+	a := source.SuggestionApplication{Metadata: meta, Target: target, CommentID: 9, Branch: "feature", Before: "before", Replacement: body, Content: body + "\n", CommentBody: pending[0].Body}
+	input := map[string]any{"branch": map[string]string{"repositoryNameWithOwner": meta.HeadRepository, "refName": a.Branch}, "expectedHeadOid": meta.HeadSHA, "message": map[string]string{"headline": "Apply review suggestion #9"}, "fileChanges": map[string]any{"additions": []map[string]string{{"path": target.Path, "contents": base64.StdEncoding.EncodeToString([]byte(a.Content))}}}}
+	a.Payload, _ = json.Marshal(map[string]any{"query": `mutation($input:CreateCommitOnBranchInput!){createCommitOnBranch(input:$input){commit{oid url} ref{target{oid}}}}`, "variables": map[string]any{"input": input}})
+	draft := session.Draft{Version: 3, Summary: attempt.Body, Pending: pending, Attempt: "suggestion", Attempted: &session.DraftAttempt{Kind: "suggestion", Application: &a}}
+	if meta.Identity.Repository == "o/first" {
+		draft.Version = 4
+		draft.General = &session.GeneralDraft{Body: body + " edited general", Cursor: 3, ReplyTo: "PR comment:42", AttemptedBody: body + " immutable general", ObservedIDs: []string{"PR comment:42"}, Uncertain: true}
+	}
+	d, err := store.SaveDraft(context.Background(), session.DraftKeyFor(meta), 0, draft)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -63,11 +73,14 @@ func TestInboxCombinedSwitchRefreshCancelRestorePreservesFrozenDraftsAndNavigati
 	second := inboxIntegrationSession(t, store, "o/second")
 	firstDraft := inboxIntegrationDraft(t, store, first, "PRIVATE FIRST")
 	secondDraft := inboxIntegrationDraft(t, store, second, "PRIVATE SECOND")
+	rawRows := inboxPrivateRows(t, store.Path())
 	m := New(ctx, nil)
 	defer m.Close()
 	m.SetLifecycle(store, nil, nil)
 	m.openReviewTab(first)
 	namedKey(m, tea.KeyEnter)
+	// Exercise the review beneath the retained application modal without discard.
+	m.pop()
 	key(m, '2')
 	m.Width, m.Height = 120, 24
 	m.navigation = codeNavigation{mode: "NEW", whitespace: true}
@@ -119,10 +132,12 @@ func TestInboxCombinedSwitchRefreshCancelRestorePreservesFrozenDraftsAndNavigati
 	}
 	_, open := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	completeAction(t, m, open)
-	if opened != 1 || m.Session.ID != second.ID || m.top() != pageDraftRecovery || m.Pending[0].Target.Identity != second.Inventory.Comparison.Metadata.Identity || m.draft.attempt != "review" {
+	if opened != 1 || m.Session.ID != second.ID || m.top() != pageDraftRecovery || m.Pending[0].Target.Identity != second.Inventory.Comparison.Metadata.Identity || m.draft.attempt != "suggestion" {
 		t.Fatal("own frozen session/draft recovery lost")
 	}
 	namedKey(m, tea.KeyEnter)
+	// Exercise the review beneath the retained application modal without discard.
+	m.pop()
 	key(m, 'P')
 	_, load = m.Update(tea.KeyPressMsg{Code: 'o', Mod: tea.ModCtrl})
 	m.Update(load())
@@ -171,4 +186,69 @@ func TestInboxCombinedSwitchRefreshCancelRestorePreservesFrozenDraftsAndNavigati
 			t.Fatal("frozen saved source changed", err)
 		}
 	}
+
+	// Reopen the store and model as a new process would; recovery must retain
+	// original application bytes and general delivery intent under their own keys.
+	m.Close()
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	restartedStore, err := session.Open(store.Path())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer restartedStore.Close()
+	restarted := New(ctx, nil)
+	defer restarted.Close()
+	restarted.SetLifecycle(restartedStore, nil, nil)
+	for _, original := range []*review.Session{first, second} {
+		saved, err := restartedStore.Load(original.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		restarted.openReviewTab(saved)
+		if restarted.top() != pageDraftRecovery || restarted.draft.attempted == nil || restarted.draft.attempted.Application.Target.Identity != original.Inventory.Comparison.Metadata.Identity {
+			t.Fatal("restart retargeted immutable application")
+		}
+		namedKey(restarted, tea.KeyEnter)
+		if restarted.suggestionApplyKey(tea.KeyPressMsg{Code: tea.KeyEnter}) != nil {
+			t.Fatal("uncertain application retried on recovery")
+		}
+		if original.ID == first.ID && (restarted.discussions.editor == nil || restarted.discussions.editor.attemptedBody != firstDraft.General.AttemptedBody || !restarted.discussions.editor.uncertain || restarted.generalCommentKey(tea.KeyPressMsg{Code: tea.KeyEnter}) != nil) {
+			t.Fatal("general immutable intent lost or retried")
+		}
+	}
+	if !bytes.Equal(rawRows, inboxPrivateRows(t, restartedStore.Path())) {
+		t.Fatal("private SQLite payload bytes or generations changed")
+	}
+}
+
+func inboxPrivateRows(t *testing.T, directory string) []byte {
+	t.Helper()
+	db, err := sql.Open("sqlite", filepath.Join(directory, "store.sqlite3")+"?mode=ro")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	rows, err := db.Query(`SELECT repository,pr_number,base_sha,head_sha,base_repository,head_repository,generation,payload FROM review_drafts ORDER BY repository`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	var result bytes.Buffer
+	for rows.Next() {
+		var repository, base, head, baseRepo, headRepo string
+		var number int
+		var generation uint64
+		var payload []byte
+		if err := rows.Scan(&repository, &number, &base, &head, &baseRepo, &headRepo, &generation, &payload); err != nil {
+			t.Fatal(err)
+		}
+		encoded, _ := json.Marshal([]any{repository, number, base, head, baseRepo, headRepo, generation, payload})
+		result.Write(encoded)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	return result.Bytes()
 }
