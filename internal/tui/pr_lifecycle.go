@@ -191,7 +191,7 @@ func (m *Model) lifecycleView() string {
 		if !fits {
 			body = "Resize to confirm\n" + body
 		}
-		return renderActionModal(m.Width, m.Height, m.readinessView(), body)
+		return renderActionModal(m.Width, m.Height, m.readinessView(), body, m.modalSurface)
 	}
 	lines := []string{"PR lifecycle · live state; frozen code stays unchanged", d.notice}
 	if d.loaded {

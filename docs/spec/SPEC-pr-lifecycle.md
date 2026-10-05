@@ -1,6 +1,6 @@
 # PR lifecycle (#34)
 
-Lifecycle controls are tab-owned live state opened from the readiness page with `l`.
+Lifecycle controls are tab-owned live state opened from the readiness page with `l` after `Alt+R`. `C` remains the captured-commit filter.
 Each action shows repository/PR, expected live head and method, then requires Enter.
 Confirmation wraps all evidence and disables submission until the terminal can
 show the complete body with at least 40 columns inside the modal. Queue
