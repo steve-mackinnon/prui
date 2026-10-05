@@ -159,3 +159,11 @@
   coverage and result limits. Unknown thread resolution never means unresolved.
 - See `docs/spec/SPEC-code-navigation.md` for consent, offline recovery,
   invalidation, provenance and coordinate mapping policy.
+
+
+# Incremental Review Contract (issue #32)
+
+- The predecessor is a specific saved session ID/reference/generation with full repo and base/head pins. Capture a navigable direct committed prior-head/new-head tree diff in isolated object storage; never derive source from checkout contents or refs. Recheck current pins after capture. Explicit unavailable/partial states preserve all original snapshots and drafts. Rewrites and base changes do not imply ancestry or unchanged content.
+- Carry whole-file read marks only with complete captured evidence and identical both-side blob IDs/modes/paths/status, diff settings/version, and every raw unit/patch. Partial/unavailable content, renames, equal path/display text alone, and changed old-side base content never prove unchanged. Check predecessor generation/reference inside the initial progress transaction.
+- Anchor assessments retain complete old/new range/file shapes and return advisory outcomes only. Exact file identity takes precedence over other paths; equal-content copies do not establish renames. Original draft bodies, replies, summaries, historical targets, and immutable uncertain attempted requests remain separate private mutable data. No source/guide payload or model request includes them. Changes navigation and draft reconciliation never submit, retry, copy drafts, or silently retarget; recreation requires explicit target selection and the existing write confirmation/preflight.
+- Persist provenance and captured patches under the existing private SQLite integrity and resource/storage ceilings. Offline snapshots remain readable without Git or network. Deleting an original does not erase the independently captured comparison, and unavailable original drafts are never synthesized. Human terminal QA remains unverified unless actually performed.

@@ -342,6 +342,17 @@ func (a *application) open(ctx context.Context, checkout string, id source.Ident
 	if err := a.online(ctx); err != nil {
 		return nil, err
 	}
+	previous, err := a.store.LatestComparison(id)
+	if err != nil {
+		return nil, err
+	}
+	return a.openWithPrevious(ctx, checkout, id, notify, previous)
+}
+
+func (a *application) openWithPrevious(ctx context.Context, checkout string, id source.Identity, notify func(string), previous *review.Session) (*review.Session, error) {
+	if err := a.online(ctx); err != nil {
+		return nil, err
+	}
 	checkout, err := canonicalPath(checkout)
 	if err != nil {
 		return nil, err
@@ -363,7 +374,7 @@ func (a *application) open(ctx context.Context, checkout string, id source.Ident
 	}
 	var profile review.Timing
 	started := time.Now()
-	raw, err := review.OpenWithConfig(ctx, checkout, id, gh, a.runner, a.limits, notify, review.Config{Timing: &profile, CacheFullSource: a.cacheFullSource})
+	raw, err := review.OpenWithConfig(ctx, checkout, id, gh, a.runner, a.limits, notify, review.Config{Timing: &profile, CacheFullSource: a.cacheFullSource, Previous: previous})
 	openedIn := time.Since(started)
 	if err != nil {
 		return nil, err
@@ -377,7 +388,18 @@ func (a *application) open(ctx context.Context, checkout string, id source.Ident
 			return nil, err
 		}
 	}
-	saved, err := a.store.Create(raw.Snapshot)
+	// Reload the selected predecessor by immutable ID, never latest head. Reject
+	// a concurrent progress change instead of carrying an obsolete read mark.
+	if previous != nil {
+		current, e := a.store.Load(previous.ID)
+		if e != nil {
+			return nil, e
+		}
+		if current.SnapshotReference != previous.SnapshotReference || current.Generation != previous.Generation {
+			return nil, session.ErrStateConflict
+		}
+	}
+	saved, err := a.store.CreateWithProgress(raw.Snapshot, raw.ReviewedSliceIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -417,7 +439,7 @@ func (a *application) fresh(ctx context.Context, old *review.Session, checkout s
 	if checkout == "" {
 		return nil, errors.New("new comparison requires --repo checkout")
 	}
-	return a.open(ctx, checkout, old.Inventory.Comparison.Metadata.Identity, notify)
+	return a.openWithPrevious(ctx, checkout, old.Inventory.Comparison.Metadata.Identity, notify, old)
 }
 
 func (a *application) generateGuide(ctx context.Context, original *review.Session, analyzer guide.Analyzer) (*review.Session, error) {
@@ -519,7 +541,17 @@ func (a *application) refreshOpenedPullRequest(ctx context.Context, opened tui.P
 	if notify != nil {
 		notify("PR changed; fetching the new pinned comparison...")
 	}
-	fresh, err := a.open(ctx, opened.Checkout, opened.Metadata.Identity, notify)
+	var previous *review.Session
+	if opened.SessionID != "" {
+		previous, err = a.store.Load(opened.SessionID)
+		if err != nil {
+			return tui.PullRequestFreshness{}, err
+		}
+		if !source.SamePinnedRevision(previous.Inventory.Comparison.Metadata, opened.Metadata) {
+			return tui.PullRequestFreshness{}, errors.New("prior snapshot identity mismatch")
+		}
+	}
+	fresh, err := a.openWithPrevious(ctx, opened.Checkout, opened.Metadata.Identity, notify, previous)
 	return tui.PullRequestFreshness{Session: fresh}, err
 }
 

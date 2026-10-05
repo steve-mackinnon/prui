@@ -7,6 +7,8 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"prui/internal/incremental"
+	"slices"
 	"time"
 
 	"prui/internal/session/storage"
@@ -19,6 +21,30 @@ func (s *Store) Path() string { return s.db.Path() }
 func (s *Store) Close() error { return s.db.Close() }
 
 func (s *Store) Create(snapshot Snapshot) (*Record, error) {
+	return s.createWithProgress(snapshot, nil, false)
+}
+
+// CreateWithProgress atomically stores an immutable snapshot and proven initial
+// local progress. It never changes the predecessor or its private drafts.
+func (s *Store) CreateWithProgress(snapshot Snapshot, reviewed []string) (*Record, error) {
+	if b := snapshot.Incremental; b != nil {
+		old, err := s.Load(b.PreviousID)
+		if err != nil {
+			return nil, err
+		}
+		if old.SnapshotReference != b.PreviousReference || old.Generation != b.PreviousGeneration {
+			return nil, ErrStateConflict
+		}
+		if !slices.Equal(reviewed, incremental.Carry(old.Inventory, snapshot.Inventory, old.ReviewedSliceIDs, b)) {
+			return nil, ErrInvalidStateUpdate
+		}
+	} else if len(reviewed) != 0 {
+		return nil, ErrInvalidStateUpdate
+	}
+	return s.createWithProgress(snapshot, reviewed, true)
+}
+
+func (s *Store) createWithProgress(snapshot Snapshot, reviewed []string, checkPrevious bool) (*Record, error) {
 	ctx, cancel := storage.OperationContext(context.Background())
 	defer cancel()
 	if s.db.ReadOnly() {
@@ -55,7 +81,7 @@ func (s *Store) Create(snapshot Snapshot) (*Record, error) {
 	}
 	r := &Record{Snapshot: snapshot, State: State{
 		SchemaVersion: SchemaVersion, ID: fmt.Sprintf("%x", idBytes),
-		SnapshotReference: reference, ReviewedSliceIDs: []string{},
+		SnapshotReference: reference, ReviewedSliceIDs: append([]string{}, reviewed...),
 		RevisionStatus: Unchecked, UpdatedAt: time.Now().UTC(), Generation: 1,
 	}}
 	if err := validate(r); err != nil {
@@ -80,6 +106,17 @@ func (s *Store) Create(snapshot Snapshot) (*Record, error) {
 		return nil, storage.Classify(err)
 	}
 	defer func() { _ = tx.Rollback() }()
+	if checkPrevious && snapshot.Incremental != nil {
+		b := snapshot.Incremental
+		var generation uint64
+		var reference string
+		if err := tx.QueryRowContext(ctx, `SELECT generation,snapshot_reference FROM sessions WHERE id=?`, b.PreviousID).Scan(&generation, &reference); err != nil {
+			return nil, storage.Classify(err)
+		}
+		if generation != b.PreviousGeneration || reference != b.PreviousReference {
+			return nil, ErrStateConflict
+		}
+	}
 	if snapshot.DerivedFrom != "" {
 		var parentDigest, parentReference, parentDerived string
 		var parentBundle sql.NullString
@@ -198,6 +235,11 @@ func (s *Store) Create(snapshot Snapshot) (*Record, error) {
 		reference, repository, comparison.Identity.Number, comparison.HeadSHA, r.RevisionStatus, r.UpdatedAt.UnixNano(), 1)
 	if err != nil {
 		return nil, storage.Classify(err)
+	}
+	for ordinal, fileID := range r.ReviewedSliceIDs {
+		if _, err := tx.ExecContext(ctx, `INSERT INTO progress(session_id,file_id,ordinal) VALUES(?,?,?)`, r.ID, fileID, ordinal); err != nil {
+			return nil, storage.Classify(err)
+		}
 	}
 	if err := tx.Commit(); err != nil {
 		return nil, storage.Classify(err)

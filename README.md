@@ -92,6 +92,9 @@ reloads it. Opening a review captures its own frozen description.
 3. Press `q` to leave and reopen the PR later, or press `s` to select a saved
    session. Reading progress is retained. Use `r` to check freshness and `N` to
    start a new comparison if the PR changed; the old session remains available.
+   Only files proved entirely unchanged retain read marks. Press `5` for captured
+   changes since the previous review, `n/p` to navigate files, `d` for draft anchor
+   outcomes, and `o` to inspect the original snapshot and drafts.
 4. In the focused diff, press Enter on a commentable line to compose a comment.
    **Enter in the editor posts immediately.** Ctrl+P queues it for a review,
    Shift+Enter adds a newline, and Escape discards the editor.
@@ -108,9 +111,11 @@ Enter; GitHub's documented batch review endpoint does not support them, so
 `ctrl+p` rejects them while preserving the editor. Historical ranges and file
 comments are explicitly unsupported; use the pinned PR Files view.
 
-Posting requires GitHub Pull requests write permission. **Pending comments and
-review summaries are lost on exit or replacement with a new comparison.**
-Check GitHub before retrying a write whose outcome is uncertain.
+Posting requires GitHub Pull requests write permission. Pending comments, editors,
+and review summaries persist privately with their original comparison. New
+comparisons never copy or silently remap drafts. An uncertain attempted request
+requires an explicit outcome check in the original saved comparison before retry.
+See [incremental review provenance and storage](docs/implementation/issue-32-review-progress.md).
 Marking files as read does not submit a GitHub review.
 
 The launcher recognizes standard GitHub HTTPS/SSH `origin` remotes. A checkout
@@ -139,7 +144,8 @@ For offline reading, list session IDs with `prui sessions`, then run
 | `C` | Filter the Files/Guide diff by selected commits |
 | `R` | Open review submission |
 | `g` | Choose an AI guide provider and model, then confirm upload |
-| `r` / `N` | Check freshness / start a new comparison |
+| `r` / `N` | Check freshness / start a new comparison with proven unchanged progress |
+| `5` | Captured changes since previous review and private draft anchor outcomes |
 | `s` | Browse saved sessions |
 | `?` / `q` | Health & help / quit |
 

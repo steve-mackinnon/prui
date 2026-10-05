@@ -9,6 +9,7 @@ import (
 
 	"prui/internal/commits"
 	reviewcontext "prui/internal/context"
+	"prui/internal/incremental"
 	"prui/internal/inventory"
 )
 
@@ -28,6 +29,7 @@ type sqliteSourcePayload struct {
 	Context                reviewcontext.ContextBundle `json:"context"`
 	PullRequestDescription *string                     `json:"pull_request_description,omitempty"`
 	Commits                *commits.Bundle             `json:"commits,omitempty"`
+	Incremental            *incremental.Bundle         `json:"incremental,omitempty"`
 }
 
 func sourcePayload(snapshot Snapshot) sqliteSourcePayload {
@@ -35,6 +37,7 @@ func sourcePayload(snapshot Snapshot) sqliteSourcePayload {
 		Version: sqlitePayloadVersion, Inventory: snapshot.Inventory, Slices: snapshot.Slices,
 		UnitFiles: snapshot.UnitFiles, Context: snapshot.Context,
 		PullRequestDescription: snapshot.PullRequestDescription, Commits: snapshot.Commits,
+		Incremental: snapshot.Incremental,
 	}
 }
 
@@ -67,12 +70,12 @@ func decodeSource(expectedDigest string, b []byte) (Snapshot, error) {
 		return Snapshot{}, fmt.Errorf("%w: noncanonical source payload", ErrInvalidRecord)
 	}
 	comparison := payload.Inventory.Comparison.Metadata
-	if !validateCommits(payload.Commits, comparison.BaseSHA, comparison.HeadSHA) {
+	if !validateCommits(payload.Commits, comparison.BaseSHA, comparison.HeadSHA) || !validateIncremental(payload.Incremental, comparison) {
 		return Snapshot{}, fmt.Errorf("%w: invalid commit source", ErrInvalidRecord)
 	}
 	return Snapshot{Inventory: payload.Inventory, Slices: payload.Slices,
 		UnitFiles: payload.UnitFiles, Context: payload.Context,
-		PullRequestDescription: payload.PullRequestDescription, Commits: payload.Commits}, nil
+		PullRequestDescription: payload.PullRequestDescription, Commits: payload.Commits, Incremental: payload.Incremental}, nil
 }
 
 func logicalSnapshotReference(sourceDigest, bundleDigest string, checkout []byte, derivedFrom string) (string, error) {

@@ -75,42 +75,51 @@ func NewView(ctx context.Context, checkout string, r Runner, l Limits) (v *View,
 	}
 	// Mirror only object data, never the checkout's alternates, config, hooks or promisor markers.
 	err = filepath.WalkDir(objects, func(path string, d fs.DirEntry, e error) error {
-		if e != nil {
-			return e
-		}
-		if ctx.Err() != nil {
-			return ctx.Err()
-		}
-		rel, e := filepath.Rel(objects, path)
-		if e != nil {
-			return e
-		}
-		if rel == "." {
-			return nil
-		}
-		if d.Type()&os.ModeSymlink != 0 {
-			return errors.New("unsupported symlink in object storage")
-		}
-		if d.IsDir() {
-			if rel == "info" {
-				return filepath.SkipDir
-			}
-			return os.MkdirAll(filepath.Join(dir, "borrowed", rel), 0700)
-		}
-		if !d.Type().IsRegular() {
-			return errors.New("unsupported object storage entry")
-		}
-		if strings.HasSuffix(rel, ".promisor") || strings.HasSuffix(rel, ".bitmap") || strings.HasSuffix(rel, ".keep") {
-			return nil
-		}
-		//nolint:gosec // The caller owns the checkout; this operation only hard-links Git objects into a new private view.
-		return os.Link(path, filepath.Join(dir, "borrowed", rel))
+		return borrowObjectEntry(ctx, objects, filepath.Join(dir, "borrowed"), path, d, e)
 	})
 	if err != nil {
 		return nil, err
 	}
 	err = os.WriteFile(filepath.Join(dir, "objects/info/alternates"), []byte(filepath.Join(dir, "borrowed")+"\n"), 0600)
 	return v, err
+}
+
+func borrowObjectEntry(ctx context.Context, objects, borrowed, path string, d fs.DirEntry, e error) error {
+	if e != nil {
+		return e
+	}
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
+	rel, e := filepath.Rel(objects, path)
+	if e != nil {
+		return e
+	}
+	if rel == "." {
+		return nil
+	}
+	if d.Type()&os.ModeSymlink != 0 {
+		return errors.New("unsupported symlink in object storage")
+	}
+	if d.IsDir() {
+		if rel == "info" {
+			return filepath.SkipDir
+		}
+		return os.MkdirAll(filepath.Join(borrowed, rel), 0700)
+	}
+	if !d.Type().IsRegular() {
+		return errors.New("unsupported object storage entry")
+	}
+	// Git removes this transient coordination file when maintenance finishes.
+	// It is never object data, even when WalkDir has already enumerated it.
+	if rel == "maintenance.lock" {
+		return nil
+	}
+	if strings.HasSuffix(rel, ".promisor") || strings.HasSuffix(rel, ".bitmap") || strings.HasSuffix(rel, ".keep") {
+		return nil
+	}
+	//nolint:gosec // The caller owns the checkout; this operation only hard-links Git objects into a new private view.
+	return os.Link(path, filepath.Join(borrowed, rel))
 }
 
 func objectDirectory(checkout string) (string, error) {

@@ -89,6 +89,7 @@ type descriptionRenderCache struct {
 // reviewTabState is the reviewer-visible state that must travel with an open
 // review. Window dimensions and services remain shared by the workspace.
 type reviewTabState struct {
+	incremental                                          incrementalViewState
 	draft                                                draftState
 	navigation                                           codeNavigation
 	search                                               [2]*diffSearchState
@@ -157,6 +158,7 @@ const (
 	pageThemePicker
 	pageDiscussions
 	pageDraftRecovery
+	pageIncremental
 )
 
 // commentComposer is deliberately tab-owned. Its target is copied from the
@@ -464,6 +466,14 @@ func (m *Model) update(msg tea.Msg) (updated tea.Model, command tea.Cmd) {
 					m.commitFilter.cancel()
 				}
 				m.commitFilter = commitFilterState{}
+				m.incremental = incrementalViewState{}
+				for _, search := range m.search {
+					if search != nil && search.cancel != nil {
+						search.cancel()
+					}
+				}
+				m.search = [2]*diffSearchState{}
+				m.navigation = codeNavigation{}
 				if m.discussions.cancel != nil {
 					m.discussions.cancel()
 				}
@@ -737,6 +747,9 @@ func (m *Model) update(msg tea.Msg) (updated tea.Model, command tea.Cmd) {
 				}
 				return m, m.discussionKey(v.String())
 			}
+			if m.top() == pageIncremental {
+				return m, m.incrementalKey(v.String())
+			}
 			if p := m.top(); p != pageReview {
 				return m, m.pageKey(p, v)
 			}
@@ -775,6 +788,10 @@ func (m *Model) update(msg tea.Msg) (updated tea.Model, command tea.Cmd) {
 			}
 			if v.String() == "D" && m.Session != nil {
 				m.openDiscussions()
+				return m, nil
+			}
+			if v.String() == "5" && m.Session != nil {
+				m.openIncremental()
 				return m, nil
 			}
 			if v.String() == "c" && m.readDiscussions != nil {
@@ -2091,6 +2108,8 @@ func (m *Model) View() tea.View {
 			text = renderActionModal(m.Width, m.Height, m.actionModalBackground(), m.draftRecoveryView(), m.modalSurface)
 		case pageDiscussions:
 			text = m.discussionsView()
+		case pageIncremental:
+			text = m.incrementalView()
 		case pagePicker:
 			text = m.pickerView()
 		case pageRepositoryPicker:
