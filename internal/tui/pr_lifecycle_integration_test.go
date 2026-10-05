@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"prui/internal/review"
 	"prui/internal/session"
 	"prui/internal/source"
 	"reflect"
@@ -216,5 +217,122 @@ func TestPRLifecycleUnknownOutcomeAndResetPreserveActualGeneralV4SuggestionAttem
 	}
 	if recovered.suggestionApplyKey(tea.KeyPressMsg{Code: tea.KeyEnter}) != nil || recovered.generalCommentKey(tea.KeyPressMsg{Code: tea.KeyEnter}) != nil {
 		t.Fatal("private attempt retried after lifecycle reset")
+	}
+}
+
+// Context source rows are read-only anchors, even when a live lifecycle attempt
+// is unresolved and the user leaves and returns through the account inbox.
+func TestPRLifecycleContextSourceInboxRoundTripAndModalOwnership(t *testing.T) {
+	store, err := session.Open(t.TempDir() + "/private")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	first := inboxIntegrationSession(t, store, "o/first")
+	original := inboxIntegrationDraft(t, store, first, "PRIVATE ORIGINAL", false)
+	rawRows := inboxPrivateRows(t, store.Path())
+	m := New(context.Background(), nil)
+	defer m.Close()
+	m.SetLifecycle(store, nil, nil)
+	m.openReviewTab(first)
+	namedKey(m, tea.KeyEnter)
+	inboxLeaveApplicationForFixture(t, m, false) // prepared application can be closed via Escape
+	key(m, '2')
+	m.Width, m.Height = 160, 24
+	for i, f := range m.Session.Inventory.Files {
+		if string(f.NewPath) == "code.txt" {
+			m.selectFile(i)
+			break
+		}
+	}
+	m.Focus = paneDiff
+	m.cursorActive = true
+	m.navigation = codeNavigation{mode: "NEW", whitespace: true}
+	m.fileCache = fileDetailCache{}
+	searchInput(m, "context")
+	namedKey(m, tea.KeyEnter)
+	anchor := m.displayDetail()[m.cursor()].searchID
+	if anchor.Unit == "" || m.selectedDiffTarget() != nil {
+		t.Fatal("context search is not a read-only source anchor")
+	}
+	m.search = [2]*diffSearchState{}
+	m.Update(tea.KeyPressMsg{Code: 'c', Mod: tea.ModAlt})
+	key(m, 'S')
+	m.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
+	m.Update(tea.WindowSizeMsg{Width: 160, Height: 24})
+	if !layoutRowHasSourceID(m.displayDetail()[m.cursor()], anchor) {
+		t.Fatal("layout lost context source")
+	}
+	pin, _ := json.Marshal(first)
+	live := tuiLifecycleState(m)
+	writes := 0
+	m.SetReadinessReader(func(_ context.Context, id source.Identity) (source.Readiness, error) {
+		return source.Readiness{Identity: id, HeadSHA: live.HeadSHA}, nil
+	})
+	m.SetPRLifecycle(func(context.Context, source.Identity) (source.Lifecycle, error) { return live, nil }, func(context.Context, source.LifecycleAction) (source.LifecycleOutcome, error) {
+		writes++
+		return source.LifecycleOutcome{Attempted: true, Refreshed: true, Uncertain: true, Snapshot: live}, errors.New("synthetic uncertainty")
+	})
+	_, cmd := m.Update(tea.KeyPressMsg{Code: 'r', Mod: tea.ModAlt})
+	m.Update(cmd())
+	_, cmd = m.Update(tea.KeyPressMsg{Code: 'l', Text: "l"})
+	m.Update(cmd())
+	m.lifecycle.selected = 11
+	namedKey(m, tea.KeyEnter)
+	// A confirmation owns these keys: none may open a switcher, path/search
+	// control, collapse tree, or another readiness request behind the modal.
+	for _, k := range []tea.KeyPressMsg{{Code: 'P', Text: "P"}, {Code: 'o', Mod: tea.ModCtrl}, {Code: 'F', Text: "F"}, {Code: '/', Text: "/"}, {Code: 'C', Text: "C"}, {Code: 'c', Mod: tea.ModAlt}, {Code: 'r', Mod: tea.ModAlt}} {
+		_, c := m.Update(k)
+		if c != nil || m.top() != pageLifecycle || m.lifecycle.confirmation == nil {
+			t.Fatal("lifecycle confirmation lost key ownership")
+		}
+	}
+	_, cmd = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	if cmd == nil {
+		t.Fatal("visible confirmation unavailable")
+	}
+	m.Update(cmd())
+	if writes != 1 || m.lifecycle.uncertain == nil {
+		t.Fatal("missing uncertainty lock")
+	}
+	namedKey(m, tea.KeyEscape)
+	namedKey(m, tea.KeyEscape)
+	m.SetInbox(func(_ context.Context, o source.InboxOptions, _ bool) (source.Inbox, error) {
+		if o.Account != "" && o.Account != "account-a" {
+			t.Fatal("account changed")
+		}
+		return source.Inbox{Viewer: "account-a", Complete: true, Items: []source.InboxItem{{PullRequest: source.PullRequest{Identity: live.Identity}}}}, nil
+	}, nil, func(context.Context, string, source.Identity, func(string)) (*review.Session, error) {
+		t.Fatal("existing tab reopened")
+		return nil, nil
+	}, source.InboxOptions{}, false, false)
+	key(m, 'P')
+	_, cmd = m.Update(tea.KeyPressMsg{Code: 'o', Mod: tea.ModCtrl})
+	if cmd == nil || m.top() != pageInbox {
+		t.Fatal("inbox unreachable after leaving lifecycle")
+	}
+	m.Update(cmd())
+	_, late := m.Update(tea.KeyPressMsg{Code: 'r', Text: "r"})
+	namedKey(m, tea.KeyEnter)
+	m.Update(late())
+	if m.top() != pagePullRequestPicker {
+		t.Fatal("same active tab should return to switcher")
+	}
+	namedKey(m, tea.KeyEscape)
+	if m.Session != first || m.top() != pageReview || m.inbox.options.Account != "account-a" || !layoutRowHasSourceID(m.displayDetail()[m.cursor()], anchor) || m.selectedDiffTarget() != nil || m.lifecycle.uncertain == nil {
+		t.Fatalf("inbox return lost source/account/lifecycle ownership: session=%t page=%v account=%q anchor=%t target=%v uncertain=%t", m.Session == first, m.top(), m.inbox.options.Account, layoutRowHasSourceID(m.displayDetail()[m.cursor()], anchor), m.selectedDiffTarget(), m.lifecycle.uncertain != nil)
+	}
+	_, cmd = m.Update(tea.KeyPressMsg{Code: 'r', Mod: tea.ModAlt})
+	m.Update(cmd())
+	_, cmd = m.Update(tea.KeyPressMsg{Code: 'l', Text: "l"})
+	m.Update(cmd())
+	namedKey(m, tea.KeyEnter)
+	if writes != 1 || m.lifecycle.confirmation != nil {
+		t.Fatal("return repeated uncertain write")
+	}
+	after, _ := json.Marshal(first)
+	retained, err := store.LoadDraft(context.Background(), session.DraftKeyFor(first.Inventory.Comparison.Metadata))
+	if err != nil || !bytes.Equal(pin, after) || !reflect.DeepEqual(original, retained) || !bytes.Equal(rawRows, inboxPrivateRows(t, store.Path())) {
+		t.Fatal("lifecycle/inbox changed private source or attempt", err)
 	}
 }
