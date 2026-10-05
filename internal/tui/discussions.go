@@ -151,7 +151,7 @@ func (m *Model) applyDiscussionResult(v DiscussionResult) {
 	retainPublished(d, &v.Snapshot)
 	d.snapshot, d.loaded, d.notice = v.Snapshot, true, ""
 	if d.editor != nil {
-		if v.Snapshot.Snapshot.Complete && v.Snapshot.CurrentVerified {
+		if v.Snapshot.Snapshot.Timeline && v.Snapshot.Snapshot.Complete && v.Snapshot.CurrentVerified {
 			if d.editor.uncertain {
 				for _, event := range v.Snapshot.Snapshot.Events {
 					if event.Kind == "PR comment" && event.Body == d.editor.attemptedBody && !d.editor.attemptedIDs[event.ID] {

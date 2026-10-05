@@ -69,7 +69,7 @@ func (m *Model) generalCommentKey(key tea.KeyPressMsg) tea.Cmd {
 		}
 		return nil
 	case "shift+enter":
-		e.draft, e.cursor = insertEditorText(e.draft, e.cursor, "\n")
+		m.insertGeneralCommentText("\n")
 		return nil
 	case "ctrl+r":
 		return m.refreshDiscussions()
@@ -90,12 +90,29 @@ func (m *Model) generalCommentKey(key tea.KeyPressMsg) tea.Cmd {
 			m.discussions.notice = "PR comment submission unavailable"
 			return nil
 		}
-		e.attemptedBody = e.draft
-		e.attemptedIDs = map[string]bool{}
+		observed := map[string]bool{}
 		for _, event := range m.discussions.snapshot.Snapshot.Events {
-			e.attemptedIDs[event.ID] = true
+			if event.Kind == "PR comment" {
+				observed[event.ID] = true
+			}
 		}
+		if len(observed) > 500 {
+			m.discussions.notice = "Observed activity exceeds private draft limit; refresh before posting"
+			return nil
+		}
+		e.attemptedBody, e.attemptedIDs = e.draft, observed
 		e.posting = true
+		if !m.persistDraft(m.reviewTabState) {
+			e.posting = false
+			e.uncertain = true
+			m.discussions.notice = "Private draft save failed; submission blocked"
+			return nil
+		}
+		// A read begun before this durable attempt cannot prove its absence.
+		if m.discussions.cancel != nil {
+			m.discussions.cancel()
+		}
+		m.discussions.generation++
 		target, s, submit, body, ctx := m.activeTab, m.Session, m.submitGeneralComment, e.draft, m.ctx
 		m.discussions.notice = "Posting general PR comment..."
 		return func() tea.Msg {
@@ -104,10 +121,21 @@ func (m *Model) generalCommentKey(key tea.KeyPressMsg) tea.Cmd {
 		}
 	}
 	if key.Text != "" && !key.Mod.Contains(tea.ModCtrl) && !key.Mod.Contains(tea.ModAlt) {
-		e.draft, e.cursor = insertEditorText(e.draft, e.cursor, key.Text)
+		m.insertGeneralCommentText(key.Text)
 	}
 	return nil
 }
+
+// Reject over-limit edits before mutating a payload that must remain savable.
+func (m *Model) insertGeneralCommentText(text string) {
+	e := m.discussions.editor
+	if len(e.draft)+len(text) > 65536 {
+		m.discussions.notice = "PR comment requires 1–65536 bytes"
+		return
+	}
+	e.draft, e.cursor = insertEditorText(e.draft, e.cursor, text)
+}
+
 func (m *Model) applyGeneralCommentResult(v GeneralCommentResult) {
 	state := m.reviewStateForTarget(v.Target)
 	if state == nil || state.Session != v.Session || state.discussions.editor != v.Editor {

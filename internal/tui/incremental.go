@@ -58,6 +58,12 @@ func (m *Model) incrementalDraftOutcomes() []string {
 	if d.Composer != nil {
 		add("Editor", d.Composer.Target, d.Attempt != "")
 	}
+	if d.General != nil {
+		lines = append(lines, "General PR draft: inspect original comparison; never copied or remapped.")
+		if d.General.Uncertain || d.General.Matched {
+			lines = append(lines, "General attempted request: check its immutable delivery evidence in the original comparison before any retry.")
+		}
+	}
 	if d.Reply != nil {
 		lines = append(lines, "Reply: inspect original thread; never remapped.")
 	}

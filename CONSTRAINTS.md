@@ -86,7 +86,7 @@
 
 - Issue #27 supersedes Phase 5's restriction against timeline comments only for
   an explicit general PR comment or @mention reply in the interactive conversation
-  editor. This does not change draft persistence or pending review semantics.
+  editor. Local general drafts follow the private draft contract; pending review semantics remain separate.
 - Conversation is ephemeral live data: general comments, submitted decisions and
   bodies, and individual inline activity retain actor, timestamp and stable ID.
   Never place general events into pinned source, sessions, guides or draft storage.
@@ -187,3 +187,9 @@
 - Application requires a separate confirmation showing actual head repository/ref, path/range and replacement. The documented GitHub `createCommitOnBranch` mutation applies one remote commit with `expectedHeadOid`; it never changes the checkout or claims native suggestion UI metadata.
 - Refresh canonical comment body/current anchor, complete PR pins, head ref, head-repository write permission, ordinary 100644 file mode and exact selected source before preparation and confirmation. Apply only the retained full-file payload, once, on stdin; concurrent pushes are rejected by expected head.
 - Persist exact attempted mutation bytes and provenance privately before dispatch. Uncertain results block retry and require read-only reconciliation; whole-file equality at a changed remote head counts conservatively as applied. An unchanged head does not prove absence (force-push-back/delayed writes). No automatic write/retry, silent reanchoring, credential persistence or source diagnostics.
+
+# Durable general conversation integration
+
+- General editor payload v4 reads versions 1–3 without losing range targets or suggestion attempts. Earlier binaries reject and preserve v4. Persist only local text, rune cursor, reply event identity, original attempted body, at most 500 previously observed general IDs, and uncertain/matched state. Fetched events remain ephemeral.
+- Save posting intent durably before dispatch; interrupted posting recovers uncertain. Editing cannot replace the attempted body. Only complete current-verified bounded conversation refresh reconciles; partial/stale/failed/offline, inline-only, and pre-attempt reads cannot clear uncertainty. No automatic retries.
+- Comparison reset clears prepared suggestion and general state, preserving original attempts under their original private key. Incremental navigation labels the original work without rendering its bodies or remapping it. Escape, quit/recovery discard, successful posting and last-session deletion clean up local drafts.

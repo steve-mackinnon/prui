@@ -59,6 +59,7 @@ func TestIncrementalViewNavigatesCapturedDiffAndPrivateDraftOutcomes(t *testing.
 	file.StartLine = 0
 	attempted := source.PullRequestReview{Identity: meta.Identity, CommitID: head, Event: "COMMENT", Body: "PRIVATE SUMMARY", Comments: []source.ReviewComment{pending}}
 	d := session.Draft{Version: 2, Pending: []source.ReviewComment{pending}, Summary: attempted.Body, Composer: &session.DraftEditor{Target: file, Body: "PRIVATE FILE PAYLOAD", PendingIndex: -1}, Attempt: "review", Attempted: &session.DraftAttempt{Kind: "review", Review: &attempted}}
+	d.General = &session.GeneralDraft{Body: "PRIVATE GENERAL EDIT", Cursor: 3, ReplyTo: "PR comment:10", AttemptedBody: "PRIVATE ORIGINAL GENERAL", ObservedIDs: []string{"PR comment:10"}, Uncertain: true}
 	savedDraft, err := store.SaveDraft(ctx, session.DraftKeyFor(meta), 0, d)
 	if err != nil {
 		t.Fatal(err)
@@ -98,6 +99,10 @@ func TestIncrementalViewNavigatesCapturedDiffAndPrivateDraftOutcomes(t *testing.
 		t.Fatalf("diff navigation missing\n%s", view)
 	}
 	key(m, 'd')
+	outcomes := strings.Join(m.incrementalDraftOutcomes(), "\n")
+	if !strings.Contains(outcomes, "General PR draft") || !strings.Contains(outcomes, "immutable delivery evidence") || strings.Contains(outcomes, "PRIVATE") {
+		t.Fatal("general outcome missing or private text leaked", outcomes)
+	}
 	view = ansi.Strip(m.View().Content)
 	if !strings.Contains(view, "stable RIGHT 1-2") || !strings.Contains(view, "delivery uncertain") {
 		t.Fatalf("range outcome missing\n%s", view)
@@ -119,7 +124,7 @@ func TestIncrementalViewNavigatesCapturedDiffAndPrivateDraftOutcomes(t *testing.
 		t.Fatal("old snapshot not accessible")
 	}
 	m.Update(cmd())
-	if m.Session.ID != old.ID || m.top() != pageDraftRecovery || m.draft.attempt != "review" || m.Pending[0].Target != target {
+	if m.Session.ID != old.ID || m.top() != pageDraftRecovery || m.draft.attempt != "review" || m.Pending[0].Target != target || m.discussions.editor == nil || m.discussions.editor.draft != "PRIVATE GENERAL EDIT" || m.discussions.editor.attemptedBody != "PRIVATE ORIGINAL GENERAL" || !m.discussions.editor.uncertain || m.discussions.editor.replyTo != "PR comment:10" || m.discussions.editor.cursor != 3 {
 		t.Fatal("original attempted payload not recovered")
 	}
 	if posts != 0 {
