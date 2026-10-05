@@ -126,15 +126,17 @@ func openBrowserURL(target string) error {
 	var command *exec.Cmd
 	switch runtime.GOOS {
 	case "darwin":
-		command = exec.Command("open", target)
+		command = exec.Command("open")
 	case "linux":
-		command = exec.Command("xdg-open", target)
+		command = exec.Command("xdg-open")
 	case "windows":
-		command = exec.Command("rundll32", "url.dll,FileProtocolHandler", target)
+		command = exec.Command("rundll32", "url.dll,FileProtocolHandler")
 	default:
 		return fmt.Errorf("unsupported browser platform")
 	}
-	// No shell interpolation, and browser diagnostics never reach terminal output.
+	// The executable and platform flags are fixed; the validated URL is one
+	// separate argument. No shell or browser diagnostics reach terminal output.
+	command.Args = append(command.Args, target)
 	return command.Run()
 }
 
