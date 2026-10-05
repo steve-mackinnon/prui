@@ -2173,7 +2173,7 @@ func (m *Model) View() tea.View {
 	default:
 		switch m.top() {
 		case pageSuggestionApply:
-			text = renderActionModal(m.Width, m.Height, m.actionModalBackground(), m.suggestionApplyView())
+			text = renderActionModal(m.Width, m.Height, m.actionModalBackground(), m.suggestionApplyView(), m.modalSurface)
 		case pageDraftRecovery:
 			text = renderActionModal(m.Width, m.Height, m.actionModalBackground(), m.draftRecoveryView(), m.modalSurface)
 		case pageReadiness:

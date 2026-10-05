@@ -1,6 +1,13 @@
 # Issue 31: suggested changes
 
-Stacked on issue 29 (`5dd00d1`, PR #45, itself on #41). The immutable comparison,
+Originally stacked on issue 29 (`5dd00d1`, PR #45 on #41). Restacked onto
+reviewed PR #45 `ebc8d93ba5ac6e0581c3b98a320c5c54c3bd39fb`, then actual
+main merge `bdedc5476e0e837c6409445f5c6c396e16b62934`, retaining only issue 31
+commits. The restack preserves the canonical conversation writer and complete
+conversation docs, the shared themed modal surface, and the read-only selected
+commit net-diff restriction. Combined tests exercise conversation refresh and
+general-editor isolation with ranged suggestions, real legacy v1 → range v2 →
+replacement v3 store restart, and suggestion modal theme/confirmation semantics. The immutable comparison,
 raw old/new context coordinates, private draft payload version 2 targets (suggestion editor/apply payloads use version 3), and explicit
 remote-write boundaries remain authoritative.
 

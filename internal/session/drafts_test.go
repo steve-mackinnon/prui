@@ -2,6 +2,7 @@ package session
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"prui/internal/source"
 	"strings"
@@ -189,5 +190,63 @@ func TestExtendedDraftVersionAndInvalidAttemptTargets(t *testing.T) {
 	original, err := store.LoadDraft(ctx, k)
 	if err != nil || original.Attempted.Comment.Target != target {
 		t.Fatal("invalid update destroyed original")
+	}
+}
+
+func TestSuggestionRestackLegacyRangeAndReplacementPayloadVersions(t *testing.T) {
+	store := openSQLiteTestStore(t)
+	ctx := context.Background()
+	meta := fixture().Inventory.Comparison.Metadata
+	meta.BaseRepository, meta.HeadRepository = "owner/repo", "owner/repo"
+	key := DraftKeyFor(meta)
+	target := source.ReviewCommentTarget{Identity: meta.Identity, CommitID: meta.HeadSHA, Path: "a", Side: "RIGHT", Line: 1}
+	legacy := Draft{Version: 1, Composer: &DraftEditor{Target: target, Body: "legacy single-line work", PendingIndex: -1}}
+	if _, err := store.SaveDraft(ctx, key, 0, legacy); err != nil {
+		t.Fatal(err)
+	}
+	// Simulate an actual previously persisted v1 record, rather than a new save's
+	// automatic schema upgrade. Source/session data are never modified.
+	payload, err := json.Marshal(legacy)
+	if err != nil {
+		t.Fatal(err)
+	}
+	db, err := store.db.SQL()
+	if err != nil {
+		t.Fatal(err)
+	}
+	args := append([]any{payload}, draftArgs(key)...)
+	if _, err = db.ExecContext(ctx, `UPDATE review_drafts SET payload=? WHERE `+draftWhere, args...); err != nil {
+		t.Fatal(err)
+	}
+	got, err := store.LoadDraft(ctx, key)
+	if err != nil || got.Version != 1 || got.Composer.Body != legacy.Composer.Body || got.Composer.Target != target {
+		t.Fatal("legacy draft lost", got, err)
+	}
+	got.Composer.Target.StartLine = 1
+	got.Composer.Target.StartSide = "RIGHT"
+	got.Composer.Target.Line = 3
+	saved, err := store.SaveDraft(ctx, key, got.Generation, got)
+	if err != nil || saved.Version != 2 {
+		t.Fatal("range payload did not use v2", saved, err)
+	}
+	got, err = store.LoadDraft(ctx, key)
+	if err != nil || got.Composer.Target.StartLine != 1 || got.Composer.Target.Line != 3 {
+		t.Fatal("range flattened", got, err)
+	}
+	got.Composer.Suggestion = true
+	got.Composer.Before = "old range"
+	got.Composer.Body = "edited replacement"
+	saved, err = store.SaveDraft(ctx, key, got.Generation, got)
+	if err != nil || saved.Version != 3 {
+		t.Fatal("replacement not versioned safely", saved, err)
+	}
+	reopened, err := Open(store.Path())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reopened.Close()
+	got, err = reopened.LoadDraft(ctx, key)
+	if err != nil || got.Version != 3 || !got.Composer.Suggestion || got.Composer.Body != "edited replacement" || got.Composer.Before != "old range" || got.Composer.Target.Line != 3 || got.Composer.Target.StartLine != 1 {
+		t.Fatal("combined schema restart lost work", got, err)
 	}
 }

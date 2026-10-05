@@ -5,8 +5,12 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
+	"github.com/charmbracelet/colorprofile"
+	"github.com/charmbracelet/x/ansi"
 	"prui/internal/session"
 	"prui/internal/source"
+	"prui/internal/theme"
 	"strings"
 	"testing"
 )
@@ -196,5 +200,128 @@ func TestSuggestionConfirmationScrollKeepsControlsAndEmptyDraftUnsent(t *testing
 	m.Composer = &commentComposer{Suggestion: true, Draft: ""}
 	if !m.unsentReviewDrafts() {
 		t.Fatal("deletion editor not considered unsent")
+	}
+}
+
+func TestSuggestionRestackConversationRangeAndDraftIsolation(t *testing.T) {
+	m := rangeTestModel()
+	defer m.Close()
+	m.Height = 80
+	selectRawTarget(t, m, "RIGHT", 1)
+	m.toggleCommentRange()
+	selectRawTarget(t, m, "RIGHT", 2)
+	m.openSuggestionComposer()
+	m.Composer.Draft = "combined replacement"
+	m.commentComposerKey(tea.KeyPressMsg{Code: 'p', Mod: tea.ModCtrl})
+	queued := m.Pending[0]
+	target := queued.Target
+	if d := draftContent(m.reviewTabState); d.Version != 2 || d.Pending[0].Target.StartLine != 1 || d.Pending[0].Target.Line != 2 {
+		t.Fatal("queued range schema changed", d)
+	}
+	published := queued
+	published.ID = 47
+	published.Author = "alice"
+	published.CurrentAnchor = &target
+	published.OriginalAnchor = &target
+	known := false
+	snapshot := DiscussionSnapshot{CurrentVerified: true, Snapshot: source.DiscussionSnapshot{Complete: true, Timeline: true, Threads: []source.Discussion{{ID: "suggestion-thread", CurrentAnchor: &target, OriginalAnchor: &target, OriginalCommitID: target.CommitID, Resolved: &known, Outdated: &known, Comments: []source.ReviewComment{published}}}, Events: []source.ConversationEvent{{ID: "PR comment:51", Kind: "PR comment", Author: "bob", Body: "general conversation"}}}}
+	m.applyDiscussionResult(DiscussionResult{Target: m.activeTab, Session: m.Session, Snapshot: snapshot})
+	m.openDiscussions()
+	for i, e := range m.discussionEntries() {
+		if e.ID == "inline:47" {
+			m.discussions.selected = i
+			m.discussions.selectedID = e.ID
+		}
+	}
+	m.discussionKey("enter")
+	view := m.discussionsView()
+	for _, part := range []string{"PR conversation", "Before", "After", "first", "second", "combined replacement"} {
+		if !strings.Contains(view, part) {
+			t.Fatalf("conversation lost %q: %s", part, view)
+		}
+	}
+	calls := 0
+	m.SetGeneralCommentSubmitter(func(context.Context, source.Metadata, string) (source.ConversationEvent, error) {
+		calls++
+		return source.ConversationEvent{}, nil
+	})
+	m.discussionKey("n")
+	m.Update(tea.KeyPressMsg{Code: 't', Text: "separate general text"})
+	m.Update(tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
+	m.Update(tea.KeyPressMsg{Code: 'p', Mod: tea.ModCtrl})
+	if calls != 0 || m.Composer != nil || len(m.Pending) != 1 || m.Pending[0] != queued || m.discussions.editor == nil || m.discussions.editor.draft != "separate general text" {
+		t.Fatal("general editor crossed suggestion/draft boundary")
+	}
+	m.generalCommentKey(tea.KeyPressMsg{Code: tea.KeyEscape})
+	m.discussions.detail = false
+	m.discussionKey("esc")
+	m.CommentMenu = &commentActionMenu{CommentID: 47, Target: target}
+	var received source.ReviewComment
+	var before string
+	m.SetSuggestionActions(func(_ context.Context, _ source.Metadata, c source.ReviewComment, b string) (source.SuggestionApplication, error) {
+		received = c
+		before = b
+		return source.SuggestionApplication{}, errors.New("synthetic preparation boundary")
+	}, nil)
+	cmd := m.commentActionKey(tea.KeyPressMsg{Code: 'a', Mod: tea.ModCtrl})
+	if cmd == nil {
+		t.Fatal("canonical inline action unavailable")
+	}
+	m.Update(cmd())
+	if received.ID != 47 || received.Target != target || before != "first\nsecond" || len(m.Pending) != 1 || m.Pending[0] != queued {
+		t.Fatal("conversation refresh flattened or retargeted suggestion", received, before)
+	}
+}
+
+func TestSuggestionRestackFilteredComparisonCannotCompose(t *testing.T) {
+	m := rangeTestModel()
+	defer m.Close()
+	selectRawTarget(t, m, "RIGHT", 1)
+	original := m.Session
+	target := *m.selectedDiffTarget()
+	m.commitFilter.subset = true
+	m.Update(tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
+	if m.Composer != nil || m.ActionError == nil || !strings.Contains(m.ActionError.Error(), "read-only") || m.Session != original || *m.selectedDiffTarget() != target {
+		t.Fatal("filtered comparison reused canonical composition target")
+	}
+	m.commitFilter.subset = false
+	m.Update(tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
+	if m.Composer == nil || !m.Composer.Suggestion || m.Composer.Target != target {
+		t.Fatal("all-commits canonical suggestion unavailable")
+	}
+}
+
+func TestSuggestionRestackApplyModalUsesCanonicalThemeSurface(t *testing.T) {
+	m := rangeTestModel()
+	defer m.Close()
+	m.Width, m.Height = 120, 24
+	target := source.ReviewCommentTarget{Path: "text", Side: "RIGHT", Line: 2, StartLine: 1, StartSide: "RIGHT"}
+	m.SuggestionApply = &source.SuggestionApplication{Target: target, Metadata: source.Metadata{HeadRepository: "owner/repo"}, Branch: "feature", Before: "first\nsecond", Replacement: "new"}
+	m.push(pageSuggestionApply)
+	palette, err := theme.Resolve(theme.CatppuccinMocha, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m.SetTheme(palette)
+	plain := m.View().Content
+	m.colorProfile = colorprofile.TrueColor
+	colored := m.View().Content
+	if ansi.Strip(colored) != plainCanvas(ansi.Strip(plain), m.Width, m.Height) {
+		t.Fatal("modal theme changed suggestion confirmation text")
+	}
+	cells := themeCanvasBuffer(colored, m.Width, m.Height)
+	found := false
+	for y := 0; y < m.Height; y++ {
+		for x := 0; x < m.Width; x++ {
+			if sameCanvasColor(cells.CellAt(x, y).Style.Bg, modalBackground(palette)) {
+				found = true
+			}
+		}
+	}
+	if !found {
+		t.Fatal("suggestion modal bypassed canonical theme surface")
+	}
+	if !sameCanvasColor(cells.CellAt(0, 0).Style.Bg, themeBaseColor(palette, theme.Background)) {
+		t.Fatal("modal theme leaked into background")
 	}
 }

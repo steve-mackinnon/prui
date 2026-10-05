@@ -44,6 +44,10 @@ func (m *Model) targetSource(t source.ReviewCommentTarget) (string, bool) {
 	return commits.TargetSource(i.Files, i.Units, i.Patches, t)
 }
 func (m *Model) openSuggestionComposer() tea.Cmd {
+	if m.commitFilter.subset {
+		m.ActionError = errors.New("suggestions require the pinned PR diff; filtered commit comparisons are read-only")
+		return nil
+	}
 	if m.selectedReviewView() == viewCommits {
 		m.ActionError = errors.New("new historical suggestions unsupported; select PR Files")
 		return nil
