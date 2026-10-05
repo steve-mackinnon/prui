@@ -31,7 +31,7 @@ func draftContent(state *reviewTabState) session.Draft {
 		d.Summary, d.Event = f.Body, f.Event
 	}
 	if c := state.Composer; c != nil {
-		d.Composer = &session.DraftEditor{Target: c.Target, Body: c.Draft, PendingIndex: c.PendingIndex, CommitSHA: c.CommitSHA, Suggestion: c.Suggestion, Before: c.Before}
+		d.Composer = &session.DraftEditor{Target: c.Target, Body: c.Draft, PendingIndex: c.PendingIndex, CommitSHA: c.CommitSHA, Suggestion: c.Suggestion, Before: c.Before, Modes: c.Modes}
 	}
 	if r := state.CommentMenu; r != nil && r.mode == commentActionReply {
 		d.Reply = &session.DraftEditor{Target: r.Target, Body: r.Draft, CommentID: r.CommentID, ReplyToID: r.ReplyToID, RootAnchor: r.RootAnchor}
@@ -89,7 +89,7 @@ func (m *Model) loadDraft(state *reviewTabState) {
 		state.ReviewForm = &reviewForm{Body: d.Summary, Cursor: len([]rune(d.Summary)), Event: d.Event}
 	}
 	if c := d.Composer; c != nil {
-		state.Composer = &commentComposer{Target: c.Target, Draft: c.Body, Cursor: len([]rune(c.Body)), PendingIndex: c.PendingIndex, CommitSHA: c.CommitSHA, Suggestion: c.Suggestion, Before: c.Before}
+		state.Composer = &commentComposer{Target: c.Target, Draft: c.Body, Cursor: len([]rune(c.Body)), PendingIndex: c.PendingIndex, CommitSHA: c.CommitSHA, Suggestion: c.Suggestion, Before: c.Before, Modes: c.Modes}
 	}
 	if c := state.Composer; c != nil && c.CommitSHA != "" {
 		c.CommitBundle = state.Session.Commits

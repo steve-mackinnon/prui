@@ -183,6 +183,7 @@ type commentComposer struct {
 	CommitSHA       string
 	CommitBundle    *commits.Bundle
 	CommitInventory *inventory.Inventory
+	Modes           *session.CommentModes
 	Suggestion      bool
 	Before          string
 	Draft           string
@@ -1973,6 +1974,11 @@ func (m *Model) inlineEditorLines() []diffLine {
 		label := diffLine{styledLine: styledLine{Class: classWarning, Text: "Comment target · " + commentTargetLabel(c.Target)}, editor: true}
 		lines = append([]diffLine{label}, lines...)
 	}
+	selector := m.commentTypeSelector()
+	if c.CommitSHA != "" {
+		return lines
+	}
+	lines = append([]diffLine{{styledLine: styledLine{Class: classWarning, Text: clip(selector, m.overlayInnerWidth(0)+4)}, editor: true}}, lines...)
 	return lines
 }
 

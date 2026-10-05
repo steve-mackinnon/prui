@@ -295,6 +295,10 @@ func (m *Model) commentComposerKey(key tea.KeyPressMsg) tea.Cmd {
 	if composer.CommitSHA != "" {
 		defer m.ensureCommitEditorVisible()
 	}
+	if key.String() == "tab" || key.String() == "shift+tab" {
+		m.cycleCommentType(key.String() == "shift+tab")
+		return nil
+	}
 	if composer.Suggestion {
 		return m.suggestionComposerKey(key)
 	}

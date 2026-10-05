@@ -96,6 +96,9 @@ reloads it. Opening a review captures its own frozen description.
    changes since the previous review, `n/p` to navigate files, `d` for draft anchor
    outcomes, and `o` to inspect the original snapshot and drafts.
 4. In the focused diff, press Enter on a commentable line to compose a comment.
+   The type selector offers Comment, Suggestion on supported right-side lines,
+   and File comment. Press Tab (or Shift+Tab) in the editor to cycle types;
+   each type retains its draft, including after reopening a saved session.
    **Enter in the editor posts immediately.** Ctrl+P queues it for a review,
    Shift+Enter adds a newline, and Escape discards the editor.
 5. Press `R` to choose Comment, Approve, or Request changes, add a summary, and
