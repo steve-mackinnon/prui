@@ -20,7 +20,7 @@ type binding struct {
 var bindings = []binding{
 	{keys: "C", desc: "filter Files/Guide by captured commits (one read-only net diff)", groups: groupHelp, section: "Views"},
 	{keys: "f3/shift+f3", desc: "next/previous code search match", groups: groupHelp, section: "Navigate"},
-	{keys: "ctrl+e, ctrl+o/n, ctrl+d, ctrl+w", desc: "expand pinned context, full OLD/NEW, diff, whitespace presentation (Files)", groups: groupHelp, section: "Navigate"},
+	{keys: "ctrl+e, alt+o/n, ctrl+d, ctrl+w", desc: "expand pinned context, full OLD/NEW, diff, whitespace presentation (Files)", groups: groupHelp, section: "Navigate"},
 	{keys: "alt+up/down", desc: "previous/next loaded unresolved thread", groups: groupHelp, section: "Navigate"},
 	{keys: "/", desc: "find code text in Files or the current Guide section", groups: groupHelp, section: "Navigate"},
 	{keys: "P", desc: "open the pull-request switcher", groups: groupFooter | groupHelp, section: "App"},

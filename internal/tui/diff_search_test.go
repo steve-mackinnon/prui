@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/charmbracelet/colorprofile"
 	"github.com/charmbracelet/x/ansi"
+	"image"
 	"prui/internal/guide"
 	"prui/internal/theme"
 	"reflect"
@@ -340,6 +341,29 @@ func TestDiffSearchHeaderMouseAndQueryFocus(t *testing.T) {
 	}
 	if !m.searchState().editing || m.searchState().query != "old" {
 		t.Fatal("query click failed to focus without clearing")
+	}
+}
+
+func TestSearchAndCommitHeaderHitboxes(t *testing.T) {
+	for _, width := range []int{90, 120, 160} {
+		m := largeModel(largeTextSession(1, 1), width, 24)
+		m.selectReviewView(viewFiles)
+		m.Focus = paneDiff
+		header := strings.Split(ansi.Strip(m.View().Content), "\n")[2]
+		for _, label := range []string{"Commits [C]", "Find (/)"} {
+			start := strings.Index(header, label)
+			if start < 0 {
+				t.Fatalf("width %d missing %s in %q", width, label, header)
+			}
+			x := visibleWidth(header[:start])
+			if label == "Find (/)" {
+				if !image.Pt(x, 2).In(m.searchHeaderBounds()) || m.commitFilterControlContains(x) {
+					t.Fatalf("width %d search hitbox overlaps commit control", width)
+				}
+			} else if !m.commitFilterControlContains(x) || image.Pt(x, 2).In(m.searchHeaderBounds()) {
+				t.Fatalf("width %d commit hitbox overlaps search control", width)
+			}
+		}
 	}
 }
 

@@ -748,6 +748,9 @@ func (m *Model) update(msg tea.Msg) (updated tea.Model, command tea.Cmd) {
 				return m, nil
 			}
 			if v.String() == "f3" || v.String() == "shift+f3" {
+				if !m.searchAvailable() {
+					return m, nil
+				}
 				s := m.existingSearch()
 				if s != nil && len(s.matches) > 0 {
 					delta := 1

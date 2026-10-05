@@ -163,7 +163,7 @@ func hideWhitespacePairs(lines []diffLine) []diffLine {
 }
 
 func (m *Model) codeNavigationKey(key string) bool {
-	if m.Session == nil || !m.fileView() || m.selectedReviewView() != viewFiles || len(m.Session.Inventory.Files) == 0 {
+	if m.Session == nil || !m.fileView() || m.selectedReviewView() != viewFiles || len(m.Session.Inventory.Files) == 0 || m.commitFilter.open || m.commitFilter.subset || m.discussions.published != nil || m.discussions.editor != nil {
 		return false
 	}
 	switch key {
@@ -173,9 +173,9 @@ func (m *Model) codeNavigationKey(key string) bool {
 		} else {
 			m.navigation.mode = "expanded"
 		}
-	case "ctrl+o":
+	case "alt+o":
 		m.navigation.mode = "OLD"
-	case "ctrl+n":
+	case "alt+n":
 		m.navigation.mode = "NEW"
 	case "ctrl+d":
 		m.navigation.mode = ""
@@ -187,7 +187,7 @@ func (m *Model) codeNavigationKey(key string) bool {
 	m.fileCache = fileDetailCache{}
 	m.closeSearchPopovers()
 	m.setOffset(m.fileOffset(m.Session.UnitFiles[m.Selected]))
-	m.notice = "Ctrl+E: context · Ctrl+O/N: OLD/NEW · Ctrl+D: diff · Ctrl+W: whitespace · Alt+↑/↓: unresolved"
+	m.notice = "Ctrl+E: context · Alt+O/N: OLD/NEW · Ctrl+D: diff · Ctrl+W: whitespace · Alt+↑/↓: unresolved"
 	return true
 }
 

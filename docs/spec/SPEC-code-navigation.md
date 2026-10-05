@@ -13,13 +13,13 @@ Without the option, ordinary patch reviews retain their existing storage behavio
 On Files:
 
 - Ctrl+E toggles all available unchanged context around the saved hunks.
-- Ctrl+O / Ctrl+N show complete pinned OLD / NEW versions across changed files.
+- Alt+O / Alt+N show complete pinned OLD / NEW versions across changed files.
 - Ctrl+D restores the ordinary diff.
 - Ctrl+W hides equal-length replacement runs that differ only in whitespace.
   A visible marker reports the number of hidden canonical rows; toggle to inspect
   or comment on them. This is a local presentation projection, not a new diff or
   a claim that the underlying change is semantically harmless.
-- Ctrl+F searches the current source scope. OLD/NEW searches the captured side;
+- / searches the current source scope. OLD/NEW searches the captured side;
   expanded mode includes available additional context; ordinary Files searches
   canonical saved patches. Guide continues to search its current section.
   Results display side/line and matches; Enter jumps, F3/Shift+F3 navigate next/
@@ -87,16 +87,15 @@ Any inconsistent gap has a visible unavailable marker rather than invented text.
 
 ## Provenance and dependencies
 
-This change stacks on #44 (`codex/issue-28-thread-actions`, pinned start
-`6eae376ce08ae1175c9379c9d2a746eb01183aa6`), itself stacked on #40.
-It cherry-picks PR #42's `bfbdb80bebdff107471f4f921382308211312e3d` as
-`85ac444`, retaining authorship, and resolves conflicts to preserve #28's PR
-switcher and published actions. This PR includes that unmerged search code and
-its tests; #42 should not subsequently be applied blindly as a duplicate.
-`codex/diff-commit-filter` at `804caf9` was inspected, particularly its bounded
-OID capture/validation pattern. No commit-filter implementation is included;
-net commit filtering remains a separate dependency/feature. Complete-file
-navigation here concerns the frozen PR comparison, not selected net commit sets.
+This change is rebased on main after #44 merged, including #43's net commit
+filter and #44's durable drafts, range comments, and published thread actions.
+It preserves authorship of PR #42's original search commit
+`bfbdb80bebdff107471f4f921382308211312e3d` and unique follow-up
+`ef65f6c9b14657be08b14a29381639f181a9776f`: / opens search, F filters paths,
+and the inset popover supports query/results keyboard focus without buttons.
+Complete-file navigation and search concern the frozen PR comparison. Selected
+net commit subsets remain read-only and require All changes for source/search.
+Editor and commit-picker modals own their input before navigation controls.
 
 Official plumbing reference: [git-cat-file](https://git-scm.com/docs/git-cat-file)
 provides object content; filters/textconv are distinct options and are never used.
@@ -113,5 +112,17 @@ insertion/deletion, whitespace reveal/progress invariance, unresolved/unknown
 resolution, and canonical targets across unified/split/width changes.
 Existing PR #42 offline search, wrapping, highlighting, grouping and limit tests
 are retained and independently reviewed as part of the complete stacked diff.
+The repair gate on main `7f64f19` passed `scripts/verify.sh` (format, vet,
+race suite, compiled PTY tests, build) and lint with zero issues. Integration
+regressions cover visible search/commit-control mouse bounds at three widths,
+published-editor and range-draft input ownership, queued range targets across
+source/whitespace/search transitions, and subset isolation/restoration. The
+existing editor/header regressions failed before the routing/geometry repair
+and passed after it; assertions were preserved. Alt+O/N opens source versions
+while Ctrl+O retains canonical split/context range-side selection.
+Fresh review also corrected the help shortcut and deduplicated skipped-file
+coverage across multiple unavailable gaps. The new coverage regression failed
+before that fix and passed afterward; focused navigation/search/editor/range
+checks passed again under the race detector after these final corrections.
 Human terminal usability/accessibility QA remains unverified unless separately
 recorded; screen fixtures and synthetic PTY tests are not human QA.

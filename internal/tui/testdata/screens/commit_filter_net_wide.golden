@@ -8,5 +8,5 @@ example/review #42
 │                                    │                                                                                 │
 │                                    │                                                                                 │
 └────────────────────────────────────┴─────────────────────────────────────────────────────────────────────────────────┘
-Selected commits: reading only; use All changes to mark files or Commits to discuss a commit.
+Selected commits: reading only; use All changes for source/search or marking files.
 R: review PR · C: filter commits

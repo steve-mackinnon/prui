@@ -31,13 +31,13 @@ func (m *Model) searchHeaderBounds() image.Rectangle {
 		if m.Inventory {
 			label = "Full inventory (i)"
 		}
-		start := 2 + visibleWidth(label+" · ")
+		start := 2 + visibleWidth(label+" · Commits [C] · "+m.commitFilterLabel()+" · ")
 		if start+8 > m.Width-1 {
 			return image.Rectangle{}
 		}
 		return image.Rect(start, 2, start+8, 3)
 	}
-	left := m.listWidth() + 3
+	left := m.listWidth() + 3 + visibleWidth("Commits [C] · "+m.commitFilterLabel()+" · ")
 	return image.Rect(left, 2, min(m.Width-1, left+8), 3)
 }
 func (m *Model) searchBounds() image.Rectangle {

@@ -161,7 +161,7 @@ func TestUnresolvedNavigationUsesAuthoritativeStatusAndPartialCoverage(t *testin
 func TestFullSourceUnavailableCoverageAndSearchActivation(t *testing.T) {
 	m := navigationModel("@@ -1 +1 @@\n-a\n+b\n", "a\n", "b\nneedle\n", inventory.Range{Start: 1, Count: 1}, inventory.Range{Start: 1, Count: 1})
 	defer m.Close()
-	m.codeNavigationKey("ctrl+n")
+	m.codeNavigationKey("alt+n")
 	searchInput(m, "needle")
 	m.activateSearchMatch()
 	if m.selectedDiffTarget() != nil || !m.searchMatchAtCursor() {
@@ -203,7 +203,7 @@ func TestUnresolvedNavigationDeduplicatesTimelineAndSkipsRetained(t *testing.T) 
 func TestSourceSearchNextPreviousAndResize(t *testing.T) {
 	m := navigationModel("@@ -1 +1 @@\n-a\n+b\n", "a\n", "b\nneedle\nneedle\n", inventory.Range{Start: 1, Count: 1}, inventory.Range{Start: 1, Count: 1})
 	defer m.Close()
-	m.codeNavigationKey("ctrl+n")
+	m.codeNavigationKey("alt+n")
 	searchInput(m, "needle")
 	m.activateSearchMatch()
 	keyMsg := func(code rune, mod tea.KeyMod) { m.Update(tea.KeyPressMsg{Code: code, Mod: mod}) }
@@ -266,12 +266,58 @@ func TestExpandedContextWrappingPreservesCoordinates(t *testing.T) {
 func TestNavigationScopeDoesNotLeakIntoGuide(t *testing.T) {
 	m := navigationModel("@@ -1 +1 @@\n-a\n+b\n", "a\n", "b\nextra\n", inventory.Range{Start: 1, Count: 1}, inventory.Range{Start: 1, Count: 1})
 	defer m.Close()
-	m.codeNavigationKey("ctrl+n")
+	m.codeNavigationKey("alt+n")
 	m.selectReviewView(viewGuide)
-	if m.currentSearchScope().Source != "" || m.codeNavigationKey("ctrl+o") {
+	if m.currentSearchScope().Source != "" || m.codeNavigationKey("alt+o") {
 		t.Fatal("source scope leaked into guide")
 	}
 	if strings.Contains(joinNavigation(m.cachedFileDetail(false)), "Full NEW") {
 		t.Fatal("source projection leaked into guide fallback")
+	}
+}
+
+func TestCommitSubsetPreservesCanonicalNavigationAndSearch(t *testing.T) {
+	m := navigationModel("@@ -1 +1 @@\n-a\n+b\n", "a\n", "b\nextra\n", inventory.Range{Start: 1, Count: 1}, inventory.Range{Start: 1, Count: 1})
+	defer m.Close()
+	m.codeNavigationKey("alt+n")
+	searchInput(m, "extra")
+	m.closeSearchPopovers()
+	beforeSession, beforeSelected, beforeNavigation := m.Session, m.Selected, m.navigation
+	beforeSearch := m.searchState().selected
+	m.commitFilter.subset = true
+	if m.searchAvailable() {
+		t.Fatal("canonical search offered in a selected commit comparison")
+	}
+	for _, key := range []string{"alt+o", "ctrl+d", "ctrl+w", "ctrl+e"} {
+		if m.codeNavigationKey(key) {
+			t.Fatalf("source control %s consumed in selected commit comparison", key)
+		}
+	}
+	m.Update(tea.KeyPressMsg{Code: tea.KeyF3})
+	if m.Session != beforeSession || m.Selected != beforeSelected || m.navigation != beforeNavigation || m.searchState().selected != beforeSearch {
+		t.Fatal("read-only comparison changed canonical navigation/search state")
+	}
+	m.commitFilter.subset = false
+	if !m.searchAvailable() || !m.codeNavigationKey("ctrl+d") {
+		t.Fatal("All changes did not restore navigation and search")
+	}
+}
+
+func TestExpandedSearchCountsUnavailableFilesOnce(t *testing.T) {
+	m := navigationModel("@@ -2 +2 @@\n-b\n+x\n", "a\nb\nc\n", "z\nx\ny\n", inventory.Range{Start: 2, Count: 1}, inventory.Range{Start: 2, Count: 1})
+	defer m.Close()
+	m.codeNavigationKey("ctrl+e")
+	unavailable := 0
+	for _, row := range m.navigationDetail(0) {
+		if row.Class == classUnavailable {
+			unavailable++
+		}
+	}
+	if unavailable < 2 {
+		t.Fatal("fixture must contain multiple unavailable regions")
+	}
+	documents, skipped := searchDocuments(context.Background(), m.Session, m.currentSearchScope())
+	if skipped != 1 || len(documents) != 2 {
+		t.Fatalf("documents=%d skipped files=%d; want 2, 1", len(documents), skipped)
 	}
 }

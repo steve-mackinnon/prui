@@ -184,7 +184,7 @@ func searchDocuments(ctx context.Context, session *review.Session, scope searchS
 	if scope.Source != "" {
 		model := &Model{reviewTabState: &reviewTabState{Session: session, navigation: codeNavigation{mode: scope.Source}}}
 		var docs []searchDocument
-		skipped := 0
+		skipped := map[int]bool{}
 		for f, slice := range session.Slices {
 			if ctx.Err() != nil {
 				return nil, 0
@@ -192,7 +192,7 @@ func searchDocuments(ctx context.Context, session *review.Session, scope searchS
 			seen := map[searchSourceID]bool{}
 			for _, line := range model.navigationDetail(f) {
 				if line.Class == classUnavailable || strings.HasPrefix(line.Text, "UNAVAILABLE") {
-					skipped++
+					skipped[f] = true
 					continue
 				}
 				if line.searchID.Unit == "" || seen[line.searchID] {
@@ -216,7 +216,7 @@ func searchDocuments(ctx context.Context, session *review.Session, scope searchS
 				docs = append(docs, searchDocument{ID: line.searchID, Text: line.rawSource, File: f, Unit: unit, Old: line.oldLine, New: line.newLine, Marker: marker})
 			}
 		}
-		return docs, skipped
+		return docs, len(skipped)
 	}
 	var units []int
 	if scope.Guide >= 0 && !scope.Inventory {
@@ -368,7 +368,7 @@ func (m *Model) applySearchResult(r diffSearchResult) {
 }
 
 func (m *Model) searchAvailable() bool {
-	return m.Session != nil && m.top() == pageReview && m.diffReviewView() && !m.Busy && !m.Loading && m.Composer == nil && m.CommentMenu == nil && !m.fileFilterEditing
+	return m.Session != nil && m.top() == pageReview && m.diffReviewView() && !m.Busy && !m.Loading && m.Composer == nil && m.CommentMenu == nil && m.discussions.published == nil && m.discussions.editor == nil && !m.commitFilter.open && !m.commitFilter.subset && !m.fileFilterEditing
 }
 func (m *Model) searchOpen() bool {
 	s := m.existingSearch()
