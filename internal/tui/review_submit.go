@@ -424,6 +424,7 @@ func (m *Model) focusPendingTarget(target source.ReviewCommentTarget) bool {
 					path = f.OldPath
 				}
 				if u.FileChangeID == f.ID && string(path) == target.Path {
+					m.resetCommitFilter()
 					m.ContextView, m.Files, m.Inventory, m.Selected, m.Focus = viewFiles, true, false, unit, paneDiff
 					m.setOffset(0)
 					return true

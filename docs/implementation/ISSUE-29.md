@@ -103,3 +103,22 @@ verification results are recorded in the PR before readiness.
 Human terminal usability/accessibility remains unverified by render tests alone.
 No checks, thresholds, existing test assertions, or skipped-test policy weakened.
 Only the host's existing Go cache is used; no duplicate temporary cache is created.
+
+## Restack onto repaired conversation/draft parent
+
+PR #45's recorded old remote tip is `5dd00d102ae6cfdd8051d0050a0edb6f2284e8d7`.
+The seven issue #29 commits alone were rebased from original parent `289da6b`
+onto published parent `05355705d2ec6b51db405174ef9f26c12b4ff809`.
+Conflict resolutions preserve upstream REST timestamps, general conversation
+rendering, commit-filter state, and canonical-target navigation resets alongside
+complete range/file anchors. Descendant branches are untouched.
+
+A combined acceptance regression first failed because extended shortcuts could
+open canonical editors within a read-only derived commit view. Range selection
+and file creation now honor that restriction; file recovery clears the filter
+before restoring its canonical path. Another regression proves a durable queued
+range retains both anchors and body after an uncertain ephemeral general comment
+and restart, without persisting the general editor or attempt.
+Focused conversation, draft, filter, source, session, command, and extended target
+regressions pass. Broad verification waits for the coordinator's reservation;
+exact-SHA independent review and current CI will be recorded in the PR.

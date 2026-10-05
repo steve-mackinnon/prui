@@ -24,6 +24,9 @@ func commentTargetLabel(t source.ReviewCommentTarget) string {
 	return fmt.Sprintf("%s:%d %s", Escape(t.Path), t.Line, t.Side)
 }
 func (m *Model) commentSelectionTarget() *source.ReviewCommentTarget {
+	if m.commitFilter.subset && m.diffReviewView() {
+		return nil
+	}
 	if m.selectedReviewView() == viewCommits {
 		if m.commit.focus != paneDiff {
 			return nil
@@ -82,6 +85,10 @@ func (m *Model) completeCommentRange(end source.ReviewCommentTarget) (source.Rev
 	return end, nil
 }
 func (m *Model) openFileComposer() tea.Cmd {
+	if m.commitFilter.subset && m.diffReviewView() {
+		m.ActionError = errors.New("derived commit views are read-only; select the canonical PR Files view")
+		return nil
+	}
 	if m.Session == nil || m.Composer != nil {
 		return nil
 	}

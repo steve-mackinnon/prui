@@ -296,3 +296,86 @@ func TestInvalidRangeStartIsExplicitlyRejected(t *testing.T) {
 		t.Fatal("invalid range start silently accepted")
 	}
 }
+
+func TestExtendedTargetsRespectDerivedCommitFilterAndCanonicalRecovery(t *testing.T) {
+	m := rangeTestModel()
+	selectRawTarget(t, m, "RIGHT", 1)
+	m.commitFilter.subset = true
+	ctrlKey(m, 'v')
+	ctrlKey(m, 'f')
+	if m.rangeStart != nil || m.Composer != nil {
+		t.Fatal("derived commit view opened a canonical range/file editor")
+	}
+	m.commitFilter.subset = false
+	ctrlKey(m, 'f')
+	if m.Composer == nil {
+		t.Fatal("canonical file composer unavailable")
+	}
+	target := m.Composer.Target
+	m.Composer = nil
+	m.commitFilter.subset = true
+	if !m.focusPendingTarget(target) || m.commitFilter.subset {
+		t.Fatal("file recovery did not restore the canonical surface")
+	}
+	if m.Session.Inventory.Comparison.Metadata.HeadSHA != target.CommitID {
+		t.Fatal("file recovery retargeted the captured comparison")
+	}
+}
+
+func TestDurableRangeQueueSurvivesUncertainGeneralConversation(t *testing.T) {
+	store, err := session.Open(t.TempDir() + "/private")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	m := rangeTestModel()
+	m.Session.ID = strings.Repeat("d", 32)
+	m.SetLifecycle(store, nil, nil)
+	m.openReviewTab(m.Session)
+	defer m.Close()
+	m.selectReviewView(viewFiles)
+	m.Selected, m.Focus = 1, paneDiff
+	selectRawTarget(t, m, "RIGHT", 1)
+	ctrlKey(m, 'v')
+	key(m, 'j')
+	namedKey(m, tea.KeyEnter)
+	if m.Composer == nil {
+		t.Fatal("range editor unavailable")
+	}
+	want := m.Composer.Target
+	key(m, 'x')
+	ctrlKey(m, 'p')
+	if len(m.Pending) != 1 {
+		t.Fatal("range not queued", m.ActionError)
+	}
+	calls := 0
+	m.SetGeneralCommentSubmitter(func(_ context.Context, _ source.Metadata, body string) (source.ConversationEvent, error) {
+		calls++
+		if body != "g" {
+			t.Fatal("general body changed", body)
+		}
+		return source.ConversationEvent{}, source.ErrCommentDeliveryUnknown
+	})
+	m.openDiscussions()
+	m.discussionKey("n")
+	key(m, 'g')
+	_, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	if cmd == nil {
+		t.Fatal("explicit general submission unavailable")
+	}
+	m.Update(cmd())
+	if calls != 1 || m.discussions.editor == nil || !m.discussions.editor.uncertain {
+		t.Fatal("general unknown attempt lost")
+	}
+	got, err := store.LoadDraft(context.Background(), session.DraftKeyFor(m.Session.Inventory.Comparison.Metadata))
+	if err != nil || len(got.Pending) != 1 || got.Pending[0].Target != want || got.Pending[0].Body != "x" || got.Attempt != "" {
+		t.Fatal("general attempt contaminated durable range queue", err, got)
+	}
+	restored := New(context.Background(), nil)
+	restored.SetLifecycle(store, nil, nil)
+	restored.openReviewTab(m.Session)
+	defer restored.Close()
+	if len(restored.Pending) != 1 || restored.Pending[0].Target != want || restored.discussions.editor != nil {
+		t.Fatal("range recovery flattened anchors or persisted ephemeral general text")
+	}
+}
