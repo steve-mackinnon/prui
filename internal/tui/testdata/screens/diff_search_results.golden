@@ -1,5 +1,5 @@
-example/review #42                                                                                     ctrl+p: switch PR
-  Description [1]  › Files [2]╭──────────────────────────────────────────────────────────────────────────────────────╮
+example/review #42
+  PRs [P]    Description [1]  ╭──────────────────────────────────────────────────────────────────────────────────────╮
 ┌ Files · ▽ Filter (F) ───────│ Find: l                                                                              │─┐
 │› main.go                    │ Files · saved diff text only                                                         │ │
 │  README.md                  │ 4 matches in 1 file                                                                  │ │
