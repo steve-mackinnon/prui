@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -40,6 +41,15 @@ func draftContent(state *reviewTabState) session.Draft {
 	}
 	if d.SuggestionApply != nil || d.Composer != nil && d.Composer.Suggestion || d.Attempt == "suggestion" {
 		d.Version = 3
+	}
+	if e := state.discussions.editor; e != nil {
+		ids := make([]string, 0, len(e.attemptedIDs))
+		for id := range e.attemptedIDs {
+			ids = append(ids, id)
+		}
+		sort.Strings(ids)
+		d.General = &session.GeneralDraft{Body: e.draft, ReplyTo: e.replyTo, Cursor: e.cursor, AttemptedBody: e.attemptedBody, ObservedIDs: ids, Uncertain: e.uncertain || e.posting, Matched: e.matched}
+		d.Version = 4
 	}
 	return d
 }
@@ -91,9 +101,16 @@ func (m *Model) loadDraft(state *reviewTabState) {
 	if r := d.Reply; r != nil {
 		state.CommentMenu = &commentActionMenu{Target: r.Target, Draft: r.Body, Cursor: len([]rune(r.Body)), CommentID: r.CommentID, ReplyToID: r.ReplyToID, mode: commentActionReply, RootAnchor: r.RootAnchor}
 	}
+	if g := d.General; g != nil {
+		ids := map[string]bool{}
+		for _, id := range g.ObservedIDs {
+			ids[id] = true
+		}
+		state.discussions.editor = &generalCommentEditor{draft: g.Body, replyTo: g.ReplyTo, cursor: g.Cursor, attemptedBody: g.AttemptedBody, attemptedIDs: ids, uncertain: g.Uncertain, matched: g.Matched}
+	}
 	content, _ := json.Marshal(draftContent(state))
 	state.draft.saved = content
-	if d.SuggestionApply != nil || d.Composer != nil || d.Reply != nil || len(d.Pending) > 0 || d.Summary != "" || d.Event != 0 || d.Attempt != "" {
+	if d.General != nil || d.SuggestionApply != nil || d.Composer != nil || d.Reply != nil || len(d.Pending) > 0 || d.Summary != "" || d.Event != 0 || d.Attempt != "" {
 		state.Stack = append(state.Stack, pageDraftRecovery)
 	}
 	if d.Attempt != "" {
@@ -256,6 +273,7 @@ func (m *Model) discardDraftsForQuit() bool {
 			continue
 		}
 		state.Composer = nil
+		state.discussions.editor = nil
 		state.SuggestionApply = nil
 		state.CommentMenu = nil
 		state.ReviewForm = nil
@@ -273,6 +291,12 @@ func (m *Model) draftRecoveryView() string {
 	meta := m.Session.Inventory.Comparison.Metadata
 	heading := fmt.Sprintf("Recovered private drafts · %s#%d · head %.12s", Escape(meta.Identity.Repository), meta.Identity.Number, meta.HeadSHA)
 	lines := []string{"Drafts remain anchored to this frozen comparison."}
+	if e := m.discussions.editor; e != nil {
+		lines = append(lines, "General PR comment: "+Escape(e.draft))
+		if e.uncertain || e.matched {
+			lines = append(lines, "Delivery uncertain or matched; ctrl+r to inspect before retrying")
+		}
+	}
 	if m.SuggestionApply != nil {
 		lines = append(lines, "Retained suggestion application · "+commentTargetLabel(m.SuggestionApply.Target), Escape(m.SuggestionApply.Replacement))
 	}
@@ -329,9 +353,16 @@ func (m *Model) draftRecoveryKey(key tea.KeyPressMsg) tea.Cmd {
 			return nil
 		}
 		m.pop()
+		if m.discussions.editor != nil {
+			m.push(pageDiscussions)
+		}
 	case "ctrl+r":
+		if m.discussions.editor != nil && m.draft.attempt == "" {
+			return m.refreshDiscussions()
+		}
 		return m.reconcileDraftCommand()
 	case "ctrl+d":
+		m.discussions.editor = nil
 		m.SuggestionApply = nil
 		m.Composer = nil
 		m.CommentMenu = nil

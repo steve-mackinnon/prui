@@ -117,8 +117,8 @@ func TestDurableReviewSurvivesUncertainGeneralConversation(t *testing.T) {
 	if restarted.ReviewForm == nil || restarted.ReviewForm.Body != "s" || restarted.top() != pageDraftRecovery {
 		t.Fatal("durable review did not recover after general conversation")
 	}
-	if restarted.discussions.editor != nil || len(restarted.discussions.snapshot.Snapshot.Events) != 0 {
-		t.Fatal("ephemeral general conversation leaked into durable recovery")
+	if restarted.discussions.editor == nil || restarted.discussions.editor.draft != "tqx" || restarted.discussions.editor.cursor != 3 || restarted.discussions.editor.replyTo != "" || restarted.discussions.editor.matched || restarted.discussions.editor.attemptedBody != "tq" || !restarted.discussions.editor.uncertain || len(restarted.discussions.snapshot.Snapshot.Events) != 0 {
+		t.Fatal("local general draft recovery lost immutable evidence or fetched events leaked")
 	}
 	namedKey(restarted, tea.KeyEnter)
 	restarted.openReviewForm()

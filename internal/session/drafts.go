@@ -42,7 +42,18 @@ type DraftAttempt struct {
 	ParentID    int64
 }
 
+// GeneralDraft contains local text and bounded immutable delivery evidence,
+// never fetched timeline event content.
+type GeneralDraft struct {
+	Body, ReplyTo      string
+	Cursor             int
+	AttemptedBody      string
+	ObservedIDs        []string
+	Uncertain, Matched bool
+}
+
 type Draft struct {
+	General         *GeneralDraft
 	SuggestionApply *source.SuggestionApplication
 	Attempted       *DraftAttempt
 	Version         int
@@ -86,11 +97,23 @@ const draftWhere = `repository=? AND pr_number=? AND base_sha=? AND head_sha=? A
 
 func validateDraft(k DraftKey, d Draft) error {
 	bad := errors.New("invalid review draft; original retained")
-	if (d.Version != 1 && d.Version != 2 && d.Version != 3) || d.Event < 0 || d.Event > 2 || len(d.Pending) > source.MaxPendingReviewComments || !utf8.ValidString(d.Summary) {
+	if (d.Version != 1 && d.Version != 2 && d.Version != 3 && d.Version != 4) || d.Event < 0 || d.Event > 2 || len(d.Pending) > source.MaxPendingReviewComments || !utf8.ValidString(d.Summary) {
 		return bad
 	}
 	if d.Version < 3 && (d.SuggestionApply != nil || d.Composer != nil && d.Composer.Suggestion || d.Attempt == "suggestion") {
 		return bad
+	}
+	if g := d.General; g != nil {
+		if d.Version != 4 || !utf8.ValidString(g.Body) || len(g.Body) > 65536 || !utf8.ValidString(g.ReplyTo) || len(g.ReplyTo) > 128 || g.Cursor < 0 || g.Cursor > len([]rune(g.Body)) || !utf8.ValidString(g.AttemptedBody) || len(g.AttemptedBody) > 65536 || len(g.ObservedIDs) > 500 || (g.Uncertain || g.Matched) && g.AttemptedBody == "" {
+			return bad
+		}
+		seen := map[string]bool{}
+		for _, id := range g.ObservedIDs {
+			if len(id) == 0 || len(id) > 128 || !utf8.ValidString(id) || seen[id] {
+				return bad
+			}
+			seen[id] = true
+		}
 	}
 	switch d.Attempt {
 	case "", "comment", "reply", "review", "suggestion":
@@ -226,6 +249,9 @@ func (s *Store) SaveDraft(ctx context.Context, key DraftKey, expected uint64, d 
 	d.Version = 2
 	if d.SuggestionApply != nil || d.Composer != nil && d.Composer.Suggestion || d.Attempt == "suggestion" {
 		d.Version = 3
+	}
+	if d.General != nil {
+		d.Version = 4
 	}
 	d.Generation = 0
 	if expected >= math.MaxInt64 || validateDraft(key, d) != nil {

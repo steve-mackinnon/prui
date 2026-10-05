@@ -16,7 +16,7 @@ generation. Confirmed general creations remain readable until an authoritative
 refresh observes their identity; an absent confirmed creation makes the view
 partial even if the remote page retrieval otherwise completed.
 
-`n` opens a memory-only general PR comment. `r` on a general-comment detail opens
+`n` opens a privately persisted general PR comment. `r` on a general-comment detail opens
 a new general comment seeded with an @mention. GitHub has no nested reply API for
 general comments, so the editor explicitly labels this behavior. Inline replies
 remain separate diff comment actions. Enter explicitly posts one request; Escape
@@ -50,3 +50,12 @@ and [submitted reviews](https://docs.github.com/en/rest/pulls/reviews).
 Validation uses fake gh responses, synthetic application fixtures, key/message
 scenarios and a real Bubble Tea program journey. No test contacts GitHub.
 Terminal usability/accessibility still requires human assessment.
+
+General drafts use private payload v4, with v1–3 still readable and older
+binaries refusing v4. Text, reply event ID, rune cursor, original attempted body,
+bounded observed general IDs and uncertain/matched status recover at the exact
+comparison key. Posting intent commits before dispatch. Restart never dispatches.
+Only a complete current-verified conversation read begun after the attempt can
+reconcile. Explicit discard/success/deletion clean up local drafts; comparison
+reset preserves old work separately, never retargeting it. Fetched conversation
+bodies and actors remain outside draft storage, snapshots and AI inputs.

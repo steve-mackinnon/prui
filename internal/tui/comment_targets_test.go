@@ -402,7 +402,7 @@ func TestDurableRangeQueueSurvivesUncertainGeneralConversation(t *testing.T) {
 	restored.SetLifecycle(store, nil, nil)
 	restored.openReviewTab(m.Session)
 	defer restored.Close()
-	if len(restored.Pending) != 1 || restored.Pending[0].Target != want || restored.discussions.editor != nil {
-		t.Fatal("range recovery flattened anchors or persisted ephemeral general text")
+	if len(restored.Pending) != 1 || restored.Pending[0].Target != want || restored.discussions.editor == nil || restored.discussions.editor.draft != "g" || restored.discussions.editor.cursor != 1 || restored.discussions.editor.replyTo != "" || restored.discussions.editor.matched || restored.discussions.editor.attemptedBody != "g" || !restored.discussions.editor.uncertain || len(restored.discussions.snapshot.Snapshot.Events) != 0 {
+		t.Fatal("range or uncertain general recovery lost its exact draft/anchor")
 	}
 }

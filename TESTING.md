@@ -232,3 +232,9 @@ working files, offline restart/deletion/integrity, AI-input equivalence, source
 coverage, insertion/deletion middle/EOF coordinates across display modes,
 whitespace progress/search reveal and loaded unresolved-thread navigation.
 Human terminal QA remains unverified; screen/PTY checks do not establish it.
+
+Durable general integration: `go test ./internal/tui ./internal/session -run
+'Test.*GeneralDraft' -count=1` covers real key/dispatch/restart reconciliation,
+abrupt child exit preserving combined general/range/suggestion/reply/review work,
+old payloads, bounds, CAS refusal, original-comparison isolation, privacy and
+cleanup. Existing combined thread/navigation/incremental regressions remain.

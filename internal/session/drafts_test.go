@@ -250,3 +250,89 @@ func TestSuggestionRestackLegacyRangeAndReplacementPayloadVersions(t *testing.T)
 		t.Fatal("combined schema restart lost work", got, err)
 	}
 }
+
+func TestGeneralDraftVersionCompatibilityAndBounds(t *testing.T) {
+	s := openSQLiteTestStore(t)
+	ctx := context.Background()
+	meta := fixture().Inventory.Comparison.Metadata
+	meta.BaseRepository, meta.HeadRepository = "owner/repo", "owner/repo"
+	k := DraftKeyFor(meta)
+	d := Draft{General: &GeneralDraft{Body: "private general", Cursor: 3, ReplyTo: "PR comment:12", AttemptedBody: "original", ObservedIDs: []string{"PR comment:12"}, Uncertain: true}}
+	saved, err := s.SaveDraft(ctx, k, 0, d)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := s.LoadDraft(ctx, k)
+	if err != nil || got.Version != 4 || got.General.AttemptedBody != "original" {
+		t.Fatal(got, err)
+	}
+	db, _ := s.db.SQL()
+	// The same payload with an older version cannot hide the new private data.
+	for _, version := range []int{1, 2, 3} {
+		got.Version = version
+		if validateDraft(k, got) == nil {
+			t.Fatal("general accepted under old schema", version)
+		}
+	}
+	for _, payload := range []string{`{"Version":1,"Summary":"old"}`, `{"Version":2,"Summary":"old"}`, `{"Version":3,"Summary":"old"}`} {
+		if _, err = db.Exec(`UPDATE review_drafts SET payload=?`, []byte(payload)); err != nil {
+			t.Fatal(err)
+		}
+		old, err := s.LoadDraft(ctx, k)
+		if err != nil || old.Summary != "old" {
+			t.Fatal("old version lost", old, err)
+		}
+	}
+	d.General.Cursor = 100
+	if _, err = s.SaveDraft(ctx, k, saved.Generation, d); err == nil {
+		t.Fatal("invalid cursor accepted")
+	}
+	d.General.Cursor = 3
+	d.General.ObservedIDs = []string{"duplicate", "duplicate"}
+	if _, err = s.SaveDraft(ctx, k, saved.Generation, d); err == nil {
+		t.Fatal("duplicate IDs accepted")
+	}
+	d.General.ObservedIDs = make([]string, 501)
+	if _, err = s.SaveDraft(ctx, k, saved.Generation, d); err == nil {
+		t.Fatal("unbounded IDs accepted")
+	}
+}
+
+func TestGeneralDraftDeletionAndSnapshotPrivacy(t *testing.T) {
+	s := openSQLiteTestStore(t)
+	snap := fixture()
+	snap.Inventory.Comparison.Metadata.BaseRepository = "owner/repo"
+	snap.Inventory.Comparison.Metadata.HeadRepository = "owner/repo"
+	one, err := s.Create(snap)
+	if err != nil {
+		t.Fatal(err)
+	}
+	two, err := s.Create(snap)
+	if err != nil {
+		t.Fatal(err)
+	}
+	key := DraftKeyFor(snap.Inventory.Comparison.Metadata)
+	if _, err = s.SaveDraft(context.Background(), key, 0, Draft{General: &GeneralDraft{Body: "private-general-sentinel", Cursor: 3}}); err != nil {
+		t.Fatal(err)
+	}
+	db, _ := s.db.SQL()
+	var payload []byte
+	if err = db.QueryRow(`SELECT payload FROM snapshots`).Scan(&payload); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(payload), "private-general-sentinel") {
+		t.Fatal("general draft leaked into snapshot/guide input")
+	}
+	if err = s.Delete(one.ID); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := s.LoadDraft(context.Background(), key); err != nil || got.General == nil {
+		t.Fatal("other comparison owner lost work", err)
+	}
+	if err = s.Delete(two.ID); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := s.LoadDraft(context.Background(), key); err != nil || got.Generation != 0 {
+		t.Fatal("last owner left general work", err)
+	}
+}

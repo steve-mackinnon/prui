@@ -568,7 +568,8 @@ response budget and the discussion operation's 60-second deadline.
 In conversation, `n` opens a general PR comment; `r` from a general-comment detail
 opens a new @mention PR comment. These replies have no inline anchor. Enter posts
 immediately after comparison freshness checks; Shift+Enter adds a newline and
-Escape discards. Text is memory-only, separate from pending review drafts. An
+Escape discards. Local text, reply context and cursor recover privately at the
+original comparison, separately from pending review submissions. An
 unknown posting outcome retains the draft and requires Ctrl+R reconciliation before
 intentional retry; if the attempted body appears as new activity, another post is
 blocked until the reviewer inspects it and starts a new comment. Inline replies
