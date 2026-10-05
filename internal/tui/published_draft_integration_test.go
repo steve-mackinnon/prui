@@ -11,6 +11,12 @@ import (
 )
 
 func TestDurableDraftsSurvivePublishedEditUncertaintyAndThreadResolution(t *testing.T) {
+	for _, shape := range []string{"line", "range suggestion", "file"} {
+		t.Run(shape, func(t *testing.T) { durablePublishedIntegration(t, shape) })
+	}
+}
+
+func durablePublishedIntegration(t *testing.T, shape string) {
 	store, err := session.Open(t.TempDir() + "/private")
 	if err != nil {
 		t.Fatal(err)
@@ -22,7 +28,15 @@ func TestDurableDraftsSurvivePublishedEditUncertaintyAndThreadResolution(t *test
 	m.openReviewForm()
 	m.ReviewForm.Body = "saved summary"
 	target := source.ReviewCommentTarget{Identity: meta.Identity, CommitID: meta.HeadSHA, Path: "text", Side: "RIGHT", Line: 1}
-	m.Pending = []source.ReviewComment{{Target: target, Body: "saved pending"}}
+	body := "saved pending"
+	switch shape {
+	case "range suggestion":
+		target.StartLine, target.StartSide, target.Line = 1, "RIGHT", 2
+		body = "```suggestion\nreplacement\n```"
+	case "file":
+		target.SubjectType, target.Side, target.Line = "file", "", 0
+	}
+	m.Pending = []source.ReviewComment{{Target: target, Body: body}}
 	namedKey(m, tea.KeyEscape)
 	before, err := store.LoadDraft(context.Background(), session.DraftKeyFor(meta))
 	if err != nil || before.Summary != "saved summary" || len(before.Pending) != 1 {
@@ -62,7 +76,7 @@ func TestDurableDraftsSurvivePublishedEditUncertaintyAndThreadResolution(t *test
 		t.Fatal("unknown edit retried")
 	}
 	got, err := store.LoadDraft(context.Background(), session.DraftKeyFor(meta))
-	if err != nil || got.Generation != before.Generation || got.Summary != before.Summary || len(got.Pending) != 1 || got.Pending[0].Body != "saved pending" || got.Attempt != "" {
+	if err != nil || got.Generation != before.Generation || got.Summary != before.Summary || len(got.Pending) != 1 || got.Pending[0].Body != body || got.Pending[0].Target != target || got.Attempt != "" {
 		t.Fatal("published edit altered durable drafts", err)
 	}
 	raw, _ := json.Marshal(got)
@@ -80,7 +94,7 @@ func TestDurableDraftsSurvivePublishedEditUncertaintyAndThreadResolution(t *test
 	}
 	recovered := draftTestModel(t, store)
 	defer recovered.Close()
-	if recovered.top() != pageDraftRecovery || recovered.ReviewForm == nil || recovered.ReviewForm.Body != "saved summary" || len(recovered.Pending) != 1 || recovered.Pending[0].Body != "saved pending" {
+	if recovered.top() != pageDraftRecovery || recovered.ReviewForm == nil || recovered.ReviewForm.Body != "saved summary" || len(recovered.Pending) != 1 || recovered.Pending[0].Body != body || recovered.Pending[0].Target != target {
 		t.Fatal("draft recovery lost work")
 	}
 	if recovered.discussions.published != nil || recovered.draft.attempt != "" || len(recovered.discussions.snapshot.Snapshot.Threads) != 0 {
