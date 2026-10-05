@@ -294,6 +294,7 @@ func TestProgramCommentComposerSubmitErrorAndCancellation(t *testing.T) {
 		h.expect("failed comment submission", func(f programFrame) bool {
 			return f.page == pageReview && !f.busy && f.failure == "synthetic comment rejection" && strings.Contains(f.text, "synthetic comment rejection")
 		})
+		h.key(tea.KeyEscape)
 		h.quit()
 	})
 
@@ -317,6 +318,7 @@ func TestProgramCommentComposerSubmitErrorAndCancellation(t *testing.T) {
 		h.expect("canceled comment submission", func(f programFrame) bool {
 			return f.page == pageReview && !f.busy && f.failure == context.Canceled.Error()
 		})
+		h.key(tea.KeyEscape)
 		h.quit()
 	})
 }

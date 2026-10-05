@@ -7,6 +7,8 @@ User-visible changes are recorded here before each release. See
 
 ### Added
 
+- Open HTTP and HTTPS links from Description and code views with a mouse click; underline links on hover.
+
 - Show each pull request’s target branch in the PR list, selected preview, and opened Description view.
 
 - Filter Files and Guide by selected commits with `C`, showing one net diff while retaining the dedicated Commits browser.
@@ -23,6 +25,10 @@ User-visible changes are recorded here before each release. See
 ### Fixed
 
 - Keep visible search results at the diff's left margin instead of horizontally clipping the surrounding code; pan only for matches beyond the viewport.
+
+- Keep the comment editor visible when Tab or Shift+Tab changes the comment type.
+
+- Keep typing `q` in inline comments, suggestions, file and commit comments, and replies from triggering quit.
 
 - Recover general PR drafts privately with immutable uncertain-write evidence; comparison resets preserve old work separately.
 

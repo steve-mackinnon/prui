@@ -112,9 +112,5 @@ func (m *Model) cycleCommentType(reverse bool) {
 	}
 	c.Draft, c.Cursor = draft, len([]rune(draft))
 	m.ActionError = nil
-	if c.Target.SubjectType == "file" {
-		m.setOffset(0)
-	} else {
-		m.ensureCursorVisible()
-	}
+	m.ensureInlineEditorVisible()
 }

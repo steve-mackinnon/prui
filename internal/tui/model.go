@@ -225,6 +225,9 @@ type Model struct {
 	layoutPreferences     layoutprefs.Preferences
 	saveLayoutPreferences func(layoutprefs.Preferences) error
 
+	linkMouseX, linkMouseY int
+	linkMouseValid         bool
+
 	drag                 dividerDrag
 	pendingCenter        bool
 	helpScroll           int
@@ -806,7 +809,7 @@ func (m *Model) update(msg tea.Msg) (updated tea.Model, command tea.Cmd) {
 				return m, nil
 			}
 		}
-		editingReviewText := m.discussions.published != nil || m.top() == pageReviewSubmit || (m.top() == pageDiscussions && m.discussions.editor != nil)
+		editingReviewText := m.Composer != nil || (m.CommentMenu != nil && m.CommentMenu.mode == commentActionReply) || m.discussions.published != nil || m.top() == pageReviewSubmit || (m.top() == pageDiscussions && m.discussions.editor != nil)
 		if m.top() == pageInboxFilters && v.String() != "ctrl+c" {
 			return m, m.inboxFilterKey(v.String())
 		}
@@ -2306,6 +2309,12 @@ func (m *Model) ensureReplyEditorVisible() {
 	if m.CommentMenu == nil || m.CommentMenu.mode != commentActionReply {
 		return
 	}
+	m.ensureInlineEditorVisible()
+}
+
+// Follow rendered editor rows rather than the diff cursor: changing comment
+// types can move the editor or expand it with a suggestion preview.
+func (m *Model) ensureInlineEditorVisible() {
 	start, end := -1, -1
 	for i, line := range m.displayDetail() {
 		if line.editor {
@@ -2424,7 +2433,14 @@ func (m *Model) View() tea.View {
 	for i := range lines {
 		lines[i] = clip(lines[i], m.Width)
 	}
-	v := tea.NewView(m.themeContent(strings.Join(lines, "\n")))
+	content := m.themeContent(strings.Join(lines, "\n"))
+	if m.linksAvailable() {
+		content = linkifyURLs(content)
+		if m.linkMouseValid {
+			content = hoverURL(content, m.Width, len(lines), m.linkMouseX, m.linkMouseY)
+		}
+	}
+	v := tea.NewView(content)
 	v.AltScreen = true
 	if m.mouseAvailable() {
 		v.MouseMode = tea.MouseModeCellMotion
