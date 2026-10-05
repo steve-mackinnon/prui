@@ -245,6 +245,27 @@ func TestPRLifecycleContextSourceInboxRoundTripAndModalOwnership(t *testing.T) {
 			break
 		}
 	}
+	wordState := func() []byte {
+		var rows []any
+		highlighted := 0
+		for unit := range m.Session.UnitFiles {
+			for _, row := range unitLines(m.Session, unit) {
+				if len(row.wordChanges) > 0 {
+					highlighted++
+				}
+				rows = append(rows, []any{row.Text, row.rawSource, row.searchID, row.wordChanges, row.target, row.oldTarget})
+			}
+		}
+		if highlighted == 0 {
+			t.Fatal("fixture has no actual changed-word emphasis")
+		}
+		b, e := json.Marshal(rows)
+		if e != nil {
+			t.Fatal(e)
+		}
+		return b
+	}
+	words := wordState()
 	m.Focus = paneDiff
 	m.cursorActive = true
 	m.navigation = codeNavigation{mode: "NEW", whitespace: true}
@@ -264,6 +285,27 @@ func TestPRLifecycleContextSourceInboxRoundTripAndModalOwnership(t *testing.T) {
 		t.Fatal("layout lost context source")
 	}
 	pin, _ := json.Marshal(first)
+	contextReads := 0
+	m.SetIssueContextReader(func(_ context.Context, id source.Identity, refresh bool) (source.IssueContext, error) {
+		if id != first.Inventory.Comparison.Metadata.Identity {
+			t.Fatal("context borrowed another PR")
+		}
+		if refresh {
+			contextReads++
+		}
+		return source.IssueContext{Identity: id}, nil
+	})
+	_, cmdContext := m.Update(tea.KeyPressMsg{Code: 'I', Text: "I"})
+	if cmdContext == nil || m.top() != pageIssueContext {
+		t.Fatal("context screen unavailable")
+	}
+	m.Update(cmdContext())
+	_, cmdContext = m.Update(tea.KeyPressMsg{Code: 'r', Text: "r"})
+	m.Update(cmdContext())
+	namedKey(m, tea.KeyEscape)
+	if contextReads != 1 || !bytes.Equal(words, wordState()) || !layoutRowHasSourceID(m.displayDetail()[m.cursor()], anchor) {
+		t.Fatal("context refresh changed words or source anchor")
+	}
 	live := tuiLifecycleState(m)
 	writes := 0
 	m.SetReadinessReader(func(_ context.Context, id source.Identity) (source.Readiness, error) {
@@ -281,7 +323,7 @@ func TestPRLifecycleContextSourceInboxRoundTripAndModalOwnership(t *testing.T) {
 	namedKey(m, tea.KeyEnter)
 	// A confirmation owns these keys: none may open a switcher, path/search
 	// control, collapse tree, or another readiness request behind the modal.
-	for _, k := range []tea.KeyPressMsg{{Code: 'P', Text: "P"}, {Code: 'o', Mod: tea.ModCtrl}, {Code: 'F', Text: "F"}, {Code: '/', Text: "/"}, {Code: 'C', Text: "C"}, {Code: 'c', Mod: tea.ModAlt}, {Code: 'r', Mod: tea.ModAlt}} {
+	for _, k := range []tea.KeyPressMsg{{Code: 'I', Text: "I"}, {Code: 'P', Text: "P"}, {Code: 'o', Mod: tea.ModCtrl}, {Code: 'F', Text: "F"}, {Code: '/', Text: "/"}, {Code: 'C', Text: "C"}, {Code: 'c', Mod: tea.ModAlt}, {Code: 'r', Mod: tea.ModAlt}} {
 		_, c := m.Update(k)
 		if c != nil || m.top() != pageLifecycle || m.lifecycle.confirmation == nil {
 			t.Fatal("lifecycle confirmation lost key ownership")
@@ -332,7 +374,7 @@ func TestPRLifecycleContextSourceInboxRoundTripAndModalOwnership(t *testing.T) {
 	}
 	after, _ := json.Marshal(first)
 	retained, err := store.LoadDraft(context.Background(), session.DraftKeyFor(first.Inventory.Comparison.Metadata))
-	if err != nil || !bytes.Equal(pin, after) || !reflect.DeepEqual(original, retained) || !bytes.Equal(rawRows, inboxPrivateRows(t, store.Path())) {
+	if err != nil || !bytes.Equal(pin, after) || !reflect.DeepEqual(original, retained) || !bytes.Equal(rawRows, inboxPrivateRows(t, store.Path())) || !bytes.Equal(words, wordState()) {
 		t.Fatal("lifecycle/inbox changed private source or attempt", err)
 	}
 }
