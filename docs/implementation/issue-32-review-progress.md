@@ -140,3 +140,20 @@ feature diff receives a fresh independent reviewer; its exact head, focused and
 broad results, current-main base and CI are recorded on PR #47. Pre-restack test
 evidence above does not establish verification of this rewritten head. Human
 terminal QA remains unverified.
+
+The final navigation integration rebases only this feature and its maintenance
+repair onto main `f0a3dea37f58fccd96cf6e51b8f2b80b82412b9c`, preserving both
+`CacheFullSource` consent and the explicit predecessor. The previous remote head
+for this rewrite is `051ddfd04eabdaf8ae6cab17af8e48d814ceda8c`. The combined
+regression also captures consented full source, reloads it offline, and asserts
+that comparison reset cancels old search workers, discards search/navigation
+state and ignores old search results while preserving draft target shapes.
+
+Ubuntu CI exposed a pre-existing borrower race: Git's transient
+`objects/maintenance.lock` could disappear after directory enumeration but before
+hard-linking. The repair excludes that exact metadata file. A deterministic
+production-callback regression captures its directory entry, removes the file,
+then invokes borrowing; it reproduced the link error before the repair. The same
+ordering still rejects a missing real loose object. A NewView integration test
+also checks that a present maintenance lock is never borrowed. No fixture
+maintenance settings or existing assertions were weakened.

@@ -467,6 +467,13 @@ func (m *Model) update(msg tea.Msg) (updated tea.Model, command tea.Cmd) {
 				}
 				m.commitFilter = commitFilterState{}
 				m.incremental = incrementalViewState{}
+				for _, search := range m.search {
+					if search != nil && search.cancel != nil {
+						search.cancel()
+					}
+				}
+				m.search = [2]*diffSearchState{}
+				m.navigation = codeNavigation{}
 				if m.discussions.cancel != nil {
 					m.discussions.cancel()
 				}

@@ -144,7 +144,7 @@ func TestIncrementalRestackCombinesProgressExtendedDraftsAndOfflineRecovery(t *t
 				t.Fatal(err)
 			}
 			defer store.Close()
-			raw, err := review.Open(ctx, r.Dir, meta.Identity, incrementalGH{meta}, source.NewRunner(), source.Defaults(), nil)
+			raw, err := review.OpenWithConfig(ctx, r.Dir, meta.Identity, incrementalGH{meta}, source.NewRunner(), source.Defaults(), nil, review.Config{CacheFullSource: true})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -186,7 +186,7 @@ func TestIncrementalRestackCombinesProgressExtendedDraftsAndOfflineRecovery(t *t
 			}
 			r.Write("changed", "again\ncontext\n")
 			next.HeadSHA = r.Commit()
-			fresh, err := review.OpenWithConfig(ctx, r.Dir, meta.Identity, incrementalGH{next}, source.NewRunner(), source.Defaults(), nil, review.Config{Previous: old})
+			fresh, err := review.OpenWithConfig(ctx, r.Dir, meta.Identity, incrementalGH{next}, source.NewRunner(), source.Defaults(), nil, review.Config{Previous: old, CacheFullSource: true})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -224,11 +224,23 @@ func TestIncrementalRestackCombinesProgressExtendedDraftsAndOfflineRecovery(t *t
 			event := source.ConversationEvent{ID: "live", Kind: "PR comment", Body: "ephemeral conversation"}
 			stale := DiscussionSnapshot{Snapshot: source.DiscussionSnapshot{Complete: true, Events: []source.ConversationEvent{event}}}
 			m.discussions = discussionState{loaded: true, generation: 3, cancel: discussionCancel, snapshot: stale}
+			searchCtx, searchCancel := context.WithCancel(ctx)
+			defer searchCancel()
+			oldSearch := &diffSearchState{session: oldBefore, generation: 9, open: true, pending: true, cancel: searchCancel}
+			m.search[0] = oldSearch
+			m.navigation = codeNavigation{mode: "NEW", whitespace: true}
 			m.incremental = incrementalViewState{file: 10, offset: 100, drafts: true}
 			m.Update(ActionResult{Session: current, Reset: true})
+			m.Update(diffSearchResult{state: oldSearch, generation: 9})
 			m.Update(DiscussionResult{Target: 0, Session: oldBefore, Generation: 3, Snapshot: stale})
 			if filterCtx.Err() != context.Canceled || discussionCtx.Err() != context.Canceled || m.commitFilter.subset || m.incremental.drafts || m.incremental.offset != 0 || m.discussions.loaded || len(m.discussions.snapshot.Snapshot.Events) != 0 {
 				t.Fatal("comparison reset retained derived filter/conversation/changes state")
+			}
+			if searchCtx.Err() != context.Canceled || m.search[0] != nil || m.navigation != (codeNavigation{}) {
+				t.Fatal("comparison reset retained previous pinned-source navigation/search")
+			}
+			if current.Inventory.FullSource == nil || oldBefore.Inventory.FullSource == nil {
+				t.Fatal("consented pinned source lost during incremental capture or offline reload")
 			}
 			if len(m.Pending) != 0 || m.Composer != nil || m.CommentMenu != nil || m.ReviewForm != nil {
 				t.Fatal("old extended drafts retargeted into new comparison")
