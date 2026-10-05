@@ -36,7 +36,7 @@ func inboxIntegrationSession(t *testing.T, store *session.Store, repository stri
 	}
 	return saved
 }
-func inboxIntegrationDraft(t *testing.T, store *session.Store, s *review.Session, body string) session.Draft {
+func inboxIntegrationDraft(t *testing.T, store *session.Store, s *review.Session, body string, uncertain bool) session.Draft {
 	t.Helper()
 	meta := s.Inventory.Comparison.Metadata
 	target := source.ReviewCommentTarget{Identity: meta.Identity, CommitID: meta.HeadSHA, Path: "code.txt", Side: "RIGHT", StartSide: "RIGHT", StartLine: 1, Line: 2}
@@ -52,6 +52,11 @@ func inboxIntegrationDraft(t *testing.T, store *session.Store, s *review.Session
 	input := map[string]any{"branch": map[string]string{"repositoryNameWithOwner": meta.HeadRepository, "refName": a.Branch}, "expectedHeadOid": meta.HeadSHA, "message": map[string]string{"headline": "Apply review suggestion #9"}, "fileChanges": map[string]any{"additions": []map[string]string{{"path": target.Path, "contents": base64.StdEncoding.EncodeToString([]byte(a.Content))}}}}
 	a.Payload, _ = json.Marshal(map[string]any{"query": `mutation($input:CreateCommitOnBranchInput!){createCommitOnBranch(input:$input){commit{oid url} ref{target{oid}}}}`, "variables": map[string]any{"input": input}})
 	draft := session.Draft{Version: 3, Summary: attempt.Body, Pending: pending, Attempt: "suggestion", Attempted: &session.DraftAttempt{Kind: "suggestion", Application: &a}}
+	if !uncertain {
+		draft.Attempt = ""
+		draft.Attempted = nil
+		draft.SuggestionApply = &a
+	}
 	if meta.Identity.Repository == "o/first" {
 		draft.Version = 4
 		draft.General = &session.GeneralDraft{Body: body + " edited general", Cursor: 3, ReplyTo: "PR comment:42", AttemptedBody: body + " immutable general", ObservedIDs: []string{"PR comment:42"}, Uncertain: true}
@@ -63,6 +68,10 @@ func inboxIntegrationDraft(t *testing.T, store *session.Store, s *review.Session
 	return d
 }
 func TestInboxCombinedSwitchRefreshCancelRestorePreservesFrozenDraftsAndNavigation(t *testing.T) {
+	t.Run("reachable prepared suggestion keyboard flow", func(t *testing.T) { inboxCombinedPersistence(t, false) })
+	t.Run("uncertain modal guard and background tab persistence", func(t *testing.T) { inboxCombinedPersistence(t, true) })
+}
+func inboxCombinedPersistence(t *testing.T, uncertain bool) {
 	ctx := context.Background()
 	store, err := session.Open(filepath.Join(t.TempDir(), "private"))
 	if err != nil {
@@ -71,16 +80,15 @@ func TestInboxCombinedSwitchRefreshCancelRestorePreservesFrozenDraftsAndNavigati
 	defer store.Close()
 	first := inboxIntegrationSession(t, store, "o/first")
 	second := inboxIntegrationSession(t, store, "o/second")
-	firstDraft := inboxIntegrationDraft(t, store, first, "PRIVATE FIRST")
-	secondDraft := inboxIntegrationDraft(t, store, second, "PRIVATE SECOND")
+	firstDraft := inboxIntegrationDraft(t, store, first, "PRIVATE FIRST", uncertain)
+	secondDraft := inboxIntegrationDraft(t, store, second, "PRIVATE SECOND", uncertain)
 	rawRows := inboxPrivateRows(t, store.Path())
 	m := New(ctx, nil)
 	defer m.Close()
 	m.SetLifecycle(store, nil, nil)
 	m.openReviewTab(first)
 	namedKey(m, tea.KeyEnter)
-	// Exercise the review beneath the retained application modal without discard.
-	m.pop()
+	inboxLeaveApplicationForFixture(t, m, uncertain)
 	key(m, '2')
 	m.Width, m.Height = 120, 24
 	m.navigation = codeNavigation{mode: "NEW", whitespace: true}
@@ -132,12 +140,11 @@ func TestInboxCombinedSwitchRefreshCancelRestorePreservesFrozenDraftsAndNavigati
 	}
 	_, open := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	completeAction(t, m, open)
-	if opened != 1 || m.Session.ID != second.ID || m.top() != pageDraftRecovery || m.Pending[0].Target.Identity != second.Inventory.Comparison.Metadata.Identity || m.draft.attempt != "suggestion" {
+	if opened != 1 || m.Session.ID != second.ID || m.top() != pageDraftRecovery || m.Pending[0].Target.Identity != second.Inventory.Comparison.Metadata.Identity || m.draft.attempt != secondDraft.Attempt {
 		t.Fatal("own frozen session/draft recovery lost")
 	}
 	namedKey(m, tea.KeyEnter)
-	// Exercise the review beneath the retained application modal without discard.
-	m.pop()
+	inboxLeaveApplicationForFixture(t, m, uncertain)
 	key(m, 'P')
 	_, load = m.Update(tea.KeyPressMsg{Code: 'o', Mod: tea.ModCtrl})
 	m.Update(load())
@@ -207,11 +214,11 @@ func TestInboxCombinedSwitchRefreshCancelRestorePreservesFrozenDraftsAndNavigati
 			t.Fatal(err)
 		}
 		restarted.openReviewTab(saved)
-		if restarted.top() != pageDraftRecovery || restarted.draft.attempted == nil || restarted.draft.attempted.Application.Target.Identity != original.Inventory.Comparison.Metadata.Identity {
+		if restarted.top() != pageDraftRecovery || restarted.SuggestionApply == nil || restarted.SuggestionApply.Target.Identity != original.Inventory.Comparison.Metadata.Identity {
 			t.Fatal("restart retargeted immutable application")
 		}
 		namedKey(restarted, tea.KeyEnter)
-		if restarted.suggestionApplyKey(tea.KeyPressMsg{Code: tea.KeyEnter}) != nil {
+		if uncertain && restarted.suggestionApplyKey(tea.KeyPressMsg{Code: tea.KeyEnter}) != nil {
 			t.Fatal("uncertain application retried on recovery")
 		}
 		if original.ID == first.ID && (restarted.discussions.editor == nil || restarted.discussions.editor.attemptedBody != firstDraft.General.AttemptedBody || !restarted.discussions.editor.uncertain || restarted.generalCommentKey(tea.KeyPressMsg{Code: tea.KeyEnter}) != nil) {
@@ -251,4 +258,25 @@ func inboxPrivateRows(t *testing.T, directory string) []byte {
 		t.Fatal(err)
 	}
 	return result.Bytes()
+}
+
+// Prepared suggestions can return to the review via public Update. Uncertain
+// applications deliberately cannot; that subtest checks the modal guard first,
+// then exercises background tab/storage invariants, not a keyboard escape path.
+func inboxLeaveApplicationForFixture(t *testing.T, m *Model, uncertain bool) {
+	t.Helper()
+	before, _ := json.Marshal(draftContent(m.reviewTabState))
+	namedKey(m, tea.KeyEscape)
+	after, _ := json.Marshal(draftContent(m.reviewTabState))
+	if !bytes.Equal(before, after) {
+		t.Fatal("Escape changed retained delivery intent")
+	}
+	if uncertain {
+		if m.top() != pageSuggestionApply {
+			t.Fatal("uncertain application escaped its reconciliation guard")
+		}
+		m.pop() // Model-level background review fixture, not a public keyboard path.
+	} else if m.top() != pageReview {
+		t.Fatal("prepared application cannot return to review")
+	}
 }

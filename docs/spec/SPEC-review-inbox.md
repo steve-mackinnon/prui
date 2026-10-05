@@ -61,6 +61,14 @@ concrete `prui open URL` action from the appropriate checkout; another repositor
 checkout is never borrowed. Existing ordinary repository picker controls remain.
 Async generations reject superseded inbox refresh/mark/open results.
 
+Prepared suggestion drafts can return to the review with Escape and enter the
+inbox through the PR switcher while retaining private delivery intent. An uncertain
+suggestion application keeps its existing reconciliation modal: keyboard Escape
+does not leave it or discard its immutable attempt. Inbox support does not relax
+that guard. Tests distinguish the reachable prepared keyboard flow from background
+tab/storage invariants for uncertain attempts, including restart recovery and exact
+private SQLite payload/generation preservation.
+
 Validation uses synthetic fixtures. Live account search and human terminal
 usability remain unverified until performed.
 
