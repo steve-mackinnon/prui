@@ -122,3 +122,11 @@ and restart, without persisting the general editor or attempt.
 Focused conversation, draft, filter, source, session, command, and extended target
 regressions pass. Broad verification waits for the coordinator's reservation;
 exact-SHA independent review and current CI will be recorded in the PR.
+
+After root merged #41, origin/main was confirmed at
+`f7272b3e14834efe58883fe3258929d158dc647c`; its tree exactly matches reviewed
+parent `0535570`. Feature-only commits were replayed onto that merge commit
+without conflicts or tree changes. PR #45 now targets main. Fresh reviewer
+`/root/restack_review` approved restacked implementation `950590c`; focused
+combined acceptance tests passed. A subsequent exact-head review and broad
+gate result remain required; no author merge or auto-merge is enabled.
