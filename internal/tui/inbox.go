@@ -2,6 +2,7 @@ package tui
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -239,6 +240,13 @@ func (m *Model) applyInboxMessage(msg tea.Msg) tea.Cmd {
 		s.loading = false
 		s.err = v.Err
 		if v.Err == nil {
+			if s.options.Account != "" && !strings.EqualFold(s.options.Account, v.Data.Viewer) {
+				s.err = errors.New("inbox account differs from the displayed account; reopen with --account")
+				return nil
+			}
+			if v.Data.Viewer != "" {
+				s.options.Account = v.Data.Viewer
+			}
 			s.data = v.Data
 			s.picker.clamp(len(v.Data.Items))
 		}

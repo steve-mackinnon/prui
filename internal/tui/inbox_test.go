@@ -129,3 +129,38 @@ func TestInboxCancelledOpenCannotFinishNewerDraftAction(t *testing.T) {
 		t.Fatal("late inbox result cancelled or cleared newer draft action")
 	}
 }
+
+func TestInboxPinsResolvedCachedAccountForRefreshAndFilters(t *testing.T) {
+	m := New(context.Background(), nil)
+	defer m.Close()
+	calls := 0
+	m.SetInbox(func(_ context.Context, o source.InboxOptions, refresh bool) (source.Inbox, error) {
+		calls++
+		if calls == 1 {
+			return source.Inbox{Viewer: "account-a", Cached: true, Complete: true}, nil
+		}
+		if o.Account != "account-a" {
+			t.Error("resolved cached account not pinned")
+		}
+		if refresh {
+			return source.Inbox{}, errors.New("authenticated account differs from selected account")
+		}
+		return source.Inbox{Viewer: "account-a", Cached: true, Complete: true}, nil
+	}, nil, nil, source.InboxOptions{}, true, false)
+	m.Update(m.Init()())
+	m.Update(m.loadInbox(true)())
+	if m.inbox.options.Account != "account-a" || m.inbox.data.Viewer != "account-a" || m.inbox.err == nil {
+		t.Fatal("refresh silently changed the displayed account")
+	}
+	m.Update(inboxResult{Generation: m.inbox.generation, Data: source.Inbox{Viewer: "account-b", Complete: true}})
+	if m.inbox.data.Viewer != "account-a" {
+		t.Fatal("inconsistent account result accepted")
+	}
+	m.inboxKey("f")
+	m.inbox.draftOptions.State = "closed"
+	cmd := m.inboxFilterKey("enter")
+	m.Update(cmd())
+	if m.inbox.options.Account != "account-a" || m.inbox.data.Viewer != "account-a" {
+		t.Fatal("filter selection silently switched account")
+	}
+}

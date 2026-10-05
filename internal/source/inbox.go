@@ -124,16 +124,17 @@ type inboxReviewer struct {
 	}
 }
 type inboxNode struct {
-	Number                   int
-	Title, HeadRefOid, State string
-	ReviewDecision           *string
-	CreatedAt, UpdatedAt     time.Time
-	IsDraft                  *bool
-	Repository               struct{ NameWithOwner string }
-	Author                   struct{ Login string }
-	ViewerLatestReview       *struct{ State string }
-	Reviews                  *struct{ TotalCount *int }
-	ReviewRequests           *struct {
+	Number               int
+	HeadRefOid, State    string
+	Title                *string
+	ReviewDecision       *string
+	CreatedAt, UpdatedAt time.Time
+	IsDraft              *bool
+	Repository           struct{ NameWithOwner string }
+	Author               *struct{ Login string }
+	ViewerLatestReview   *struct{ State string }
+	Reviews              *struct{ TotalCount *int }
+	ReviewRequests       *struct {
 		PageInfo *inboxPageInfo
 		Nodes    *[]inboxReviewer
 	}
@@ -210,8 +211,13 @@ func (g *GH) ReadInbox(ctx context.Context, o InboxOptions) (Inbox, error) {
 				result.Problems = append(result.Problems, "search count changed during pagination")
 			}
 			for _, n := range *raw.Data.Search.Nodes {
+				if n.Author == nil || n.Author.Login == "" {
+					result.Complete = false
+					result.Problems = append(result.Problems, "author evidence unavailable; shown as unknown")
+					n.Author = &struct{ Login string }{Login: "unknown"}
+				}
 				id, err := ParseIdentity(strconv.Itoa(n.Number), n.Repository.NameWithOwner)
-				if err != nil || !validListText(n.Title) || !validListText(n.Author.Login) || n.CreatedAt.IsZero() || n.UpdatedAt.IsZero() || !shaPattern.MatchString(n.HeadRefOid) || (n.State != "OPEN" && n.State != "CLOSED" && n.State != "MERGED") || n.IsDraft == nil || (n.ReviewDecision != nil && *n.ReviewDecision != "APPROVED" && *n.ReviewDecision != "CHANGES_REQUESTED" && *n.ReviewDecision != "REVIEW_REQUIRED") {
+				if err != nil || n.Title == nil || strings.TrimSpace(*n.Title) == "" || !validListText(*n.Title) || !validListText(n.Author.Login) || n.CreatedAt.IsZero() || n.UpdatedAt.IsZero() || !shaPattern.MatchString(n.HeadRefOid) || (n.State != "OPEN" && n.State != "CLOSED" && n.State != "MERGED") || n.IsDraft == nil || (n.ReviewDecision != nil && *n.ReviewDecision != "APPROVED" && *n.ReviewDecision != "CHANGES_REQUESTED" && *n.ReviewDecision != "REVIEW_REQUIRED") {
 					result.Complete = false
 					result.Problems = append(result.Problems, "invalid search item omitted")
 					continue
@@ -222,7 +228,7 @@ func (g *GH) ReadInbox(ctx context.Context, o InboxOptions) (Inbox, error) {
 					result.Problems = append(result.Problems, "search changed during pagination; duplicate item")
 				}
 				scopeSeen[id] = true
-				item := InboxItem{PullRequest: PullRequest{Identity: id, Title: n.Title, Author: n.Author.Login, OpenedAt: n.CreatedAt, Checks: ChecksUnknown}, UpdatedAt: n.UpdatedAt, HeadSHA: n.HeadRefOid, State: n.State, Draft: *n.IsDraft, ReviewDecision: "UNKNOWN", Activity: "unknown"}
+				item := InboxItem{PullRequest: PullRequest{Identity: id, Title: *n.Title, Author: n.Author.Login, OpenedAt: n.CreatedAt, Checks: ChecksUnknown}, UpdatedAt: n.UpdatedAt, HeadSHA: n.HeadRefOid, State: n.State, Draft: *n.IsDraft, ReviewDecision: "UNKNOWN", Activity: "unknown"}
 				if !inboxEvidenceMatches(o, result.Viewer, n) {
 					result.Complete = false
 					result.Problems = append(result.Problems, "search item did not satisfy authoritative filters; omitted")

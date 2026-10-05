@@ -187,3 +187,24 @@ func TestInboxParticipatedIncludesReviewedStream(t *testing.T) {
 		t.Fatal(r, err)
 	}
 }
+
+func TestInboxMissingAuthorAndTitleNeverComplete(t *testing.T) {
+	for _, field := range []string{"author", "title"} {
+		for _, null := range []bool{false, true} {
+			f := inboxFixture()
+			n := f["data"].(map[string]any)["search"].(map[string]any)["nodes"].([]any)[0].(map[string]any)
+			if null {
+				n[field] = nil
+			} else {
+				delete(n, field)
+			}
+			r := fixtureInbox(t, f, InboxOptions{View: "requested", Requests: "personal"})
+			if r.Complete {
+				t.Fatalf("accepted missing %s null=%t", field, null)
+			}
+			if field == "author" && (len(r.Items) != 1 || r.Items[0].PullRequest.Author != "unknown") {
+				t.Fatal("useful row lost explicit unknown author", r)
+			}
+		}
+	}
+}
