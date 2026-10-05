@@ -1,9 +1,27 @@
 # Issue #28: published comment and review thread actions
 
-Branch: `codex/issue-28-thread-actions`, stacked on reviewed parent PR #40,
-`codex/issue-27-conversation` at `d1d89b5a67ea05c478a6c4211f91f9e09fa7997f`.
-Merge #40 first, then rebase/retarget this PR to main and repeat verification.
-No merge or auto-merge is performed by this implementation.
+Branch: `codex/issue-28-thread-actions`, now targeting `main` after parent PR #40
+merged as `7d88c50d635bf799cec00bb1ce884151c5d362da`. The repair rebases only the
+six issue #28 commits after the old parent tip
+`d1d89b5a67ea05c478a6c4211f91f9e09fa7997f`; merged conversation ancestry is not
+replayed. Current main's commit filter, PR picker and modal styling are preserved.
+The coordinator alone may merge after final verification/review/CI; this chat
+never merges or enables auto-merge.
+
+## Rebase repair evidence
+
+The rendering conflict retains both main's commit-filter modal and the published
+comment editor. A new combined regression first failed because the Files `/`
+shortcut intercepted text in a published edit. The repair prevents background
+Files-filter handling while a conversation/published editor owns input. Tests
+verify commit-filter open/close still preserves frozen comparison state, `/` stays
+in the edit, resize retains the editor and Escape restores the original view.
+
+Focused source/TUI/application published-action, conversation, discussion,
+commit-filter and modal suites pass after rebase. Broad verification waits for the
+coordinator's release from PR #41; fresh independent rebase review is pending.
+The exact final repaired head and gate results will be recorded in PR #44 and
+below after completion.
 
 ## Behavior and boundaries
 
@@ -44,7 +62,7 @@ Checked 2026-10-04 against GitHub's official documentation:
   PATCH `repos/{owner}/{repo}/issues/comments/{comment_id}`; Issues write or
   Pull requests write. Server authorization remains authoritative at the write.
 
-## Verification and review
+## Original stacked verification and review
 
 Focused synthetic source/TUI/application tests cover identity-preserving JSON
 stdin mutations, canonical thread permissions, offline refusal, ownership and

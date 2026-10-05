@@ -662,7 +662,7 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// interpret discard confirmation as a remote comment submission.
 			return m, m.pageKey(pageQuitPending, v)
 		}
-		if m.top() == pageReview && m.fileView() && !m.commitFilter.open && !m.commitFilter.subset && m.Composer == nil && m.CommentMenu == nil && !m.Busy {
+		if m.top() == pageReview && m.fileView() && m.discussions.published == nil && m.discussions.editor == nil && !m.commitFilter.open && !m.commitFilter.subset && m.Composer == nil && m.CommentMenu == nil && !m.Busy {
 			if m.fileFilterEditing && v.String() != "ctrl+c" {
 				m.fileFilterKey(v)
 				return m, m.restartGuidePathScroll()
