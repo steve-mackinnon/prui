@@ -24,6 +24,8 @@ User-visible changes are recorded here before each release. See
 
 ### Fixed
 
+- Preserve syntax colors and source text when underlining changed words in diffs.
+
 - Keep visible search results at the diff's left margin instead of horizontally clipping the surrounding code; pan only for matches beyond the viewport.
 
 - Reveal the original target line when returning from a file comment to a normal comment, including tall restored drafts.

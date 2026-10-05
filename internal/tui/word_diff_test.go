@@ -22,6 +22,27 @@ func TestWordDiffChangedTokens(t *testing.T) {
 	}
 }
 
+func TestWordDiffSyntaxRenderingPreservesText(t *testing.T) {
+	f := inventory.FileChange{OldPath: []byte("card.tsx"), NewPath: []byte("card.tsx")}
+	rows := textHunkLines(f, inventory.ReviewUnit{}, []byte("@@ -98 +98 @@\n-  section: CatalogSection;\n+  section: string;\n"), source.Identity{}, "")
+	palette, _ := theme.Resolve(theme.Terminal, nil)
+	m := &Model{theme: palette, styles: stylesFor(palette), colorProfile: colorprofile.TrueColor}
+	for _, row := range rows[1:3] {
+		if len(row.syntax) == 0 || len(row.wordChanges) == 0 {
+			t.Fatal("fixture must combine syntax colors and word emphasis")
+		}
+		rendered := m.syntaxText(row, 0, 100, "")
+		if got := ansi.Strip(rendered); got != row.Text {
+			t.Fatalf("color codes leaked into source: %q, want %q", got, row.Text)
+		}
+		cells := canvasCells(rendered, 100, 1)
+		at := visibleWidth(row.Text[:row.wordChanges[0].Start])
+		if cells.CellAt(at, 0).Style.Underline == 0 || cells.CellAt(at, 0).Style.Attrs&uv.AttrBold == 0 {
+			t.Fatal("changed token lost emphasis")
+		}
+	}
+}
+
 func TestWordDiffFixturesAndFallback(t *testing.T) {
 	for _, tc := range []struct {
 		name, old, new, changedOld, changedNew string
