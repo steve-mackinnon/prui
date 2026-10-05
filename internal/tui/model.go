@@ -215,7 +215,7 @@ type Model struct {
 	applySuggestion   SuggestionCommitter
 	guideCache        guideDetailCache
 	fileCache         fileDetailCache
-	inbox inboxState
+	inbox             inboxState
 	*reviewTabState
 	layoutPreferences     layoutprefs.Preferences
 	saveLayoutPreferences func(layoutprefs.Preferences) error
