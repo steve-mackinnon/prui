@@ -111,7 +111,12 @@ func wrappedSyntax(line diffLine, part string, offset *int) diffLine {
 
 // syntaxText styles only at the presentation boundary, after rune panning and
 // cell clipping. Source caches and all review coordinates stay unstyled.
-func (m *Model) syntaxText(line diffLine, horizontal, width int, prefix string) string {
+func (m *Model) syntaxText(line diffLine, horizontal, width int, prefix string) (rendered string) {
+	defer func() {
+		if m.linksAvailable() {
+			rendered = linkSourceURLs(rendered, line.Text, horizontal, visibleWidth(clip(prefix, width)))
+		}
+	}()
 	if highlighted, ok := m.searchHighlightedText(line, horizontal, width, prefix); ok {
 		return highlighted
 	}
