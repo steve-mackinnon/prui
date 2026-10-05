@@ -299,3 +299,45 @@ In the repository picker press `i`; in the PR switcher press `ctrl+o`. In the
 inbox, `f` edits filters, `r` refreshes, `m` marks captured activity read, and Enter
 opens the PR's own frozen session or verified checkout. There are no alerts or
 background polling. See [inbox controls and limits](docs/spec/SPEC-review-inbox.md).
+
+### Reviewer and linked issue context
+
+Press `I` in an interactive review to read saved requested reviewers/teams,
+review decisions, labels, and linked closing issues. Opening the view is local.
+Press `r` there to explicitly refresh GitHub and any authorized Linear context.
+Capture time, PR identity, context head, historical/partial state, and differences
+from frozen code are visible. Context refresh leaves code and reading progress
+unchanged. Saved context remains readable with `resume --offline`.
+
+Linear is optional. In your global XDG prui configuration directory (the same
+one containing `config.json`), create secret-free `issue-context.json`:
+
+```json
+{
+  "enabled": true,
+  "repositories": ["owner/repo"],
+  "workspace": "your-workspace",
+  "credential_env": "LINEAR_API_KEY",
+  "auth": "api_key"
+}
+```
+
+Supply the credential through the named environment variable. For an existing
+OAuth access token use `"auth": "oauth"` and its environment variable name.
+Use read access only. The file authorizes reads only for listed repositories and
+that Linear workspace. No token is stored in the file or review cache.
+Canonical `https://linear.app/your-workspace/issue/TEAM-123/title` links in the
+current PR description identify candidates; fetched API data provides issue
+content. Branch names, arbitrary URLs, and bare issue identifiers are not
+inferred. GitHub issues use GitHub's authoritative `closingIssuesReferences`;
+this view does not claim to include every mention in a description or comment.
+
+Each GitHub connection is capped at 100 records; additional pages are labelled
+partial. Linear reads at most 10 candidates under deadlines and payload budgets.
+Missing configuration/access or malformed optional responses leave GitHub
+usable. No context is implicitly sent to AI providers. The private local cache
+contains issue descriptions in plaintext; it is separate from frozen source.
+
+Saved Linear entries show captured workspace/auth mode and historical
+at-capture authorization; current account access is unknown. Changing your
+configuration or credential never relabels saved data as current authorization.

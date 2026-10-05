@@ -238,3 +238,24 @@ Durable general integration: `go test ./internal/tui ./internal/session -run
 abrupt child exit preserving combined general/range/suggestion/reply/review work,
 old payloads, bounds, CAS refusal, original-comparison isolation, privacy and
 cleanup. Existing combined thread/navigation/incremental regressions remain.
+
+Issue #36 focused provider/cache/UI regressions:
+`go test ./internal/source ./internal/issuecontext ./internal/session ./internal/tui ./cmd/prui -run 'TestIssueContext|TestLinear' -count=1`.
+Fixtures exercise requested users/teams, aggregate and individual decisions,
+labels, authoritative issue links, null/missing/partial GraphQL connections,
+real configured Linear request/auth construction with fake transport/credentials,
+strict workspace/link validation, cancellation/redirects/bounds, optional malformed
+records, global authorization, independent cache restart/integrity/read-only and
+latest-writer behavior, explicit refresh vs local open, offline refusal, stale
+retention, async result ownership, escaping and narrow viewports. Tests never
+read live providers. Human terminal QA remains unverified.
+
+Restacked #36 combined coverage uses actual GH normalization and Linear request
+handling with synthetic runner/transport, real private SQLite offline restart,
+PR identity separation, captured workspace/auth provenance after account/config
+changes, denied/partial-provider failures, and byte-equivalent frozen source.
+`TestIssueContextUpdatePrivateAttemptsSourceAndLayoutIntegration` drives actual
+I/r/Escape dispatch with real pinned full-source capture and durable v3/v4
+private attempts; asserts unchanged layout/cursors/pins/payload generations,
+canonical targets and read-only source-row identity. Foreign PR/session/workspace
+records are rejected. Main's Alt+R/C/F/slash/Alt+C controls remain covered.
