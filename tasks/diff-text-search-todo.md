@@ -33,3 +33,14 @@
   query work, stale generations, and exact source-side navigation.
 - Real-terminal subjective contrast/discoverability remains a human acceptance
   check; automated theme-cell assertions and offline PTY interaction passed.
+
+
+## User interaction revision — 2026-10-04
+
+- `/` opens code search; `F` opens filename filtering; `2` selects Files.
+- Escape leaves query editing for result selection; `j/k` and arrows navigate,
+  `/` resumes editing, and a second Escape closes the popover.
+- Removed Clear/Close; added an inset, wider, theme-bordered popover and
+  focus-specific footer. Updated hit testing for its inset position.
+- Added mode-transition and inset mouse-click regressions and a results-focus
+  snapshot. The compiled-binary PTY flow now uses `/`, Escape, and `j`.

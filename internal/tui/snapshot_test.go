@@ -43,13 +43,14 @@ func TestScreenSnapshots(t *testing.T) {
 		width, height int
 		setup         func(*Model)
 	}{
+		{"diff_search_results", 120, 18, func(m *Model) { searchInput(m, "l"); namedKey(m, tea.KeyEscape) }},
 		{"diff_search_wide", 120, 18, func(m *Model) { searchInput(m, "l") }},
 		{"diff_search_narrow", 60, 12, func(m *Model) { searchInput(m, "l") }},
 		{"diff_search_split", 180, 18, func(m *Model) { m.layout = diffLayoutSideBySide; searchInput(m, "l") }},
 		{"files_paths_filter", 120, 14, func(m *Model) {
 			m.Session.Inventory.Files[0].NewPath = []byte("internal/tui/model.go")
 			m.Session.Inventory.Files[1].NewPath = []byte("internal/tui/file_filter.go")
-			key(m, '/')
+			key(m, 'F')
 			for _, r := range "tui" {
 				key(m, r)
 			}

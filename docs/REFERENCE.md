@@ -201,9 +201,10 @@ columns. Plain output is always unified.
 | `n` / `p` | Move between comment targets in a focused Files diff; move through files, guide rows, or inventory units in the list |
 | `}` / `{` | Next / previous guide, or file slice without guides |
 | `]` / `[` | Widen / narrow the left file and guide pane by two columns |
-| `F` / `G` | Select the Files or Guide tab |
+| `G` | Select the Guide tab |
 | `S` | Toggle side-by-side detail; unified is the default and narrow terminals fall back below 160 columns |
-| `/` | Filter Files by filename or path; Enter keeps the filter, Escape clears it |
+| `/` | Find code text in Files or the current Guide section |
+| `F` | Filter Files by filename or path; Enter keeps the filter, Escape clears it |
 | `1` / `2` / `3` / `4` | Select Description / Files / Guide / Commits |
 | `v` / `V` | Next / previous PR context view: Description, Files, Guide, or Commits |
 | `tab` | Expand / collapse the selected guide or section |
@@ -235,7 +236,7 @@ columns. Plain output is always unified.
 
 Selection, expansion, and diff scroll offsets survive resizing; navigation positions and expansion state are not persisted across processes, and they are rebuilt from the immutable bundle so navigation cannot drift from the stored guides. Mouse capture supports selection and divider dragging; use your terminal selection modifier for native text copying. Textual markers and labels are primary: the selected row is marked `› ` whether or not its pane is focused; a muted background reinforces it when unfocused and reverse video reinforces the focused row. The interactive view additionally colors diff structure — file headers, hunk locations, additions, removals — and unit states such as metadata, binary, gitlink, unavailable, and warning chrome. Color is presentation only: no wording, label, or ordering depends on it, and terminals without color show the same text. Extremely small terminals clip controls; enlarge or use plain output. Broad terminal/platform/accessibility coverage is not established.
 
-Every interactive PR has `Description` (`1`), `Files` (`2`), `Guide` (`3`), and `Commits` (`4`) context views, in that order. Reviews open on Files; F/G also select Files/Guide. Guide has its own top-level tab and requires explicit generation with `g` when no guide is available. Description is display-only GitHub-flavored Markdown frozen from GitHub when the session opened; it is available after an offline resume and does not refresh when selected. Raw HTML remains literal text, links are not activated, and images never load. Empty captured descriptions and older sessions that did not capture one are labeled explicitly. Context views are not included in `--plain` output.
+Every interactive PR has `Description` (`1`), `Files` (`2`), `Guide` (`3`), and `Commits` (`4`) context views, in that order. Reviews open on Files; `F` opens the Files filename filter; `G` selects Guide. Guide has its own top-level tab and requires explicit generation with `g` when no guide is available. Description is display-only GitHub-flavored Markdown frozen from GitHub when the session opened; it is available after an offline resume and does not refresh when selected. Raw HTML remains literal text, links are not activated, and images never load. Empty captured descriptions and older sessions that did not capture one are labeled explicitly. Context views are not included in `--plain` output.
 
 ### Mouse selection and panel resizing
 
@@ -527,7 +528,7 @@ stored generated guides reports `not_available`.
 
 ## Find text in diffs
 
-On Files or Guide, press `Ctrl+F` or click **Find (Ctrl+F)** in the diff header.
+On Files or Guide, press `/` or click **Find (/)** in the diff header.
 Files searches all available saved text hunks, including files hidden by the
 filename filter. Guide searches only the selected section, including collapsed
 children. Select a section or its file row first; a guide heading has no section
@@ -538,12 +539,16 @@ saved unchanged context. It excludes paths, headings, comments, and guide prose.
 The popover groups occurrences by file, with line/side labels and snippets.
 Up/Down or PageUp/PageDown selects a result; Enter or a result click reveals it
 in the diff without opening a comment. Activating a file hidden by the filename
-filter clears that filter and shows a notice. `/` still filters filenames.
+filter clears that filter and shows a notice. `F` filters filenames.
 
-Escape closes the popover and keeps highlights. Reopen with Ctrl+F; Tab selects
-Clear or Close, and Enter activates the selected control. Query editing supports
+Escape leaves the query field and focuses results. Use `j/k` or Up/Down to
+select results; Enter jumps to the selected match. Press `/` (or click the query)
+to edit again, and Escape from results to close while keeping highlights. Tab
+also switches between editing and results. There are no Clear/Close buttons;
+use Backspace/Delete to edit or empty the query. Query editing supports
 Left/Right, Home/End, Backspace/Delete, and single-line paste up to 1,024 UTF-8
-bytes. Search owns keyboard input while open; letters such as `q` are query text.
+bytes. Search owns keyboard input while open; letters such as `j/k` and `q` are
+query text only while editing. Result navigation never changes the query.
 
 Search stays local and works offline. It searches saved patches, not entire files
 or omitted context. Unavailable/non-text content is labeled as skipped. Results

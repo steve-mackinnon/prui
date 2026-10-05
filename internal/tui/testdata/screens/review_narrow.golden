@@ -1,6 +1,6 @@
 example/review #42                         ctrl+p: switch PR
   Description [1]  › Files [2]    Guide [3]    Commits [4]
-┌ Files · ▽ Filter (/) · Find (Ctrl+F) · Diff ─────────────┐
+┌ Files · ▽ Filter (F) · Find (/) · Diff ──────────────────┐
 │── main.go                                                │
 │@@ -1 +1 @@                                               │
 │-old greeting                                             │

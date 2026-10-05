@@ -1,6 +1,6 @@
 example/review #42                                                                                     ctrl+p: switch PR
   Description [1]  › Files [2]    Guide [3]    Commits [4]
-┌ Files · ▽ Filter (/) ──────────────┬ Find (Ctrl+F) · Diff · FILES 2 · file 1/2 ──────────────────────────────────────┐
+┌ Files · ▽ Filter (F) ──────────────┬ Find (/) · Diff · FILES 2 · file 1/2 ───────────────────────────────────────────┐
 │Filter files: tui                   │── internal/tui/model.go                                                         │
 │› model.go  internal/tui            │@@ -1 +1 @@                                                                      │
 │  file_filter.go  internal/tui      │-old greeting                                                                    │

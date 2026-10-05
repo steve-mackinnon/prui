@@ -1,6 +1,6 @@
 example/review #42                                                                                     ctrl+p: switch PR
   Description [1]  › Files [2]╭──────────────────────────────────────────────────────────────────────────────────────╮
-┌ Files · ▽ Filter (F) ───────│ Find: l▏                                                                             │─┐
+┌ Files · ▽ Filter (F) ───────│ Find: l                                                                              │─┐
 │› main.go                    │ Files · saved diff text only                                                         │ │
 │  README.md                  │ 4 matches in 1 file                                                                  │ │
 │                             │ main.go   (4)                                                                        │ │
@@ -13,6 +13,6 @@ example/review #42                                                              
 │                             │                                                                                      │ │
 │                             │                                                                                      │ │
 │                             │                                                                                      │ │
-└─────────────────────────────│ Esc: select results · Enter: jump                                                    │─┘
+└─────────────────────────────│ j/k ↑↓: select · Enter: jump · /: edit · Esc: close                                  │─┘
 0/2 read · R Submit review (0)╰──────────────────────────────────────────────────────────────────────────────────────╯
 j/k: files · enter: diff · m: mark file · ?: Help
