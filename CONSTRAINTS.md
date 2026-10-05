@@ -229,3 +229,10 @@
   failed refresh keeps it labelled stale. Cache failure never blocks source review.
 - Synthetic fixtures/transports only in tests. Human terminal usability remains
   unverified unless explicitly performed.
+- Captured Linear workspace/auth mode is non-secret historical provenance,
+  never evidence of current viewer authorization. Offline cache access does not
+  inspect account configuration or credentials; configuration changes cannot
+  relabel foreign PR/workspace data. Missing legacy provenance is explicit.
+- Context Update operations preserve private v3/v4 dispatched attempts and
+  canonical anchors, frozen source bytes, reading layouts and read-only cursors.
+  Cancelled/old-generation/foreign-session/foreign-PR results cannot replace them.

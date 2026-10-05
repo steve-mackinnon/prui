@@ -3,6 +3,7 @@ package tui
 import (
 	tea "charm.land/bubbletea/v2"
 	"context"
+	"errors"
 	"fmt"
 	"github.com/charmbracelet/x/ansi"
 	"prui/internal/review"
@@ -73,8 +74,14 @@ func (m *Model) applyIssueContextResult(v IssueContextResult) {
 		return
 	}
 	d := &state.issues
+	identity := v.Session.Inventory.Comparison.Metadata.Identity
+	matching := v.Snapshot.Identity.Number == identity.Number && strings.EqualFold(v.Snapshot.Identity.Repository, identity.Repository)
+	if v.Err == nil && !matching {
+		v.Err = errors.New("issue context returned a different PR identity")
+		v.Snapshot = source.IssueContext{}
+	}
 	if v.Err != nil {
-		if source.ValidateIssueContext(v.Snapshot) && v.Snapshot.Identity == v.Session.Inventory.Comparison.Metadata.Identity {
+		if source.ValidateIssueContext(v.Snapshot) && matching {
 			d.snapshot, d.loaded, d.fresh = v.Snapshot, true, v.Fresh
 			d.notice = Escape(v.Err.Error())
 			if !v.Fresh {

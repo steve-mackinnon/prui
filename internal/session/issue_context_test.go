@@ -72,3 +72,23 @@ func TestIssueContextMissingAndCorrupt(t *testing.T) {
 		t.Fatal("corruption accepted")
 	}
 }
+
+func TestIssueContextCapturedWorkspaceCannotBeRelabeled(t *testing.T) {
+	s, err := Open(filepath.Join(t.TempDir(), "private"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	c := source.IssueContext{Identity: source.Identity{Repository: "o/r", Number: 7}, HeadSHA: strings.Repeat("a", 40), CapturedAt: time.Now(), Complete: true, LinearWorkspace: "work", LinearAuth: "api_key", Linear: []source.ContextIssue{{Identifier: "APP-1", Title: "captured account context", Status: "Done", URL: "https://linear.app/work/issue/APP-1/fix"}}}
+	if err = s.SaveIssueContext(context.Background(), c); err != nil {
+		t.Fatal(err)
+	}
+	c.LinearWorkspace = "foreign"
+	if err = s.SaveIssueContext(context.Background(), c); err == nil {
+		t.Fatal("foreign workspace relabel accepted")
+	}
+	got, err := s.LoadIssueContext(context.Background(), c.Identity)
+	if err != nil || got.LinearWorkspace != "work" || got.LinearAuth != "api_key" {
+		t.Fatal("captured provenance lost", got, err)
+	}
+}

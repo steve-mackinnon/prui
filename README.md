@@ -337,3 +337,7 @@ partial. Linear reads at most 10 candidates under deadlines and payload budgets.
 Missing configuration/access or malformed optional responses leave GitHub
 usable. No context is implicitly sent to AI providers. The private local cache
 contains issue descriptions in plaintext; it is separate from frozen source.
+
+Saved Linear entries show captured workspace/auth mode and historical
+at-capture authorization; current account access is unknown. Changing your
+configuration or credential never relabels saved data as current authorization.

@@ -44,3 +44,19 @@ geometry is unchanged. Keyboard paging and mouse wheel scroll bounded escaped
 text. Links are shown as usable HTTPS text for the reviewer to open; no automatic
 browser launch. A failed cache write still displays refreshed data with an explicit
 unsaved notice. Optional Linear has a shorter child deadline to preserve GitHub.
+
+## Integration on merged main
+
+The context screen coexists with `Alt+R` readiness, `C` commit filtering, `F`
+path filtering, `/` source search, and `Alt+C` generated collapse. Its open,
+refresh, cancellation and late results never alter reading layout, source cursor,
+frozen inventory, canonical targets, or private v3/v4 attempts. Foreign PR and
+frozen-session results are rejected. Tests use real pinned Git fixtures and the
+actual `Model.Update` dispatch with private SQLite drafts and captured full source.
+
+Linear records retain captured workspace and auth mode (never credential names
+or values). The screen calls this historical authorization and explicitly says
+current account access is unknown. Offline opening reads neither credentials nor
+configuration; switching accounts/workspaces cannot relabel historical records.
+Legacy records without this provenance remain readable with an unavailable label.
+This private historical PR cache does not claim to authorize a current account.
