@@ -1,12 +1,14 @@
 example/review #42
   PRs [P]    Description [1]  › Files [2]    Guide [3]    Commits [4]
 ┌ Files · ▽ Filter (/) ──────────────┬ Commits [C] · All changes · Diff · FILES 2 · file 1/2 ──────────────────────────┐
-│› main.go                           │── main.go                                                                       │
-│  README.md                         │@@ -1 +1 @@                                                                      │
-│                                    │-old greeting                                                                    │
+│Filter files: tui                   │── internal/tui/model.go                                                         │
+│› model.go  internal/tui            │@@ -1 +1 @@                                                                      │
+│  file_filter.go  internal/tui      │-old greeting                                                                    │
 │                                    │+hello world                                                                     │
 │                                    │                                                                                 │
-│                                    │── README.md                                                                     │
+│                                    │── internal/tui/file_filter.go                                                   │
+│                                    │                                                                                 │
+│                                    │                                                                                 │
 └────────────────────────────────────┴─────────────────────────────────────────────────────────────────────────────────┘
 0/2 read · R Submit review (0) · ? Freshness unknown · ?: Health & help
-↑/↓: scroll · enter: comment/menu · m: mark file · esc: list · ?: Help
+j/k: files · enter: diff · m: mark file · ?: Help

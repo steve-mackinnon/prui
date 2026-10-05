@@ -1,5 +1,5 @@
-example/review #42                         ctrl+p: switch PR
-  ╭──────────────────────────────────────────────────────╮
+example/review #42
+  ╭──────────────────────────────────────────────────────╮Co
 ┌ │ Commits [C] · All changes                            │─┐
 │›│ Select commits for one net diff.                     │ │
 │ │ › [x] All changes                                    │ │

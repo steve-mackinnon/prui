@@ -141,7 +141,7 @@ func TestCommitFilterCompositionReadonlyAndRestore(t *testing.T) {
 			t.Fatal("filtered row commentable")
 		}
 	}
-	for _, k := range []rune{'m', 'e', 'i', 'P', 'z', 'j'} {
+	for _, k := range []rune{'m', 'e', 'i', 'z', 'j'} {
 		key(m, k)
 	}
 	ctrlKey(m, 'l')

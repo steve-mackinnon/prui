@@ -118,7 +118,7 @@ func TestPRContextTabsFollowIdentityAndHaveDirectNumberKeys(t *testing.T) {
 	view := ansi.Strip(m.View().Content)
 	_, tabsAndBody, _ := strings.Cut(view, "\n")
 	first, _, _ := strings.Cut(tabsAndBody, "\n")
-	if first != "› Description [1]    Files [2]    Guide [3]    Commits [4]" {
+	if first != "  PRs [P]  › Description [1]    Files [2]    Guide [3]    Commits [4]" {
 		t.Fatalf("top row = %q, want direct tab strip below identity", first)
 	}
 	if strings.Contains(first, "review ·") || strings.Contains(first, "ctrl+p") {
@@ -178,7 +178,7 @@ func TestReviewPaneHeadersIdentifyViewWithoutNestedTabs(t *testing.T) {
 	}{{viewFiles, "Files"}, {viewGuide, "Guide"}} {
 		m.selectReviewView(tc.view)
 		header := strings.Split(ansi.Strip(m.View().Content), "\n")[2]
-		if !strings.HasPrefix(header, "┌ Commits [C] · All changes · "+tc.label+" ") || strings.Contains(header, "(F)") || strings.Contains(header, "(G)") {
+		if !strings.HasPrefix(header, "┌ "+tc.label+" ") || strings.Contains(header, "(F)") || strings.Contains(header, "(G)") {
 			t.Fatalf("unexpected pane header: %q", header)
 		}
 	}

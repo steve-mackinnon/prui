@@ -1,6 +1,6 @@
-example/review #42                                                                                     ctrl+p: switch PR
-  Description [1]    Files [2]  › Guide [3]    Commits [4]
-┌ Commits [C] · All changes · Guide ─┬ Diff · GUIDES 1 · guide 1/1 · marking: whole files ─────────────────────────────┐
+example/review #42
+  PRs [P]    Description [1]    Files [2]  › Guide [3]    Commits [4]
+┌ Guide ─────────────────────────────┬ Commits [C] · All changes · Diff · GUIDES 1 · guide 1/1 · marking: whole files ─┐
 │› - 1. Greeting                     │── main.go                                                                       │
 │  01 / 01 · { previous · } next     │@@ -1 +1 @@                                                                      │
 │    Update the greeting and its     │-old greeting                                                                    │

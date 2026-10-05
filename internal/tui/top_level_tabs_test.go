@@ -15,7 +15,7 @@ func TestTopLevelReviewTabsOrderAndKeyboardSelection(t *testing.T) {
 	defer m.Close()
 	m.openReviewTab(screenSession())
 	m.Width, m.Height = 120, 16
-	want := "› Description [1]    Files [2]    Guide [3]    Commits [4]"
+	want := "  PRs [P]  › Description [1]    Files [2]    Guide [3]    Commits [4]"
 	if got := strings.Split(ansi.Strip(m.View().Content), "\n")[1]; got != want {
 		t.Fatalf("tab strip = %q, want %q", got, want)
 	}
@@ -62,7 +62,7 @@ func TestTopLevelReviewTabsMouseSelection(t *testing.T) {
 	defer m.Close()
 	m.openReviewTab(screenSession())
 	m.Width, m.Height = 120, 16
-	x := 0
+	x := visibleWidth("  PRs [P]") + 2
 	for _, label := range []string{"Description [1]", "Files [2]", "Guide [3]", "Commits [4]"} {
 		m.Update(tea.MouseClickMsg{Button: tea.MouseLeft, X: x + 3, Y: 1})
 		if !strings.Contains(ansi.Strip(m.contextViewTabs()), "› "+label) {
@@ -147,5 +147,26 @@ func TestTopLevelGuidePreservesWorkspaceStateAndDiffControls(t *testing.T) {
 	key(m, 'G')
 	if len(m.rows()) == 0 {
 		t.Fatal("Guide alias did not restore hierarchy")
+	}
+}
+
+func TestPRsTabOpensListWithMouseAndKeyboard(t *testing.T) {
+	for _, mouse := range []bool{false, true} {
+		m := New(context.Background(), nil)
+		m.openReviewTab(screenSession())
+		m.Width, m.Height = 120, 16
+		if mouse {
+			m.Update(tea.MouseClickMsg{Button: tea.MouseLeft, X: 3, Y: 1})
+		} else {
+			key(m, 'P')
+		}
+		if m.top() != pagePullRequestPicker || !strings.Contains(ansi.Strip(m.View().Content), "Switch pull requests") {
+			t.Fatalf("PRs tab did not open PR list (mouse=%v)", mouse)
+		}
+		namedKey(m, tea.KeyEscape)
+		if m.top() != pageReview || m.selectedReviewView() != viewDescription {
+			t.Fatal("returning from PR list lost review view")
+		}
+		m.Close()
 	}
 }

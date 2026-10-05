@@ -1,3 +1,9 @@
+> Navigation update (2026-10-04): the context-tab row starts with `PRs [P]`.
+> Clicking it or pressing uppercase `P` opens the PR list over the current
+> review; Escape returns to the preserved review view. The identity row no
+> longer repeats the switcher shortcut. Description remains the initial view,
+> and Description/Files/Guide/Commits retain shortcuts 1/2/3/4.
+
 > Mouse boundary update (2026-09-26): the user-authorized Mouse Selection and
 > Panel Resizing plan in tasks/plan.md supersedes the historical prohibition
 > on mouse capture below. Keyboard and source/progress contracts still apply.
@@ -66,7 +72,7 @@ headers and footers:
 
 - **App header:** one clipped line identifying the current destination. The
   review form is `review · owner/repo#123 · guide 2/4`, followed by the
-  discoverable `ctrl+p: switch PR` affordance where width permits.
+  discoverable `P: switch PR` affordance where width permits.
 - **Section header:** one clipped line naming the active mode and the detail
   context. Review uses `FILES 13` / `GUIDES 4` / `INVENTORY 26`; the right
   side names the selected path and unit kind when width permits.
@@ -184,6 +190,6 @@ at least two interactive surfaces share the same chrome or status behavior.
 
 ## Open Questions
 
-None. This specification deliberately keeps `ctrl+p` as the single persistent
+None. This specification deliberately keeps `P` as the single persistent
 shortcut because PR switching is a primary workspace action; all other
 shortcuts move into Health & help.

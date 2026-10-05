@@ -350,7 +350,7 @@ def main():
                             [i for i, char in enumerate(screen.splitlines()[3]) if char == "│"] == [0, 49, 119],
                             "mouse divider resize", start)
         terminal.key(b"\x1b[A", "› [ ] a.go")
-        terminal.key(b"\x10", "Switch pull requests")
+        terminal.key(b"P", "Switch pull requests")
         terminal.key(b"\x1b", "0/2 read")
         terminal.key(b"\x1b[B", "› [ ] b.go")
         terminal.key(b"m", "1/2 read")

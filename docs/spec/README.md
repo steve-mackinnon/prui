@@ -7,6 +7,7 @@ These documents preserve requirements, acceptance criteria, and the reasoning be
 - [Spec: Commit Filter in the Diff Workspace](SPEC-diff-commit-filter.md)
 - [Spec: Configurable guide models with Charm Fantasy](SPEC-MULTI-PROVIDER-GUIDES.md)
 - [Spec: Current-Checkout Pull Request Picker](SPEC-current-checkout-pr-picker.md)
+- [Spec: PR Picker Preview](SPEC-pr-picker-preview.md)
 - [Spec: Interactive TUI Themes](SPEC-custom-themes.md)
 - [Spec: Named TUI Theme Presets](SPEC-theme-presets.md)
 - [Spec: Guide Cache](SPEC-guide-cache.md)

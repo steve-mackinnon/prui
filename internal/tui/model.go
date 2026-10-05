@@ -101,6 +101,8 @@ type reviewTabState struct {
 	Err                                                  error
 	Selected                                             int
 	Row                                                  int
+	fileFilter                                           string
+	fileFilterEditing                                    bool
 	Files                                                bool
 	collapsed                                            expansion
 	Scroll                                               map[int]int
@@ -197,6 +199,7 @@ type Model struct {
 	SessionPicker        pickerState
 	RepositoryPicker     pickerState
 	PullRequestPicker    pickerState
+	prCarousel           prCarouselState
 	ThemePicker          pickerState
 	Entries              []session.Entry
 	Repositories         []session.Repository
@@ -269,6 +272,7 @@ func newModel(parent context.Context) *Model {
 // any process-global style state, so concurrent models can use different
 // resolved themes safely.
 func (m *Model) SetTheme(t theme.Theme) {
+	m.PullRequestPicker.previewCache = descriptionRenderCache{}
 	m.theme = t
 	m.themeOverrides = t.Overrides()
 	m.styles = stylesFor(t)
@@ -343,6 +347,15 @@ func (m *Model) Init() tea.Cmd {
 	})
 }
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	model, cmd := m.update(msg)
+	carouselCmd := m.syncPRCarousel()
+	if carouselCmd == nil {
+		return model, cmd
+	}
+	return model, tea.Batch(cmd, carouselCmd)
+}
+
+func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	defer func() {
 		if !m.mouseAvailable() {
 			m.cancelMouseDrag()
@@ -358,6 +371,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case DiscussionResult:
 		m.applyDiscussionResult(v)
 		return m, nil
+	case prCarouselTick:
+		return m, m.advancePRCarousel(v)
 	case guidePathTick:
 		if v.generation != m.guidePathGeneration || !m.guidePathScrollEligible() {
 			return m, nil
@@ -619,6 +634,20 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// interpret discard confirmation as a remote comment submission.
 			return m, m.pageKey(pageQuitPending, v)
 		}
+		if m.top() == pageReview && m.fileView() && !m.commitFilter.open && !m.commitFilter.subset && m.Composer == nil && m.CommentMenu == nil && !m.Busy {
+			if m.fileFilterEditing && v.String() != "ctrl+c" {
+				m.fileFilterKey(v)
+				return m, m.restartGuidePathScroll()
+			}
+			if v.String() == "/" {
+				m.openFileFilter()
+				return m, nil
+			}
+			if v.String() == "esc" && m.fileFilter != "" && m.Focus == paneList {
+				m.fileFilter = ""
+				return m, nil
+			}
+		}
 		editingReviewText := m.top() == pageReviewSubmit
 		editingGuideModel := m.top() == pageGuideConsent && m.guideFocus == 2
 		if (v.String() != "q" || editingReviewText || editingGuideModel) && v.String() != "ctrl+c" {
@@ -669,7 +698,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 				return m, nil
 			}
-			if v.String() == "ctrl+p" {
+			if v.String() == "P" {
 				return m, m.openSwitcher()
 			}
 			if v.String() == "R" && m.Session != nil {
@@ -1192,7 +1221,8 @@ func (m *Model) guidePathScrollTarget() (row, string, int, string) {
 	if m.Files {
 		file := m.Session.UnitFiles[m.Selected]
 		prefix := selectionMarker(true) + readMarker(m.Session, m.Session.Inventory.Files[file].ID)
-		return row{}, prefix, m.listWidth() - visibleWidth(prefix), pathLabel(m.Session.Inventory.Files[file])
+		name, width := fileRailName(m.Session.Inventory.Files[file], m.listWidth()-visibleWidth(prefix))
+		return row{}, prefix, width - visibleWidth(name) - 2, fileDirectory(m.Session.Inventory.Files[file])
 	}
 	rows := m.rows()
 	if m.Row < 0 || m.Row >= len(rows) || rows[m.Row].kind != portionRow {
@@ -1244,7 +1274,23 @@ func (m *Model) file(delta int) {
 		return
 	}
 	f := m.Session.UnitFiles[m.Selected]
-	f = max(0, min(len(m.Session.Slices)-1, f+delta))
+	if m.fileView() && m.fileFilter != "" {
+		files := m.filteredFiles()
+		if len(files) == 0 {
+			return
+		}
+		index := slices.Index(files, f)
+		if index < 0 {
+			index = 0
+		}
+		f = files[max(0, min(len(files)-1, index+delta))]
+	} else {
+		f = max(0, min(len(m.Session.Slices)-1, f+delta))
+	}
+	m.selectFile(f)
+}
+
+func (m *Model) selectFile(f int) {
 	m.Selected = m.Session.Slices[f].Units[0]
 	if !m.Inventory {
 		start := m.fileOffset(f)
@@ -2006,7 +2052,7 @@ func (m *Model) reviewViewForLayout(preferSideBySide bool) string {
 	if preferSideBySide && !useSideBySide {
 		text += " · side-by-side needs 160 columns"
 	}
-	leftLabel := "Files"
+	leftLabel, _ := m.fileFilterHeader()
 	if m.selectedReviewView() == viewGuide {
 		leftLabel = "Guide"
 	}
@@ -2014,7 +2060,12 @@ func (m *Model) reviewViewForLayout(preferSideBySide bool) string {
 		leftLabel = "Full inventory (i)"
 	}
 	rightLabel := "Diff · " + text
-	header := m.paneFrameHeader("Commits [C] · "+m.commitFilterLabel()+" · "+leftLabel, rightLabel)
+	if m.Width < 100 {
+		leftLabel += " · Commits [C] · " + m.commitFilterLabel()
+	} else {
+		rightLabel = "Commits [C] · " + m.commitFilterLabel() + " · " + rightLabel
+	}
+	header := m.paneFrameHeader(leftLabel, rightLabel)
 	bodyHeight := m.bodyHeight()
 	list, selectedRow := m.reviewListPresentation()
 	var detail []diffLine
@@ -2113,8 +2164,10 @@ func (m *Model) reviewViewForLayout(preferSideBySide bool) string {
 	for row := 0; row < bodyHeight; row++ {
 		left, right := "", ""
 		class, leftClass := classPlain, classPlain
+		mutedFrom := 0
 		if row < len(list) {
 			left = list[row].text
+			mutedFrom = list[row].mutedFrom
 			if list[row].row == selectedRow {
 				leftClass = selectedClass(m.Focus == paneList)
 			}
@@ -2122,7 +2175,7 @@ func (m *Model) reviewViewForLayout(preferSideBySide bool) string {
 		if row < len(detail) {
 			right, class = detail[row].Text, detail[row].Class
 		}
-		body = append(body, m.paneBodyRow(styledLine{Class: leftClass, Text: left}, styledLine{Class: class, Text: right}, m.listWidth(), m.detailWidth(), m.Focus, borders))
+		body = append(body, m.paneBodyRow(styledLine{Class: leftClass, Text: left}, styledLine{Class: class, Text: right}, m.listWidth(), m.detailWidth(), m.Focus, borders, mutedFrom))
 	}
 	return title + "\n" + header + "\n" + strings.Join(body, "\n") + "\n" + m.paneFrameFooter() + "\n" + m.reviewStatus()
 }
@@ -2194,11 +2247,6 @@ func (m *Model) workspaceIdentity() string {
 			}
 		}
 	}
-	hint := "ctrl+p: switch PR"
-	if m.Width >= 60 {
-		text = clip(text, m.Width-visibleWidth(hint)-3)
-		text += strings.Repeat(" ", max(1, m.Width-visibleWidth(text)-visibleWidth(hint))) + hint
-	}
 	return m.styleLine(classTitle, clip(text, m.Width))
 }
 
@@ -2215,7 +2263,7 @@ func (m *Model) contextViewTabs() string {
 	tabs := m.contextTabLabels()
 	for i, tab := range tabs {
 		class := classTitle
-		if reviewViews[i] == m.selectedReviewView() {
+		if i > 0 && reviewViews[i-1] == m.selectedReviewView() {
 			class = selectedClass(true)
 		}
 		tabs[i] = m.styleLine(class, tab)

@@ -76,6 +76,16 @@ prui                                  # browse this checkout's open PRs
 prui open https://github.com/owner/repo/pull/42
 ```
 
+The PR picker shows the list beside a description and metadata preview on wide
+terminals, and stacks them on narrower terminals. Use Tab to focus the preview,
+then `j` / `k` or Page Up / Page Down to scroll; Tab returns to the list.
+Shift+J / Shift+K scroll the preview from either panel without changing focus. Mouse
+clicks focus either panel and the wheel scrolls the panel under the pointer.
+Overflowing selected PR titles scroll horizontally, keeping the PR number and
+metadata fixed. Usernames and check states use distinct theme accents.
+The footer stays at the bottom. Descriptions are captured with the list; `r`
+reloads it. Opening a review captures its own frozen description.
+
 1. Select a PR and press Enter. prui captures a fixed comparison and opens Files.
 2. Use `j` / `k` to select files and `l` to focus the diff. Scroll with up / down;
    press `m` to mark a file as read. Progress saves immediately.
@@ -106,9 +116,11 @@ For offline reading, list session IDs with `prui sessions`, then run
 | `h` / `l` | Focus list / diff |
 | Up / down | Scroll the focused diff |
 | `m` | Mark or unmark a file as read |
+| `/` | Filter Files by filename or path; Enter keeps the filter, Escape clears it |
 | `1` / `2` / `3` / `4` | Show Description / Files / Guide / Commits |
 | `v` / `V` | Cycle forward / backward through Description, Files, Guide, and Commits |
-| `ctrl+p` | Switch PRs; inside a line editor, queue the comment |
+| `P` | Switch PRs |
+| `ctrl+p` | Inside a line editor, queue the comment |
 | `D` / `c` | Browse discussions / refresh discussions |
 | `C` | Filter the Files/Guide diff by selected commits |
 | `R` | Open review submission |
@@ -117,7 +129,7 @@ For offline reading, list session IDs with `prui sessions`, then run
 | `s` | Browse saved sessions |
 | `?` / `q` | Health & help / quit |
 
-Newly opened pull requests start on the Description tab. Use `2` to switch to Files.
+Newly opened pull requests start on the Description tab. Use `2` to switch to Files. The file list shows filenames beside muted directories. Click **Filter (/)** in the file header or press `/` to filter filenames and paths (case-insensitive, including previous names for renamed files). Enter returns to navigation with the filter applied; Escape in the list clears it.
 
 Mouse selection, pane resizing, themes, and side-by-side diffs are also available.
 In Files or Guide, select **Commits [C]** to choose commits for one net diff.

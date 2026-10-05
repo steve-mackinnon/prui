@@ -289,7 +289,7 @@ func (m *Model) filteredReadingKey(k string) bool {
 		f.horizontal += 8
 	case "left":
 		f.horizontal = max(0, f.horizontal-8)
-	case "m", "e", "i", "P", "tab", "{", "}", "z", "J", "K": // Read-only: no canonical mark, evidence or composition targets.
+	case "m", "e", "i", "tab", "{", "}", "z", "J", "K": // Read-only: no canonical mark, evidence or composition targets.
 	default:
 		return false
 	}
@@ -650,8 +650,16 @@ func (m *Model) commitFilterControlContains(x int) bool {
 	if !m.commitFilter.subset && len(m.Session.Inventory.Units) == 0 {
 		start = 0
 	}
+	if !m.commitFilter.subset && len(m.Session.Inventory.Units) > 0 {
+		if m.Width >= 100 {
+			start = m.listWidth() + 3
+		} else {
+			label, _ := m.fileFilterHeader()
+			start += visibleWidth(label + " · ")
+		}
+	}
 	end := start + visibleWidth("Commits [C] · "+m.commitFilterLabel())
-	if m.Width >= 100 {
+	if m.Width >= 100 && (m.commitFilter.subset || len(m.Session.Inventory.Units) == 0) {
 		end = min(end, m.listWidth()+1)
 	} else {
 		end = min(end, m.Width-1)

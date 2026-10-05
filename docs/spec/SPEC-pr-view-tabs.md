@@ -1,3 +1,9 @@
+> Navigation update (2026-10-04): the context-tab row starts with `PRs [P]`.
+> Clicking it or pressing uppercase `P` opens the PR list over the current
+> review; Escape returns to the preserved review view. The identity row no
+> longer repeats the switcher shortcut. Description remains the initial view,
+> and Description/Files/Guide/Commits retain shortcuts 1/2/3/4.
+
 # Spec: PR Context View Tabs
 
 The [Pull Request Commit Browser](SPEC-pr-commits.md), implemented 2026-09-30,
@@ -49,7 +55,7 @@ README.md                      reviewer-visible view and keyboard documentation
 - The first line of every interactive review is a dedicated, low-noise tab
   strip: `› Diff [1] · Description [2] · Commits [3]`. The `›` marks the
   selected tab and must remain visible without color. It replaces the prior PR
-  identity, guide count, and persistent `ctrl+p` text; those details remain
+  identity, guide count, and persistent `P` text; those details remain
   available from the switcher and Health & help.
 - `Diff` is selected whenever a review is first opened. It preserves all
   current guide/file/inventory keys and renders the existing two-pane/one-pane
@@ -68,7 +74,7 @@ README.md                      reviewer-visible view and keyboard documentation
 - The model holds exactly one active review. Context-view selection and context
   scroll are process-local and reset to Diff whenever the selector successfully
   replaces that review; they are not stored in `snapshot.json` or `state.json`.
-- `ctrl+p` opens the active repository's PR selector over the current review.
+- `P` opens the active repository's PR selector over the current review.
   It lists remote open PRs only—there is no opened-review section, numeric
   review-tab navigation, capacity limit, or duplicate activation path. Enter
   opens the selected PR; its completed session atomically replaces the current

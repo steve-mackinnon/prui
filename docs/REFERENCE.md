@@ -164,7 +164,7 @@ Failure is cheap and explicit. A transport error, non-2xx status, refusal, deadl
 
 Reviews open on the Files tab. The right pane shows every changed file in order, with all of each file's hunks together. Scroll through the whole PR or press `j`/`k` to jump between file boundaries. Press `F` for Files or `G` for Guide. When a session has generated guides, Guide shows each guide, section, and covered file portion, with the selected guide's combined diff in the right pane. Selecting a section or file with `j`/`k` scrolls to its position in that diff; Enter also focuses the diff. Selecting a guide restores its saved scroll position. A file appears under every section that owns part of it. `n` walks guide rows, `}`/`{` jump between guides, and `tab` expands or collapses the selected guide or section. `]`/`[` widen or narrow the left pane by two columns. `i` lists every raw unit. `m` marks the whole file slice of the selected unit. A fallback, absent, or empty bundle leaves Files available.
 
-Reviews opened in one process keep independent in-memory reading positions, hierarchy expansion, pane focus, scroll offsets, notices, and errors. `ctrl+p` (or `p` where control-key reporting is unreliable) opens a keyboard-only PR switcher over the current review. It lists already-open reviews first, then open PRs for the active repository; typing filters, Enter switches or starts a new read-only pinned review, and Escape leaves the current review unchanged. The overlay never takes a permanent column or changes plain output.
+Reviews opened in one process keep independent in-memory reading positions, hierarchy expansion, pane focus, scroll offsets, notices, and errors. The first tab, `PRs [P]`, opens the PR list by click or uppercase `P`. It opens a PR switcher over the current review. It lists already-open reviews first, then open PRs for the active repository; typing filters, Enter switches or starts a new read-only pinned review, and Escape leaves the current review unchanged. The overlay never takes a permanent column or changes plain output.
 
 The interactive review uses a quiet workspace: a persistent repository/PR
 identity (and title when available from the PR browser), understated context
@@ -197,13 +197,14 @@ columns. Plain output is always unified.
 
 | Key | Action |
 | --- | --- |
-| `ctrl+p` / `p` | Open the PR switcher; type to filter, Enter switches/opens, Escape cancels |
+| `P` | Open the PR switcher; type to filter, Enter switches/opens, Escape cancels |
 | `n` / `p` | Move between comment targets in a focused Files diff; move through files, guide rows, or inventory units in the list |
 | `}` / `{` | Next / previous guide, or file slice without guides |
 | `]` / `[` | Widen / narrow the left file and guide pane by two columns |
 | `F` / `G` | Select the Files or Guide tab |
 | `C` | Open the commit filter in Files/Guide |
 | `S` | Toggle side-by-side detail; unified is the default and narrow terminals fall back below 160 columns |
+| `/` | Filter Files by filename or path; Enter keeps the filter, Escape clears it |
 | `1` / `2` / `3` / `4` | Select Description / Files / Guide / Commits |
 | `v` / `V` | Next / previous PR context view: Description, Files, Guide, or Commits |
 | `tab` | Expand / collapse the selected guide or section |

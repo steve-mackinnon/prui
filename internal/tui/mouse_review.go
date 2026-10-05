@@ -19,7 +19,10 @@ func (m *Model) mouseReviewClick(x, y int) tea.Cmd {
 		for i, label := range m.contextTabLabels() {
 			width := visibleWidth(label)
 			if x >= start && x < start+width {
-				m.selectReviewView(reviewViews[i])
+				if i == 0 {
+					return m.openSwitcher()
+				}
+				m.selectReviewView(reviewViews[i-1])
 				return m.restartGuidePathScroll()
 			}
 			start += width + 2
@@ -52,6 +55,14 @@ func (m *Model) mouseReviewClick(x, y int) tea.Cmd {
 	if !m.diffReviewView() || len(m.Session.Inventory.Units) == 0 {
 		return nil
 	}
+	if m.fileView() && y == 2 {
+		_, control := m.fileFilterHeader()
+		if image.Pt(x, y).In(control) {
+			m.openFileFilter()
+			return m.restartGuidePathScroll()
+		}
+		return nil
+	}
 	g := m.workspaceGeometry()
 	p := image.Pt(x, y)
 	if p.In(g.Rail) {
@@ -67,7 +78,7 @@ func (m *Model) mouseReviewClick(x, y int) tea.Cmd {
 		} else if m.Inventory {
 			m.move(row - m.Selected)
 		} else {
-			m.file(row - m.Session.UnitFiles[m.Selected])
+			m.selectFile(row)
 		}
 		return m.restartGuidePathScroll()
 	}
@@ -210,5 +221,5 @@ func (m *Model) contextTabLabels() []string {
 		}
 		labels[i] = prefix + label
 	}
-	return labels
+	return append([]string{"  PRs [P]"}, labels...)
 }
