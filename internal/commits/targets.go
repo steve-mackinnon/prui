@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"regexp"
 	"strconv"
+	"strings"
 	"unicode/utf8"
 
 	"prui/internal/inventory"
@@ -140,4 +141,79 @@ func HistoricalCommentTarget(bundle *Bundle, target source.ReviewCommentTarget) 
 		}
 	}
 	return false
+}
+
+// TargetSource returns logical source bytes from one captured hunk, preserving
+// old/new context coordinates. It never reads presentation or working files.
+func TargetSource(files []inventory.FileChange, units []inventory.ReviewUnit, patches map[string][]byte, target source.ReviewCommentTarget) (string, bool) {
+	if !InventoryContainsTarget(files, units, patches, target) || target.SubjectType != "" {
+		return "", false
+	}
+	start := target.StartLine
+	if start == 0 {
+		start = target.Line
+	}
+	for _, u := range units {
+		if u.Kind != inventory.TextHunk {
+			continue
+		}
+		var f inventory.FileChange
+		for _, candidate := range files {
+			if candidate.ID == u.FileChangeID {
+				f = candidate
+				break
+			}
+		}
+		oldLine, newLine := 0, 0
+		next := start
+		selected := []string{}
+		for raw := range bytes.SplitSeq(patches[u.PatchReference], []byte("\n")) {
+			if h := targetHunkHeader.FindSubmatch(raw); h != nil {
+				oldLine, _ = strconv.Atoi(string(h[1]))
+				newLine, _ = strconv.Atoi(string(h[2]))
+				next = start
+				selected = nil
+				continue
+			}
+			if len(raw) == 0 {
+				continue
+			}
+			line := 0
+			path := ""
+			switch raw[0] {
+			case '+':
+				if target.Side == "RIGHT" {
+					line = newLine
+					path = string(f.NewPath)
+				}
+				newLine++
+			case '-':
+				if target.Side == "LEFT" {
+					line = oldLine
+					path = string(f.OldPath)
+				}
+				oldLine++
+			case ' ':
+				if target.Side == "RIGHT" {
+					line = newLine
+					path = string(f.NewPath)
+				} else {
+					line = oldLine
+					path = string(f.OldPath)
+				}
+				oldLine++
+				newLine++
+			default:
+				continue
+			}
+			if line == next && path == target.Path {
+				selected = append(selected, string(raw[1:]))
+				next++
+				if line == target.Line {
+					return strings.Join(selected, "\n"), true
+				}
+			}
+		}
+	}
+	return "", false
 }

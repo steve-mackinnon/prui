@@ -294,6 +294,9 @@ func (m *Model) commentComposerKey(key tea.KeyPressMsg) tea.Cmd {
 	if composer.CommitSHA != "" {
 		defer m.ensureCommitEditorVisible()
 	}
+	if composer.Suggestion {
+		return m.suggestionComposerKey(key)
+	}
 	switch key.String() {
 	case "esc":
 		if m.draft.attempt == "comment" && composer.PendingIndex >= 0 && composer.PendingIndex < len(m.Pending) {
@@ -444,6 +447,8 @@ func (m *Model) commentActionKey(key tea.KeyPressMsg) tea.Cmd {
 				m.ActionError = errors.New("published action unavailable or permission denied")
 			}
 			return nil
+		case "ctrl+a":
+			return m.prepareSelectedSuggestion()
 		case "r":
 			m.resolveReplyRoot(menu)
 			menu.mode = commentActionReply

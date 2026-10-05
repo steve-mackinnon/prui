@@ -626,3 +626,29 @@ refresh remote readiness; j/k, arrows, PgUp/PgDn, u/d, Home/End and the mouse wh
 scroll; Escape returns. Both pinned and observed live head SHAs are displayed.
 Readiness is ephemeral, unavailable offline and never uploaded in guide material.
 See [the read-only readiness contract](spec/SPEC-pr-readiness.md).
+
+## Suggested changes
+
+In a focused PR diff, use `ctrl+s` to edit a replacement for selected right-side
+lines (`ctrl+v` selects a range). The editor shows Before/After; Enter posts a
+GitHub suggestion, `ctrl+p` queues it, and an empty replacement deletes the lines.
+Replacement edits and range anchors recover privately, including offline.
+
+Enter on a published inline suggestion opens comment actions. `ctrl+a` prepares
+application and shows the head repository, branch and replacement. Enter opens
+confirmation; a second Enter creates a remote commit. GitHub permissions and
+expected branch head are checked; the checkout and pinned snapshot stay untouched.
+Open a new comparison to review the resulting commit.
+
+Application supports a current right-side anchor on an ordinary non-executable
+UTF-8 file up to 512 KiB. Left/file/historical targets, multiple/offset suggestions,
+symlinks, executables, unavailable source, stale comments/pins and conflicting text
+are refused. Forks require write access to the fork's head repository; upstream
+maintainer permission alone is unsupported by this commit mechanism. This creates
+a GitHub commit without claiming native suggestion-applied badges/thread resolution.
+
+Uncertain application retains its exact attempted payload privately and blocks
+retry. `ctrl+r` reconciles read-only; a matching whole-file result requires explicit
+discard. An unchanged head or unrelated later content cannot prove absence and
+keeps retry blocked. `ctrl+d` discards the retained apply attempt. Offline recovery
+shows retained replacement/source but never applies or checks GitHub.

@@ -82,6 +82,7 @@ func (a *application) model(ctx context.Context, o options) *tui.Model {
 	if _, supported := a.gh.(source.GeneralCommentWriter); !a.offline && supported {
 		m.SetGeneralCommentSubmitter(a.submitGeneralComment)
 	}
+	m.SetSuggestionActions(a.prepareSuggestion, a.applySuggestion)
 	m.SetCommentSubmitter(a.submitReviewComment)
 	m.SetReviewSubmitter(a.submitPullRequestReview)
 	if !a.offline {

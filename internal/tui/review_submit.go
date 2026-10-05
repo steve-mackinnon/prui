@@ -27,11 +27,11 @@ type reviewForm struct {
 }
 
 func (m *Model) unsentReviewDrafts() bool {
-	if m.discussions.published != nil || m.discussions.editor != nil || m.Composer != nil && strings.TrimSpace(m.Composer.Draft) != "" || len(m.Pending) > 0 || m.ReviewForm != nil && strings.TrimSpace(m.ReviewForm.Body) != "" {
+	if m.discussions.published != nil || m.discussions.editor != nil || m.SuggestionApply != nil || m.Composer != nil && (m.Composer.Suggestion || strings.TrimSpace(m.Composer.Draft) != "") || len(m.Pending) > 0 || m.ReviewForm != nil && strings.TrimSpace(m.ReviewForm.Body) != "" {
 		return true
 	}
 	for i, tab := range m.tabs {
-		if i != m.activeTab && tab.review != nil && (tab.review.discussions.published != nil || tab.review.discussions.editor != nil || tab.review.Composer != nil && strings.TrimSpace(tab.review.Composer.Draft) != "" || len(tab.review.Pending) > 0 || tab.review.ReviewForm != nil && strings.TrimSpace(tab.review.ReviewForm.Body) != "") {
+		if i != m.activeTab && tab.review != nil && (tab.review.discussions.published != nil || tab.review.discussions.editor != nil || tab.review.SuggestionApply != nil || tab.review.Composer != nil && (tab.review.Composer.Suggestion || strings.TrimSpace(tab.review.Composer.Draft) != "") || len(tab.review.Pending) > 0 || tab.review.ReviewForm != nil && strings.TrimSpace(tab.review.ReviewForm.Body) != "") {
 			return true
 		}
 	}
@@ -365,6 +365,14 @@ func (m *Model) reviewFormKey(key tea.KeyPressMsg) tea.Cmd {
 					return nil
 				}
 				m.Composer = &commentComposer{Target: pending.Target, Draft: pending.Body, Cursor: len([]rune(pending.Body)), PendingIndex: f.Selected}
+				if replacement, err := source.ParseSuggestion(pending.Body); err == nil {
+					if before, ok := m.targetSource(pending.Target); ok {
+						m.Composer.Suggestion = true
+						m.Composer.Before = before
+						m.Composer.Draft = replacement
+						m.Composer.Cursor = len([]rune(replacement))
+					}
+				}
 				m.pop()
 			}
 		}
@@ -473,6 +481,11 @@ func (m *Model) pendingLines(target source.ReviewCommentTarget) []diffLine {
 		if targetEndsAt(comment.Target, target) {
 			first := strings.SplitN(comment.Body, "\n", 2)[0]
 			lines = append(lines, diffLine{styledLine: styledLine{Class: classWarning, Text: fmt.Sprintf("  [Pending %d] %s · R to review", i+1, Escape(first))}})
+			if replacement, err := source.ParseSuggestion(comment.Body); err == nil {
+				if before, ok := m.targetSource(comment.Target); ok {
+					lines = append(lines, suggestionPreview(before, replacement)...)
+				}
+			}
 		}
 	}
 	return lines

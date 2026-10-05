@@ -179,3 +179,11 @@
 - `Readiness.Ready(expectedHead)` is conservative evidence only; #34 must perform
   a new exact-head read and authorization preflight before an explicit merge.
 - See `docs/spec/SPEC-pr-readiness.md` for controls, limits, API and cache policy.
+
+# Suggested Change Contract
+
+- Ctrl+S captures right-side line/range source from immutable raw hunks and edits replacement text independently of Markdown. Full target coordinates and replacement mode survive private draft payload version 2 targets (suggestion editor/apply payloads use version 3) recovery, including offline recovery.
+- Existing and draft supported suggestions show escaped Before/After previews. Unsupported left/file/historical creation, offset/multiple blocks, unavailable source and modes are explicit; existing historical replies remain valid.
+- Application requires a separate confirmation showing actual head repository/ref, path/range and replacement. The documented GitHub `createCommitOnBranch` mutation applies one remote commit with `expectedHeadOid`; it never changes the checkout or claims native suggestion UI metadata.
+- Refresh canonical comment body/current anchor, complete PR pins, head ref, head-repository write permission, ordinary 100644 file mode and exact selected source before preparation and confirmation. Apply only the retained full-file payload, once, on stdin; concurrent pushes are rejected by expected head.
+- Persist exact attempted mutation bytes and provenance privately before dispatch. Uncertain results block retry and require read-only reconciliation; whole-file equality at a changed remote head counts conservatively as applied. An unchanged head does not prove absence (force-push-back/delayed writes). No automatic write/retry, silent reanchoring, credential persistence or source diagnostics.

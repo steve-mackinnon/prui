@@ -474,6 +474,15 @@ func (m *Model) discussionsView() string {
 			}
 			for _, c := range t.Comments {
 				body = append(body, "@"+Escape(c.Author), Escape(c.Body), "")
+				if replacement, err := source.ParseSuggestion(c.Body); err == nil {
+					before, ok := m.targetSource(c.Target)
+					if !ok {
+						before = "(captured source unavailable; application unsupported)"
+					}
+					for _, p := range suggestionPreview(before, replacement) {
+						body = append(body, p.Text)
+					}
+				}
 			}
 			if t.DiffHunk != "" {
 				body = append(body, "Historical snippet", Escape(t.DiffHunk))
