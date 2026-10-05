@@ -2306,6 +2306,12 @@ func (m *Model) ensureReplyEditorVisible() {
 	if m.CommentMenu == nil || m.CommentMenu.mode != commentActionReply {
 		return
 	}
+	m.ensureInlineEditorVisible()
+}
+
+// Follow rendered editor rows rather than the diff cursor: changing comment
+// types can move the editor or expand it with a suggestion preview.
+func (m *Model) ensureInlineEditorVisible() {
 	start, end := -1, -1
 	for i, line := range m.displayDetail() {
 		if line.editor {

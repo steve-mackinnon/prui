@@ -22,6 +22,8 @@ User-visible changes are recorded here before each release. See
 
 ### Fixed
 
+- Keep the comment editor visible when Tab or Shift+Tab changes the comment type.
+
 - Recover general PR drafts privately with immutable uncertain-write evidence; comparison resets preserve old work separately.
 
 - Show the commit filter as a modal over the current review, retaining the underlying Files/Guide workspace.
