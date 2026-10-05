@@ -93,6 +93,7 @@ type reviewTabState struct {
 	draft                                                draftState
 	navigation                                           codeNavigation
 	search                                               [2]*diffSearchState
+	readiness                                            readinessState
 	discussions                                          discussionState
 	commit                                               commitState
 	commitFilter                                         commitFilterState
@@ -159,6 +160,7 @@ const (
 	pageDiscussions
 	pageDraftRecovery
 	pageIncremental
+	pageReadiness
 )
 
 // commentComposer is deliberately tab-owned. Its target is copied from the
@@ -244,6 +246,8 @@ type Model struct {
 	submitComment        CommentSubmitter
 	submitReview         ReviewSubmitter
 	submitGeneralComment GeneralCommentSubmitter
+	readinessGeneration  uint64
+	readReadiness        ReadinessReader
 	readDiscussions      DiscussionReader
 	readComments         CommentReader
 	submitPublished      PublishedSubmitter
@@ -441,6 +445,8 @@ func (m *Model) update(msg tea.Msg) (updated tea.Model, command tea.Cmd) {
 		}
 		m.editorCursorVisible = !m.editorCursorVisible
 		return m, nextEditorCursorTick(v.generation)
+	case ReadinessResult:
+		m.applyReadinessResult(v)
 	case Loaded:
 		m.Err = m.finishAction(v.Err)
 		m.Loading = false
@@ -478,6 +484,10 @@ func (m *Model) update(msg tea.Msg) (updated tea.Model, command tea.Cmd) {
 					m.discussions.cancel()
 				}
 				m.discussions = discussionState{}
+				if m.readiness.cancel != nil {
+					m.readiness.cancel()
+				}
+				m.readiness = readinessState{}
 				m.fileCache = fileDetailCache{}
 				m.Composer, m.ReviewForm, m.CommentMenu = nil, nil, nil
 				m.Pending, m.Comments = nil, nil
@@ -612,6 +622,9 @@ func (m *Model) update(msg tea.Msg) (updated tea.Model, command tea.Cmd) {
 			return m, nil
 		}
 		// Changed comparisons never inherit progress or offsets from old source.
+		if state.readiness.cancel != nil {
+			state.readiness.cancel()
+		}
 		if state.discussions.cancel != nil {
 			state.discussions.cancel()
 		}
@@ -741,6 +754,9 @@ func (m *Model) update(msg tea.Msg) (updated tea.Model, command tea.Cmd) {
 				m.openThemePicker()
 				return m, nil
 			}
+			if m.top() == pageReadiness {
+				return m, m.readinessKey(v.String())
+			}
 			if m.top() == pageDiscussions {
 				if m.discussions.editor != nil {
 					return m, m.generalCommentKey(v)
@@ -785,6 +801,10 @@ func (m *Model) update(msg tea.Msg) (updated tea.Model, command tea.Cmd) {
 				}
 				m.nextUnresolved(delta)
 				return m, nil
+			}
+			if v.String() == "alt+r" && m.Session != nil {
+				m.push(pageReadiness)
+				return m, m.refreshReadiness()
 			}
 			if v.String() == "D" && m.Session != nil {
 				m.openDiscussions()
@@ -2106,6 +2126,8 @@ func (m *Model) View() tea.View {
 		switch m.top() {
 		case pageDraftRecovery:
 			text = renderActionModal(m.Width, m.Height, m.actionModalBackground(), m.draftRecoveryView(), m.modalSurface)
+		case pageReadiness:
+			text = m.readinessView()
 		case pageDiscussions:
 			text = m.discussionsView()
 		case pageIncremental:

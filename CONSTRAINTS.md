@@ -167,3 +167,15 @@
 - Carry whole-file read marks only with complete captured evidence and identical both-side blob IDs/modes/paths/status, diff settings/version, and every raw unit/patch. Partial/unavailable content, renames, equal path/display text alone, and changed old-side base content never prove unchanged. Check predecessor generation/reference inside the initial progress transaction.
 - Anchor assessments retain complete old/new range/file shapes and return advisory outcomes only. Exact file identity takes precedence over other paths; equal-content copies do not establish renames. Original draft bodies, replies, summaries, historical targets, and immutable uncertain attempted requests remain separate private mutable data. No source/guide payload or model request includes them. Changes navigation and draft reconciliation never submit, retry, copy drafts, or silently retarget; recreation requires explicit target selection and the existing write confirmation/preflight.
 - Persist provenance and captured patches under the existing private SQLite integrity and resource/storage ceilings. Offline snapshots remain readable without Git or network. Deleting an original does not erase the independently captured comparison, and unavailable original drafts are never synthesized. Human terminal QA remains unverified unless actually performed.
+
+# Read-only PR Readiness Contract
+
+- Issue #33 adds ephemeral, exact-head-labelled readiness evidence, independent
+  of immutable code, source caches, progress and AI guide inputs. `Alt+R` opens it;
+  explicit readiness refresh never refreshes pinned source or writes remotely.
+- Unknown protection/rules, permission failures, bounded/partial retrieval,
+  skipped/cancelled/unknown required checks and mismatched revisions cannot imply
+  readiness. Unavailable requirements never turn unmatched checks into optional.
+- `Readiness.Ready(expectedHead)` is conservative evidence only; #34 must perform
+  a new exact-head read and authorization preflight before an explicit merge.
+- See `docs/spec/SPEC-pr-readiness.md` for controls, limits, API and cache policy.
