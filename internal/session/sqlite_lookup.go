@@ -145,7 +145,7 @@ func (s *Store) LoadComparisonSnapshot(metadata source.Metadata) (*Snapshot, err
 		}
 		snapshot := r.Snapshot
 		snapshot.Guides, snapshot.DerivedFrom = nil, ""
-		if snapshot.PullRequestDescription == nil || *snapshot.PullRequestDescription != metadata.Description {
+		if snapshot.PullRequestDescription == nil || *snapshot.PullRequestDescription != metadata.Description || snapshot.Inventory.Comparison.Metadata.TargetBranch != metadata.TargetBranch {
 			description := metadata.Description
 			snapshot.PullRequestDescription = &description
 			snapshot.Inventory.Comparison.Metadata = metadata

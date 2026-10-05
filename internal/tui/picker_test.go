@@ -410,3 +410,31 @@ func TestPullRequestRowsShowViewerReview(t *testing.T) {
 		}
 	}
 }
+
+func TestPullRequestTargetBranchInListAndPreview(t *testing.T) {
+	m := New(context.Background(), nil)
+	defer m.Close()
+	pr := source.PullRequest{Identity: source.Identity{Number: 42}, Title: "Change", Author: "alice", TargetBranch: "release/next"}
+	for _, width := range []int{62, 80, 120, 240} {
+		m.Width = width
+		row := ansi.Strip(m.prPickerRow(pr))
+		if !strings.Contains(row, "target:") || !strings.Contains(row, "release") {
+			t.Fatalf("target absent at %d: %q", width, row)
+		}
+	}
+	if detail := strings.Join(m.pullRequestDetail(pr), "\n"); !strings.Contains(detail, "Target branch: release/next") {
+		t.Fatal(detail)
+	}
+	for _, width := range []int{20, 32, 40, 60, 80, 100, 120} {
+		m.Width = width
+		pr.TargetBranch = strings.Repeat("界", 100) + "\x1b]52;unsafe\a"
+		row := ansi.Strip(m.prPickerRow(pr))
+		limit := width - 2
+		if width >= 100 {
+			limit = m.prPickerGeometry(1).leftWidth - 2
+		}
+		if visibleWidth(row) > limit || strings.Contains(row, "\x1b") {
+			t.Fatalf("unsafe/oversized row at %d: %q", width, row)
+		}
+	}
+}

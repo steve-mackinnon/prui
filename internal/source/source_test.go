@@ -367,13 +367,13 @@ func TestGitHubListPullRequestsViewerReview(t *testing.T) {
 
 func TestGitHubListPullRequestsIncludesDescription(t *testing.T) {
 	g := GH{Executable: "trusted-gh", Dir: t.TempDir(), Limits: Defaults(), Runner: listRunner(func(_ context.Context, request Request) ([]byte, error) {
-		if !strings.Contains(request.Args[5], "number title body") {
+		if !strings.Contains(request.Args[5], "number title body") || !strings.Contains(request.Args[5], "baseRefName") {
 			t.Fatal("description not requested")
 		}
-		return []byte(`{"data":{"repository":{"pullRequests":{"nodes":[{"number":42,"title":"Preview","body":"## Changes\nRead before opening.","createdAt":"2026-09-23T12:00:00Z"}]}}}}`), nil
+		return []byte(`{"data":{"repository":{"pullRequests":{"nodes":[{"number":42,"title":"Preview","baseRefName":"release/next","body":"## Changes\nRead before opening.","createdAt":"2026-09-23T12:00:00Z"}]}}}}`), nil
 	})}
 	prs, err := g.ListPullRequests(context.Background(), "owner/repo")
-	if err != nil || len(prs) != 1 || prs[0].Description != "## Changes\nRead before opening." {
+	if err != nil || len(prs) != 1 || prs[0].Description != "## Changes\nRead before opening." || prs[0].TargetBranch != "release/next" {
 		t.Fatal(prs, err)
 	}
 }
@@ -396,6 +396,17 @@ func TestGitHubListDescriptionBoundsAndNull(t *testing.T) {
 		}
 		if !tc.valid && err == nil {
 			t.Fatal("accepted invalid description")
+		}
+	}
+}
+
+func TestGitHubListRejectsInvalidTargetBranch(t *testing.T) {
+	for _, branch := range []string{"bad\nbranch", "bad\rbranch", "bad\x00branch", strings.Repeat("x", 513)} {
+		g := GH{Executable: "trusted-gh", Dir: t.TempDir(), Limits: Defaults(), Runner: listRunner(func(context.Context, Request) ([]byte, error) {
+			return []byte(`{"data":{"repository":{"pullRequests":{"nodes":[{"number":42,"title":"Change","createdAt":"2026-09-23T12:00:00Z","baseRefName":` + strconv.Quote(branch) + `}]}}}}`), nil
+		})}
+		if _, err := g.ListPullRequests(context.Background(), "owner/repo"); err == nil {
+			t.Fatalf("accepted invalid branch %q", branch)
 		}
 	}
 }

@@ -40,8 +40,12 @@ func (m *Model) prCarouselTarget() prCarouselTarget {
 		width = min(120, max(0, m.Width-2))
 		if width >= 32 {
 			statusWidth := visibleWidth("⏳ Checks pending")
-			authorWidth := min(20, max(1, width-statusWidth-15))
-			width -= 3 + authorWidth + 2 + statusWidth + 2
+			targetWidth := 0
+			if pr.TargetBranch != "" && width >= 60 {
+				targetWidth = min(20, width-45) + 2
+			}
+			authorWidth := min(20, max(1, width-statusWidth-15-targetWidth))
+			width -= 3 + authorWidth + 2 + statusWidth + 2 + targetWidth
 		}
 	}
 	title := fmt.Sprintf("#%d  %s", pr.Identity.Number, Escape(pr.Title))
@@ -135,10 +139,15 @@ func (m *Model) prPickerSuffix(pr source.PullRequest, styled bool) string {
 		status = m.styleLine(prCheckAccent(status), status)
 		author = m.styleLine(classHunk, author)
 	}
-	if author != "" {
-		return "  " + author + " " + status
+	target := ""
+	if pr.TargetBranch != "" {
+		targetWidth := max(1, min(19, m.prPickerGeometry(1).leftWidth-2-visibleWidth(author)-13))
+		target = "  " + clip("target: "+Escape(pr.TargetBranch), targetWidth)
 	}
-	return "  " + status
+	if author != "" {
+		return target + "  " + author + " " + status
+	}
+	return target + "  " + status
 }
 
 func (m *Model) paddedPRPickerTitle(title string, width int) string {

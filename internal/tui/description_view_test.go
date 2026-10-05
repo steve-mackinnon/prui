@@ -205,3 +205,16 @@ func TestDescriptionFooterStaysAtBottom(t *testing.T) {
 		}
 	}
 }
+
+func TestDescriptionViewShowsTargetBranch(t *testing.T) {
+	m := New(context.Background(), nil)
+	defer m.Close()
+	s := screenSession()
+	s.Inventory.Comparison.Metadata.TargetBranch = "release/next"
+	m.openReviewTab(s)
+	m.Width, m.Height = 80, 24
+	m.selectReviewView(viewDescription)
+	if view := ansi.Strip(m.View().Content); !strings.Contains(view, "Target branch: release/next") {
+		t.Fatal(view)
+	}
+}

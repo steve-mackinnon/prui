@@ -2728,6 +2728,10 @@ func (m *Model) contextViewPlaceholder() string {
 
 func (m *Model) descriptionView() string {
 	lines := m.descriptionLines()
+	if target := m.Session.Inventory.Comparison.Metadata.TargetBranch; target != "" {
+		branchLines := strings.Split(ansi.Wrap("Target branch: "+Escape(target), max(1, m.Width), ""), "\n")
+		lines = append(branchLines, lines...)
+	}
 	height := m.descriptionBodyHeight()
 	m.DescriptionScroll = max(0, min(m.DescriptionScroll, max(0, len(lines)-height)))
 	end := min(len(lines), m.DescriptionScroll+height)

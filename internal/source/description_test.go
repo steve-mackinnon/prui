@@ -9,7 +9,7 @@ import (
 func TestGitHubMetadataCapturesAndValidatesDescription(t *testing.T) {
 	base, head := strings.Repeat("a", 40), strings.Repeat("b", 40)
 	metadataJSON := func(body string) []byte {
-		return []byte(`{"number":42,"body":` + body + `,"base":{"sha":"` + base + `","repo":{"full_name":"owner/repo"}},"head":{"sha":"` + head + `","repo":{"full_name":"fork/repo"}}}`)
+		return []byte(`{"number":42,"body":` + body + `,"base":{"ref":"release/next","sha":"` + base + `","repo":{"full_name":"owner/repo"}},"head":{"sha":"` + head + `","repo":{"full_name":"fork/repo"}}}`)
 	}
 	for _, tc := range []struct {
 		name, body string
@@ -26,7 +26,7 @@ func TestGitHubMetadataCapturesAndValidatesDescription(t *testing.T) {
 			if (err == nil) != tc.valid {
 				t.Fatalf("Metadata error = %v, want valid=%v", err, tc.valid)
 			}
-			if tc.valid && got.Description != tc.want {
+			if tc.valid && (got.Description != tc.want || got.TargetBranch != "release/next") {
 				t.Fatalf("description = %q, want %q", got.Description, tc.want)
 			}
 		})

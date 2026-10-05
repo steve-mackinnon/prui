@@ -96,12 +96,14 @@ func TestScreenSnapshots(t *testing.T) {
 		{"description_wide", 120, 18, func(m *Model) {
 			description := descriptionMarkdown
 			m.Session.PullRequestDescription = &description
+			m.Session.Inventory.Comparison.Metadata.TargetBranch = "main"
 			m.openReviewTab(m.Session)
 			key(m, '1')
 		}},
 		{"description_narrow", 60, 18, func(m *Model) {
 			description := descriptionMarkdown
 			m.Session.PullRequestDescription = &description
+			m.Session.Inventory.Comparison.Metadata.TargetBranch = "main"
 			m.openReviewTab(m.Session)
 			key(m, '1')
 		}},
@@ -153,12 +155,12 @@ func TestScreenSnapshots(t *testing.T) {
 		{"pull_requests_split", 120, 24, func(m *Model) {
 			m.Session = nil
 			m.Stack = []page{pagePullRequestPicker}
-			m.PullRequests = []source.PullRequest{{Identity: source.Identity{Repository: "example/review", Number: 42}, Title: "Fix retry handling", Author: "alice", LastModifier: "bob", OpenedAt: time.Date(2026, 9, 23, 12, 0, 0, 0, time.UTC), Checks: source.ChecksPassed, Description: "## Summary\n\nPreserve cancellation while retrying failed requests.\n\n- Bound the retry count\n- Cover cancellation"}, {Identity: source.Identity{Number: 39}, Title: "Add cache support", Author: "sam", Checks: source.ChecksPending}}
+			m.PullRequests = []source.PullRequest{{Identity: source.Identity{Repository: "example/review", Number: 42}, Title: "Fix retry handling", TargetBranch: "main", Author: "alice", LastModifier: "bob", OpenedAt: time.Date(2026, 9, 23, 12, 0, 0, 0, time.UTC), Checks: source.ChecksPassed, Description: "## Summary\n\nPreserve cancellation while retrying failed requests.\n\n- Bound the retry count\n- Cover cancellation"}, {Identity: source.Identity{Number: 39}, Title: "Add cache support", TargetBranch: "release/next", Author: "sam", Checks: source.ChecksPending}}
 		}},
 		{"pull_requests_stacked", 80, 20, func(m *Model) {
 			m.Session = nil
 			m.Stack = []page{pagePullRequestPicker}
-			m.PullRequests = []source.PullRequest{{Identity: source.Identity{Number: 42}, Title: "Fix retry handling", Author: "alice", Description: "Preserve cancellation while retrying requests."}}
+			m.PullRequests = []source.PullRequest{{Identity: source.Identity{Number: 42}, Title: "Fix retry handling", TargetBranch: "main", Author: "alice", Description: "Preserve cancellation while retrying requests."}}
 		}},
 		{"pull_requests", 60, 8, func(m *Model) {
 			m.Session = nil

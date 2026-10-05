@@ -52,12 +52,14 @@ func ParseIdentity(input, repository string) (Identity, error) {
 }
 
 type Metadata struct {
+	TargetBranch                                     string
 	Identity                                         Identity
 	BaseRepository, HeadRepository, BaseSHA, HeadSHA string
 	Description                                      string
 }
 
 type PullRequest struct {
+	TargetBranch string
 	Description  string
 	Identity     Identity
 	Title        string
@@ -492,6 +494,7 @@ func (g *GH) Metadata(ctx context.Context, id Identity) (Metadata, error) {
 	}
 	type side struct {
 		SHA  string `json:"sha"`
+		Ref  string `json:"ref"`
 		Repo *struct {
 			FullName string `json:"full_name"`
 		} `json:"repo"`
@@ -511,8 +514,8 @@ func (g *GH) Metadata(ctx context.Context, id Identity) (Metadata, error) {
 	if !utf8.ValidString(description) || len(description) > descriptionMaxBytes {
 		return Metadata{}, errors.New("invalid pull request description")
 	}
-	m := Metadata{Identity: id, BaseRepository: raw.Base.Repo.FullName, HeadRepository: raw.Head.Repo.FullName, BaseSHA: raw.Base.SHA, HeadSHA: raw.Head.SHA, Description: description}
-	if !repositoryPattern.MatchString(m.BaseRepository) || !repositoryPattern.MatchString(m.HeadRepository) || !strings.EqualFold(m.BaseRepository, id.Repository) || !shaPattern.MatchString(m.BaseSHA) || !shaPattern.MatchString(m.HeadSHA) {
+	m := Metadata{TargetBranch: raw.Base.Ref, Identity: id, BaseRepository: raw.Base.Repo.FullName, HeadRepository: raw.Head.Repo.FullName, BaseSHA: raw.Base.SHA, HeadSHA: raw.Head.SHA, Description: description}
+	if !validListText(m.TargetBranch) || !repositoryPattern.MatchString(m.BaseRepository) || !repositoryPattern.MatchString(m.HeadRepository) || !strings.EqualFold(m.BaseRepository, id.Repository) || !shaPattern.MatchString(m.BaseSHA) || !shaPattern.MatchString(m.HeadSHA) {
 		return Metadata{}, errors.New("unsupported repository or revision metadata")
 	}
 	return m, nil
@@ -523,7 +526,7 @@ func (g *GH) ListPullRequests(ctx context.Context, repository string) ([]PullReq
 		return nil, err
 	}
 	parts := strings.Split(repository, "/")
-	const query = `query($owner:String!,$name:String!){repository(owner:$owner,name:$name){pullRequests(first:100,states:OPEN,orderBy:{field:CREATED_AT,direction:DESC}){nodes{number title body createdAt author{login} viewerLatestReview{state} commits(last:1){nodes{commit{author{name user{login}} statusCheckRollup{state}}}}}}}}`
+	const query = `query($owner:String!,$name:String!){repository(owner:$owner,name:$name){pullRequests(first:100,states:OPEN,orderBy:{field:CREATED_AT,direction:DESC}){nodes{number title body baseRefName createdAt author{login} viewerLatestReview{state} commits(last:1){nodes{commit{author{name user{login}} statusCheckRollup{state}}}}}}}}`
 	data, err := g.call(ctx, "api", "--hostname", "github.com", "graphql", "-f", "query="+query, "-F", "owner="+parts[0], "-F", "name="+parts[1])
 	if err != nil {
 		return nil, fmt.Errorf("GitHub pull request list unavailable (check authentication and connectivity): %w", err)
@@ -535,6 +538,7 @@ func (g *GH) ListPullRequests(ctx context.Context, repository string) ([]PullReq
 					Nodes []struct {
 						Number             int       `json:"number"`
 						Title              string    `json:"title"`
+						BaseRefName        string    `json:"baseRefName"`
 						Body               string    `json:"body"`
 						CreatedAt          time.Time `json:"createdAt"`
 						ViewerLatestReview *struct {
@@ -570,10 +574,10 @@ func (g *GH) ListPullRequests(ctx context.Context, repository string) ([]PullReq
 	prs := make([]PullRequest, 0, len(raw.Data.Repository.PullRequests.Nodes))
 	seen := map[int]bool{}
 	for _, item := range raw.Data.Repository.PullRequests.Nodes {
-		if item.Number <= 0 || seen[item.Number] || item.CreatedAt.IsZero() || !validListText(item.Title) || !utf8.ValidString(item.Body) || len(item.Body) > descriptionMaxBytes || len(item.Commits.Nodes) > 1 {
+		if item.Number <= 0 || seen[item.Number] || item.CreatedAt.IsZero() || !validListText(item.Title) || !validListText(item.BaseRefName) || !utf8.ValidString(item.Body) || len(item.Body) > descriptionMaxBytes || len(item.Commits.Nodes) > 1 {
 			return nil, errors.New("invalid pull request list")
 		}
-		pr := PullRequest{Identity: Identity{Repository: repository, Number: item.Number}, Title: item.Title, Description: item.Body, OpenedAt: item.CreatedAt, Checks: ChecksUnknown}
+		pr := PullRequest{TargetBranch: item.BaseRefName, Identity: Identity{Repository: repository, Number: item.Number}, Title: item.Title, Description: item.Body, OpenedAt: item.CreatedAt, Checks: ChecksUnknown}
 		if item.ViewerLatestReview != nil {
 			switch item.ViewerLatestReview.State {
 			case "APPROVED", "CHANGES_REQUESTED", "COMMENTED", "DISMISSED", "PENDING":
