@@ -88,6 +88,7 @@ type descriptionRenderCache struct {
 // reviewTabState is the reviewer-visible state that must travel with an open
 // review. Window dimensions and services remain shared by the workspace.
 type reviewTabState struct {
+	draft                                                draftState
 	discussions                                          discussionState
 	commit                                               commitState
 	commitFilter                                         commitFilterState
@@ -151,6 +152,7 @@ const (
 	pageQuitPending
 	pageThemePicker
 	pageDiscussions
+	pageDraftRecovery
 )
 
 // commentComposer is deliberately tab-owned. Its target is copied from the
@@ -168,6 +170,7 @@ type commentComposer struct {
 }
 
 type commentActionMenu struct {
+	RootAnchor *source.ReviewCommentTarget
 	CommentID  int64
 	ReplyToID  int64 // GitHub permits replies only to the thread's root comment.
 	Target     source.ReviewCommentTarget
@@ -189,8 +192,9 @@ const (
 )
 
 type Model struct {
-	guideCache guideDetailCache
-	fileCache  fileDetailCache
+	reconcileDraft DraftReconciler
+	guideCache     guideDetailCache
+	fileCache      fileDetailCache
 	*reviewTabState
 	drag                 dividerDrag
 	pendingCenter        bool
@@ -348,6 +352,8 @@ func (m *Model) Init() tea.Cmd {
 	})
 }
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	m.loadDraft(m.reviewTabState)
+	defer m.persistDrafts()
 	model, cmd := m.update(msg)
 	carouselCmd := m.syncPRCarousel()
 	if carouselCmd == nil {
@@ -432,6 +438,7 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if v.Err == nil && v.Session != nil {
 			m.Session = v.Session
 			if v.Reset {
+				m.notice = "New comparison: previous drafts remain with the previous saved comparison"
 				if m.commitFilter.cancel != nil {
 					m.commitFilter.cancel()
 				}
@@ -454,9 +461,18 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.cursorActive = false
 				m.Stack = []page{pageReview}
 				m.Focus = paneList
+				m.loadDraft(m.reviewTabState)
 				m.begin()
 				return m, tea.Batch(m.refreshDiscussions(), m.refreshCommentsInBackground())
 			}
+		}
+	case draftReconciled:
+		active := m.activeTab
+		busy, actionErr, notice := m.Busy, m.ActionError, m.notice
+		v.err = m.finishAction(v.err)
+		m.applyDraftReconciled(v)
+		if active != v.target {
+			m.Busy, m.ActionError, m.notice = busy, actionErr, notice
 		}
 	case CommentResult:
 		active := m.activeTab
@@ -566,7 +582,7 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if state.discussions.cancel != nil {
 			state.discussions.cancel()
 		}
-		m.tabs[v.Target].review = newReviewTabState(v.Freshness.Session)
+		m.tabs[v.Target].review = m.newDraftReviewTab(v.Freshness.Session)
 		if v.Target == m.activeTab {
 			m.restoreReviewTab(m.tabs[v.Target].review)
 			return m, tea.Batch(m.refreshDiscussions(), m.refreshCommentsInBackground())
@@ -632,6 +648,9 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.Busy && v.String() == "esc" && m.cancelAction != nil {
 			m.cancelCurrentAction()
 			return m, nil
+		}
+		if m.top() == pageDraftRecovery && v.String() != "q" && v.String() != "ctrl+c" {
+			return m, m.draftRecoveryKey(v)
 		}
 		if m.top() == pageQuitPending && v.String() != "ctrl+c" {
 			// The modal owns Enter/Escape; an underlying composer must never
@@ -937,11 +956,11 @@ func (m *Model) registerReviewTab(s *review.Session, activate bool) {
 		return
 	}
 	if !activate {
-		m.tabs = append(m.tabs, workspaceTab{identity: identity, title: m.knownPRTitle(identity), review: newReviewTabState(s)})
+		m.tabs = append(m.tabs, workspaceTab{identity: identity, title: m.knownPRTitle(identity), review: m.newDraftReviewTab(s)})
 		return
 	}
 	m.saveActiveCursorAnchor()
-	m.tabs = append(m.tabs, workspaceTab{identity: identity, title: m.knownPRTitle(identity), review: newReviewTabState(s)})
+	m.tabs = append(m.tabs, workspaceTab{identity: identity, title: m.knownPRTitle(identity), review: m.newDraftReviewTab(s)})
 	m.activeTab = len(m.tabs) - 1
 	m.restoreReviewTab(m.tabs[m.activeTab].review)
 }
@@ -1099,7 +1118,16 @@ func (m *Model) pageKey(p page, key tea.KeyPressMsg) tea.Cmd {
 		switch k {
 		case "esc":
 			m.pop()
+		case "s":
+			if !m.saveDraftsForQuit() {
+				return nil
+			}
+			m.cancel()
+			return tea.Quit
 		case "enter":
+			if !m.discardDraftsForQuit() {
+				return nil
+			}
 			m.cancel()
 			return tea.Quit
 		}
@@ -1158,6 +1186,7 @@ func (m *Model) openCommentActionMenu() bool {
 	for _, comment := range m.Comments {
 		if comment.ID == line.commentID {
 			m.CommentMenu = &commentActionMenu{CommentID: comment.ID, ReplyToID: m.topLevelCommentID(comment.ID), Target: comment.Target, Author: comment.Author}
+			m.resolveReplyRoot(m.CommentMenu)
 			m.ensureCursorVisible()
 			return true
 		}
@@ -1442,7 +1471,7 @@ func (m *Model) detail() []diffLine {
 	base := m.baseDetail()
 	// Source rows are immutable; the renderer copies just the visible viewport.
 	// Avoid rebuilding the whole review on every navigation call without overlays.
-	if len(m.Comments) == 0 && len(m.Pending) == 0 && m.Composer == nil {
+	if len(m.Comments) == 0 && len(m.Pending) == 0 && m.Composer == nil && (m.CommentMenu == nil || m.CommentMenu.mode != commentActionReply) {
 		return m.wrapSource(base)
 	}
 	lines := make([]diffLine, 0, len(base)+len(m.Comments)+2)
@@ -1456,6 +1485,7 @@ func (m *Model) detail() []diffLine {
 				lines = append(lines, m.reviewCommentThread(comment, 0)...)
 			}
 		}
+		lines = append(lines, m.recoveredReplyLines(*line.target)...)
 		lines = append(lines, m.pendingLines(*line.target)...)
 		if m.Composer != nil && m.Composer.Target == *line.target {
 			lines = append(lines, m.inlineEditorLines()...)
@@ -1489,7 +1519,7 @@ func (m *Model) sideBySideDetail() []diffLine {
 	} else {
 		base = projectSideBySideDetail(m.baseDetail())
 	}
-	if len(m.Comments) == 0 && len(m.Pending) == 0 && m.Composer == nil {
+	if len(m.Comments) == 0 && len(m.Pending) == 0 && m.Composer == nil && (m.CommentMenu == nil || m.CommentMenu.mode != commentActionReply) {
 		return m.wrapSource(base)
 	}
 	lines := make([]diffLine, 0, len(base)+len(m.Comments)+2)
@@ -1507,6 +1537,7 @@ func (m *Model) sideBySideDetail() []diffLine {
 					lines = append(lines, m.reviewCommentThread(comment, 0)...)
 				}
 			}
+			lines = append(lines, m.recoveredReplyLines(target)...)
 			lines = append(lines, m.pendingLines(target)...)
 			if m.Composer != nil && m.Composer.Target == target {
 				lines = append(lines, m.inlineEditorLines()...)
@@ -1947,6 +1978,8 @@ func (m *Model) View() tea.View {
 		text = "Unable to open review\n" + Escape(m.Err.Error()) + "\nNo complete comparison available. q: quit"
 	default:
 		switch m.top() {
+		case pageDraftRecovery:
+			text = renderActionModal(m.Width, m.Height, m.actionModalBackground(), m.draftRecoveryView(), m.modalSurface)
 		case pageDiscussions:
 			text = m.discussionsView()
 		case pagePicker:
@@ -1964,7 +1997,11 @@ func (m *Model) View() tea.View {
 		case pageReviewSubmit:
 			text = m.reviewFormModalView()
 		case pageQuitPending:
-			text = renderActionModal(m.Width, m.Height, m.actionModalBackground(), "Discard unsent review drafts and quit?\n\nenter: discard and quit · esc: keep reviewing", m.modalSurface)
+			body := "Discard unsent review drafts and quit?\n\ns: save and quit · enter: discard and quit · esc: keep reviewing"
+			if m.ActionError != nil {
+				body += "\n! " + Escape(m.ActionError.Error())
+			}
+			text = renderActionModal(m.Width, m.Height, m.actionModalBackground(), body, m.modalSurface)
 		case pageThemePicker:
 			text = m.themePickerView()
 		case pageEvidence:

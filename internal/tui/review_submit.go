@@ -15,8 +15,8 @@ var reviewEvents = []struct{ label, description, event string }{
 	{"Request changes", "Suggest changes before merging", "REQUEST_CHANGES"},
 }
 
-// The form and queued comments belong to one open review tab and never enter a
-// saved session. The confirmation state keeps Enter from writing accidentally.
+// The form and queued comments belong to one pinned comparison; the separate
+// mutable draft store never includes them in immutable snapshots. The confirmation state keeps Enter from writing accidentally.
 type reviewForm struct {
 	Event, Focus, Selected int // focus: event, summary, pending comments
 	Body                   string
@@ -280,6 +280,23 @@ func (m *Model) reviewFormKey(key tea.KeyPressMsg) tea.Cmd {
 		return nil
 	}
 	k := key.String()
+	if k == "ctrl+r" && m.draft.attempt != "" {
+		return m.reconcileDraftCommand()
+	}
+	if k == "ctrl+d" {
+		m.Pending = nil
+		m.ReviewForm = nil
+		m.Composer = nil
+		m.CommentMenu = nil
+		m.draft.attempt = ""
+		m.draft.attempted = nil
+		m.pop()
+		return nil
+	}
+	if m.draft.attempt != "" && k != "esc" {
+		m.ActionError = errors.New("delivery uncertain: ctrl+r to check GitHub or ctrl+d to discard")
+		return nil
+	}
 	if f.Confirm {
 		switch k {
 		case "esc":
@@ -287,6 +304,9 @@ func (m *Model) reviewFormKey(key tea.KeyPressMsg) tea.Cmd {
 		case "enter":
 			if m.submitReview == nil || m.Session == nil {
 				m.ActionError = errors.New("review submission unavailable")
+				return nil
+			}
+			if !m.prepareDraftAttempt("review") {
 				return nil
 			}
 			f.generation++
@@ -441,6 +461,8 @@ func (m *Model) applyReviewResult(result ReviewResult) {
 	state.Busy = false
 	state.ActionError = result.Err
 	if result.Err == nil {
+		state.draft.attempt = ""
+		state.draft.attempted = nil
 		state.Pending = nil
 		state.ReviewForm = nil
 		state.ReviewSubmitted = true

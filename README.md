@@ -216,3 +216,23 @@ preserve design and review context. Maintainers can follow the
 ## License
 
 Licensed under the [MIT License](LICENSE).
+
+Unsent review work is saved privately alongside local session storage, separately
+from frozen source and guides. Inline and reply editors, pending comments, review
+summaries, and decisions recover when you reopen the same pinned comparison.
+The recovery modal shows retained text even offline. Changing the PR head starts
+an independent draft; reopen the previous saved session to inspect the old one.
+
+In the quit confirmation, `s` saves and quits, Enter discards drafts in open tabs,
+and Escape continues reviewing. Escape inside a comment/reply editor discards
+that editor. Use `d` to remove a pending comment or `ctrl+d` in the review/recovery
+modal to discard that comparison's drafts. Deleting its last saved session also
+deletes its drafts. Storage is private local SQLite, not encrypted or synced to
+GitHub.
+
+After a failed, canceled, or interrupted submission, `ctrl+r` checks GitHub before
+retry is enabled. An exact remote match asks you to discard the retained draft;
+failed or bounded/incomplete history keeps retry blocked. No request is repeated
+automatically. Matching uses the original attempted request, not later edits.
+Identical earlier submissions conservatively count as matches; delayed requests
+still have no GitHub idempotency guarantee.

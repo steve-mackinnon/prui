@@ -192,3 +192,15 @@ both macOS and Linux; a cross-build alone does not establish runtime behavior.
 The driver is embedded and requires no user-installed SQLite tools or library.
 Windows support and verification remain deferred. See
 [SQLite verification evidence](docs/SQLITE-VERIFICATION.md) for measured results.
+
+## Durable review drafts
+
+`go test -race ./internal/session ./internal/tui ./internal/source -run 'TestDraft|TestReplyDraft|TestReplyAttempt|TestHistoricalDraft|TestProgramDraft' -count=1`
+covers durable editor/summary/reply recovery, a child process exiting without
+cleanup after saving write intent, same-comparison sharing and deletion, stale
+writers, changed pins, historical provenance, associated root anchors, and
+bounded remote outcome matching. The real Bubble Tea journey saves, quits, and
+reopens a summary. All GitHub history is synthetic; no fixture contacts GitHub.
+Malformed, null, capped, or failed history cannot enable retry. Manual terminal
+usability and GitHub's delayed in-flight request behavior remain outside this
+synthetic verification.
