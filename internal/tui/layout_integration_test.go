@@ -120,16 +120,45 @@ func TestLayoutRealCapturePrivateDraftOfflineRecovery(t *testing.T) {
 			}
 			// Clear search entirely: manual source navigation has the same anchor.
 			m.search = [2]*diffSearchState{}
+			key(m, 'S')
 			m.Update(tea.KeyPressMsg{Code: 'c', Mod: tea.ModAlt})
 			m.resizeList(5)
 			m.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
 			m.Update(tea.WindowSizeMsg{Width: 200, Height: 24})
-			if m.displayDetail()[m.cursor()].searchID != wantID || m.selectedDiffTarget() != nil {
+			if !layoutRowHasSourceID(m.displayDetail()[m.cursor()], wantID) || m.selectedDiffTarget() != nil {
 				t.Fatal("manual read-only source moved or became target")
 			}
 			ctrlKey(m, 's')
 			if m.Composer != nil {
 				t.Fatal("read-only row became suggestion")
+			}
+			for _, mode := range []string{"OLD", "NEW"} {
+				m.navigation.mode = mode
+				m.fileCache = fileDetailCache{}
+				m.layout = diffLayoutUnified
+				m.collapseGenerated = true
+				m.selectFile(generated)
+				genID := searchSourceID{Unit: m.Session.Inventory.Files[generated].ID + ":" + mode, Row: 30}
+				codeID := searchSourceID{Unit: m.Session.Inventory.Files[code].ID + ":" + mode, Row: 1}
+				found := false
+				for i, row := range m.displayDetail() {
+					if row.searchID == genID {
+						m.setCursor(i)
+						found = true
+						break
+					}
+				}
+				if !found {
+					t.Fatal("manual generated source row missing", mode)
+				}
+				m.moveCursor(1)
+				if m.Session.UnitFiles[m.Selected] != code || !layoutRowHasSourceID(m.displayDetail()[m.cursor()], codeID) || m.selectedDiffTarget() != nil {
+					t.Fatal("crossing collapsed generated source changed raw row", mode)
+				}
+				key(m, 'S')
+				if !layoutRowHasSourceID(m.displayDetail()[m.cursor()], codeID) || m.selectedDiffTarget() != nil {
+					t.Fatal("manual source split changed raw row", mode)
+				}
 			}
 			after, _ := json.Marshal(m.Session)
 			if string(before) != string(after) {
@@ -186,4 +215,14 @@ func TestLayoutRealCapturePrivateDraftOfflineRecovery(t *testing.T) {
 			}
 		})
 	}
+}
+
+func layoutRowHasSourceID(row diffLine, id searchSourceID) bool {
+	if row.searchID == id {
+		return true
+	}
+	if row.sideBySide != nil {
+		return row.sideBySide.new != nil && row.sideBySide.new.line.searchID == id || row.sideBySide.old != nil && row.sideBySide.old.line.searchID == id
+	}
+	return false
 }

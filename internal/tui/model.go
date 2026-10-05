@@ -979,10 +979,14 @@ func (m *Model) update(msg tea.Msg) (updated tea.Model, command tea.Cmd) {
 		case "S":
 			if m.diffReviewView() {
 				keepSearchMatch := m.searchMatchAtCursor()
+				sourceRestore := m.sourceCursorRestorer()
 				target, commentID := m.cursorAnchor()
 				m.layout = m.layout.toggled()
 				m.saveLayout()
 				m.restoreCursorAnchor(target, commentID)
+				if sourceRestore != nil {
+					sourceRestore()
+				}
 				if keepSearchMatch {
 					m.revealSearchMatch()
 				}
@@ -1654,13 +1658,17 @@ func (m *Model) syncFileToLine(index int) {
 		}
 		// A generated body can contract above the current cursor as selection moves.
 		// Preserve its raw target and viewport position, never the old display index.
+		sourceRestore := m.sourceCursorRestorer()
 		target, commentID := m.cursorAnchor()
 		oldCursor, oldOffset := m.cursor(), m.offset()
 		relativeOffset := oldOffset - m.fileOffset(file)
 		m.Selected = m.Session.Slices[file].Units[0]
 		m.restoreCursorAnchor(target, commentID)
+		if sourceRestore != nil {
+			sourceRestore()
+		}
 		after, afterID := m.cursorAnchor()
-		if target != nil && after != nil && *target == *after || commentID > 0 && afterID == commentID {
+		if sourceRestore != nil || target != nil && after != nil && *target == *after || commentID > 0 && afterID == commentID {
 			m.setOffset(m.clampOffset(oldOffset + m.cursor() - oldCursor))
 		} else {
 			m.setOffset(m.clampOffset(m.fileOffset(file) + max(0, relativeOffset)))
@@ -2074,6 +2082,9 @@ func (m *Model) sourceCursorRestorer() func() {
 		return nil
 	}
 	line := m.displayDetail()[cursor]
+	if line.commentID > 0 {
+		return nil
+	}
 	if line.sideBySide != nil {
 		if line.sideBySide.new != nil {
 			line = *line.sideBySide.new.line
