@@ -2615,6 +2615,7 @@ func (m *Model) reviewViewForLayout(preferSideBySide bool) string {
 			continue
 		}
 		detail[i].Text = m.syntaxText(line, m.Horizontal, m.detailWidth(), marker)
+		detail[i].Class = sourceLineClass(line.Class)
 		if line.commentID > 0 && offset+i == cursor {
 			detail[i].Class = selectedClass(true)
 		}
@@ -2643,7 +2644,7 @@ func (m *Model) reviewViewForLayout(preferSideBySide bool) string {
 func (m *Model) frameBodyLine(content string, class lineClass, width int, edges bool) string {
 	content = clip(content, width)
 	padding := strings.Repeat(" ", max(0, width-visibleWidth(content)))
-	if class == classAdded || class == classRemoved {
+	if class == classAdded || class == classRemoved || class == classAddedSource || class == classRemovedSource {
 		content += padding
 		padding = ""
 	}

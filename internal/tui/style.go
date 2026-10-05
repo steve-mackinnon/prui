@@ -33,6 +33,8 @@ const (
 	classPaneBorder
 	classPaneBorderFocused
 	classPaneHeaderFocused
+	classAddedSource
+	classRemovedSource
 )
 
 // styledLine is one already-escaped display line plus its semantic class.
@@ -75,14 +77,16 @@ func stylesFor(t theme.Theme) map[lineClass]lipgloss.Style {
 		return c
 	}
 	return map[lineClass]lipgloss.Style{
-		classTitle:       semantic(colorFor(theme.Title), true),
-		classFileHeader:  semantic(colorFor(theme.FileHeader), true),
-		classHunk:        semantic(colorFor(theme.Hunk), false),
-		classAdded:       semantic(colorFor(theme.Added), false).Background(diffBackground(t, theme.Added)),
-		classRemoved:     semantic(colorFor(theme.Removed), false).Background(diffBackground(t, theme.Removed)),
-		classMetadata:    semantic(colorFor(theme.Metadata), false),
-		classWarning:     semantic(colorFor(theme.Warning), true),
-		classUnavailable: semantic(colorFor(theme.Unavailable), true),
+		classAddedSource:   lipgloss.NewStyle().TabWidth(lipgloss.NoTabConversion).Background(diffBackground(t, theme.Added)),
+		classRemovedSource: lipgloss.NewStyle().TabWidth(lipgloss.NoTabConversion).Background(diffBackground(t, theme.Removed)),
+		classTitle:         semantic(colorFor(theme.Title), true),
+		classFileHeader:    semantic(colorFor(theme.FileHeader), true),
+		classHunk:          semantic(colorFor(theme.Hunk), false),
+		classAdded:         semantic(colorFor(theme.Added), false).Background(diffBackground(t, theme.Added)),
+		classRemoved:       semantic(colorFor(theme.Removed), false).Background(diffBackground(t, theme.Removed)),
+		classMetadata:      semantic(colorFor(theme.Metadata), false),
+		classWarning:       semantic(colorFor(theme.Warning), true),
+		classUnavailable:   semantic(colorFor(theme.Unavailable), true),
 		// A muted background makes the selected row discoverable even while focus is
 		// in the detail pane. The textual chevron remains the primary cue when a
 		// terminal removes colors.
@@ -185,9 +189,9 @@ func (m *Model) styleLine(c lineClass, s string) string {
 		return s
 	}
 	rendered := style.Render(s)
-	if (c == classAdded || c == classRemoved) && m.colorProfile > colorprofile.Ascii {
+	if (c == classAdded || c == classRemoved || c == classAddedSource || c == classRemovedSource) && m.colorProfile > colorprofile.Ascii {
 		role := theme.Added
-		if c == classRemoved {
+		if c == classRemoved || c == classRemovedSource {
 			role = theme.Removed
 		}
 		// Nested syntax SGR resets can clear an outer Lip Gloss background.
@@ -224,4 +228,17 @@ func diffBackground(t theme.Theme, role theme.Token) color.Color {
 		return uint8(value)
 	}
 	return color.RGBA{R: channel(ar, br), G: channel(ag, bg), B: channel(ab, bb), A: 255}
+}
+
+// Source rows carry backgrounds only; semantic status indicators still use the
+// existing added/removed foreground styles.
+func sourceLineClass(class lineClass) lineClass {
+	switch class {
+	case classAdded:
+		return classAddedSource
+	case classRemoved:
+		return classRemovedSource
+	default:
+		return class
+	}
 }

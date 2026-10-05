@@ -109,19 +109,68 @@ func wrappedSyntax(line diffLine, part string, offset *int) diffLine {
 	return line
 }
 
-// syntaxText styles only at the presentation boundary, after rune panning and
-// cell clipping. Source caches and all review coordinates stay unstyled.
-func (m *Model) syntaxText(line diffLine, horizontal, width int, prefix string) (rendered string) {
+// syntaxText separates the structural patch marker from source before styling.
+// Fragment renderers use sourceText directly, so source '+'/'-' is never a marker.
+func (m *Model) syntaxText(line diffLine, horizontal, width int, prefix string) string {
+	if line.Class != classAdded && line.Class != classRemoved && line.Class != classContext {
+		prefix = clip(prefix, width)
+		runes := []rune(line.Text)
+		rendered := prefix + clip(string(runes[min(max(horizontal, 0), len(runes)):]), max(0, width-visibleWidth(prefix)))
+		if m.linksAvailable() {
+			rendered = linkSourceURLs(rendered, line.Text, horizontal, visibleWidth(prefix))
+		}
+		return rendered
+	}
+	marker, text := splitPatchMarker(line.Text)
+	if len(line.Text) > 0 && (line.Text[0] == '+' || line.Text[0] == '-' || line.Text[0] == ' ') {
+		line.Text = text
+		line.sourceOffset += len(marker)
+		line.syntax = cropSpans(line.syntax, len(marker), len(text)+len(marker), 0)
+		line.wordChanges = cropSpans(line.wordChanges, len(marker), len(text)+len(marker), 0)
+		if horizontal <= 0 {
+			prefix += m.patchMarker(marker, line.Class)
+		} else {
+			horizontal--
+		}
+	}
+	return m.sourceText(line, horizontal, width, prefix, theme.Foreground)
+}
+
+func (m *Model) patchMarker(marker string, class lineClass) string {
+	if m.colorProfile <= colorprofile.Ascii {
+		return marker
+	}
+	role := theme.Foreground
+	if class == classAdded {
+		role = theme.Added
+	} else if class == classRemoved {
+		role = theme.Removed
+	}
+	c, _ := m.theme.Color(role)
+	return lipgloss.NewStyle().Foreground(c).TabWidth(lipgloss.NoTabConversion).Render(marker)
+}
+
+// sourceText resolves foreground resets in each visible source fragment before
+// row styling. The base role is normally Foreground; a search match uses its
+// contrasting foreground while explicit syntax colors remain authoritative.
+func (m *Model) sourceText(line diffLine, horizontal, width int, prefix string, baseRole theme.Token) (rendered string) {
 	defer func() {
+		if m.colorProfile > colorprofile.Ascii {
+			foreground, _ := m.theme.Color(baseRole)
+			if foreground == nil {
+				foreground, _ = m.theme.Color(theme.Foreground)
+			}
+			rendered = paintThemeCanvas(rendered, visibleWidth(rendered), 1, foreground, nil)
+		}
 		if m.linksAvailable() {
 			rendered = linkSourceURLs(rendered, line.Text, horizontal, visibleWidth(clip(prefix, width)))
 		}
 	}()
-	if highlighted, ok := m.searchHighlightedText(line, horizontal, width, prefix); ok {
+	if highlighted, ok := m.searchHighlightedText(line, horizontal, width, prefix, baseRole); ok {
 		return highlighted
 	}
 	if len(line.wordChanges) > 0 && m.colorProfile > colorprofile.Ascii {
-		return m.wordHighlightedText(line, horizontal, width, prefix)
+		return m.wordHighlightedText(line, horizontal, width, prefix, baseRole)
 	}
 	prefix = clip(prefix, width)
 	runes := []rune(line.Text)
@@ -163,9 +212,5 @@ func (m *Model) syntaxText(line diffLine, horizontal, width int, prefix string) 
 		last = s.End
 	}
 	out.WriteString(text[last:])
-	base := lipgloss.NewStyle().TabWidth(lipgloss.NoTabConversion)
-	if c, ok := m.theme.Color(theme.Foreground); ok {
-		base = base.Foreground(c)
-	}
-	return base.Render(out.String())
+	return out.String()
 }

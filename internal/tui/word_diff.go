@@ -1,8 +1,9 @@
 package tui
 
 import (
-	"charm.land/lipgloss/v2"
+	uv "github.com/charmbracelet/ultraviolet"
 	"prui/internal/syntax"
+	"prui/internal/theme"
 	"unicode"
 	"unicode/utf8"
 )
@@ -200,7 +201,7 @@ func attachWordChanges(lines []diffLine, patchBytes int) {
 	}
 }
 
-func (m *Model) wordHighlightedText(line diffLine, horizontal, width int, prefix string) string {
+func (m *Model) wordHighlightedText(line diffLine, horizontal, width int, prefix string, baseRole theme.Token) string {
 	prefix = clip(prefix, width)
 	runes := []rune(line.Text)
 	start := len(string(runes[:min(max(horizontal, 0), len(runes))]))
@@ -217,9 +218,9 @@ func (m *Model) wordHighlightedText(line diffLine, horizontal, width int, prefix
 		piece.wordChanges = nil
 		piece.Text = text[a:b]
 		piece.syntax = cropSpans(line.syntax, start+a, start+b, 0)
-		styled := m.syntaxText(piece, 0, visibleWidth(piece.Text), "")
+		styled := m.sourceText(piece, 0, visibleWidth(piece.Text), "", baseRole)
 		if changed {
-			styled = lipgloss.NewStyle().Bold(true).Underline(true).TabWidth(lipgloss.NoTabConversion).Render(styled)
+			styled = emphasizeSource(styled)
 		}
 		out += styled
 	}
@@ -230,4 +231,23 @@ func (m *Model) wordHighlightedText(line diffLine, horizontal, width int, prefix
 	}
 	render(last, len(text), false)
 	return out
+}
+
+// Apply attributes to trusted cells rather than nesting an underline wrapper
+// around ANSI: Lip Gloss's space styling iterates runes, including SGR bytes.
+func emphasizeSource(text string) string {
+	width := visibleWidth(text)
+	if width == 0 {
+		return text
+	}
+	cells := themeCanvasBuffer(text, width, 1)
+	for x := 0; x < width; x++ {
+		cell := cells.CellAt(x, 0)
+		if cell.Width == 0 {
+			continue
+		}
+		cell.Style.Attrs |= uv.AttrBold
+		cell.Style.Underline = uv.UnderlineSingle
+	}
+	return cells.Render()
 }

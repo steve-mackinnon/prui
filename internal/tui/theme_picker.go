@@ -200,7 +200,7 @@ func (m *Model) themeCandidateSample(name string, width int) []string {
 	render := func(class lineClass, text string) string { return styles[class].Render(text) }
 	lines := []string{
 		render(classTitle, "Title") + "  " + render(classHunk, "@@ hunk @@") + "  " + render(classWarning, "warning"),
-		"Plain text  " + render(classAdded, "+ added") + "  " + render(classRemoved, "- removed"),
+		"Plain text  " + (&Model{theme: candidate, styles: styles, colorProfile: m.colorProfile}).diffStyleSample(),
 		render(classPaneBorder, "│ border") + "  " + render(classPaneBorderFocused, "┃ focused") + "  " + render(classSelection, "› selected") + "  " + render(classSelectionFocused, "› focused"),
 	}
 	for i, line := range lines {
@@ -212,4 +212,12 @@ func (m *Model) themeCandidateSample(name string, width int) []string {
 			themeBaseColor(candidate, theme.Foreground), themeBaseColor(candidate, theme.Background)), "\n")
 	}
 	return lines
+}
+
+func (m *Model) diffStyleSample() string {
+	render := func(class lineClass, text string) string {
+		row := diffLine{styledLine: styledLine{Class: class, Text: text}}
+		return m.styleLine(sourceLineClass(class), m.syntaxText(row, 0, visibleWidth(text), ""))
+	}
+	return render(classAdded, "+ added") + "  " + render(classRemoved, "- removed")
 }
