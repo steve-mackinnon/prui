@@ -392,7 +392,7 @@ func (m *Model) commitsView() string {
 			row := rows[i]
 			numbered := numberedPatchText(row)
 			prefix := numbered[:len(numbered)-len(row.Text)]
-			r, rc = m.syntaxText(row, 0, right, prefix), row.Class
+			r, rc = m.syntaxText(row, 0, right, prefix), sourceLineClass(row.Class)
 			if focus == paneDiff && offset+i == m.commitCursor() {
 				rc = classSelectionFocused
 			}

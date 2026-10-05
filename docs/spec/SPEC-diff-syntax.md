@@ -7,7 +7,8 @@ Highlighting is presentation-only and does not change inventory identities,
 patch bytes, comment anchors, completeness, or plain output.
 
 Use bounded per-file and per-inventory work and metadata. Unsupported languages,
-invalid text, and exhausted budgets fall back to existing diff styling. Legacy
+invalid text, and exhausted budgets fall back to normal source foregrounds with
+colored diff markers and existing row backgrounds. Legacy
 snapshots may highlight independently reconstructed old/new hunk fragments.
 
 Render categories using the active theme, preserve diff markers, and carry spans
@@ -35,3 +36,11 @@ its file-header color. Changed rows blend 25% added/removed color with the theme
 the available row width, including lines with no syntax tokens. Inherited
 backgrounds use the theme family’s light/dark baseline for changed rows only. No new theme configuration
 keys or native build dependencies are needed.
+
+Source foregrounds and changed-word/search attributes follow the
+[diff style composition contract](SPEC-diff-style-composition.md). Token-free
+lines and fragments use the same normal foreground as ordinary text between
+tokens; missing foreground channels are resolved before row styling. Structural
+patch markers retain added/removed colors independently of source colors.
+Changed-word and active-search emphasis is applied to trusted rendered cells so
+nested SGR resets cannot split an identifier's color or corrupt ANSI sequences.

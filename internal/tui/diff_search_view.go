@@ -246,7 +246,7 @@ func (m *Model) searchMouse(msg tea.MouseMsg) tea.Cmd {
 
 // Highlight ranges are derived from raw bytes and projected into the escaped
 // viewport; no ANSI or screen coordinate participates in source identity.
-func (m *Model) searchHighlightedText(line diffLine, horizontal, width int, prefix string) (string, bool) {
+func (m *Model) searchHighlightedText(line diffLine, horizontal, width int, prefix string, baseRole theme.Token) (string, bool) {
 	if line.searchID.Unit == "" || !m.diffReviewView() || m.Session == nil {
 		return "", false
 	}
@@ -285,9 +285,17 @@ func (m *Model) searchHighlightedText(line diffLine, horizontal, width int, pref
 		piece.Text = text[a:b]
 		piece.syntax = cropSpans(line.syntax, start+a, start+b, 0)
 		piece.wordChanges = cropSpans(line.wordChanges, start+a, start+b, 0)
-		styled := m.syntaxText(piece, 0, visibleWidth(piece.Text), "")
+		role := baseRole
 		if highlight {
-			styled = m.searchStyle(active).Render(styled)
+			role = theme.Background
+		}
+		styled := m.sourceText(piece, 0, visibleWidth(piece.Text), "", role)
+		if highlight && m.colorProfile > colorprofile.Ascii {
+			background, _ := m.theme.Color(theme.Warning)
+			styled = paintThemeCanvas(styled, visibleWidth(styled), 1, nil, background)
+			if active {
+				styled = emphasizeSource(styled)
+			}
 		}
 		out.WriteString(styled)
 	}

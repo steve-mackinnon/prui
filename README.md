@@ -170,9 +170,10 @@ use All changes to mark files or the Commits tab to discuss an individual commit
 Diff syntax highlighting is captured from the complete pinned old/new files and
 saved as token spans for offline review; no extra full-file source is retained.
 Older sessions use best-effort hunk highlighting. Unsupported languages and files
-beyond highlighting limits retain ordinary diff styling. Colors follow the active
-theme, with full-row green/red backgrounds that keep additions and deletions
-distinct from unchanged code.
+beyond highlighting limits use the normal source foreground. Colors follow the
+active theme; colored `+`/`-` markers and full-row green/red backgrounds keep
+additions and deletions distinct. Ordinary source stays the same color whether
+or not a line has syntax tokens, and changed-word emphasis preserves token colors.
 See the [user reference](docs/REFERENCE.md) for all controls and limitations,
 or run `prui --help` for command syntax.
 

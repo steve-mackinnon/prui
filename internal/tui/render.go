@@ -14,6 +14,7 @@ import (
 	"prui/internal/review"
 	"prui/internal/source"
 	"prui/internal/syntax"
+	"prui/internal/theme"
 )
 
 // Escape preserves printable source text while neutralizing terminal controls
@@ -321,15 +322,15 @@ func (m *Model) renderSideBySideCell(cell *diffCell, width, horizontal int) stri
 		return strings.Repeat(" ", width)
 	}
 	marker, text := splitPatchMarker(cell.line.Text)
-	gutter := fmt.Sprintf("%5d %s ", cell.number, marker)
+	gutter := fmt.Sprintf("%5d %s ", cell.number, m.patchMarker(marker, cell.line.Class))
 	source := *cell.line
 	source.Text = text
 	source.sourceOffset += len(marker)
 	source.syntax = cropSpans(source.syntax, len(marker), len(cell.line.Text), 0)
 	source.wordChanges = cropSpans(source.wordChanges, len(marker), len(cell.line.Text), 0)
-	value := m.syntaxText(source, horizontal, width, gutter)
+	value := m.sourceText(source, horizontal, width, gutter, theme.Foreground)
 	value += strings.Repeat(" ", max(0, width-visibleWidth(value)))
-	return m.styleLine(cell.line.Class, value)
+	return m.styleLine(sourceLineClass(cell.line.Class), value)
 }
 
 func splitPatchMarker(text string) (marker, source string) {
