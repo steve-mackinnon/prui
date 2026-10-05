@@ -31,7 +31,7 @@ func TestLayoutPreferencesRestartNarrowAndTabs(t *testing.T) {
 	key(m, 'S')
 	key(m, ']')
 	key(m, 'B')
-	key(m, 'C')
+	m.Update(tea.KeyPressMsg{Code: 'c', Mod: tea.ModAlt})
 	stored, err = layoutprefs.Load(path)
 	if err != nil || stored.Split || stored.RailWidth != 82 || stored.GroupFiles || stored.CollapseGenerated {
 		t.Fatalf("%+v %v", stored, err)

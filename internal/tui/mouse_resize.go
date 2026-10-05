@@ -66,12 +66,17 @@ func (m *Model) mouseResize(msg tea.MouseMsg) (tea.Cmd, bool) {
 		}
 		if m.commitFilter.subset {
 			m.listWidthPreference = width
+			m.saveLayout()
 			return nil, true
 		}
+		keepSearchMatch := m.searchMatchAtCursor()
 		target, commentID := m.cursorAnchor()
 		m.listWidthPreference = width
 		m.saveLayout()
 		m.restoreCursorAnchor(target, commentID)
+		if keepSearchMatch {
+			m.revealSearchMatch()
+		}
 		m.setOffset(m.clampOffset(m.offset()))
 		if m.cursorActive {
 			m.ensureCursorVisible()

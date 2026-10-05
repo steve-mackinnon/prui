@@ -1,8 +1,8 @@
 # File categories and persistent layout (issue #38)
 
 Files remain identified by raw pinned inventory IDs. `B` toggles a category
-hierarchy, `C` collapses/reveals generated file bodies and their rail entries,
-and `/` finds paths including collapsed files and both rename paths. These
+hierarchy, `Alt+C` collapses/reveals generated file bodies and their rail entries,
+and `F` finds paths including collapsed files and both rename paths. These
 choices and `S` split/unified, keyboard `[`/`]` rail widths, mouse divider widths,
 and the commit rail width are remembered across launches. Every file remains
 available through reveal, path filtering, or `i` raw inventory. Counts always

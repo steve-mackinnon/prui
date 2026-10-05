@@ -714,7 +714,7 @@ func (m *Model) update(msg tea.Msg) (updated tea.Model, command tea.Cmd) {
 		// A split-preference resize can change the number of display rows above a
 		// target. Keep its semantic cursor and saved reading offset intact across
 		// the unified fallback instead of replacing it with a nearby visible row.
-		if m.diffLayout() != diffLayoutSideBySide {
+		if m.diffLayout() != diffLayoutSideBySide && cursorTarget == nil && cursorCommentID == 0 {
 			m.cursorInViewport(1)
 		}
 		m.ensureReplyEditorVisible()
@@ -957,11 +957,15 @@ func (m *Model) update(msg tea.Msg) (updated tea.Model, command tea.Cmd) {
 				m.groupFiles = !m.groupFiles
 				m.saveLayout()
 			}
-		case "C":
+		case "alt+c":
 			if m.fileView() {
+				keepSearchMatch := m.searchMatchAtCursor()
 				target, commentID := m.cursorAnchor()
 				m.collapseGenerated = !m.collapseGenerated
 				m.restoreCursorAnchor(target, commentID)
+				if keepSearchMatch {
+					m.revealSearchMatch()
+				}
 				m.saveLayout()
 			}
 		case "S":
@@ -1478,13 +1482,18 @@ func (m *Model) resizeList(delta int) {
 	}
 	if m.commitFilter.subset {
 		m.listWidthPreference = m.clampListWidth(m.listWidth() + delta)
+		m.saveLayout()
 		return
 	}
+	keepSearchMatch := m.searchMatchAtCursor()
 	target, commentID := m.cursorAnchor()
 	m.listWidthPreference = m.clampListWidth(m.listWidth() + delta)
 	m.saveLayout()
 	m.restoreCursorAnchor(target, commentID)
-	if m.diffLayout() != diffLayoutSideBySide {
+	if keepSearchMatch {
+		m.revealSearchMatch()
+	}
+	if m.diffLayout() != diffLayoutSideBySide && target == nil && commentID == 0 && !keepSearchMatch {
 		m.cursorInViewport(1)
 	}
 	m.ensureReplyEditorVisible()

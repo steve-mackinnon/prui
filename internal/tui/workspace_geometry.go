@@ -88,7 +88,7 @@ func (m *Model) reviewListPresentation() ([]listLine, int) {
 
 	var pinned []listLine
 	if m.fileView() && m.collapseGenerated && m.categoryCounts()[inventory.Generated] > 0 {
-		pinned = append(pinned, listLine{row: -1, text: fmt.Sprintf("Generated · %d · C: reveal all", m.categoryCounts()[inventory.Generated])})
+		pinned = append(pinned, listLine{row: -1, text: fmt.Sprintf("Generated · %d · Alt+C: reveal all", m.categoryCounts()[inventory.Generated])})
 		bodyHeight = max(0, bodyHeight-1)
 	}
 	if m.fileView() && (m.fileFilterEditing || m.fileFilter != "") {

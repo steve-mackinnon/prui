@@ -77,7 +77,7 @@ func (m *Model) presentedFileDetail(split bool) []diffLine {
 				hide = file != selected && m.fileCategory(file) == inventory.Generated
 				c.collapsedLines = append(c.collapsedLines, line)
 				if hide {
-					c.collapsedLines = append(c.collapsedLines, diffLine{styledLine: styledLine{Class: classPlain, Text: "Generated content collapsed · C: reveal all · /: find file"}})
+					c.collapsedLines = append(c.collapsedLines, diffLine{styledLine: styledLine{Class: classPlain, Text: "Generated content collapsed · Alt+C: reveal all · F: find file"}})
 				}
 			} else if !hide {
 				c.collapsedLines = append(c.collapsedLines, line)

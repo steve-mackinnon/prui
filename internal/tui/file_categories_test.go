@@ -1,6 +1,7 @@
 package tui
 
 import (
+	tea "charm.land/bubbletea/v2"
 	"encoding/json"
 	"prui/internal/inventory"
 	"reflect"
@@ -31,10 +32,10 @@ func TestGeneratedCollapseDiscoverabilityAndReveal(t *testing.T) {
 	for _, r := range rows {
 		text += r.text + "\n"
 	}
-	if !strings.Contains(text, "Generated · 2") || !strings.Contains(text, "C: reveal") {
+	if !strings.Contains(text, "Generated · 2") || !strings.Contains(text, "Alt+C: reveal") {
 		t.Fatal(text)
 	}
-	key(m, 'C')
+	m.Update(tea.KeyPressMsg{Code: 'c', Mod: tea.ModAlt})
 	if len(m.filteredFiles()) != 3 {
 		t.Fatal("missing generated files")
 	}
@@ -42,7 +43,7 @@ func TestGeneratedCollapseDiscoverabilityAndReveal(t *testing.T) {
 	if m.Session.UnitFiles[m.Selected] != 1 {
 		t.Fatal("generated file unreachable")
 	}
-	key(m, 'C')
+	m.Update(tea.KeyPressMsg{Code: 'c', Mod: tea.ModAlt})
 	if m.Session.UnitFiles[m.Selected] != 1 || len(m.filteredFiles()) != 2 {
 		t.Fatal("collapse hid selection")
 	}
@@ -67,7 +68,7 @@ func TestGeneratedBodyCollapsePreservesTargetsAndRawCache(t *testing.T) {
 	}
 	raw := append([]diffLine(nil), m.cachedFileDetail(false)...)
 	target, commentID := m.cursorAnchor()
-	key(m, 'C')
+	m.Update(tea.KeyPressMsg{Code: 'c', Mod: tea.ModAlt})
 	if !strings.Contains(diffText(m.presentedFileDetail(false)), "Generated content collapsed") {
 		t.Fatal("generated body not collapsed")
 	}
@@ -81,7 +82,7 @@ func TestGeneratedBodyCollapsePreservesTargetsAndRawCache(t *testing.T) {
 	if strings.Contains(diffText(m.presentedFileDetail(false)), "Generated content collapsed") {
 		t.Fatal("selected generated content not revealed")
 	}
-	key(m, 'C')
+	m.Update(tea.KeyPressMsg{Code: 'c', Mod: tea.ModAlt})
 	if !reflect.DeepEqual(raw, m.presentedFileDetail(false)) {
 		t.Fatal("reveal lost original rows/targets")
 	}
