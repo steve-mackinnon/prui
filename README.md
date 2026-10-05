@@ -276,7 +276,14 @@ Alt+Up/Down open previous/next loaded unresolved thread.
 Live PR readiness: press `Alt+R` in a review to inspect individual checks, required
 reviews and merge policies. Press `r` inside readiness to refresh its remote
 evidence independently of pinned code. Unknown, partial and stale data remain
-visible; no merge action is performed. See [readiness contract](docs/spec/SPEC-pr-readiness.md).
+visible. Press `l` inside readiness to manage PR lifecycle: repository-supported
+merge methods, auto-merge, queue, draft/ready and close/reopen controls each require
+a confirmation showing PR and expected live head. Every write revalidates remote
+state and refreshes canonical state; uncertain delivery locks writes until refresh
+observes the target state. No admin bypass is requested. APIs without atomic head
+conditions are labeled in confirmation. Offline/plain operation has no writer.
+See [readiness contract](docs/spec/SPEC-pr-readiness.md) and
+[lifecycle contract](docs/spec/SPEC-pr-lifecycle.md).
 
 Suggested changes have a dedicated replacement editor: `ctrl+s` on right-side
 lines/ranges shows Before/After, Enter posts, and `ctrl+p` queues. On an existing

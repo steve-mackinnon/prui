@@ -96,6 +96,7 @@ type reviewTabState struct {
 	navigation                                           codeNavigation
 	search                                               [2]*diffSearchState
 	readiness                                            readinessState
+	lifecycle                                            lifecycleState
 	discussions                                          discussionState
 	commit                                               commitState
 	commitFilter                                         commitFilterState
@@ -171,6 +172,7 @@ const (
 	pageReadiness
 	pageSuggestionApply
 	pageIssueContext
+	pageLifecycle
 )
 
 // commentComposer is deliberately tab-owned. Its target is copied from the
@@ -265,6 +267,9 @@ type Model struct {
 	submitReview         ReviewSubmitter
 	submitGeneralComment GeneralCommentSubmitter
 	readinessGeneration  uint64
+	lifecycleGeneration  uint64
+	readLifecycle        LifecycleRead
+	submitLifecycle      LifecycleSubmit
 	readReadiness        ReadinessReader
 	readIssueContext     IssueContextReader
 	readDiscussions      DiscussionReader
@@ -470,6 +475,8 @@ func (m *Model) update(msg tea.Msg) (updated tea.Model, command tea.Cmd) {
 		}
 		m.editorCursorVisible = !m.editorCursorVisible
 		return m, nextEditorCursorTick(v.generation)
+	case LifecycleResult:
+		m.applyLifecycleResult(v)
 	case ReadinessResult:
 		m.applyReadinessResult(v)
 	case Loaded:
@@ -516,7 +523,11 @@ func (m *Model) update(msg tea.Msg) (updated tea.Model, command tea.Cmd) {
 				if m.readiness.cancel != nil {
 					m.readiness.cancel()
 				}
+				if m.lifecycle.cancel != nil {
+					m.lifecycle.cancel()
+				}
 				m.readiness = readinessState{}
+				m.lifecycle = lifecycleState{}
 				m.fileCache = fileDetailCache{}
 				m.Composer, m.ReviewForm, m.CommentMenu = nil, nil, nil
 				m.SuggestionApply = nil
@@ -672,6 +683,9 @@ func (m *Model) update(msg tea.Msg) (updated tea.Model, command tea.Cmd) {
 			return m, nil
 		}
 		// Changed comparisons never inherit progress or offsets from old source.
+		if state.lifecycle.cancel != nil {
+			state.lifecycle.cancel()
+		}
 		if state.readiness.cancel != nil {
 			state.readiness.cancel()
 		}
@@ -821,6 +835,9 @@ func (m *Model) update(msg tea.Msg) (updated tea.Model, command tea.Cmd) {
 			if v.String() == "t" && m.themePickerAvailable() {
 				m.openThemePicker()
 				return m, nil
+			}
+			if m.top() == pageLifecycle {
+				return m, m.prLifecycleKey(v.String())
 			}
 			if m.top() == pageReadiness {
 				return m, m.readinessKey(v.String())
@@ -2336,6 +2353,8 @@ func (m *Model) View() tea.View {
 			text = renderActionModal(m.Width, m.Height, m.actionModalBackground(), m.suggestionApplyView(), m.modalSurface)
 		case pageDraftRecovery:
 			text = renderActionModal(m.Width, m.Height, m.actionModalBackground(), m.draftRecoveryView(), m.modalSurface)
+		case pageLifecycle:
+			text = m.lifecycleView()
 		case pageReadiness:
 			text = m.readinessView()
 		case pageIssueContext:
