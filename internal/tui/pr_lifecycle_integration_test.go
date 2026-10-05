@@ -4,7 +4,9 @@ import (
 	"bytes"
 	tea "charm.land/bubbletea/v2"
 	"context"
+	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"prui/internal/session"
 	"prui/internal/source"
 	"reflect"
@@ -125,5 +127,94 @@ func TestPRLifecycleEntryCannotDisplaceSuggestionConfirmation(t *testing.T) {
 	namedKey(m, tea.KeyEnter)
 	if m.top() != pageSuggestionApply || !m.SuggestionConfirm || m.SuggestionApply != &a || reads != 0 || writes != 0 || m.commitFilter.open {
 		t.Fatal("lifecycle displaced suggestion or commit-filter ownership")
+	}
+}
+
+func TestPRLifecycleUnknownOutcomeAndResetPreserveActualGeneralV4SuggestionAttempt(t *testing.T) {
+	store, err := session.Open(t.TempDir() + "/private")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	m := draftTestModel(t, store)
+	defer m.Close()
+	m.Width, m.Height = 120, 24
+	old := m.Session
+	meta := old.Inventory.Comparison.Metadata
+	body, _ := source.SuggestionBody("replacement")
+	a := source.SuggestionApplication{Metadata: meta, Target: source.ReviewCommentTarget{Identity: meta.Identity, CommitID: meta.HeadSHA, Path: "text", Side: "RIGHT", Line: 1}, CommentID: 9, Branch: "feature", Before: "old", Replacement: "replacement", Content: "replacement\n", CommentBody: body}
+	input := map[string]any{"branch": map[string]string{"repositoryNameWithOwner": meta.HeadRepository, "refName": a.Branch}, "expectedHeadOid": meta.HeadSHA, "message": map[string]string{"headline": "Apply review suggestion #9"}, "fileChanges": map[string]any{"additions": []map[string]string{{"path": "text", "contents": base64.StdEncoding.EncodeToString([]byte(a.Content))}}}}
+	a.Payload, _ = json.Marshal(map[string]any{"query": `mutation($input:CreateCommitOnBranchInput!){createCommitOnBranch(input:$input){commit{oid url} ref{target{oid}}}}`, "variables": map[string]any{"input": input}})
+	m.SuggestionApply = &a
+	m.discussions.editor = &generalCommentEditor{draft: "edited general", cursor: 3, attemptedBody: "original general", attemptedIDs: map[string]bool{"PR comment:12": true}, uncertain: true}
+	if !m.prepareDraftAttempt("suggestion") {
+		t.Fatal(m.ActionError)
+	}
+	original, err := store.LoadDraft(context.Background(), session.DraftKeyFor(meta))
+	if err != nil || original.Version != 4 || original.Attempted.Application == nil || original.General.AttemptedBody != "original general" {
+		t.Fatal("actual v4 codec lost v3 attempt", err)
+	}
+	pinned, _ := json.Marshal(old)
+	live := tuiLifecycleState(m)
+	writes := 0
+	m.SetReadinessReader(func(_ context.Context, id source.Identity) (source.Readiness, error) {
+		return source.Readiness{Identity: id, HeadSHA: live.HeadSHA}, nil
+	})
+	var readContext context.Context
+	m.SetPRLifecycle(func(ctx context.Context, _ source.Identity) (source.Lifecycle, error) {
+		readContext = ctx
+		return live, nil
+	}, func(context.Context, source.LifecycleAction) (source.LifecycleOutcome, error) {
+		writes++
+		return source.LifecycleOutcome{Attempted: true, Refreshed: true, Uncertain: true, Snapshot: live}, errors.New("synthetic delivery uncertainty")
+	})
+	_, cmd := m.Update(tea.KeyPressMsg{Code: 'r', Mod: tea.ModAlt})
+	m.Update(cmd())
+	_, cmd = m.Update(tea.KeyPressMsg{Code: 'l', Text: "l"})
+	m.Update(cmd())
+	m.lifecycle.selected = 11
+	m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	_, cmd = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	m.Update(cmd())
+	if writes != 1 || m.lifecycle.uncertain == nil || m.discussions.editor.attemptedBody != "original general" || !m.discussions.editor.uncertain {
+		t.Fatal("lifecycle delivery reconciled unrelated general intent")
+	}
+	_, cmd = m.Update(tea.KeyPressMsg{Code: 'r', Text: "r"})
+	m.Update(cmd())
+	if writes != 1 || m.lifecycle.uncertain == nil || m.prLifecycleKey("enter") != nil {
+		t.Fatal("refresh repeated/unlocked unknown lifecycle")
+	}
+	retained, err := store.LoadDraft(context.Background(), session.DraftKeyFor(meta))
+	after, _ := json.Marshal(old)
+	if err != nil || !reflect.DeepEqual(original, retained) || !bytes.Equal(pinned, after) {
+		t.Fatal("live attempt mutated private original or source", err)
+	}
+	readinessContext, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	m.readiness.cancel = cancel
+	stale := LifecycleResult{Target: m.activeTab, Session: old, Generation: m.lifecycle.generation, Snapshot: live}
+	fresh := *old
+	fresh.ID = strings.Repeat("e", 32)
+	fresh.Inventory.Comparison.Metadata.HeadSHA = strings.Repeat("c", 40)
+	m.Update(ActionResult{Session: &fresh, Reset: true})
+	m.Update(stale)
+	if readContext.Err() != context.Canceled || readinessContext.Err() != context.Canceled || m.lifecycle.loaded || m.lifecycle.uncertain != nil || m.SuggestionApply != nil || m.discussions.editor != nil || m.draft.attempt != "" {
+		t.Fatal("reset carried old remote evidence or private intent")
+	}
+	empty, err := store.LoadDraft(context.Background(), session.DraftKeyFor(fresh.Inventory.Comparison.Metadata))
+	if err != nil || empty.Generation != 0 {
+		t.Fatal("reset retargeted private attempts", err)
+	}
+	retained, err = store.LoadDraft(context.Background(), session.DraftKeyFor(meta))
+	if err != nil || !reflect.DeepEqual(original, retained) {
+		t.Fatal("reset changed original v4 attempts", err)
+	}
+	recovered := draftTestModel(t, store)
+	defer recovered.Close()
+	if recovered.draft.attempted == nil || recovered.draft.attempted.Application == nil || !bytes.Equal(recovered.draft.attempted.Application.Payload, a.Payload) || recovered.discussions.editor == nil || recovered.discussions.editor.attemptedBody != "original general" || !recovered.discussions.editor.uncertain {
+		t.Fatal("offline recovery lost immutable v4/general-v3/suggestion work")
+	}
+	if recovered.suggestionApplyKey(tea.KeyPressMsg{Code: tea.KeyEnter}) != nil || recovered.generalCommentKey(tea.KeyPressMsg{Code: tea.KeyEnter}) != nil {
+		t.Fatal("private attempt retried after lifecycle reset")
 	}
 }
