@@ -49,6 +49,37 @@ func TestCommentTypeSelectorCyclesAndPreservesDrafts(t *testing.T) {
 	}
 }
 
+func TestCommentTypeCyclingKeepsEditorVisible(t *testing.T) {
+	for _, layout := range []diffLayout{diffLayoutUnified, diffLayoutSideBySide} {
+		for _, reverse := range []bool{false, true} {
+			m := rangeTestModel()
+			m.layout, m.Height = layout, 14
+			selectRawTarget(t, m, "RIGHT", 3)
+			namedKey(m, tea.KeyEnter)
+			for i := 0; i < 6; i++ {
+				msg := tea.KeyPressMsg{Code: tea.KeyTab}
+				if reverse {
+					msg.Mod = tea.ModShift
+				}
+				m.Update(msg)
+				start, end := -1, -1
+				for row, line := range m.displayDetail() {
+					if line.editor {
+						if start < 0 {
+							start = row
+						}
+						end = row + 1
+					}
+				}
+				if start < 0 || end > m.offset()+m.bodyHeight() || end-start <= m.bodyHeight() && start < m.offset() {
+					t.Fatalf("layout=%v reverse=%v type=%s: editor [%d,%d) outside viewport [%d,%d)", layout, reverse, commentType(m.Composer), start, end, m.offset(), m.offset()+m.bodyHeight())
+				}
+			}
+			m.Close()
+		}
+	}
+}
+
 func TestCommentTypeSelectorSkipsUnsupportedSuggestions(t *testing.T) {
 	m := rangeTestModel()
 	defer m.Close()

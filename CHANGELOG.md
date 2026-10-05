@@ -24,6 +24,8 @@ User-visible changes are recorded here before each release. See
 
 ### Fixed
 
+- Keep the comment editor visible when Tab or Shift+Tab changes the comment type.
+
 - Keep typing `q` in inline comments, suggestions, file and commit comments, and replies from triggering quit.
 
 - Recover general PR drafts privately with immutable uncertain-write evidence; comparison resets preserve old work separately.
