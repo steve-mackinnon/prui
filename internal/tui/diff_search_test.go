@@ -67,6 +67,63 @@ func TestDiffSearchInputAndActivation(t *testing.T) {
 	}
 }
 
+func TestDiffSearchJumpKeepsVisibleCodeAtLeftMargin(t *testing.T) {
+	for _, split := range []bool{false, true} {
+		for _, wrapped := range []bool{false, true} {
+			t.Run(fmt.Sprintf("split=%v/wrapped=%v", split, wrapped), func(t *testing.T) {
+				s := largeTextSession(1, 1)
+				text := "CREATE TABLE hero_theme text DEFAULT light;"
+				if wrapped {
+					text = strings.Repeat("column text, ", 100) + text
+				}
+				s.Inventory.Patches["p"] = []byte("@@ -1 +1 @@\n-old\n+" + text + "\n")
+				m := largeModel(s, 180, 24)
+				m.selectReviewView(viewFiles)
+				if split {
+					m.layout = diffLayoutSideBySide
+				}
+				m.Horizontal = 200
+				searchInput(m, "hero")
+				m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+				if m.Horizontal != 0 {
+					t.Fatalf("visible wrapped match panned all code by %d", m.Horizontal)
+				}
+				if !strings.Contains(m.View().Content, "hero") {
+					t.Fatal("jump hid search result")
+				}
+			})
+		}
+	}
+}
+
+func TestDiffSearchJumpPansOverflowAndAllowsRecovery(t *testing.T) {
+	for _, split := range []bool{false, true} {
+		t.Run(fmt.Sprint(split), func(t *testing.T) {
+			s := largeTextSession(1, 1)
+			s.Inventory.Patches["p"] = []byte("@@ -1 +1 @@\n-old\n+" + strings.Repeat("界", 200) + "NEEDLE\n")
+			m := largeModel(s, 180, 24)
+			m.selectReviewView(viewFiles)
+			if split {
+				m.layout = diffLayoutSideBySide
+			}
+			searchInput(m, "needle")
+			m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+			if m.Horizontal == 0 || !strings.Contains(m.View().Content, "NEEDLE") {
+				t.Fatal("overflow match not revealed")
+			}
+			before := m.Horizontal
+			m.Update(tea.KeyPressMsg{Code: tea.KeyLeft})
+			if m.Horizontal >= before {
+				t.Fatal("left arrow did not recover horizontal position")
+			}
+			m.Update(tea.KeyPressMsg{Code: tea.KeyHome})
+			if m.Horizontal != 0 || !strings.Contains(m.View().Content, "界") {
+				t.Fatal("home did not restore code")
+			}
+		})
+	}
+}
+
 func TestDiffSearchOnlyCurrentGuideSection(t *testing.T) {
 	session := largeTextSession(2, 2)
 	session.Guides = &guide.Bundle{Status: guide.Generated, Items: []guide.Item{{Title: "Guide", Sections: []guide.Section{
