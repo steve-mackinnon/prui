@@ -211,7 +211,7 @@ synthetic verification.
 Run `go test ./internal/tui -run TestDiffSearch -count=1` for matching,
 current-section scope, source navigation, stale-result rejection, result limits,
 wrapping/split/resize behavior, escaping, colorless output, and mouse ownership.
-`TestPTYSmoke` also drives Ctrl+F, query editing, and result activation through the
+`TestPTYSmoke` also drives `/`, query editing, Escape-to-results, `j/k`, and result activation through the
 compiled binary in an offline synthetic review, asserting no GitHub invocation.
 
 Run `go test ./internal/tui -run '^$' -bench BenchmarkDiffSearch -benchmem -count=3`

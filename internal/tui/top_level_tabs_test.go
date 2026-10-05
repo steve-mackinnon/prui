@@ -22,7 +22,7 @@ func TestTopLevelReviewTabsOrderAndKeyboardSelection(t *testing.T) {
 	for _, tc := range []struct {
 		key   rune
 		label string
-	}{{'1', "Description [1]"}, {'2', "Files [2]"}, {'3', "Guide [3]"}, {'4', "Commits [4]"}, {'G', "Guide [3]"}, {'F', "Files [2]"}} {
+	}{{'1', "Description [1]"}, {'2', "Files [2]"}, {'3', "Guide [3]"}, {'4', "Commits [4]"}, {'G', "Guide [3]"}, {'2', "Files [2]"}} {
 		key(m, tc.key)
 		got := ansi.Strip(m.View().Content)
 		if !strings.Contains(strings.Split(got, "\n")[1], "› "+tc.label) {

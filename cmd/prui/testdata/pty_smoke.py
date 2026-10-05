@@ -341,11 +341,12 @@ def main():
         os.write(terminal.master, b"\x1b")
         terminal.wait_until(lambda screen: "╭" not in screen and "0/2 read" in screen,
                             "restore review after commit modal", start)
-        terminal.key(b"\x06", "Type to search diff text")
+        terminal.key(b"/", "Type to search diff text")
         terminal.key(b"needle", "2 matches in 2 files")
         terminal.key(b"q", "No matches in saved diff text")
         terminal.key(b"\x7f", "2 matches in 2 files")
-        terminal.key(b"\x1b[B", "›  R1 + search-needle-b.go")
+        terminal.key(b"\x1b", "j/k")
+        terminal.key(b"j", "›  R1 + search-needle-b.go")
         start = len(terminal.output)
         os.write(terminal.master, b"\r")
         terminal.wait_until(lambda screen: "Find: needle" not in screen and

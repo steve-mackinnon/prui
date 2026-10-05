@@ -10,7 +10,7 @@ This is one capability: finding and navigating source occurrences. Grouped resul
 
 ## Confirmed scope and defaults
 
-- `Ctrl+F` opens code search from either pane on Files or Guide. The existing `/` filename/path filter retains its behavior.
+- `/` opens code search from either pane on Files or Guide. Filename/path filtering moves to `F`; `2` selects Files without editing its filter.
 - V1 uses case-insensitive, literal, single-line substring matching. No regex, whole-word toggle, or case toggle.
 - Search covers saved patch source: additions, deletions, and included unchanged context. It does not fetch omitted context or full files.
 - Files searches every changed file in the frozen comparison, independently of the filename filter.
@@ -21,14 +21,14 @@ This is one capability: finding and navigating source occurrences. Grouped resul
 
 ### Open and edit
 
-Expose a clickable `Find (Ctrl+F)` control in the diff header and document it in keyboard help. `Ctrl+F` focuses the query field in a popover anchored to the upper-right review area. Keep the diff visible beneath it where space permits. Existing editors, confirmations, loading dialogs, and pickers retain input priority; search cannot take input from them.
+Expose a clickable `Find (/)` control in the diff header and document it in keyboard help. `/` focuses the query field in a spacious popover inset from the upper-right review area, using a rounded theme-colored border and padding. Keep the diff visible beneath it where space permits. Existing editors, confirmations, loading dialogs, and pickers retain input priority; search cannot take input from them.
 
 The popover contains:
 
-1. A query field with a visible caret and clear/close controls.
+1. A query field with a visible caret only while editing; no Clear/Close controls.
 2. A scope label and `23 matches in 2 files` summary.
 3. Scrollable file groups, each with filename, directory, count, and matching source snippets.
-4. A concise keyboard footer.
+4. A focus-specific keyboard footer.
 
 On narrow terminals, use the available width and height rather than overflowing. At sizes too small for results, keep the query and a resize hint visible. Resizing preserves query, active occurrence, and input focus. The popover captures mouse events inside its bounds; background controls do not activate through it.
 
@@ -39,11 +39,11 @@ Typing updates results and visible diff highlights. Empty input shows `Type to s
 - Count individual non-overlapping occurrences, including multiple occurrences on a line. Show one navigable result per occurrence, with a snippet centered on that occurrence, line number, and `+`, `-`, or context marker. Selected occurrence has a visible textual selection indicator.
 - Group by stable file identity, using new path when present and old path for deletions; show old-to-new path for renames. Do not conflate identical basenames in different directories.
 - Files groups follow inventory order. Guide groups follow first appearance within scope; results retain unit/patch order within each group. Within a source line, order matches left to right.
-- Up/Down select the previous/next occurrence; PageUp/PageDown move through results. Query focus remains active so ordinary letters, including `j`, `k`, and `q`, edit the query. Arrow navigation scrolls the results list but does not move the underlying diff until activation.
+- Up/Down select the previous/next occurrence; PageUp/PageDown move through results. While editing, ordinary letters including `j`, `k`, and `q` edit the query. Escape transfers focus to results; `j/k` or arrows then navigate without changing the query. `/`, Tab, or clicking the input returns to editing. Arrow navigation scrolls the results list but does not move the underlying diff until activation.
 - Enter or a result click closes the popover, focuses the diff, reveals the source line and matched columns, and selects the corresponding existing source target when valid. This activation must not also open a comment composer or mark a file read.
 - If the destination is hidden by the Files filename filter, activation clears that filter and shows a brief notice. Merely searching leaves the filter unchanged.
 - In Guide, activation selects the correct section/file occurrence and expands only the hierarchy needed to reveal it.
-- Escape or clicking close dismisses the popover, restores prior pane focus, and retains query/highlights. Reopening retains the query and active result. The visible clear control empties the query and removes highlights; it remains available by keyboard through Tab navigation.
+- Escape while editing focuses results; Escape from results dismisses the popover, restores prior pane focus, and retains query/highlights. Reopening retains the query and active result and focuses editing. Backspace/Delete can empty the query; there are no Clear/Close buttons.
 - Match-to-match navigation in V1 occurs through the popover. Existing `n/p` navigation is unchanged.
 
 ### Scope and lifecycle
@@ -76,7 +76,7 @@ Inspection found these existing integration points:
 
 | Location | Existing responsibility / search implication |
 | --- | --- |
-| `internal/tui/file_filter.go` | Separate filename/path filtering; preserve `/` and explicitly handle navigation outside its selection. |
+| `internal/tui/file_filter.go` | Separate filename/path filtering; move filtering to `F` and explicitly handle navigation outside its selection. |
 | `internal/tui/filedetail.go` | Caches a continuous all-file diff for the selected session. |
 | `internal/tui/guidedetail.go` | Builds a continuous selected-guide diff and preserves section/file occurrence anchors. Search scope needs explicit unit membership. |
 | `internal/tui/render.go` | `textHunkLines` parses frozen patch bytes and stores old/new line coordinates separately from escaped text; split projection is shared. |
@@ -146,3 +146,7 @@ git diff --check
 ## Review gate
 
 The earlier review gate is closed. The user approved current-section scope and explicitly authorized proceeding on 2026-10-04.
+
+## Interaction revision — 2026-10-04
+
+User requested `/` for code search, `F` for filename filtering, removal of Clear/Close, and Escape-to-results with vim-style `j/k` navigation. These requirements supersede the initial key bindings and dismissal behavior.

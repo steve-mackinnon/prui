@@ -199,10 +199,10 @@ func TestGuideNavigation(t *testing.T) {
 		t.Fatal("returning from the raw inventory left the guide cursor elsewhere")
 	}
 
-	// F selects the deterministic file plan; G restores the guide.
-	m.Update(tea.KeyPressMsg{Code: 'F', Text: "F"})
+	// 2 selects the deterministic file plan; G restores the guide.
+	m.Update(tea.KeyPressMsg{Code: '2', Text: "2"})
 	if m.rows() != nil || !strings.Contains(ansi.Strip(m.View().Content), "FILES") {
-		t.Fatal("F did not expose the deterministic file plan")
+		t.Fatal("2 did not expose the deterministic file plan")
 	}
 	m.Update(tea.KeyPressMsg{Code: 'G', Text: "G"})
 	if !strings.Contains(ansi.Strip(m.View().Content), "GUIDES") {
@@ -516,9 +516,9 @@ func TestSideBySideGuideJumpUsesProjectedRepeatedFileAnchor(t *testing.T) {
 func TestGuideFallbackEnterOnlyFocusesDiff(t *testing.T) {
 	s, _, _ := guidedSession(t, nil)
 	m := loaded(t, s, 120, 5)
-	m.Update(tea.KeyPressMsg{Code: 'F', Text: "F"})
+	m.Update(tea.KeyPressMsg{Code: '2', Text: "2"})
 	if m.rows() != nil {
-		t.Fatal("F did not retain the deterministic file plan")
+		t.Fatal("2 did not retain the deterministic file plan")
 	}
 	m.Scroll[m.Selected] = 1
 	namedKey(m, tea.KeyEnter)

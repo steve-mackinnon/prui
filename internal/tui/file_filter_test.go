@@ -13,7 +13,7 @@ func TestFileFilterMatchesPathsAndNavigatesResults(t *testing.T) {
 	m.Session.Inventory.Files[0].NewPath = []byte("src/main.go")
 	m.Session.Inventory.Files[1].NewPath = []byte("test/helper.go")
 	m.Session.Inventory.Files[2].NewPath = []byte("src/other.go")
-	key(m, '/')
+	key(m, 'F')
 	for _, r := range "SRC/" {
 		key(m, r)
 	}
@@ -28,7 +28,7 @@ func TestFileFilterMatchesPathsAndNavigatesResults(t *testing.T) {
 	if m.Session.UnitFiles[m.Selected] != 2 {
 		t.Fatal("navigation did not skip filtered file")
 	}
-	key(m, '/')
+	key(m, 'F')
 	key(m, 'q')
 	if !strings.Contains(m.View().Content, "No matching files") {
 		t.Fatal("missing empty state")
@@ -48,7 +48,7 @@ func TestFileFilterAcceptsShortcutsAsTextAndClears(t *testing.T) {
 	m := largeModel(largeTextSession(3, 3), 120, 12)
 	m.Session.Inventory.Files[1].OldPath = []byte("old/日本.go")
 	m.Session.Inventory.Files[1].NewPath = []byte("new/renamed.go")
-	key(m, '/')
+	key(m, 'F')
 	for _, r := range "日本" {
 		key(m, r)
 	}
@@ -63,7 +63,7 @@ func TestFileFilterAcceptsShortcutsAsTextAndClears(t *testing.T) {
 	if m.fileFilter != "" || m.fileFilterEditing {
 		t.Fatal("Escape did not clear filter")
 	}
-	key(m, '/')
+	key(m, 'F')
 	key(m, 'q')
 	if m.fileFilter != "q" {
 		t.Fatal("quit shortcut was not entered as filter text")
@@ -75,7 +75,7 @@ func TestFileFilterMouseSelectsDisplayedIdentity(t *testing.T) {
 	m.Session.Inventory.Files[0].NewPath = []byte("src/a.go")
 	m.Session.Inventory.Files[1].NewPath = []byte("test/b.go")
 	m.Session.Inventory.Files[2].NewPath = []byte("src/c.go")
-	key(m, '/')
+	key(m, 'F')
 	for _, r := range "src" {
 		key(m, r)
 	}
@@ -110,7 +110,7 @@ func TestFileFilterHeaderClickOpensInput(t *testing.T) {
 	for _, width := range []int{60, 120} {
 		m := largeModel(largeTextSession(3, 3), width, 12)
 		m.Focus = paneDiff
-		if !strings.Contains(m.View().Content, "Filter (/)") {
+		if !strings.Contains(m.View().Content, "Filter (F)") {
 			t.Fatal("missing filter control")
 		}
 		// Click the hotkey end of the control, including when the narrow UI shows the diff.

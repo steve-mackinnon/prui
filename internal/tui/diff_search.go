@@ -36,17 +36,18 @@ type searchScope struct {
 	Inventory      bool
 }
 type diffSearchState struct {
-	session                           *review.Session
-	scope                             searchScope
-	query                             string
-	cursor, selected, scroll, control int
-	open, pending, capped             bool
-	previousFocus                     pane
-	generation                        uint64
-	cancel                            context.CancelFunc
-	documents                         []searchDocument
-	matches                           []searchMatch
-	skipped                           int
+	session                  *review.Session
+	scope                    searchScope
+	query                    string
+	cursor, selected, scroll int
+	open, pending, capped    bool
+	editing                  bool
+	previousFocus            pane
+	generation               uint64
+	cancel                   context.CancelFunc
+	documents                []searchDocument
+	matches                  []searchMatch
+	skipped                  int
 }
 type diffSearchResult struct {
 	state      *diffSearchState
@@ -377,7 +378,7 @@ func (m *Model) openSearch() tea.Cmd {
 	s := m.searchState()
 	s.open = true
 	s.previousFocus = m.Focus
-	s.control = 0
+	s.editing = true
 	if s.scope == m.currentSearchScope() && !s.pending && (s.query == "" || s.documents != nil) {
 		return nil
 	}
@@ -396,30 +397,33 @@ func (m *Model) searchKey(v tea.KeyPressMsg) tea.Cmd {
 	s := m.searchState()
 	runes := []rune(s.query)
 	s.cursor = min(s.cursor, len(runes))
-	switch v.String() {
-	case "ctrl+f":
-		s.control = 0
-		return nil
+	k := v.String()
+	if !s.editing {
+		switch k {
+		case "/", "tab", "shift+tab":
+			s.editing = true
+			return nil
+		case "j":
+			k = "down"
+		case "k":
+			k = "up"
+		case "esc":
+			m.closeSearch()
+			return nil
+		case "enter", "up", "down", "pgup", "pgdown":
+		default:
+			return nil
+		}
+	}
+	switch k {
 	case "esc":
-		m.closeSearch()
+		s.editing = false
 		return nil
-	case "tab":
-		s.control = (s.control + 1) % 3
-		return nil
-	case "shift+tab":
-		s.control = (s.control + 2) % 3
+	case "tab", "shift+tab":
+		s.editing = !s.editing
 		return nil
 	case "enter":
-		switch s.control {
-		case 1:
-			s.query = ""
-			s.cursor = 0
-			return m.startSearch()
-		case 2:
-			m.closeSearch()
-		default:
-			m.activateSearchMatch()
-		}
+		m.activateSearchMatch()
 		return nil
 	case "up":
 		s.selected = max(0, s.selected-1)
@@ -458,16 +462,16 @@ func (m *Model) searchKey(v tea.KeyPressMsg) tea.Cmd {
 	default:
 		return m.insertSearchText(v.Text)
 	}
-	s.control = 0
+	s.editing = true
 	return m.startSearch()
 }
 func (m *Model) insertSearchText(text string) tea.Cmd {
 	s := m.searchState()
-	if text == "" || strings.ContainsAny(text, "\r\n") || !utf8.ValidString(text) || len(s.query)+len(text) > 1024 {
+	if !s.editing || text == "" || strings.ContainsAny(text, "\r\n") || !utf8.ValidString(text) || len(s.query)+len(text) > 1024 {
 		return nil
 	}
 	s.query, s.cursor = insertEditorText(s.query, s.cursor, text)
-	s.control = 0
+	s.editing = true
 	return m.startSearch()
 }
 

@@ -33,7 +33,7 @@ func TestDiffSearchLiteralRanges(t *testing.T) {
 }
 
 func searchInput(m *Model, text string) {
-	_, cmd := m.Update(tea.KeyPressMsg{Code: 'f', Mod: tea.ModCtrl})
+	_, cmd := m.Update(tea.KeyPressMsg{Code: '/', Text: "/"})
 	if cmd != nil {
 		m.Update(cmd())
 	}
@@ -124,18 +124,21 @@ func TestDiffSearchStaleResultsAndModalInput(t *testing.T) {
 	}
 	m.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
 	before := m.searchState().query
-	_, cmd := m.Update(tea.KeyPressMsg{Code: 'f', Mod: tea.ModCtrl})
+	_, cmd := m.Update(tea.KeyPressMsg{Code: '/', Text: "/"})
 	if cmd != nil {
 		m.Update(cmd())
 	}
 	if m.searchState().query != before {
 		t.Fatal("reopen lost query")
 	}
-	m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
-	m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
-	if m.searchState().query != "" {
-		t.Fatal("keyboard clear failed")
+	m.Update(tea.KeyPressMsg{Code: tea.KeyHome})
+	for range []rune(before) {
+		m.Update(tea.KeyPressMsg{Code: tea.KeyDelete})
 	}
+	if m.searchState().query != "" {
+		t.Fatal("query could not be cleared by editing")
+	}
+
 }
 
 func TestDiffSearchWrappedSplitNavigationAndHighlights(t *testing.T) {
@@ -315,11 +318,11 @@ func TestDiffSearchContextCountAndCacheImmutability(t *testing.T) {
 	}
 }
 
-func TestDiffSearchHeaderMouseAndClear(t *testing.T) {
+func TestDiffSearchHeaderMouseAndQueryFocus(t *testing.T) {
 	m := largeModel(largeTextSession(1, 1), 120, 24)
 	m.selectReviewView(viewFiles)
 	header := strings.Split(ansi.Strip(m.View().Content), "\n")[2]
-	start := strings.Index(header, "Find (Ctrl+F)")
+	start := strings.Index(header, "Find (/)")
 	x := visibleWidth(header[:start])
 	_, cmd := m.Update(tea.MouseClickMsg{Button: tea.MouseLeft, X: x, Y: 2})
 	if cmd != nil {
@@ -331,11 +334,88 @@ func TestDiffSearchHeaderMouseAndClear(t *testing.T) {
 	cmd = m.insertSearchText("old")
 	m.Update(cmd())
 	bounds := m.searchBounds()
-	_, cmd = m.Update(tea.MouseClickMsg{Button: tea.MouseLeft, X: bounds.Min.X + 3, Y: 2})
+	_, cmd = m.Update(tea.MouseClickMsg{Button: tea.MouseLeft, X: bounds.Min.X + 3, Y: bounds.Min.Y + 1})
 	if cmd != nil {
 		m.Update(cmd())
 	}
-	if m.searchState().query != "" {
-		t.Fatal("clear click failed")
+	if !m.searchState().editing || m.searchState().query != "old" {
+		t.Fatal("query click failed to focus without clearing")
+	}
+}
+
+func TestDiffSearchVimFocusModes(t *testing.T) {
+	m := largeModel(largeTextSession(2, 2), 120, 24)
+	m.selectReviewView(viewFiles)
+	_, cmd := m.Update(tea.KeyPressMsg{Code: '/', Text: "/"})
+	if cmd != nil {
+		m.Update(cmd())
+	}
+	if !m.searchOpen() || m.fileFilterEditing {
+		t.Fatal("slash must open code search")
+	}
+	_, cmd = m.Update(tea.PasteMsg{Content: "new 19"})
+	if cmd != nil {
+		m.Update(cmd())
+	}
+	m.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
+	if !m.searchOpen() {
+		t.Fatal("first Escape should select results, not close")
+	}
+	key(m, 'j')
+	if m.searchState().selected != 1 || m.searchState().query != "new 19" {
+		t.Fatal("j did not navigate results")
+	}
+	key(m, 'k')
+	if m.searchState().selected != 0 {
+		t.Fatal("k did not navigate results")
+	}
+	key(m, '/')
+	_, cmd = m.Update(tea.KeyPressMsg{Code: 'j', Text: "j"})
+	if cmd != nil {
+		m.Update(cmd())
+	}
+	if m.searchState().query != "new 19j" {
+		t.Fatal("slash did not return to editing")
+	}
+	m.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
+	m.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
+	if m.searchOpen() {
+		t.Fatal("second Escape should dismiss search")
+	}
+	key(m, 'F')
+	if !m.fileFilterEditing {
+		t.Fatal("F did not open filename filter")
+	}
+}
+
+func TestDiffSearchInsetResultClickAndQuerySlash(t *testing.T) {
+	m := largeModel(largeTextSession(2, 2), 120, 24)
+	m.selectReviewView(viewFiles)
+	searchInput(m, "new 19")
+	view := ansi.Strip(m.View().Content)
+	if strings.Contains(view, "Clear") || strings.Contains(view, "Close") {
+		t.Fatal("removed controls still visible")
+	}
+	m.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
+	m.Update(tea.PasteMsg{Content: "ignored"})
+	if m.searchState().query != "new 19" {
+		t.Fatal("paste changed query while selecting results")
+	}
+	bounds := m.searchBounds()
+	// Heading + first result + second heading + second result.
+	m.Update(tea.MouseClickMsg{Button: tea.MouseLeft, X: bounds.Min.X + 4, Y: bounds.Min.Y + 7})
+	if m.searchOpen() || m.Session.UnitFiles[m.Selected] != 1 {
+		t.Fatal("inset result click did not reveal second file")
+	}
+	cmd := m.openSearch()
+	if cmd != nil {
+		m.Update(cmd())
+	}
+	_, cmd = m.Update(tea.KeyPressMsg{Code: '/', Text: "/"})
+	if cmd != nil {
+		m.Update(cmd())
+	}
+	if m.searchState().query != "new 19/" {
+		t.Fatal("literal slash not accepted while editing")
 	}
 }

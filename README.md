@@ -126,8 +126,8 @@ For offline reading, list session IDs with `prui sessions`, then run
 | `h` / `l` | Focus list / diff |
 | Up / down | Scroll the focused diff |
 | `m` | Mark or unmark a file as read |
-| `Ctrl+F` | Find code text across Files or within the current Guide section |
-| `/` | Filter Files by filename or path; Enter keeps the filter, Escape clears it |
+| `/` | Find code text across Files or within the current Guide section |
+| `F` | Filter Files by filename or path; Enter keeps the filter, Escape clears it |
 | `1` / `2` / `3` / `4` | Show Description / Files / Guide / Commits |
 | `v` / `V` | Cycle forward / backward through Description, Files, Guide, and Commits |
 | `P` | Switch PRs |
@@ -143,13 +143,14 @@ For offline reading, list session IDs with `prui sessions`, then run
 | `s` | Browse saved sessions |
 | `?` / `q` | Health & help / quit |
 
-Newly opened pull requests start on the Description tab. Use `2` to switch to Files. The file list shows filenames beside muted directories. Click **Filter (/)** in the file header or press `/` to filter filenames and paths (case-insensitive, including previous names for renamed files). Enter returns to navigation with the filter applied; Escape in the list clears it.
+Newly opened pull requests start on the Description tab. Use `2` to switch to Files. The file list shows filenames beside muted directories. Click **Filter (F)** in the file header or press `F` to filter filenames and paths (case-insensitive, including previous names for renamed files). Enter returns to navigation with the filter applied; Escape in the list clears it.
 
-Press **Ctrl+F** or click **Find** in the diff header to search saved diff text.
+Press **/** or click **Find** in the diff header to search saved diff text.
 Results are grouped by file; Up/Down selects a match and Enter jumps to it.
 Matches are highlighted in the diff. Guide search covers only the current section,
-including collapsed children. Escape closes search while keeping highlights;
-Tab selects the Clear or Close control. Search is literal and case-insensitive,
+including collapsed children. Escape moves from query editing to results; use
+`j/k` or arrows to select a match, `/` to edit again, and Escape again to close.
+Search is literal and case-insensitive,
 and does not fetch omitted context or full files.
 
 Mouse selection, pane resizing, themes, and side-by-side diffs are also available.

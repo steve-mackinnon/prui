@@ -9,7 +9,7 @@ User-visible changes are recorded here before each release. See
 
 - Filter Files and Guide by selected commits with `C`, showing one net diff while retaining the dedicated Commits browser.
 
-- Find code text with Ctrl+F in Files and the current Guide section, with results
+- Find code text with `/` in Files and the current Guide section, with results
   grouped by file, direct match navigation, and highlights in unified and split diffs.
 
 - Highlight diff syntax using full pinned-file context, with theme-aware colors and saved token spans for offline reviews.

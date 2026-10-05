@@ -32,17 +32,25 @@ func (m *Model) searchHeaderBounds() image.Rectangle {
 			label = "Full inventory (i)"
 		}
 		start := 2 + visibleWidth(label+" · ")
-		if start+13 > m.Width-1 {
+		if start+8 > m.Width-1 {
 			return image.Rectangle{}
 		}
-		return image.Rect(start, 2, start+13, 3)
+		return image.Rect(start, 2, start+8, 3)
 	}
 	left := m.listWidth() + 3
-	return image.Rect(left, 2, min(m.Width-1, left+13), 3)
+	return image.Rect(left, 2, min(m.Width-1, left+8), 3)
 }
 func (m *Model) searchBounds() image.Rectangle {
-	w, h := min(68, m.Width), min(24, m.Height)
-	return image.Rect(max(0, m.Width-w), 0, m.Width, h)
+	marginX, marginY := 0, 0
+	if m.Width >= 28 {
+		marginX = 2
+	}
+	if m.Height >= 11 {
+		marginY = 1
+	}
+	w, h := min(88, max(1, m.Width-2*marginX)), min(26, max(1, m.Height-2*marginY))
+	right := m.Width - marginX
+	return image.Rect(right-w, marginY, right, marginY+h)
 }
 func (m *Model) searchResultRows(width int) []searchResultRow {
 	s := m.searchState()
@@ -117,9 +125,12 @@ func (m *Model) searchPopover(background string) string {
 	inside := max(1, w-4)
 	query := []rune(s.query)
 	cursor := min(s.cursor, len(query))
-	input := Escape(string(query[:cursor])) + "▏" + Escape(string(query[cursor:]))
+	input := Escape(s.query)
+	if s.editing {
+		input = Escape(string(query[:cursor])) + "▏" + Escape(string(query[cursor:]))
+	}
 	if w < 24 || h < 9 {
-		return strings.Join([]string{clip("Find: "+input, w), clip("Resize for results · Esc closes", w)}, "\n")
+		return strings.Join([]string{clip("Find: "+input, w), clip("Resize for results · Esc: back", w)}, "\n")
 	}
 	scope := "Files · saved diff text only"
 	if m.Inventory {
@@ -157,16 +168,9 @@ func (m *Model) searchPopover(background string) string {
 		}
 		summary = fmt.Sprintf("%d %s in %d %s", len(s.matches), matchLabel, len(files), fileLabel)
 	}
-	clear, closeLabel := "Clear", "Close"
-	if s.control == 1 {
-		clear = "› Clear"
-	}
-	if s.control == 2 {
-		closeLabel = "› Close"
-	}
-	content := []string{"╭" + strings.Repeat("─", w-2) + "╮", modalLine("Find: "+clipSearchInput(input, inside-6), inside), modalLine(clear+"  |  "+closeLabel, inside), modalLine(scope, inside), modalLine(summary, inside)}
+	content := []string{"╭" + strings.Repeat("─", w-2) + "╮", modalLine("Find: "+clipSearchInput(input, inside-6), inside), modalLine(scope, inside), modalLine(summary, inside)}
 	rows := m.searchResultRows(inside)
-	capacity := h - 7
+	capacity := h - 6
 	selectedRow := 0
 	for i, row := range rows {
 		if row.match == s.selected {
@@ -188,9 +192,13 @@ func (m *Model) searchPopover(background string) string {
 		}
 		content = append(content, modalLine(text, inside))
 	}
-	content = append(content, modalLine("↑↓ results · Enter jump · Tab controls · Esc", inside), "╰"+strings.Repeat("─", w-2)+"╯")
+	footer := "Esc: select results · Enter: jump"
+	if !s.editing {
+		footer = "j/k ↑↓: select · Enter: jump · /: edit · Esc: close"
+	}
+	content = append(content, modalLine(footer, inside), "╰"+strings.Repeat("─", w-2)+"╯")
 	canvas := lipgloss.NewCanvas(m.Width, m.Height)
-	return canvas.Compose(lipgloss.NewCompositor(lipgloss.NewLayer(strings.Join(viewportLines(background, m.Width, m.Height), "\n")), lipgloss.NewLayer(strings.Join(content, "\n")).X(bounds.Min.X))).Render()
+	return canvas.Compose(lipgloss.NewCompositor(lipgloss.NewLayer(strings.Join(viewportLines(background, m.Width, m.Height), "\n")), lipgloss.NewLayer(m.styleLine(classPaneBorderFocused, strings.Join(content, "\n"))).X(bounds.Min.X).Y(bounds.Min.Y))).Render()
 }
 func clipSearchInput(input string, width int) string {
 	cursor := strings.Index(input, "▏")
@@ -221,23 +229,15 @@ func (m *Model) searchMouse(msg tea.MouseMsg) tea.Cmd {
 	if !ok || click.Button != tea.MouseLeft {
 		return nil
 	}
-	if click.Y == 2 {
-		if click.X-bounds.Min.X < 12 {
-			s.query = ""
-			s.cursor = 0
-			return m.startSearch()
-		}
-		m.closeSearch()
-		return nil
-	}
-	if click.Y == 1 {
-		s.control = 0
+	y := click.Y - bounds.Min.Y
+	if y == 1 {
+		s.editing = true
 		s.cursor = utf8.RuneCountInString(s.query)
 		return nil
 	}
 	rows := m.searchResultRows(max(1, bounds.Dx()-4))
-	i := click.Y - 5 + s.scroll
-	if click.Y >= 5 && click.Y < bounds.Dy()-2 && i >= 0 && i < len(rows) && rows[i].match >= 0 {
+	i := y - 4 + s.scroll
+	if y >= 4 && y < bounds.Dy()-2 && i >= 0 && i < len(rows) && rows[i].match >= 0 {
 		s.selected = rows[i].match
 		m.activateSearchMatch()
 	}

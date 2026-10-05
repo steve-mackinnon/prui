@@ -688,7 +688,7 @@ func (m *Model) update(msg tea.Msg) (updated tea.Model, command tea.Cmd) {
 			if m.searchOpen() && v.String() != "ctrl+c" {
 				return m, m.searchKey(v)
 			}
-			if v.String() == "ctrl+f" {
+			if v.String() == "/" {
 				return m, m.openSearch()
 			}
 		}
@@ -697,7 +697,7 @@ func (m *Model) update(msg tea.Msg) (updated tea.Model, command tea.Cmd) {
 				m.fileFilterKey(v)
 				return m, m.restartGuidePathScroll()
 			}
-			if v.String() == "/" {
+			if v.String() == "F" {
 				m.openFileFilter()
 				return m, nil
 			}
@@ -872,6 +872,7 @@ func (m *Model) update(msg tea.Msg) (updated tea.Model, command tea.Cmd) {
 			}
 		case "F":
 			m.selectReviewView(viewFiles)
+			m.openFileFilter()
 		case "G":
 			m.selectReviewView(viewGuide)
 		case "S":
@@ -2217,7 +2218,7 @@ func (m *Model) reviewViewForLayout(preferSideBySide bool) string {
 	if m.Inventory {
 		leftLabel = "Full inventory (i)"
 	}
-	rightLabel := "Find (Ctrl+F) · Diff · " + text
+	rightLabel := "Find (/) · Diff · " + text
 	if m.Width < 100 {
 		leftLabel += " · Commits [C] · " + m.commitFilterLabel()
 	} else {
@@ -2365,7 +2366,7 @@ func (m *Model) paneFrameHeader(listLabel, detailLabel string) string {
 	if m.Width < 100 {
 		label := listLabel + " · List"
 		if m.Focus == paneDiff {
-			label = listLabel + " · Find (Ctrl+F) · Diff"
+			label = listLabel + " · Find (/) · Diff"
 		}
 		return m.styleLine(classPaneHeaderFocused, "┌"+paneHeaderText(label, m.Width-2)+"┐")
 	}
