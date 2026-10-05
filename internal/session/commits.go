@@ -20,6 +20,9 @@ func validateCommits(b *commits.Bundle, base, head string) bool {
 	if b == nil {
 		return true
 	}
+	if !commits.ValidateComposition(b) {
+		return false
+	}
 	if b.BaseSHA != base || b.HeadSHA != head || len(b.Entries) > 100 || !boundedCommitText(b.Reason, 4096) {
 		return false
 	}
@@ -58,6 +61,12 @@ func validateCommits(b *commits.Bundle, base, head string) bool {
 			return false
 		}
 		if size > 50<<20 || lines > 100000 {
+			return false
+		}
+	}
+	if b.Composition != nil {
+		encoded, err := json.Marshal(b.Composition)
+		if err != nil || size+len(encoded) > 50<<20 {
 			return false
 		}
 	}
@@ -185,6 +194,20 @@ func boundCommitPayload(snapshot *Snapshot, limit int) error {
 	sourceSize := len(mainBytes) + len(`,"commits":`) + len(bundleBytes)
 	if sourceSize <= limit {
 		return nil
+	}
+
+	if snapshot.Commits.Composition != nil {
+		bundle := *snapshot.Commits
+		bundle.Composition = &commits.Composition{Status: commits.Unavailable, Reason: "commit source storage limit"}
+		snapshot.Commits = &bundle
+		bundleBytes, err = json.Marshal(snapshot.Commits)
+		if err != nil {
+			return err
+		}
+		sourceSize = len(mainBytes) + len(`,"commits":`) + len(bundleBytes)
+		if sourceSize <= limit {
+			return nil
+		}
 	}
 	// Copy entries before pruning: captured snapshots and cached source remain immutable.
 	bundle := *snapshot.Commits

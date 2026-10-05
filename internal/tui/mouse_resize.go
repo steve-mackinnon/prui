@@ -34,6 +34,9 @@ func (m *Model) mouseResize(msg tea.MouseMsg) (tea.Cmd, bool) {
 	case tea.MouseClickMsg:
 		m.cancelMouseDrag()
 		divider := m.workspaceGeometry().Divider
+		if m.commitFilter.subset {
+			divider = m.filteredGeometry().Divider
+		}
 		if m.selectedReviewView() == viewCommits {
 			divider = m.commitGeometry().Divider
 		}
@@ -58,6 +61,10 @@ func (m *Model) mouseResize(msg tea.MouseMsg) (tea.Cmd, bool) {
 			return nil, true
 		}
 		if width == m.listWidth() {
+			return nil, true
+		}
+		if m.commitFilter.subset {
+			m.listWidthPreference = width
 			return nil, true
 		}
 		target, commentID := m.cursorAnchor()

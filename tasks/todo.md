@@ -1948,3 +1948,33 @@ Implementation notes:
 - [x] Promote Guide and rename Diff to Files in the top-level strip.
 - [x] Update existing tests, documentation, and screen baselines.
 - [x] Run the repository verification gate and review the final diff.
+
+# Net Commit Filter tasks (2026-10-04)
+
+- [x] Contract/capture: optional frozen old/new blob source, bounded capture and
+  validated legacy-compatible codec. Verify commits/session/review focused tests.
+- [x] Composition: one net inventory from selected changes, clean skip behavior,
+  conflict/limits and immutable source. Verify commits/inventory fixture tests.
+- [x] Checkpoint: capture and engine contracts integrate; focused tests/build pass.
+- [x] UI: C picker/mouse, multi-select/All changes, file/code derived inventory,
+  per-review state and read-only guard. Verify TUI model and screen tests.
+- [x] Integration: Guide organization, empty/narrow/legacy/offline cases, stale
+  results, state restoration. Verify end-to-end synthetic fixture tests.
+- [x] Docs/review: update controls/spec/changelog, review source/bounds/target safety.
+- [x] Complete gate: ./scripts/verify.sh and git diff --check pass; save verified
+  changes in logical commits. Human terminal usability remains outstanding.
+
+Verification: focused capture/session/engine/review/TUI tests passed, offline
+restart composition and compiled-binary picker journey passed. Full
+`./scripts/verify.sh` passed formatting, vet, all race tests (including PTY) and
+build. `git diff --check` passed. Review findings on shared source budgets, path
+depth, hit targets, stale selection and pending-editor visibility were resolved.
+Human terminal usability verification remains outstanding.
+
+Commit filter modal follow-up (2026-10-04): picker now composes a centered,
+bounded card over the current review. Rendering and mouse choices share card
+geometry; background/footer clicks are consumed. Overlay/close restoration and
+wide/narrow/short mouse tests passed, picker screen fixtures were reviewed, and
+the compiled PTY journey verifies the modal border plus underlying tabs and waits
+for actual closure. Full ./scripts/verify.sh and git diff --check passed. Human
+terminal usability remains outstanding.

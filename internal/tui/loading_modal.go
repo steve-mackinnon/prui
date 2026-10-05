@@ -46,12 +46,12 @@ func loadingGlyph(frame int) string {
 // renderLoadingModal draws the card at fixed viewport coordinates over the
 // clipped background. Both layers keep their own cells, including the text
 // to the right of the card.
-func renderLoadingModal(width, height int, background string, modal loadingModal) string {
+func renderLoadingModal(width, height int, background string, modal loadingModal, painters ...func(string) string) string {
 	if width <= 0 || height <= 0 {
 		return ""
 	}
 	if width < 20 || height < 6 {
-		return renderCompactLoading(width, height, modal)
+		return paintModalSurface(renderCompactLoading(width, height, modal), painters)
 	}
 
 	lines := viewportLines(background, width, height)
@@ -67,7 +67,7 @@ func renderLoadingModal(width, height int, background string, modal loadingModal
 		fixedLineCount++
 	}
 	if height <= fixedLineCount {
-		return renderCompactLoading(width, height, modal)
+		return paintModalSurface(renderCompactLoading(width, height, modal), painters)
 	}
 	// Reserve a stable top row for the minimum card. Longer notices grow
 	// downward rather than recentering the overlay on every progress update.
@@ -105,7 +105,7 @@ func renderLoadingModal(width, height int, background string, modal loadingModal
 	canvas := lipgloss.NewCanvas(width, height)
 	return canvas.Compose(lipgloss.NewCompositor(
 		lipgloss.NewLayer(strings.Join(lines, "\n")),
-		lipgloss.NewLayer(strings.Join(content, "\n")).X(left).Y(startRow),
+		lipgloss.NewLayer(paintModalSurface(strings.Join(content, "\n"), painters)).X(left).Y(startRow),
 	)).Render()
 }
 

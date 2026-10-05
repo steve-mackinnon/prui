@@ -322,6 +322,25 @@ def main():
         terminal.wait_for("0/2 read")
         terminal.wait_for("› Description [1]")
         terminal.key(b"2", "› Files [2]")
+        terminal.key(b"C", "Select commits for one net diff.")
+        terminal.wait_for("╭")
+        terminal.wait_for("› Files [2]")
+        terminal.key(b"j", "› [ ] cccccccccccc")
+        terminal.key(b"\r", "1 selected")
+        start = len(terminal.output)
+        os.write(terminal.master, b"\x1b")
+        terminal.wait_until(lambda screen: "╭" not in screen and
+                            "Selected commits unavailable" in screen,
+                            "close commit modal", start)
+        terminal.wait_for("reading only")
+        terminal.key(b"C", "╭")
+        terminal.wait_for("1 selected")
+        terminal.key(b"\x1b[H", "› [ ] All changes")
+        terminal.key(b"\r", "All changes")
+        start = len(terminal.output)
+        os.write(terminal.master, b"\x1b")
+        terminal.wait_until(lambda screen: "╭" not in screen and "0/2 read" in screen,
+                            "restore review after commit modal", start)
         # SGR coordinates are one-based. Select the second file without an
         # activation key, then drag the existing divider from column 38 to 50.
         terminal.key(b"\x1b[<0;5;5M\x1b[<0;5;5m", "› [ ] b.go")
@@ -349,6 +368,7 @@ def main():
                             "return from help", start)
         terminal.quit(b"\x03")
     print("PASS resume, keyboard marking, resize, help/back, Ctrl+C, restoration")
+    print("PASS offline commit picker, legacy source state, and All changes restoration")
 
     with Terminal(binary, resume, environment) as terminal:
         terminal.wait_for("1/2 read")

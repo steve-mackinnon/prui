@@ -1212,3 +1212,42 @@ is an implementation refinement for the already approved crash-safety requiremen
 See [spec](../docs/spec/SPEC-top-level-review-tabs.md). Implement shared ordered
 tab navigation and promote Guide while retaining the existing diff workspace.
 Then update documentation and screen fixtures and run `./scripts/verify.sh`.
+
+# Implementation Plan: Net Commit Filter (2026-10-04)
+
+User approved implementation and delegated incremental work after confirming one
+net diff. Spec: docs/spec/SPEC-diff-commit-filter.md. This appended section leaves
+all earlier plans/checklists intact.
+
+## Contract and dependency order
+
+Frozen touched-path blobs and ancestry → bounded offline composition → one derived
+inventory → Files/Guide filter integration → full verification and review.
+Capture and engine agents agree the optional data contract first. UI can implement
+picker state against the Compose boundary concurrently. Root owns integration,
+user docs, verification and atomic commits; agents own disjoint files.
+
+## Slices
+
+1. Define optional frozen composition contract; implement capture/validation with
+   legacy round-trip and budget tests. No visible behavior change yet.
+2. Prove selected-change composition on disposable Git histories: single/range,
+   independent skipped commits, conflicts, cancellation, binary/mode/rename/root.
+3. Add picker and derived inventory integration; same inventory drives list/code,
+   with original review state restored and filtered writing/marking disabled.
+4. Integrate guide mapping, mouse/narrow states, offline source round-trip and
+   docs; review final changes and run scripts/verify.sh.
+
+Each agent runs focused tests after its small increments and reports checkpoints.
+Commit only verified logical slices; do not stage another agent's incomplete work.
+
+## Risks and checks
+
+- Missing source or dependent skipped commit: explicit unavailable/conflict state.
+- Optional source extension: existing capture and encoded budgets, old digests.
+- Stale async results: generation/review identity check before applying inventory.
+- Synthetic diff targets: read-only mode guards every mark/composer action.
+- Guides: retain full-PR interpretation, no automatic generation or invented claims.
+
+Verification: focused Go tests by slice, go build ./..., git diff --check, then
+./scripts/verify.sh (formatting, vet, race suite including binary PTY, build).

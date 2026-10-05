@@ -1,0 +1,12 @@
+example/review #42
+  PRs [P]    Description [1]  › Files [2]    Guide [3]    Commits [4]
+┌ Commits [C] · 1 selected · Selected┬ Net diff · 1 selected ──────────────────────────────────────────────────────────┐
+│Selected commits unavailable: confli│Selected commits unavailable: conflict in commit aaaaaa, path main.go            │
+│                                    │                                                                                 │
+│                                    │                                                                                 │
+│                                    │                                                                                 │
+│                                    │                                                                                 │
+│                                    │                                                                                 │
+└────────────────────────────────────┴─────────────────────────────────────────────────────────────────────────────────┘
+Selected commits: reading only; use All changes to mark files or Commits to discuss a commit.
+R: review PR · C: filter commits

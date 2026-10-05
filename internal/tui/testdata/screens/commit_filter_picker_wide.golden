@@ -1,0 +1,12 @@
+example/review #42
+  PRs [P]    Description [1]  › Files [2]    Guide [3]    Commits [4]
+┌ Files · ▽ Filter (/)╭──────────────────────────────────────────────────────────────────────────╮─────────────────────┐
+│› main.go            │ Commits [C] · All changes                                                │                     │
+│  README.md          │ Select commits for one net diff.                                         │                     │
+│                     │ › [x] All changes                                                        │                     │
+│                     │   [ ] aaaaaaaaaaaa First commit · Alice                                  │                     │
+│                     │   [ ] bbbbbbbbbbbb Second commit · Alice                                 │                     │
+│                     │ Space/Enter: toggle · j/k: move · Esc/C: close                           │                     │
+└─────────────────────╰──────────────────────────────────────────────────────────────────────────╯─────────────────────┘
+0/2 read · R Submit review (0) · ? Freshness unknown · ?: Health & help
+j/k: files · enter: diff · m: mark file · ?: Help

@@ -35,6 +35,9 @@ func (m *Model) mouseUpdate(msg tea.MouseMsg) tea.Cmd {
 		m.cancelMouseDrag()
 		return nil
 	}
+	if cmd, handled := m.commitFilterMouse(msg); handled {
+		return cmd
+	}
 	if cmd, handled := m.mouseResize(msg); handled {
 		return cmd
 	}
