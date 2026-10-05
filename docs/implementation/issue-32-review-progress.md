@@ -1,7 +1,9 @@
 # Changes since a previous review
 
-Issue #32 from roadmap #39 is stacked on #45 (`codex/issue-29-comment-targets`),
-after #41. Merge order is #41 → #45 → this PR; merging is a user action.
+Issue #32 from roadmap #39 originally stacked on #45 after #41. Those parents
+are merged. PR #47 now targets main, with feature-only commits restacked onto
+`7f64f19ffa26ac5bd5d032c3ff668d4221fb6f84`, including the merged published-thread
+actions from #44. Only the coordinator merges after final review and green checks.
 
 `N` opens a newly pinned comparison using the currently selected saved session
 as its predecessor. An online open of an existing PR uses its latest valid saved
@@ -105,7 +107,7 @@ Required full gates and the independent final reviewer are recorded in the PR
 once run. Human terminal usability QA is unverified; render tests do not establish
 accessibility. No live GitHub or provider calls are used by tests.
 
-Independent reviewer `/root/final_review` approved implementation SHA
+Historical pre-restack evidence: independent reviewer `/root/final_review` approved implementation SHA
 `2331d0615cdbe8788dbeb7062e26c4496d0595ba` against parent
 `5dd00d102ae6cfdd8051d0050a0edb6f2284e8d7`, after fixing its required finding:
 an existing raw rename record now requires renewed review even on a later push.
@@ -116,3 +118,25 @@ regression fail. Shared source was not mutated. `golangci-lint run` passed with
 zero issues. Earlier wider verification attempts failed from disk exhaustion
 during overlapping runs; those attempts are not pass evidence. Exact final
 commit review and complete serialized gate/CI results are recorded on PR #47.
+
+
+## Main integration and lease-safe restack
+
+The recorded previous remote #47 head was
+`4b3bee2b8cfdf7e59a1f9b2ad54ec462a5774728`. Only the three #32 feature commits
+were rebased, followed by new combined regressions. The remote rewrite uses an
+explicit force-with-lease for that SHA; no other author branch is changed.
+A reset-path conflict preserves both main's commit-filter cancellation and
+incremental-view reset. The contract append conflict preserves both the published
+comment/thread contract and the incremental-review contract.
+
+The combined synthetic regression exercises normal pushes, base-content changes,
+renames and deletions with complete RIGHT/LEFT ranges, a file editor, an associated
+reply root, review decision and summary. It asserts only proven reading progress
+transfers, exact anchor outcomes, cancelled derived-filter/discussion work, ignored
+stale conversation results, original snapshot/draft immutability, no draft copies,
+and exact offline recovery after the checkout is removed. The complete rebased
+feature diff receives a fresh independent reviewer; its exact head, focused and
+broad results, current-main base and CI are recorded on PR #47. Pre-restack test
+evidence above does not establish verification of this rewritten head. Human
+terminal QA remains unverified.
