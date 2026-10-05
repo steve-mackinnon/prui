@@ -193,3 +193,14 @@
 - General editor payload v4 reads versions 1–3 without losing range targets or suggestion attempts. Earlier binaries reject and preserve v4. Persist only local text, rune cursor, reply event identity, original attempted body, at most 500 previously observed general IDs, and uncertain/matched state. Fetched events remain ephemeral.
 - Save posting intent durably before dispatch; interrupted posting recovers uncertain. Editing cannot replace the attempted body. Only complete current-verified bounded conversation refresh reconciles; partial/stale/failed/offline, inline-only, and pre-attempt reads cannot clear uncertainty. No automatic retries.
 - Comparison reset clears prepared suggestion and general state, preserving original attempts under their original private key. Incremental navigation labels the original work without rendering its bodies or remapping it. Escape, quit/recovery discard, successful posting and last-session deletion clean up local drafts.
+
+# Read-only Review Inbox Contract
+
+- Issue #35's account inbox is explicit cached/refreshed triage, independent of
+  frozen source and review state. No polling, alerts, uploads or remote writes.
+- Unknown first capture, missing/null fields, access failures and bounded results
+  remain labelled unknown/incomplete. Mark-read is explicit, local and scoped to
+  account plus immutable PR identity; it never changes frozen review evidence.
+- A cross-repository item opens its own frozen session or a checkout whose current
+  repository identity is verified. Never fall back to another repository checkout.
+- See `docs/spec/SPEC-review-inbox.md` for filters, controls, bounds and cache policy.

@@ -1,0 +1,166 @@
+package tui
+
+import (
+	tea "charm.land/bubbletea/v2"
+	"context"
+	"errors"
+	"strings"
+	"testing"
+
+	"prui/internal/review"
+	"prui/internal/source"
+)
+
+func TestInboxGenerationFiltersAndMarkRead(t *testing.T) {
+	m := New(context.Background(), nil)
+	defer m.Close()
+	m.Width = 150
+	m.Height = 25
+	calls := 0
+	refreshes := 0
+	loader := func(_ context.Context, o source.InboxOptions, refresh bool) (source.Inbox, error) {
+		calls++
+		if refresh {
+			refreshes++
+		}
+		return source.Inbox{Viewer: "me", Complete: true, Items: []source.InboxItem{{PullRequest: source.PullRequest{Identity: source.Identity{Repository: "o/other", Number: 2}, Title: "Other repo"}, Activity: "unknown"}}}, nil
+	}
+	marked := false
+	m.SetInbox(loader, func(_ context.Context, viewer string, item source.InboxItem) error {
+		marked = viewer == "me" && item.PullRequest.Identity.Repository == "o/other"
+		return nil
+	}, nil, source.InboxOptions{}, true, false)
+	cmd := m.Init()
+	m.Update(cmd())
+	if calls != 1 || refreshes != 0 {
+		t.Fatal("implicit refresh")
+	}
+	old := m.loadInbox(true)
+	newer := m.loadInbox(false)
+	m.Update(newer())
+	m.Update(old())
+	if refreshes != 1 || m.inbox.loading {
+		t.Fatal("stale search applied")
+	}
+	m.Update(inboxResult{Generation: m.inbox.generation - 1, Data: source.Inbox{Viewer: "wrong"}})
+	if m.inbox.data.Viewer != "me" {
+		t.Fatal("stale account")
+	}
+	m.Update(m.inboxKey("m")())
+	if !marked || m.inbox.data.Items[0].Activity != "read" {
+		t.Fatal("mark read")
+	}
+	view := m.inboxView()
+	if !strings.Contains(view, "o/other#2") || !strings.Contains(view, "alerts off") {
+		t.Fatal(view)
+	}
+	m.inboxKey("f")
+	m.inbox.field = 1
+	m.inboxFilterKey("q")
+	if m.inbox.draftOptions.Repository != "q" {
+		t.Fatal("typing filter")
+	}
+	m.inboxFilterKey("esc")
+	if m.inbox.options.Repository != "" {
+		t.Fatal("discarded filter applied")
+	}
+}
+func TestInboxOpenUsesItemIdentityWithoutCurrentCheckout(t *testing.T) {
+	m := New(context.Background(), nil)
+	defer m.Close()
+	m.currentRepository = "o/first"
+	m.currentCheckout = "/wrong"
+	id := source.Identity{Repository: "o/second", Number: 2}
+	opened := false
+	m.SetInbox(nil, nil, func(_ context.Context, checkout string, got source.Identity, _ func(string)) (*review.Session, error) {
+		opened = checkout == "" && got == id
+		return nil, errors.New("missing own checkout")
+	}, source.InboxOptions{}, true, false)
+	m.inbox.data = source.Inbox{Items: []source.InboxItem{{PullRequest: source.PullRequest{Identity: id}}}}
+	completeAction(t, m, m.inboxKey("enter"))
+	if !opened || m.ActionError == nil || !strings.Contains(m.ActionError.Error(), "missing own checkout") {
+		t.Fatal("wrong repository reused")
+	}
+}
+func TestInboxLateOpenCannotReplaceEscapedReview(t *testing.T) {
+	m := New(context.Background(), nil)
+	defer m.Close()
+	m.inbox.generation = 3
+	m.Update(inboxOpenResult{Generation: 2, Result: PullRequestOpenResult{Session: &review.Session{}}})
+	if m.Session != nil {
+		t.Fatal("late opening replaced session")
+	}
+}
+
+func TestInboxEscapeThroughKeyboardDispatcherCancelsInitialOpen(t *testing.T) {
+	m := New(context.Background(), nil)
+	defer m.Close()
+	m.SetInbox(nil, nil, nil, source.InboxOptions{}, true, false)
+	ctx := m.beginAction()
+	m.Busy = true
+	_, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
+	if ctx.Err() == nil || m.inbox.generation != 1 || cmd == nil {
+		t.Fatal("initial inbox escape was blocked")
+	}
+	m.Update(inboxOpenResult{Generation: 0, Result: PullRequestOpenResult{Session: &review.Session{}}})
+	if m.Session != nil {
+		t.Fatal("cancelled initial open replaced session")
+	}
+}
+
+func TestInboxCancelledOpenCannotFinishNewerDraftAction(t *testing.T) {
+	m := New(context.Background(), nil)
+	defer m.Close()
+	m.SetInbox(nil, nil, nil, source.InboxOptions{}, false, false)
+	m.Stack = []page{pageReview, pageInbox}
+	m.inbox.generation = 4
+	oldCtx := m.beginAction()
+	m.Busy = true
+	m.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
+	if oldCtx.Err() == nil {
+		t.Fatal("old opener not cancelled")
+	}
+	newerCtx := m.beginAction()
+	m.Busy = true
+	sentinel := errors.New("newer draft action owns its error")
+	m.ActionError = sentinel
+	m.Update(inboxOpenResult{Generation: 4, Context: oldCtx, Result: PullRequestOpenResult{Err: context.Canceled}})
+	if newerCtx.Err() != nil || !m.Busy || m.ActionError != sentinel {
+		t.Fatal("late inbox result cancelled or cleared newer draft action")
+	}
+}
+
+func TestInboxPinsResolvedCachedAccountForRefreshAndFilters(t *testing.T) {
+	m := New(context.Background(), nil)
+	defer m.Close()
+	calls := 0
+	m.SetInbox(func(_ context.Context, o source.InboxOptions, refresh bool) (source.Inbox, error) {
+		calls++
+		if calls == 1 {
+			return source.Inbox{Viewer: "account-a", Cached: true, Complete: true}, nil
+		}
+		if o.Account != "account-a" {
+			t.Error("resolved cached account not pinned")
+		}
+		if refresh {
+			return source.Inbox{}, errors.New("authenticated account differs from selected account")
+		}
+		return source.Inbox{Viewer: "account-a", Cached: true, Complete: true}, nil
+	}, nil, nil, source.InboxOptions{}, true, false)
+	m.Update(m.Init()())
+	m.Update(m.loadInbox(true)())
+	if m.inbox.options.Account != "account-a" || m.inbox.data.Viewer != "account-a" || m.inbox.err == nil {
+		t.Fatal("refresh silently changed the displayed account")
+	}
+	m.Update(inboxResult{Generation: m.inbox.generation, Data: source.Inbox{Viewer: "account-b", Complete: true}})
+	if m.inbox.data.Viewer != "account-a" {
+		t.Fatal("inconsistent account result accepted")
+	}
+	m.inboxKey("f")
+	m.inbox.draftOptions.State = "closed"
+	cmd := m.inboxFilterKey("enter")
+	m.Update(cmd())
+	if m.inbox.options.Account != "account-a" || m.inbox.data.Viewer != "account-a" {
+		t.Fatal("filter selection silently switched account")
+	}
+}

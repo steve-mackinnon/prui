@@ -113,7 +113,22 @@ func run(args []string) int {
 			app.gh, app.setupError = source.NewGH(r, limits, dir)
 		}
 	}
-	if o.Command == "prs" || o.Command == "current" {
+	if o.Command == "inbox" && (o.Plain || os.Getenv("TERM") == "dumb" || !term.IsTerminal(os.Stdout.Fd()) || !term.IsTerminal(os.Stdin.Fd())) {
+		r, err := app.inbox(ctx, o.Inbox, o.InboxRefresh)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, tui.Escape(err.Error()))
+			return 1
+		}
+		if err := listInbox(os.Stdout, r); err != nil {
+			fmt.Fprintln(os.Stderr, tui.Escape(err.Error()))
+			return 1
+		}
+		if !r.Complete {
+			return 2
+		}
+		return 0
+	}
+	if o.Command == "prs" || o.Command == "current" || o.Command == "inbox" {
 		if o.Repository != "" {
 			if o.Command == "prs" {
 				prs, err := app.listPullRequests(ctx, o.Repository)

@@ -120,6 +120,7 @@ type PullRequestListResult struct {
 // initiated an asynchronous open. A result must never be applied to whichever
 // review happens to be visible when the worker finishes.
 type PullRequestOpenResult struct {
+	Frozen   bool
 	Target   int
 	Identity source.Identity
 	Session  *review.Session
@@ -608,6 +609,9 @@ func (m *Model) start(work func() tea.Msg) tea.Cmd {
 
 func (m *Model) Close() {
 	m.cancelDiscussionReads()
+	if m.inbox.cancel != nil {
+		m.inbox.cancel()
+	}
 	m.cancel()
 	if m.worker != nil {
 		<-m.worker
@@ -824,6 +828,10 @@ func (m *Model) pickerKey(k string) tea.Cmd {
 }
 
 func (m *Model) repositoryPickerKey(k string) tea.Cmd {
+	if k == "i" && m.inbox.load != nil {
+		m.push(pageInbox)
+		return m.loadInbox(false)
+	}
 	m.RepositoryPicker.clamp(len(m.Repositories))
 	switch k {
 	case "r":
@@ -917,6 +925,10 @@ func (m *Model) pullRequestPickerKey(k string) tea.Cmd {
 			m.PullRequestPicker.previewScroll = 0
 		}
 	}()
+	if k == "ctrl+o" && m.inbox.load != nil {
+		m.push(pageInbox)
+		return m.loadInbox(false)
+	}
 	if m.Session != nil {
 		return m.switcherKey(k)
 	}
@@ -954,12 +966,15 @@ func (m *Model) pullRequestPickerKey(k string) tea.Cmd {
 			m.ActionError = fmt.Errorf("maximum of %d tabs open; switch to an existing review", maxTabs)
 			return nil
 		}
-		checkout := m.currentCheckout
+		checkout := ""
+		if strings.EqualFold(m.currentRepository, pr.Identity.Repository) {
+			checkout = m.currentCheckout
+		}
 		if checkout == "" {
 			if len(m.Repositories) == 0 {
 				return nil
 			}
-			checkout = m.Repositories[0].Checkout
+
 			for _, repository := range m.Repositories {
 				if repository.Repository == pr.Identity.Repository {
 					checkout = repository.Checkout
@@ -1045,7 +1060,10 @@ func (m *Model) openSelectedPullRequest(identity source.Identity) tea.Cmd {
 		m.ActionError = fmt.Errorf("maximum of %d reviews open; switch to an existing review", maxTabs)
 		return nil
 	}
-	checkout := m.currentCheckout
+	checkout := ""
+	if strings.EqualFold(m.currentRepository, identity.Repository) {
+		checkout = m.currentCheckout
+	}
 	if checkout == "" {
 		for _, repository := range m.Repositories {
 			if repository.Repository == identity.Repository {
@@ -1094,7 +1112,11 @@ func (m *Model) repositoryPickerView() string {
 	for i, repository := range m.Repositories {
 		rows[i] = Escape(repository.Repository)
 	}
-	return m.pickerScreen(&m.RepositoryPicker, []string{appHeader("Repositories", ""), "Select a repository to list its open pull requests."}, rows, "No remembered repositories. Open a PR with --repo first.", "enter: open · r: reload · esc: back")
+	footer := "enter: open · r: reload · esc: back"
+	if m.inbox.load != nil {
+		footer = "enter: open · i: inbox · r: reload · esc: back"
+	}
+	return m.pickerScreen(&m.RepositoryPicker, []string{appHeader("Repositories", ""), "Select a repository to list its open pull requests."}, rows, "No remembered repositories. Open a PR with --repo first.", footer)
 }
 
 func (m *Model) switcherView() string {
@@ -1122,6 +1144,9 @@ func (m *Model) switcherView() string {
 	}
 	header := []string{appHeader("Switch pull requests", "type to filter"), "filter: " + Escape(m.SwitcherQuery)}
 	footer := "type: filter · enter: switch/open · esc: cancel"
+	if m.inbox.load != nil {
+		footer = "type: filter · enter: switch/open · ctrl+o: inbox · esc: cancel"
+	}
 	return m.prPickerScreen(header, rows, detail, "No matching open reviews or pull requests.", footer)
 }
 
