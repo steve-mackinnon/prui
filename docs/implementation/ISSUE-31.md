@@ -10,6 +10,12 @@ Combined regressions verify uncertain published edits cannot alter private draft
 generations, queued range/file targets or immutable suggestion attempts; restart
 retains the exact attempted payload and performs no extra writes. A suggestion
 application alone now keeps its frozen comparison during freshness refresh.
+Also integrated main `f0a3dea37f58fccd96cf6e51b8f2b80b82412b9c` with PR #46
+pinned-source navigation and local search. Combined keyboard tests prove full
+OLD/NEW and expanded-only context search hits stay read-only even after a
+canonical target was selected; canonical searched patch rows retain exact
+suggestion source/coordinates. Search and navigation keys cannot consume
+replacement-editor input or application confirmation/discard actions.
 The restack preserves the canonical conversation writer and complete
 conversation docs, the shared themed modal surface, and the read-only selected
 commit net-diff restriction. Combined tests exercise conversation refresh and
