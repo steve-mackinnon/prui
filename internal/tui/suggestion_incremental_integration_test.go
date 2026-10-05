@@ -48,6 +48,8 @@ func TestSuggestionComparisonResetClearsApplicationAndRetainsOriginalDraft(t *te
 			if err != nil {
 				t.Fatal(err)
 			}
+			readinessCtx, cancelReadiness := context.WithCancel(context.Background())
+			m.readiness = readinessState{cancel: cancelReadiness, loaded: true, snapshot: source.Readiness{Identity: meta.Identity, HeadSHA: meta.HeadSHA}}
 			searchCtx, cancelSearch := context.WithCancel(context.Background())
 			m.search[0] = &diffSearchState{session: old, cancel: cancelSearch}
 			m.navigation = codeNavigation{mode: "NEW", whitespace: true}
@@ -66,6 +68,9 @@ func TestSuggestionComparisonResetClearsApplicationAndRetainsOriginalDraft(t *te
 			}
 			if searchCtx.Err() != context.Canceled || m.search[0] != nil || m.navigation != (codeNavigation{}) || !reflect.DeepEqual(m.incremental, incrementalViewState{}) {
 				t.Fatal("parent incremental/navigation reset lost")
+			}
+			if readinessCtx.Err() != context.Canceled || m.readiness.loaded || m.readiness.snapshot.HeadSHA != "" {
+				t.Fatal("comparison reset retained readiness evidence")
 			}
 			if len(m.Pending) != 0 || m.ActionError != nil {
 				t.Fatal("old drafts copied or new draft save blocked", m.ActionError)

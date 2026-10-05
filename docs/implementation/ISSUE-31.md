@@ -24,6 +24,11 @@ range/file drafts and exact payloads remain unchanged in their private record
 and recover on reopening the original comparison. The regression failed before
 the narrow fix and also verifies parent search cancellation/navigation reset and
 read-only incremental controls without remote writes.
+Also integrated readiness main `a2d83a0899510d22574b5f72fbfe038d26c400f9`
+(PR #50). Alt+R remains independent live readiness and C remains commit filtering.
+Combined tests verify different live-head evidence never changes frozen suggestion
+targets, readiness/filter keys stay owned by active editors/application modals,
+and comparison reset cancels readiness and discards prior readiness evidence.
 The restack preserves the canonical conversation writer and complete
 conversation docs, the shared themed modal surface, and the read-only selected
 commit net-diff restriction. Combined tests exercise conversation refresh and
