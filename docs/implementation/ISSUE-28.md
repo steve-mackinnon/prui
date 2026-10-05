@@ -1,7 +1,8 @@
 # Issue #28: published comment and review thread actions
 
 Branch: `codex/issue-28-thread-actions`, now targeting `main` after parent PR #40
-merged as `7d88c50d635bf799cec00bb1ce884151c5d362da`. The repair rebases only the
+merged as `7d88c50d635bf799cec00bb1ce884151c5d362da`, followed by durable-draft
+PR #41 at main `f7272b3e14834efe58883fe3258929d158dc647c`. The repair rebases only the
 six issue #28 commits after the old parent tip
 `d1d89b5a67ea05c478a6c4211f91f9e09fa7997f`; merged conversation ancestry is not
 replayed. Current main's commit filter, PR picker and modal styling are preserved.
@@ -38,6 +39,22 @@ Secrets and Vulnerabilities ([workflow run](https://github.com/steve-mackinnon/p
 Final documentation-only head/re-review/CI are recorded in PR #44. Root alone
 merges. If main advances with PR #41 first, combined draft/thread integration must
 be revalidated before merging this PR.
+
+### Integration after PR #41 merged
+
+Rebased again onto main `f7272b3e14834efe58883fe3258929d158dc647c`. The only
+conflict was the append-only contract text; preserved both issue #26's durable
+review-draft contract and issue #28's published-action contract. No code conflict
+resolution changed main's persistence wrapper or recovery workflows.
+
+The combined durable-draft/thread regression seeds a saved summary and pending
+comment, submits an uncertain published edit with slash/quit-letter text, changes
+its local text while retaining the immutable attempt, blocks retry, confirms a
+thread resolution, then restarts. The original durable drafts recover unchanged;
+published text/state never enters SQLite draft payloads and recovery never writes
+remotely. Focused draft, thread/conversation, commit-filter and modal suites pass.
+Final fresh integrated review and the coordinator's broad-gate release are pending;
+the earlier repaired-head validation above applies to its stated previous base.
 
 ## Behavior and boundaries
 
