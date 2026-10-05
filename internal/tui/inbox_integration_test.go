@@ -21,12 +21,15 @@ import (
 func inboxIntegrationSession(t *testing.T, store *session.Store, repository string) *review.Session {
 	t.Helper()
 	r := testutil.NewRepo(t)
+	r.Write(".gitattributes", "generated.go review-generated\n")
+	r.Write("generated.go", "old generated\n")
 	r.Write("code.txt", "before\n"+strings.Repeat("context\n", 30))
 	base := r.Commit()
+	r.Write("generated.go", "new generated\n")
 	r.Write("code.txt", "after\n"+strings.Repeat("context\n", 30))
 	head := r.Commit()
 	meta := source.Metadata{Identity: source.Identity{Repository: repository, Number: 7}, BaseRepository: repository, HeadRepository: repository, BaseSHA: base, HeadSHA: head}
-	raw, err := review.Open(context.Background(), r.Dir, meta.Identity, incrementalGH{meta}, source.NewRunner(), source.Defaults(), nil)
+	raw, err := review.OpenWithConfig(context.Background(), r.Dir, meta.Identity, incrementalGH{meta}, source.NewRunner(), source.Defaults(), nil, review.Config{CacheFullSource: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -90,11 +93,60 @@ func inboxCombinedPersistence(t *testing.T, uncertain bool) {
 	namedKey(m, tea.KeyEnter)
 	inboxLeaveApplicationForFixture(t, m, uncertain)
 	key(m, '2')
-	m.Width, m.Height = 120, 24
-	m.navigation = codeNavigation{mode: "NEW", whitespace: true}
+	m.Width, m.Height = 160, 24
+	code := -1
+	for i, f := range m.Session.Inventory.Files {
+		if string(f.NewPath) == "code.txt" {
+			code = i
+		}
+	}
+	if code < 0 {
+		t.Fatal("source fixture missing")
+	}
+	m.selectFile(code)
 	m.Focus = paneDiff
-	m.Scroll[0] = 2
-	m.Cursor[0] = 1
+	m.cursorActive = true
+	// Raw comment selection must remain anchored through merged layout controls.
+	var raw source.ReviewCommentTarget
+	for i, row := range m.displayDetail() {
+		if row.target != nil && row.target.Path == "code.txt" && row.target.Side == "RIGHT" && row.target.Line == 1 {
+			raw = *row.target
+			m.setCursor(i)
+			m.setSelectedDiffTarget(row.target)
+			break
+		}
+	}
+	if raw.Path == "" {
+		t.Fatal("raw selection missing")
+	}
+	key(m, 'B')
+	m.Update(tea.KeyPressMsg{Code: 'c', Mod: tea.ModAlt})
+	key(m, 'S')
+	m.resizeList(4)
+	if got := m.selectedDiffTarget(); got == nil || *got != raw || m.commitFilter.open {
+		t.Fatal("layout/collapse retargeted selection or opened commit filter")
+	}
+	key(m, 'S') // Return to unified source rows before searching.
+	m.navigation = codeNavigation{mode: "NEW", whitespace: true}
+	m.fileCache = fileDetailCache{}
+	searchInput(m, "context")
+	namedKey(m, tea.KeyEnter)
+	sourceID := m.displayDetail()[m.cursor()].searchID
+	if sourceID.Unit == "" || m.selectedDiffTarget() != nil {
+		t.Fatal("source search lost immutable row or became comment target")
+	}
+	m.Update(tea.KeyPressMsg{Code: 'c', Mod: tea.ModAlt})
+	m.resizeList(3)
+	if !layoutRowHasSourceID(m.displayDetail()[m.cursor()], sourceID) {
+		t.Fatal("collapse moved source search anchor")
+	}
+	m.search = [2]*diffSearchState{}
+	key(m, 'F')
+	namedKey(m, tea.KeyEscape)
+	if !layoutRowHasSourceID(m.displayDetail()[m.cursor()], sourceID) {
+		t.Fatal("path search moved source anchor")
+	}
+	m.Focus = paneDiff
 	m.Horizontal = 2
 	navigation := m.navigation
 	scroll, cursor, horizontal := m.Scroll[0], m.Cursor[0], m.Horizontal
@@ -150,8 +202,17 @@ func inboxCombinedPersistence(t *testing.T, uncertain bool) {
 	m.Update(load())
 	key(m, 'j')
 	namedKey(m, tea.KeyEnter)
+	if !layoutRowHasSourceID(m.displayDetail()[m.cursor()], sourceID) || m.selectedDiffTarget() != nil {
+		t.Fatal("inbox return lost read-only source identity")
+	}
 	if m.Session.ID != first.ID || m.navigation != navigation || m.Scroll[0] != scroll || m.Cursor[0] != cursor || m.Horizontal != horizontal || m.Focus != paneDiff {
 		t.Fatal("returning to original inbox identity disturbed navigation")
+	}
+	key(m, 'S')
+	m.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
+	m.Update(tea.WindowSizeMsg{Width: 160, Height: 24})
+	if !layoutRowHasSourceID(m.displayDetail()[m.cursor()], sourceID) || m.selectedDiffTarget() != nil {
+		t.Fatal("restored inbox source anchor lost during narrow/wide layout")
 	}
 	// Cancel refresh through real dispatch, then deliver late evidence.
 	key(m, 'P')
