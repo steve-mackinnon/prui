@@ -107,3 +107,25 @@ func TestInboxEscapeThroughKeyboardDispatcherCancelsInitialOpen(t *testing.T) {
 		t.Fatal("cancelled initial open replaced session")
 	}
 }
+
+func TestInboxCancelledOpenCannotFinishNewerDraftAction(t *testing.T) {
+	m := New(context.Background(), nil)
+	defer m.Close()
+	m.SetInbox(nil, nil, nil, source.InboxOptions{}, false, false)
+	m.Stack = []page{pageReview, pageInbox}
+	m.inbox.generation = 4
+	oldCtx := m.beginAction()
+	m.Busy = true
+	m.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
+	if oldCtx.Err() == nil {
+		t.Fatal("old opener not cancelled")
+	}
+	newerCtx := m.beginAction()
+	m.Busy = true
+	sentinel := errors.New("newer draft action owns its error")
+	m.ActionError = sentinel
+	m.Update(inboxOpenResult{Generation: 4, Context: oldCtx, Result: PullRequestOpenResult{Err: context.Canceled}})
+	if newerCtx.Err() != nil || !m.Busy || m.ActionError != sentinel {
+		t.Fatal("late inbox result cancelled or cleared newer draft action")
+	}
+}

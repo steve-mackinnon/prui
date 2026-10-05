@@ -25,6 +25,7 @@ type inboxReadResult struct {
 }
 type inboxOpenResult struct {
 	Generation uint64
+	Context    context.Context
 	Result     PullRequestOpenResult
 }
 type inboxState struct {
@@ -138,7 +139,7 @@ func (m *Model) inboxKey(k string) tea.Cmd {
 		}
 		return m.start(func() tea.Msg {
 			r, err := open(ctx, "", id, notify)
-			return inboxOpenResult{Generation: generation, Result: PullRequestOpenResult{Target: target, Identity: id, Session: r, Err: err, Frozen: true}}
+			return inboxOpenResult{Generation: generation, Context: ctx, Result: PullRequestOpenResult{Target: target, Identity: id, Session: r, Err: err, Frozen: true}}
 		})
 	}
 	return nil
@@ -257,8 +258,15 @@ func (m *Model) applyInboxMessage(msg tea.Msg) tea.Cmd {
 		}
 	case inboxOpenResult:
 		if v.Generation != s.generation {
-			_ = m.finishAction(v.Result.Err)
-			m.ActionError = nil
+			// A canceled inbox worker may finish after another foreground action
+			// has acquired the model. Only its own context may be cleaned up.
+			if v.Context != nil && m.actionCtx == v.Context {
+				_ = m.finishAction(v.Result.Err)
+				m.ActionError = nil
+			}
+			return nil
+		}
+		if v.Context != nil && m.actionCtx != v.Context {
 			return nil
 		}
 		_, cmd := m.Update(v.Result)
