@@ -625,7 +625,7 @@ func (m *Model) update(msg tea.Msg) (updated tea.Model, command tea.Cmd) {
 		if current == nil || current.ID != v.SessionID {
 			return m, nil
 		}
-		keepDrafts := state.discussions.published != nil || state.discussions.editor != nil || state.Composer != nil || len(state.Pending) > 0 || state.ReviewForm != nil || state.CommentMenu != nil || slices.Contains(state.Stack, pageGuideConsent)
+		keepDrafts := state.SuggestionApply != nil || state.discussions.published != nil || state.discussions.editor != nil || state.Composer != nil || len(state.Pending) > 0 || state.ReviewForm != nil || state.CommentMenu != nil || slices.Contains(state.Stack, pageGuideConsent)
 		if v.Freshness.Session != nil && keepDrafts {
 			// Keep local editing anchored to its frozen source; write preflights
 			// still reject the stale comparison. Opening a new one stays explicit.

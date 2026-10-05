@@ -3,7 +3,14 @@
 Originally stacked on issue 29 (`5dd00d1`, PR #45 on #41). Restacked onto
 reviewed PR #45 `ebc8d93ba5ac6e0581c3b98a320c5c54c3bd39fb`, then actual
 main merge `bdedc5476e0e837c6409445f5c6c396e16b62934`, retaining only issue 31
-commits. The restack preserves the canonical conversation writer and complete
+commits. Subsequently restacked onto main `7f64f19ffa26ac5bd5d032c3ff668d4221fb6f84`
+with merged published-comment/thread actions (PR #44), preserving both contracts,
+keyboard routes, status/preview rendering and unsent-work shutdown protection.
+Combined regressions verify uncertain published edits cannot alter private draft
+generations, queued range/file targets or immutable suggestion attempts; restart
+retains the exact attempted payload and performs no extra writes. A suggestion
+application alone now keeps its frozen comparison during freshness refresh.
+The restack preserves the canonical conversation writer and complete
 conversation docs, the shared themed modal surface, and the read-only selected
 commit net-diff restriction. Combined tests exercise conversation refresh and
 general-editor isolation with ranged suggestions, real legacy v1 → range v2 →
