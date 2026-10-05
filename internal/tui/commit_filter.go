@@ -3,6 +3,7 @@ package tui
 import (
 	"context"
 	"fmt"
+	"github.com/charmbracelet/x/ansi"
 	"image"
 	"strings"
 
@@ -234,17 +235,18 @@ func (m *Model) commitFilterModalView(background string) string {
 		inside := max(1, card.Dx()-4)
 		rows = append(rows, "╭"+strings.Repeat("─", card.Dx()-2)+"╮")
 		for _, line := range strings.Split(body, "\n") {
-			rows = append(rows, modalLine(line, inside))
+			rows = append(rows, modalLine(ansi.Truncate(line, inside, "…"), inside))
 		}
 		rows = append(rows, "╰"+strings.Repeat("─", card.Dx()-2)+"╯")
 	} else {
-		for _, line := range viewportLines(body, card.Dx(), card.Dy()) {
-			rows = append(rows, clip(line, card.Dx())+strings.Repeat(" ", max(0, card.Dx()-visibleWidth(line))))
+		bodyRows := strings.Split(body, "\n")
+		for _, line := range bodyRows[:min(len(bodyRows), card.Dy())] {
+			rows = append(rows, ansi.Truncate(line, card.Dx(), "…")+strings.Repeat(" ", max(0, card.Dx()-visibleWidth(line))))
 		}
 	}
 	return lipgloss.NewCanvas(m.Width, m.Height).Compose(lipgloss.NewCompositor(
 		lipgloss.NewLayer(strings.Join(viewportLines(background, m.Width, m.Height), "\n")),
-		lipgloss.NewLayer(strings.Join(rows, "\n")).X(card.Min.X).Y(card.Min.Y),
+		lipgloss.NewLayer(m.modalSurface(strings.Join(rows, "\n"))).X(card.Min.X).Y(card.Min.Y),
 	)).Render()
 }
 func (m *Model) filteredReadingKey(k string) bool {
@@ -254,6 +256,10 @@ func (m *Model) filteredReadingKey(k string) bool {
 		f.readingFocus = paneList
 	case "l", "ctrl+l", "enter":
 		f.readingFocus = paneDiff
+	case "]":
+		m.resizeList(2)
+	case "[":
+		m.resizeList(-2)
 	case "S":
 		m.layout = m.layout.toggled()
 	case "j", "down", "n", "k", "up", "p", "d", "pgdown", "u", "pgup", "home", "end":
@@ -283,7 +289,7 @@ func (m *Model) filteredReadingKey(k string) bool {
 		f.horizontal += 8
 	case "left":
 		f.horizontal = max(0, f.horizontal-8)
-	case "m", "e", "i", "P", "tab", "{", "}", "z", "[", "]", "J", "K": // Read-only: no canonical mark, evidence or composition targets.
+	case "m", "e", "i", "P", "tab", "{", "}", "z", "J", "K": // Read-only: no canonical mark, evidence or composition targets.
 	default:
 		return false
 	}
@@ -424,6 +430,9 @@ func (m *Model) commitFilterMouse(msg tea.MouseMsg) (tea.Cmd, bool) {
 	if c, ok := msg.(tea.MouseClickMsg); ok && c.Y == 1 {
 		return nil, false
 	}
+	if cmd, handled := m.mouseResize(msg); handled {
+		return cmd, true
+	}
 	g := m.filteredGeometry()
 	if w, ok := msg.(tea.MouseWheelMsg); ok {
 		delta := mouseWheelStep
@@ -557,7 +566,7 @@ func (m *Model) filteredGeometry() workspaceGeometry {
 		return workspaceGeometry{Rail: r}
 	}
 	left := m.listWidth()
-	return workspaceGeometry{Rail: image.Rect(1, 3, left+1, end).Intersect(screen), Detail: image.Rect(left+2, 3, m.Width-1, end).Intersect(screen)}
+	return workspaceGeometry{Rail: image.Rect(1, 3, left+1, end).Intersect(screen), Divider: image.Rect(left+1, 3, left+2, end).Intersect(screen), Detail: image.Rect(left+2, 3, m.Width-1, end).Intersect(screen)}
 }
 
 type commitFilterSourceCache struct {

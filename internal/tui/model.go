@@ -1223,6 +1223,10 @@ func (m *Model) resizeList(delta int) {
 	if m.Width < 100 || m.Session == nil || !m.diffReviewView() {
 		return
 	}
+	if m.commitFilter.subset {
+		m.listWidthPreference = m.clampListWidth(m.listWidth() + delta)
+		return
+	}
 	target, commentID := m.cursorAnchor()
 	m.listWidthPreference = m.clampListWidth(m.listWidth() + delta)
 	m.restoreCursorAnchor(target, commentID)
@@ -1900,11 +1904,11 @@ func (m *Model) View() tea.View {
 		case pageURL:
 			text = m.Session.Inventory.Comparison.Metadata.Identity.URL() + "\nOpen this URL in your browser.\nesc: back | q: quit"
 		case pageGuideConsent:
-			text = renderGuideConsentModal(m.Width, m.Height, m.reviewView(), m.guideConsentView())
+			text = renderGuideConsentModal(m.Width, m.Height, m.reviewView(), m.guideConsentView(), m.modalSurface)
 		case pageReviewSubmit:
 			text = m.reviewFormModalView()
 		case pageQuitPending:
-			text = renderActionModal(m.Width, m.Height, m.actionModalBackground(), "Discard unsent review drafts and quit?\n\nenter: discard and quit · esc: keep reviewing")
+			text = renderActionModal(m.Width, m.Height, m.actionModalBackground(), "Discard unsent review drafts and quit?\n\nenter: discard and quit · esc: keep reviewing", m.modalSurface)
 		case pageThemePicker:
 			text = m.themePickerView()
 		case pageEvidence:
@@ -1921,7 +1925,7 @@ func (m *Model) View() tea.View {
 		text = m.commitFilterModalView(text)
 	}
 	if modal := m.loadingModal(); modal.active {
-		text = renderLoadingModal(m.Width, m.Height, text, modal)
+		text = renderLoadingModal(m.Width, m.Height, text, modal, m.modalSurface)
 	}
 	lines := strings.Split(text, "\n")
 	if len(lines) > m.Height {

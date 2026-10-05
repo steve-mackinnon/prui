@@ -387,3 +387,39 @@ func TestCommitFilterPendingEditReturnsToCanonicalSurface(t *testing.T) {
 		t.Fatal("pending editor invisible", view)
 	}
 }
+
+func TestCommitFilterDividerResize(t *testing.T) {
+	for _, view := range []rune{'2', '3'} {
+		t.Run(string(view), func(t *testing.T) {
+			m := commitModel(t)
+			m.Width, m.Height = 160, 30
+			key(m, view)
+			m.commitFilter.subset = true
+			m.commitFilter.inventory = m.Session.Inventory
+			original := m.listWidth()
+			key(m, ']')
+			if m.listWidth() != original+2 {
+				t.Fatal("filtered review swallowed divider hotkey")
+			}
+			key(m, '[')
+			if m.listWidth() != original {
+				t.Fatal("divider shrink hotkey failed")
+			}
+			d := m.filteredGeometry().Divider
+			m.Update(tea.MouseClickMsg{X: d.Min.X, Y: d.Min.Y, Button: tea.MouseLeft})
+			m.Update(tea.MouseMotionMsg{X: d.Min.X + 5, Y: d.Min.Y, Button: tea.MouseLeft})
+			m.Update(tea.MouseReleaseMsg{X: d.Min.X + 5, Y: d.Min.Y, Button: tea.MouseLeft})
+			if m.listWidth() != original+5 || m.drag.active {
+				t.Fatal("filtered review swallowed divider drag or release")
+			}
+			key(m, 'C')
+			key(m, ']')
+			d = m.filteredGeometry().Divider
+			m.Update(tea.MouseClickMsg{X: d.Min.X, Y: d.Min.Y, Button: tea.MouseLeft})
+			m.Update(tea.MouseMotionMsg{X: d.Min.X + 5, Y: d.Min.Y, Button: tea.MouseLeft})
+			if m.listWidth() != original+5 || m.drag.active {
+				t.Fatal("modal allowed background resize")
+			}
+		})
+	}
+}

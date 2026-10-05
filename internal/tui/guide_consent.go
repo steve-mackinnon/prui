@@ -196,7 +196,7 @@ func (m *Model) guideConsentView() string {
 	return strings.Join(paragraphs, "\n")
 }
 
-func renderGuideConsentModal(width, height int, background, body string) string {
+func renderGuideConsentModal(width, height int, background, body string, painters ...func(string) string) string {
 	if width <= 0 || height <= 0 {
 		return ""
 	}
@@ -226,7 +226,7 @@ func renderGuideConsentModal(width, height int, background, body string) string 
 			}
 			out = append(out, clip(line, width))
 		}
-		return strings.Join(out, "\n")
+		return paintModalSurface(strings.Join(out, "\n"), painters)
 	}
 	if len(rows) > height {
 		rows = append(rows[:height-1], rows[len(rows)-1])
@@ -235,7 +235,7 @@ func renderGuideConsentModal(width, height int, background, body string) string 
 	canvas := lipgloss.NewCanvas(width, height)
 	return canvas.Compose(lipgloss.NewCompositor(
 		lipgloss.NewLayer(strings.Join(viewportLines(background, width, height), "\n")),
-		lipgloss.NewLayer(strings.Join(rows, "\n")).X(left).Y(top),
+		lipgloss.NewLayer(paintModalSurface(strings.Join(rows, "\n"), painters)).X(left).Y(top),
 	)).Render()
 }
 
