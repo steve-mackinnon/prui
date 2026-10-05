@@ -65,3 +65,64 @@ func TestNewComparisonCancelsCommitFilterAndRetainsPreviousDraft(t *testing.T) {
 		t.Fatal("filter reset lost previous comparison draft", err)
 	}
 }
+
+func TestDurableReviewSurvivesUncertainGeneralConversation(t *testing.T) {
+	store, err := session.Open(t.TempDir() + "/private")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	m := draftTestModel(t, store)
+	defer m.Close()
+	m.openReviewForm()
+	m.ReviewForm.Focus = 1
+	key(m, 's')
+	namedKey(m, tea.KeyEscape)
+
+	calls := 0
+	m.SetGeneralCommentSubmitter(func(_ context.Context, _ source.Metadata, body string) (source.ConversationEvent, error) {
+		calls++
+		if body != "tq" {
+			t.Fatalf("general editor input was intercepted: %q", body)
+		}
+		return source.ConversationEvent{}, source.ErrCommentDeliveryUnknown
+	})
+	m.openDiscussions()
+	m.discussionKey("n")
+	key(m, 't')
+	key(m, 'q')
+	_, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	if cmd == nil {
+		t.Fatal("explicit general comment submit did not dispatch")
+	}
+	m.Update(cmd())
+	if calls != 1 || m.discussions.editor == nil || !m.discussions.editor.uncertain {
+		t.Fatal("unknown general delivery lost its live attempted body")
+	}
+	_, retry := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	if retry != nil || calls != 1 {
+		t.Fatal("general delivery retried before reconciliation")
+	}
+	key(m, 'x')
+	if m.discussions.editor.draft != "tqx" || m.discussions.editor.attemptedBody != "tq" {
+		t.Fatal("editing general text changed its immutable attempt")
+	}
+	got, err := store.LoadDraft(context.Background(), session.DraftKeyFor(m.Session.Inventory.Comparison.Metadata))
+	if err != nil || got.Summary != "s" || got.Attempt != "" {
+		t.Fatal("general attempt replaced or contaminated durable review draft", err)
+	}
+
+	restarted := draftTestModel(t, store)
+	defer restarted.Close()
+	if restarted.ReviewForm == nil || restarted.ReviewForm.Body != "s" || restarted.top() != pageDraftRecovery {
+		t.Fatal("durable review did not recover after general conversation")
+	}
+	if restarted.discussions.editor != nil || len(restarted.discussions.snapshot.Snapshot.Events) != 0 {
+		t.Fatal("ephemeral general conversation leaked into durable recovery")
+	}
+	namedKey(restarted, tea.KeyEnter)
+	restarted.openReviewForm()
+	if restarted.top() != pageReviewSubmit || restarted.ReviewForm.Body != "s" || calls != 1 {
+		t.Fatal("review recovery lost focus/text or wrote to GitHub")
+	}
+}
