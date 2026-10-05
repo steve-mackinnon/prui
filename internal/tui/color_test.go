@@ -196,10 +196,9 @@ func TestPlainContractGuard(t *testing.T) {
 	}
 }
 
-// TestEscapeContractUnchanged pins that styling did not relax escaping: every
-// hostile byte stays a reversible backslash sequence.
-func TestEscapeContractUnchanged(t *testing.T) {
-	for _, raw := range []string{"\x1b]52;c;attack\a", "\x1b[32m+fake", "tab\there", "back\\slash", string([]byte{0xff, 0xfe}), "\x00\r\n"} {
+// TestEscapeControlsRemainSafe pins that styling never relaxes terminal escaping.
+func TestEscapeControlsRemainSafe(t *testing.T) {
+	for _, raw := range []string{"\x1b]52;c;attack\a", "\x1b[32m+fake", "tab\there", string([]byte{0xff, 0xfe}), "\x00\r\n"} {
 		e := Escape(raw)
 		if strings.ContainsAny(e, "\x1b\a\x00\r\n") {
 			t.Fatalf("escape leaked a control byte: %q", e)

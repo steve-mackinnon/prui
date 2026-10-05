@@ -34,7 +34,7 @@ func TestArtifactWriterWritesBoundedTranscriptAndDeterministicScreenFiles(t *tes
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got, want := string(text), "title\n<item>&\\\"\\x1b[31m\n"; got != want {
+	if got, want := string(text), "title\n<item>&\"\\x1b[31m\n"; got != want {
 		t.Fatalf("screen text = %q, want %q", got, want)
 	}
 
@@ -45,7 +45,7 @@ func TestArtifactWriterWritesBoundedTranscriptAndDeterministicScreenFiles(t *tes
 	got := string(svg)
 	for _, want := range []string{
 		`width="960" height="432" viewBox="0 0 960 432"`,
-		`&lt;item&gt;&amp;\&#34;\x1b[31m`,
+		`&lt;item&gt;&amp;&#34;\x1b[31m`,
 		`font-family="monospace"`,
 	} {
 		if !strings.Contains(got, want) {

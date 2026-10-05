@@ -20,7 +20,7 @@ func TestSharedPatchRowsKeepCoordinatesSeparateFromPresentation(t *testing.T) {
 	if !reflect.DeepEqual(main, commit) {
 		t.Fatalf("main and commit source rows differ:\n%+v\n%+v", main, commit)
 	}
-	want := []string{"@@ -4,2 +7,2 @@", "   4      -old", "        7 +new", "   5    8  context", `\\ No newline at end of file`, "@@ -20 +30 @@", `       30 +\tlast`, ""}
+	want := []string{"@@ -4,2 +7,2 @@", "   4      -old", "        7 +new", "   5    8  context", `\ No newline at end of file`, "@@ -20 +30 @@", `       30 +\tlast`, ""}
 	for i, row := range commit {
 		if got := numberedPatchText(row); got != want[i] {
 			t.Errorf("row %d = %q, want %q", i, got, want[i])

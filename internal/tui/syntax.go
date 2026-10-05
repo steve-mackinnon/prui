@@ -141,9 +141,10 @@ func (m *Model) patchMarker(marker string, class lineClass) string {
 		return marker
 	}
 	role := theme.Foreground
-	if class == classAdded {
+	switch class {
+	case classAdded:
 		role = theme.Added
-	} else if class == classRemoved {
+	case classRemoved:
 		role = theme.Removed
 	}
 	c, _ := m.theme.Color(role)
