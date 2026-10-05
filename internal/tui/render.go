@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
@@ -15,7 +16,23 @@ import (
 	"prui/internal/syntax"
 )
 
-func Escape(s string) string { q := strconv.Quote(s); return q[1 : len(q)-1] }
+// Escape preserves printable source text while neutralizing terminal controls
+// and making invalid UTF-8 bytes visible.
+func Escape(s string) string {
+	var b strings.Builder
+	for len(s) > 0 {
+		r, size := utf8.DecodeRuneInString(s)
+		part := s[:size]
+		if strconv.IsPrint(r) && (r != utf8.RuneError || size != 1) {
+			b.WriteString(part)
+		} else {
+			q := strconv.Quote(part)
+			b.WriteString(q[1 : len(q)-1])
+		}
+		s = s[size:]
+	}
+	return b.String()
+}
 func pathLabel(f inventory.FileChange) string {
 	if len(f.OldPath) == 0 {
 		return Escape(string(f.NewPath))
