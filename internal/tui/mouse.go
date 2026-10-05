@@ -26,6 +26,7 @@ func (m *Model) mouseAvailable() bool {
 }
 
 func (m *Model) mouseUpdate(msg tea.MouseMsg) tea.Cmd {
+	m.linkMouseValid = false
 	if !m.mouseAvailable() {
 		m.cancelMouseDrag()
 		return nil
@@ -42,6 +43,9 @@ func (m *Model) mouseUpdate(msg tea.MouseMsg) tea.Cmd {
 		return cmd
 	}
 	if cmd, handled := m.mouseResize(msg); handled {
+		return cmd
+	}
+	if cmd, handled := m.mouseURL(msg); handled {
 		return cmd
 	}
 	if wheel, ok := msg.(tea.MouseWheelMsg); ok {

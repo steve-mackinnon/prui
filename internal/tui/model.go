@@ -225,6 +225,9 @@ type Model struct {
 	layoutPreferences     layoutprefs.Preferences
 	saveLayoutPreferences func(layoutprefs.Preferences) error
 
+	linkMouseX, linkMouseY int
+	linkMouseValid         bool
+
 	drag                 dividerDrag
 	pendingCenter        bool
 	helpScroll           int
@@ -2424,7 +2427,14 @@ func (m *Model) View() tea.View {
 	for i := range lines {
 		lines[i] = clip(lines[i], m.Width)
 	}
-	v := tea.NewView(m.themeContent(strings.Join(lines, "\n")))
+	content := m.themeContent(strings.Join(lines, "\n"))
+	if m.linksAvailable() {
+		content = linkifyURLs(content)
+		if m.linkMouseValid {
+			content = hoverURL(content, m.Width, len(lines), m.linkMouseX, m.linkMouseY)
+		}
+	}
+	v := tea.NewView(content)
 	v.AltScreen = true
 	if m.mouseAvailable() {
 		v.MouseMode = tea.MouseModeCellMotion
