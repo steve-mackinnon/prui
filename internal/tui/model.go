@@ -498,6 +498,8 @@ func (m *Model) update(msg tea.Msg) (updated tea.Model, command tea.Cmd) {
 				m.readiness = readinessState{}
 				m.fileCache = fileDetailCache{}
 				m.Composer, m.ReviewForm, m.CommentMenu = nil, nil, nil
+				m.SuggestionApply = nil
+				m.SuggestionConfirm, m.SuggestionScroll = false, 0
 				m.Pending, m.Comments = nil, nil
 				m.ReviewSubmitted = false
 				m.Selected, m.Horizontal, m.Row = 0, 0, 0

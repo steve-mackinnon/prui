@@ -16,6 +16,14 @@ OLD/NEW and expanded-only context search hits stay read-only even after a
 canonical target was selected; canonical searched patch rows retain exact
 suggestion source/coordinates. Search and navigation keys cannot consume
 replacement-editor input or application confirmation/discard actions.
+Also integrated main `d7597f4c4c94a3bd3fb3d21f08790d31b9413fa5` with PR #47
+incremental review and comparison-reset maintenance. Reset clears only active
+suggestion application/confirmation/scroll state before loading the new
+comparison’s independent drafts. Prepared and uncertain original applications,
+range/file drafts and exact payloads remain unchanged in their private record
+and recover on reopening the original comparison. The regression failed before
+the narrow fix and also verifies parent search cancellation/navigation reset and
+read-only incremental controls without remote writes.
 The restack preserves the canonical conversation writer and complete
 conversation docs, the shared themed modal surface, and the read-only selected
 commit net-diff restriction. Combined tests exercise conversation refresh and
