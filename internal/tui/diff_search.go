@@ -543,8 +543,25 @@ func (m *Model) revealSearchMatch() {
 			m.setSelectedDiffTarget(cell.target)
 			m.cursorActive = true
 			m.setOffset(max(0, i-max(1, m.bodyHeight()/3)))
-			position := min(len(cell.Text), max(0, wanted-cell.sourceOffset))
-			m.Horizontal = max(0, utf8.RuneCountInString(cell.Text[:position])-8)
+			text, sourceOffset, width := cell.Text, cell.sourceOffset, max(1, m.detailWidth()-2)
+			if line.sideBySide != nil && line.sideBySide.full == nil {
+				marker, source := splitPatchMarker(text)
+				text, sourceOffset = source, sourceOffset+len(marker)
+				bounds, _ := splitCellBounds(m.detailWidth())
+				width = max(1, bounds.Dx()-2-8) // Cursor and line-number gutters.
+			}
+			position := min(len(text), max(0, wanted-sourceOffset))
+			end := min(len(text), max(0, wantedEnd-sourceOffset))
+			// Wrapped matches usually already fit. Panning every match clips
+			// the beginnings of all other rows in the viewport as well.
+			m.Horizontal = 0
+			if visibleWidth(text[:end]) > width {
+				m.Horizontal = max(0, utf8.RuneCountInString(text[:position])-8)
+				start := len(string([]rune(text)[:m.Horizontal]))
+				if visibleWidth(text[start:end]) > width {
+					m.Horizontal = utf8.RuneCountInString(text[:position])
+				}
+			}
 			return
 		}
 	}

@@ -24,6 +24,8 @@ User-visible changes are recorded here before each release. See
 
 ### Fixed
 
+- Keep visible search results at the diff's left margin instead of horizontally clipping the surrounding code; pan only for matches beyond the viewport.
+
 - Keep the comment editor visible when Tab or Shift+Tab changes the comment type.
 
 - Keep typing `q` in inline comments, suggestions, file and commit comments, and replies from triggering quit.
