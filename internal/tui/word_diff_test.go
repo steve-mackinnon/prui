@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"fmt"
 	"github.com/charmbracelet/colorprofile"
 	uv "github.com/charmbracelet/ultraviolet"
 	"github.com/charmbracelet/x/ansi"
@@ -177,5 +178,32 @@ func TestWordDiffSearchComposition(t *testing.T) {
 	warning, _ := m.theme.Color(theme.Warning)
 	if c.Style.Underline == 0 || c.Style.Attrs&uv.AttrBold == 0 || !sameCanvasColor(c.Style.Bg, warning) {
 		t.Fatal("search and word emphasis did not compose")
+	}
+}
+
+func TestWordDiffExactWorkBoundaryAndBlockLimit(t *testing.T) {
+	old, newText := "left1 MID right1", "left2 MID right2"
+	required := 2 * (len(wordTokens(old)) + 1) * (len(wordTokens(newText)) + 1)
+	budget := required - 1
+	if a, b := changedWords(old, newText, &budget); len(a)+len(b) > 0 || budget != required-1 {
+		t.Fatal("insufficient work must leave pair uncomputed")
+	}
+	budget = required
+	if a, b := changedWords(old, newText, &budget); len(a) != 2 || len(b) != 2 || budget != 0 {
+		t.Fatal("exact work boundary failed", a, b, budget)
+	}
+	var patch strings.Builder
+	patch.WriteString("@@ -1,17 +1,17 @@\n")
+	for i := 0; i < 17; i++ {
+		fmt.Fprintf(&patch, "-value%d = old\n", i)
+	}
+	for i := 0; i < 17; i++ {
+		fmt.Fprintf(&patch, "+value%d = new\n", i)
+	}
+	rows := textHunkLines(inventory.FileChange{}, inventory.ReviewUnit{}, []byte(patch.String()), source.Identity{}, "")
+	for _, row := range rows {
+		if len(row.wordChanges) > 0 {
+			t.Fatal("block line cap ignored")
+		}
 	}
 }

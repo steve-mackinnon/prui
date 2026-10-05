@@ -269,3 +269,12 @@ canonical comment targets, ambiguous/many-to-many fallback, invalid UTF-8 and
 patch/line/token/work limits. Source/navigation/search regression tests accompany
 the focused word tests. These are synthetic renderer checks; live human terminal
 behavior and accessibility have not been verified for this release.
+
+Restacked word-diff integration: `go test ./internal/tui -run '^TestWordDiff' -count=1`
+includes a real Git capture saved in SQLite, deletion of the source repository,
+and offline recovery of combined v3 suggestion/v4 general drafts. It checks
+immutable dispatched comment/general bytes alongside line/range/file targets,
+raw suggestion Before/replacement text, Unicode multi-line emphasis, both layouts,
+wrap/pan/resize, the Alt+C collapse handler, full OLD/NEW source and search IDs.
+Exact token-work boundaries and oversized replacement blocks also retain line-diff
+fallback. Renderer fixtures remain synthetic terminal evidence, not human QA.
