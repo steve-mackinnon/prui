@@ -76,6 +76,9 @@ func (a *application) model(ctx context.Context, o options) *tui.Model {
 	if _, supported := a.gh.(source.DiscussionReader); !a.offline && supported {
 		m.SetDiscussionReader(a.listDiscussions)
 	}
+	if _, supported := a.gh.(source.GeneralCommentWriter); !a.offline && supported {
+		m.SetGeneralCommentSubmitter(a.submitGeneralComment)
+	}
 	m.SetCommentSubmitter(a.submitReviewComment)
 	m.SetReviewSubmitter(a.submitPullRequestReview)
 	m.SetCommentActionSubmitter(a.submitReviewCommentAction)

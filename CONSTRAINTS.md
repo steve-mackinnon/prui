@@ -81,3 +81,21 @@
 - A confirmed creation stays readable when its current anchor is missing.
   Uncertain delivery retains the draft and requests refresh before intentional
   retry. Existing main-diff actions retain their author/freshness protections.
+
+# Complete PR Conversation Contract
+
+- Issue #27 supersedes Phase 5's restriction against timeline comments only for
+  an explicit general PR comment or @mention reply in the interactive conversation
+  editor. This does not change draft persistence or pending review semantics.
+- Conversation is ephemeral live data: general comments, submitted decisions and
+  bodies, and individual inline activity retain actor, timestamp and stable ID.
+  Never place general events into pinned source, sessions, guides or draft storage.
+- General writes use JSON stdin only, an exact freshness preflight and one explicit
+  Enter action. Escape never writes; offline refusal precedes client access.
+  General replies are labeled new @mention PR comments, distinct from inline replies.
+- Retrieval is paginated and bounded; partial, stale, unavailable and offline states
+  remain visible. Refresh preserves selection/detail navigation, deduplicates by
+  stable identity and retains confirmed creations until observed remotely.
+- Unknown delivery retains editable text and the immutable attempted body/observed
+  identities. Only complete verified refresh can reconcile; an observed matching
+  attempt blocks retry. No automatic retries or write-on-refresh behavior.

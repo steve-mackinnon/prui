@@ -87,6 +87,7 @@ type GitHub interface {
 // review comment. It is intentionally separate from GitHub, whose operations
 // are otherwise read-only.
 type ReviewComment struct {
+	CreatedAt      time.Time
 	ID             int64
 	ParentID       int64
 	Author         string
@@ -407,20 +408,21 @@ func parseReviewComment(data []byte, identity Identity) (ReviewComment, error) {
 // fields before skipping them; original_line is retained separately.
 func parseRemoteReviewComment(data []byte, identity Identity) (ReviewComment, bool, error) {
 	var raw struct {
-		ID                int64  `json:"id"`
-		Body              string `json:"body"`
-		CommitID          string `json:"commit_id"`
-		Path              string `json:"path"`
-		Side              string `json:"side"`
-		Line              *int   `json:"line"`
-		SubjectType       string `json:"subject_type"`
-		OriginalCommitID  string `json:"original_commit_id"`
-		OriginalLine      *int   `json:"original_line"`
-		OriginalStartLine *int   `json:"original_start_line"`
-		StartLine         *int   `json:"start_line"`
-		URL               string `json:"html_url"`
-		DiffHunk          string `json:"diff_hunk"`
-		ParentID          int64  `json:"in_reply_to_id"`
+		CreatedAt         time.Time `json:"created_at"`
+		ID                int64     `json:"id"`
+		Body              string    `json:"body"`
+		CommitID          string    `json:"commit_id"`
+		Path              string    `json:"path"`
+		Side              string    `json:"side"`
+		Line              *int      `json:"line"`
+		SubjectType       string    `json:"subject_type"`
+		OriginalCommitID  string    `json:"original_commit_id"`
+		OriginalLine      *int      `json:"original_line"`
+		OriginalStartLine *int      `json:"original_start_line"`
+		StartLine         *int      `json:"start_line"`
+		URL               string    `json:"html_url"`
+		DiffHunk          string    `json:"diff_hunk"`
+		ParentID          int64     `json:"in_reply_to_id"`
 		User              *struct {
 			Login string `json:"login"`
 		} `json:"user"`
@@ -435,7 +437,7 @@ func parseRemoteReviewComment(data []byte, identity Identity) (ReviewComment, bo
 		(raw.Side != "" && raw.Side != "LEFT" && raw.Side != "RIGHT") || (raw.Line != nil && *raw.Line <= 0) {
 		return ReviewComment{}, false, errors.New("invalid review comment anchor")
 	}
-	comment := ReviewComment{ID: raw.ID, ParentID: raw.ParentID, Author: raw.User.Login, Body: raw.Body, Target: ReviewCommentTarget{Identity: identity, CommitID: raw.CommitID, Path: raw.Path, Side: raw.Side}}
+	comment := ReviewComment{CreatedAt: raw.CreatedAt, ID: raw.ID, ParentID: raw.ParentID, Author: raw.User.Login, Body: raw.Body, Target: ReviewCommentTarget{Identity: identity, CommitID: raw.CommitID, Path: raw.Path, Side: raw.Side}}
 	if !validDiscussionField(raw.Body, 65536, true) || !validDiscussionField(raw.User.Login, 256, false) || !validDiscussionField(raw.Path, 4096, false) || !validDiscussionField(raw.DiffHunk, 65536, true) || (raw.OriginalCommitID != "" && !shaPattern.MatchString(raw.OriginalCommitID)) || (raw.OriginalLine != nil && *raw.OriginalLine <= 0) {
 		return ReviewComment{}, false, errors.New("invalid review comment")
 	}

@@ -233,6 +233,7 @@ type Model struct {
 	guideSave            func(guideconfig.Selection) error
 	submitComment        CommentSubmitter
 	submitReview         ReviewSubmitter
+	submitGeneralComment GeneralCommentSubmitter
 	readDiscussions      DiscussionReader
 	readComments         CommentReader
 	readViewer           ViewerReader
@@ -364,6 +365,9 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch v := msg.(type) {
 	case tea.ColorProfileMsg:
 		m.colorProfile = v.Profile
+		return m, nil
+	case GeneralCommentResult:
+		m.applyGeneralCommentResult(v)
 		return m, nil
 	case commitFilterResult:
 		m.applyCommitFilterResult(v)
@@ -648,7 +652,7 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 		}
-		editingReviewText := m.top() == pageReviewSubmit
+		editingReviewText := m.top() == pageReviewSubmit || (m.top() == pageDiscussions && m.discussions.editor != nil)
 		editingGuideModel := m.top() == pageGuideConsent && m.guideFocus == 2
 		if (v.String() != "q" || editingReviewText || editingGuideModel) && v.String() != "ctrl+c" {
 			if m.Busy && (m.top() != pagePullRequestPicker || m.Session == nil) {
@@ -660,6 +664,9 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.CommentMenu != nil {
 				return m, m.commentActionKey(v)
 			}
+			if m.top() == pageDiscussions && m.discussions.editor != nil {
+				return m, m.generalCommentKey(v)
+			}
 			if m.top() == pageThemePicker {
 				return m, m.themePickerKey(v.String())
 			}
@@ -668,6 +675,9 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 			if m.top() == pageDiscussions {
+				if m.discussions.editor != nil {
+					return m, m.generalCommentKey(v)
+				}
 				return m, m.discussionKey(v.String())
 			}
 			if p := m.top(); p != pageReview {

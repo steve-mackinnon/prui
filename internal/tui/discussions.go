@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"maps"
+	"sort"
 	"strings"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
@@ -37,8 +39,10 @@ type discussionState struct {
 	snapshot         DiscussionSnapshot
 	loaded           bool
 	generation       uint64
+	editor           *generalCommentEditor
 	selectedID       string
 	confirmed        map[int64]bool
+	confirmedEvents  map[string]source.ConversationEvent
 	selected, scroll int
 	detail           bool
 	notice           string
@@ -72,7 +76,11 @@ func (m *Model) applyDiscussionResult(v DiscussionResult) {
 	}
 	d := &state.discussions
 	if v.Err != nil {
-		d.notice = "Discussions stale: " + Escape(v.Err.Error())
+		label := "Discussions stale: "
+		if !d.loaded {
+			label = "Discussions unavailable: "
+		}
+		d.notice = label + Escape(v.Err.Error())
 		return
 	}
 	if v.Snapshot.Snapshot.Complete {
@@ -104,19 +112,83 @@ func (m *Model) applyDiscussionResult(v DiscussionResult) {
 		}
 	}
 
+	if !v.Snapshot.Snapshot.Complete && v.Snapshot.Snapshot.Timeline {
+		incoming := map[string]bool{}
+		for _, event := range v.Snapshot.Snapshot.Events {
+			incoming[event.ID] = true
+		}
+		for _, event := range d.snapshot.Snapshot.Events {
+			if !incoming[event.ID] {
+				event.Retained = true
+				v.Snapshot.Snapshot.Events = append(v.Snapshot.Snapshot.Events, event)
+			}
+		}
+		// Keep the selected inline activity readable without treating its old current
+		// anchor as newly verified. Other omitted thread counts remain partial.
+		selectedFound := false
+		for _, entry := range discussionEntries(v.Snapshot.Snapshot) {
+			if entry.ID == d.selectedID {
+				selectedFound = true
+				break
+			}
+		}
+		if !selectedFound {
+			for _, thread := range d.snapshot.Snapshot.Threads {
+				for _, comment := range thread.Comments {
+					if fmt.Sprintf("inline:%d", comment.ID) == d.selectedID {
+						thread.Retained = true
+						thread.ID = "retained:" + strings.TrimPrefix(thread.ID, "retained:")
+						thread.Comments = []source.ReviewComment{comment}
+						thread.CurrentAnchor = nil
+						v.Snapshot.Snapshot.Threads = append(v.Snapshot.Snapshot.Threads, thread)
+						break
+					}
+				}
+			}
+		}
+	}
+	seenEvents := map[string]bool{}
+	for _, event := range v.Snapshot.Snapshot.Events {
+		seenEvents[event.ID] = true
+		if !event.Retained {
+			delete(d.confirmedEvents, event.ID)
+		}
+	}
+	for id, event := range d.confirmedEvents {
+		if !seenEvents[id] {
+			v.Snapshot.Snapshot.Events = append(v.Snapshot.Snapshot.Events, event)
+			v.Snapshot.Snapshot.Complete = false
+			v.Snapshot.Snapshot.Reason = "Confirmed PR comment not yet observed on refresh"
+		}
+	}
 	d.snapshot, d.loaded, d.notice = v.Snapshot, true, ""
+	if d.editor != nil {
+		if v.Snapshot.Snapshot.Complete && v.Snapshot.CurrentVerified {
+			if d.editor.uncertain {
+				for _, event := range v.Snapshot.Snapshot.Events {
+					if event.Kind == "PR comment" && event.Body == d.editor.attemptedBody && !d.editor.attemptedIDs[event.ID] {
+						d.editor.matched = true
+						d.notice = "Matching attempted PR comment found; inspect it before starting another comment"
+						break
+					}
+				}
+				d.editor.uncertain = false
+			}
+		}
+	}
 	d.anchorIndex = nil
 	state.Comments = discussionCurrentComments(v.Snapshot, state.Session)
 	state.commit.cache = commitRenderCache{}
 	d.selected = 0
-	for i, thread := range d.snapshot.Snapshot.Threads {
+	entries := discussionEntries(d.snapshot.Snapshot)
+	for i, thread := range entries {
 		if thread.ID == d.selectedID {
 			d.selected = i
 			break
 		}
 	}
-	if len(d.snapshot.Snapshot.Threads) > 0 {
-		d.selectedID = d.snapshot.Snapshot.Threads[d.selected].ID
+	if len(entries) > 0 {
+		d.selectedID = entries[d.selected].ID
 	} else {
 		d.selectedID = ""
 		d.detail = false
@@ -126,6 +198,25 @@ func (m *Model) applyDiscussionResult(v DiscussionResult) {
 	}
 }
 func discussionStatus(d source.Discussion) string {
+	if d.Kind != "" {
+		label := d.Kind
+		if d.Retained {
+			label += " · stale retained"
+		}
+		if d.Decision != "" {
+			label += " · " + d.Decision
+		}
+		if !d.CreatedAt.IsZero() {
+			label += " · " + d.CreatedAt.UTC().Format(time.RFC3339)
+		} else {
+			label += " · timestamp unavailable"
+		}
+		if d.Kind != "Inline comment" && d.Kind != "Inline reply" {
+			return label
+		}
+		d.Kind = ""
+		return label + " · " + discussionStatus(d)
+	}
 	labels := []string{}
 	if d.Outdated != nil && *d.Outdated {
 		labels = append(labels, "Outdated on current PR")
@@ -209,8 +300,24 @@ func (m *Model) openDiscussions() {
 }
 func (m *Model) discussionKey(key string) tea.Cmd {
 	d := &m.discussions
-	threads := d.snapshot.Snapshot.Threads
+	threads := discussionEntries(d.snapshot.Snapshot)
 	switch key {
+	case "n", "r":
+		if m.submitGeneralComment == nil {
+			d.notice = "PR comments unavailable · offline or unsupported"
+			return nil
+		}
+		if key == "r" && (!d.detail || len(threads) == 0 || threads[d.selected].Kind != "PR comment") {
+			d.notice = "General replies require a PR comment; inline replies use diff comment actions"
+			return nil
+		}
+		d.editor = &generalCommentEditor{}
+		if key == "r" {
+			d.editor.replyTo = threads[d.selected].ID
+			d.editor.draft = "@" + threads[d.selected].Comments[0].Author + " "
+			d.editor.cursor = len([]rune(d.editor.draft))
+		}
+		return nil
 	case "c":
 		return m.refreshDiscussions()
 	case "esc":
@@ -284,43 +391,63 @@ func (m *Model) restoreDiscussionContext() bool {
 func (m *Model) discussionsView() string {
 	d := &m.discussions
 	lines := []string{"Discussions"}
+	if d.snapshot.Snapshot.Timeline {
+		lines[0] = "PR conversation · chronological live activity"
+	}
+	if d.editor != nil {
+		return m.generalCommentView()
+	}
 	if d.notice != "" {
 		lines = append(lines, d.notice)
 	}
 	if !d.loaded {
-		lines = append(lines, "Discussions unavailable. c: refresh")
+		label := "Discussions unavailable. c: refresh"
+		if m.readDiscussions == nil {
+			label = "Discussions unavailable · offline or unsupported"
+		}
+		lines = append(lines, label)
 	} else {
 		if !d.snapshot.CurrentVerified {
 			lines = append(lines, "Discussions from live PR · snapshot differs", Escape(d.snapshot.Reason))
 		}
 		if !d.snapshot.Snapshot.Complete {
-			lines = append(lines, "Loaded threads · incomplete", Escape(d.snapshot.Snapshot.Reason))
+			lines = append(lines, func() string {
+				if d.snapshot.Snapshot.Timeline {
+					return "Loaded activity · partial/incomplete"
+				}
+				return "Loaded threads · incomplete"
+			}(), Escape(d.snapshot.Snapshot.Reason))
 		}
-		threads := d.snapshot.Snapshot.Threads
+		threads := discussionEntries(d.snapshot.Snapshot)
 		switch {
 		case len(threads) == 0:
 			if d.snapshot.Snapshot.Complete {
 				lines = append(lines, "No discussions.")
 			} else {
-				lines = append(lines, "No threads loaded.")
+				label := "No threads loaded."
+				if d.snapshot.Snapshot.Timeline {
+					label = "No activity loaded."
+				}
+				lines = append(lines, label)
 			}
 		case d.detail:
 			t := threads[max(0, min(d.selected, len(threads)-1))]
 			body := []string{discussionStatus(t)}
+			general := t.Kind == "PR comment" || t.Kind == "Review"
 			captured := false
 			for _, e := range m.commitEntries() {
 				if e.SHA == t.OriginalCommitID {
 					captured = true
 				}
 			}
-			if t.OriginalCommitID == "" {
+			if !general && t.OriginalCommitID == "" {
 				body = append(body, "Original commit unavailable")
-			} else if !captured {
+			} else if !general && !captured {
 				body = append(body, "Original commit not captured")
 			}
-			if t.OriginalAnchor == nil || !m.discussionOriginalAvailable(t) {
+			if !general && (t.OriginalAnchor == nil || !m.discussionOriginalAvailable(t)) {
 				body = append(body, "Original context unavailable")
-			} else {
+			} else if !general {
 				body = append(body, fmt.Sprintf("%s · %s:%d · %s", Escape(shortCommitSHA(t.OriginalCommitID)), Escape(t.OriginalAnchor.Path), t.OriginalAnchor.Line, Escape(t.OriginalAnchor.Side)))
 			}
 			for _, c := range t.Comments {
@@ -353,7 +480,11 @@ func (m *Model) discussionsView() string {
 			}
 		}
 	}
-	lines = append(lines, "j/k: select/scroll · enter: detail · o: original commit · c: refresh · esc: back")
+	footer := "j/k: select/scroll · enter: detail · o: original commit · c: refresh · esc: back"
+	if d.snapshot.Snapshot.Timeline {
+		footer = "j/k: select/scroll · enter: detail · n: PR comment · r: general reply · c: refresh · esc: back"
+	}
+	lines = append(lines, clip(footer, m.Width))
 	return strings.Join(lines, "\n")
 }
 
@@ -451,9 +582,9 @@ func (m *Model) discussionMouseClick(y int) {
 	}
 	header, start := m.discussionListStart()
 	i := start + y - header
-	if y >= header && y < m.Height-1 && i >= 0 && i < len(m.discussions.snapshot.Snapshot.Threads) {
+	if y >= header && y < m.Height-1 && i >= 0 && i < len(m.discussionEntries()) {
 		m.discussions.selected = i
-		m.discussions.selectedID = m.discussions.snapshot.Snapshot.Threads[i].ID
+		m.discussions.selectedID = m.discussionEntries()[i].ID
 	}
 }
 
@@ -492,4 +623,48 @@ func (m *Model) cancelDiscussionReads() {
 			tab.review.discussions.cancel()
 		}
 	}
+}
+
+// Expand inline activity without changing the authoritative thread collection.
+func discussionEntries(snapshot source.DiscussionSnapshot) []source.Discussion {
+	if !snapshot.Timeline {
+		return snapshot.Threads
+	}
+	entries := []source.Discussion{}
+	seen := map[string]bool{}
+	for _, thread := range snapshot.Threads {
+		for _, comment := range thread.Comments {
+			entry := thread
+			entry.ID = fmt.Sprintf("inline:%d", comment.ID)
+			if seen[entry.ID] {
+				continue
+			}
+			seen[entry.ID] = true
+			entry.Kind = "Inline comment"
+			if comment.ParentID != 0 {
+				entry.Kind = "Inline reply"
+			}
+			entry.CreatedAt = comment.CreatedAt
+			entry.Comments = []source.ReviewComment{comment}
+			entries = append(entries, entry)
+		}
+	}
+	for _, event := range snapshot.Events {
+		if seen[event.ID] {
+			continue
+		}
+		seen[event.ID] = true
+		entries = append(entries, source.Discussion{ID: event.ID, Retained: event.Retained, Kind: event.Kind, Decision: event.Decision, CreatedAt: event.CreatedAt, URL: event.URL, Comments: []source.ReviewComment{{Author: event.Author, Body: event.Body, CreatedAt: event.CreatedAt}}})
+	}
+	sort.SliceStable(entries, func(i, j int) bool {
+		a, b := entries[i], entries[j]
+		if a.CreatedAt.Equal(b.CreatedAt) {
+			return a.ID < b.ID
+		}
+		return a.CreatedAt.Before(b.CreatedAt)
+	})
+	return entries
+}
+func (m *Model) discussionEntries() []source.Discussion {
+	return discussionEntries(m.discussions.snapshot.Snapshot)
 }
