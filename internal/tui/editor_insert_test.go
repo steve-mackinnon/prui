@@ -7,6 +7,41 @@ import (
 	tea "charm.land/bubbletea/v2"
 )
 
+func TestInlineEditorsReceiveQuitLetter(t *testing.T) {
+	for _, editor := range []string{"comment", "suggestion", "file comment", "commit comment", "reply"} {
+		t.Run(editor, func(t *testing.T) {
+			m := rangeTestModel()
+			defer m.Close()
+			selectRawTarget(t, m, "RIGHT", 1)
+			m.openCommentComposer()
+			c := m.Composer
+			c.Draft, c.Cursor = "ab", 1
+			switch editor {
+			case "suggestion":
+				c.Suggestion = true
+			case "file comment":
+				c.Target.SubjectType = "file"
+			case "commit comment":
+				c.CommitSHA = m.Session.Inventory.Comparison.Metadata.HeadSHA
+			case "reply":
+				m.Composer = nil
+				m.CommentMenu = &commentActionMenu{mode: commentActionReply, Target: c.Target, Draft: "ab", Cursor: 1}
+			}
+			m.Update(tea.KeyPressMsg{Code: 'q', Text: "q"})
+			if m.top() != pageReview || m.ctx.Err() != nil {
+				t.Fatal("typing q attempted to quit")
+			}
+			draft, cursor := c.Draft, c.Cursor
+			if editor == "reply" {
+				draft, cursor = m.CommentMenu.Draft, m.CommentMenu.Cursor
+			}
+			if draft != "aqb" || cursor != 2 {
+				t.Fatalf("typing q: draft=%q cursor=%d, want aqb and 2", draft, cursor)
+			}
+		})
+	}
+}
+
 func TestEditorInsertionPreservesSuffixAndMovesRuneCursor(t *testing.T) {
 	cases := []struct {
 		name, initial, insert, want string

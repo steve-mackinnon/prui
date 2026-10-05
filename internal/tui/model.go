@@ -806,7 +806,7 @@ func (m *Model) update(msg tea.Msg) (updated tea.Model, command tea.Cmd) {
 				return m, nil
 			}
 		}
-		editingReviewText := m.discussions.published != nil || m.top() == pageReviewSubmit || (m.top() == pageDiscussions && m.discussions.editor != nil)
+		editingReviewText := m.Composer != nil || (m.CommentMenu != nil && m.CommentMenu.mode == commentActionReply) || m.discussions.published != nil || m.top() == pageReviewSubmit || (m.top() == pageDiscussions && m.discussions.editor != nil)
 		if m.top() == pageInboxFilters && v.String() != "ctrl+c" {
 			return m, m.inboxFilterKey(v.String())
 		}

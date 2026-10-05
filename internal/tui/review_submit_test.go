@@ -305,10 +305,8 @@ func TestQuitConfirmationCannotSubmitActiveCommitComposer(t *testing.T) {
 		writes++
 		return source.ReviewComment{}, nil
 	})
-	key(m, 'q')
-	if m.top() != pageQuitPending {
-		t.Fatal("quit did not require confirmation")
-	}
+	// Exercise modal ownership even if a composer remains underneath it.
+	m.push(pageQuitPending)
 	_, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	if cmd == nil {
 		t.Fatal("quit confirmation did not quit")
