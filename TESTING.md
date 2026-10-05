@@ -278,3 +278,9 @@ raw suggestion Before/replacement text, Unicode multi-line emphasis, both layout
 wrap/pan/resize, the Alt+C collapse handler, full OLD/NEW source and search IDs.
 Exact token-work boundaries and oversized replacement blocks also retain line-diff
 fallback. Renderer fixtures remain synthetic terminal evidence, not human QA.
+
+`TestIssueContextUpdatePrivateAttemptsSourceAndLayoutIntegration` now also uses
+Unicode changed-word source. Actual I/r/Escape open/refresh/cancel and late results
+preserve word spans, raw patch/source text, canonical old/new targets and search
+IDs alongside prepared suggestion payload bytes, immutable review/general
+attempts, SQLite draft generations, layouts and read-only full-source cursors.
