@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"prui/internal/commits"
 	"prui/internal/guide"
 	"prui/internal/inventory"
@@ -154,7 +155,28 @@ func (m *Model) applyCommitFilterResult(r commitFilterResult) {
 	f.railOffset = 0
 	f.scroll = max(0, f.scroll)
 }
-func (m *Model) commitFilterPickerHeight() int { return max(1, m.Height-6) }
+func (m *Model) commitFilterPickerBordered() bool { return m.Width >= 12 && m.Height >= 6 }
+func (m *Model) commitFilterPickerHeight() int {
+	if m.commitFilterPickerBordered() {
+		return max(1, m.Height-7)
+	}
+	return max(1, m.Height-2)
+}
+
+// Rendering and hit testing share the card geometry, including short terminals.
+func (m *Model) commitFilterPickerBounds() (card, choices image.Rectangle) {
+	rows := len(m.commitFilterPickerRows())
+	width := max(1, min(76, m.Width-4))
+	height, rowStart, padding := rows+2, 1, 0
+	if m.commitFilterPickerBordered() {
+		height, rowStart, padding = rows+5, 3, 2
+	}
+	height = min(height, m.Height)
+	left, top := max(0, (m.Width-width)/2), max(0, (m.Height-height)/2)
+	card = image.Rect(left, top, left+width, top+height)
+	choices = image.Rect(left+padding, top+rowStart, left+width-padding, min(top+rowStart+rows, card.Max.Y))
+	return card, choices
+}
 func (m *Model) commitFilterPickerRows() []string {
 	f := &m.commitFilter
 	count := len(m.commitEntries()) + 1
@@ -186,6 +208,9 @@ func (m *Model) commitFilterPickerRows() []string {
 func (m *Model) commitFilterPickerView() string {
 	rows := m.commitFilterPickerRows()
 	text := "Commits [C] · " + m.commitFilterLabel() + "\n"
+	if !m.commitFilterPickerBordered() {
+		return text + strings.Join(rows, "\n") + "\nEsc/C: close"
+	}
 	if len(m.commitEntries()) == 0 {
 		text += m.commitSafeState() + "\n"
 	} else if !m.Session.Commits.Complete {
@@ -193,8 +218,34 @@ func (m *Model) commitFilterPickerView() string {
 	} else {
 		text += "Select commits for one net diff.\n"
 	}
-	text += strings.Join(rows, "\n") + "\nSpace/Enter: toggle · j/k: move · Esc/C: close"
+	footer := "Space/Enter: toggle · j/k: move · Esc/C: close"
+	if m.Width < 54 {
+		footer = "Space: toggle · Esc/C: close"
+	}
+	text += strings.Join(rows, "\n") + "\n" + footer
 	return text
+}
+
+func (m *Model) commitFilterModalView(background string) string {
+	card, _ := m.commitFilterPickerBounds()
+	body := m.commitFilterPickerView()
+	var rows []string
+	if m.commitFilterPickerBordered() {
+		inside := max(1, card.Dx()-4)
+		rows = append(rows, "╭"+strings.Repeat("─", card.Dx()-2)+"╮")
+		for _, line := range strings.Split(body, "\n") {
+			rows = append(rows, modalLine(line, inside))
+		}
+		rows = append(rows, "╰"+strings.Repeat("─", card.Dx()-2)+"╯")
+	} else {
+		for _, line := range viewportLines(body, card.Dx(), card.Dy()) {
+			rows = append(rows, clip(line, card.Dx())+strings.Repeat(" ", max(0, card.Dx()-visibleWidth(line))))
+		}
+	}
+	return lipgloss.NewCanvas(m.Width, m.Height).Compose(lipgloss.NewCompositor(
+		lipgloss.NewLayer(strings.Join(viewportLines(background, m.Width, m.Height), "\n")),
+		lipgloss.NewLayer(strings.Join(rows, "\n")).X(card.Min.X).Y(card.Min.Y),
+	)).Render()
 }
 func (m *Model) filteredReadingKey(k string) bool {
 	f := &m.commitFilter
@@ -342,7 +393,11 @@ func (m *Model) commitFilterMouse(msg tea.MouseMsg) (tea.Cmd, bool) {
 	}
 	f := &m.commitFilter
 	if f.open {
+		_, choices := m.commitFilterPickerBounds()
 		if w, ok := msg.(tea.MouseWheelMsg); ok {
+			if !image.Pt(w.X, w.Y).In(choices) {
+				return nil, true
+			}
 			delta := 1
 			if w.Button == tea.MouseWheelUp {
 				delta = -1
@@ -351,8 +406,8 @@ func (m *Model) commitFilterMouse(msg tea.MouseMsg) (tea.Cmd, bool) {
 			return nil, true
 		}
 		if c, ok := msg.(tea.MouseClickMsg); ok && c.Button == tea.MouseLeft {
-			i := c.Y - 2 + f.offset
-			if c.Y >= 2 && c.Y < 2+len(m.commitFilterPickerRows()) && i <= len(m.commitEntries()) && i >= 0 {
+			i := c.Y - choices.Min.Y + f.offset
+			if image.Pt(c.X, c.Y).In(choices) && i <= len(m.commitEntries()) && i >= 0 {
 				f.focus = i
 				return m.toggleCommitFilter(), true
 			}
@@ -398,6 +453,7 @@ func (m *Model) commitFilterMouse(msg tea.MouseMsg) (tea.Cmd, bool) {
 	}
 	return nil, true
 }
+
 // Original validated unit-to-file references identify at most one guide. Rename
 // and repeated ownership are ambiguous and stay in the explicit outside group.
 func (m *Model) filteredGuideLabel(file inventory.FileChange) string {

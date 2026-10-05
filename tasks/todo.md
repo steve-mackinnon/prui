@@ -1970,3 +1970,11 @@ restart composition and compiled-binary picker journey passed. Full
 build. `git diff --check` passed. Review findings on shared source budgets, path
 depth, hit targets, stale selection and pending-editor visibility were resolved.
 Human terminal usability verification remains outstanding.
+
+Commit filter modal follow-up (2026-10-04): picker now composes a centered,
+bounded card over the current review. Rendering and mouse choices share card
+geometry; background/footer clicks are consumed. Overlay/close restoration and
+wide/narrow/short mouse tests passed, picker screen fixtures were reviewed, and
+the compiled PTY journey verifies the modal border plus underlying tabs and waits
+for actual closure. Full ./scripts/verify.sh and git diff --check passed. Human
+terminal usability remains outstanding.

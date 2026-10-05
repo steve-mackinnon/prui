@@ -262,7 +262,8 @@ modifier (often Shift, depending on the terminal or multiplexer) to copy text.
 
 ### Filtering the diff by commits
 
-The **Commits [C]** control in Files and Guide opens a checkbox picker. Use
+The **Commits [C]** control in Files and Guide opens a checkbox modal over the
+current review. Use
 up/down or j/k to navigate and Space or Enter to toggle a commit. Select
 **All changes** to restore the original full-PR comparison. Escape or C closes
 the picker and retains the selection. Selecting no commits shows an empty view;

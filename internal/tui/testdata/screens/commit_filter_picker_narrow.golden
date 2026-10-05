@@ -1,6 +1,10 @@
-Commits [C] · All changes
-Select commits for one net diff.
-› [x] All changes
-  [ ] aaaaaaaaaaaa First commit · Alice
-  [ ] bbbbbbbbbbbb Second commit · Alice
-Space/Enter: toggle · j/k: move · Esc/C: close
+example/review #42                         ctrl+p: switch PR
+  ╭──────────────────────────────────────────────────────╮
+┌ │ Commits [C] · All changes                            │─┐
+│›│ Select commits for one net diff.                     │ │
+│ │ › [x] All changes                                    │ │
+│ │   [ ] aaaaaaaaaaaa First commit · Alice              │ │
+│ │   [ ] bbbbbbbbbbbb Second commit · Alice             │ │
+└─│ Space/Enter: toggle · j/k: move · Esc/C: close       │─┘
+0/╰──────────────────────────────────────────────────────╯
+j/k: files · enter: diff · m: mark file · ?: Help

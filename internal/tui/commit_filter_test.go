@@ -5,6 +5,7 @@ import (
 	"crypto/sha1"
 	"fmt"
 	"github.com/charmbracelet/x/ansi"
+	"image"
 	"prui/internal/commits"
 	"prui/internal/guide"
 	"prui/internal/inventory"
@@ -41,6 +42,46 @@ func TestCommitFilterSelectionAndCanonicalState(t *testing.T) {
 	key(m, '4')
 	if m.commit.selectedSHA != dedicatedSHA {
 		t.Fatal("dedicated commit selection changed")
+	}
+}
+
+func TestCommitFilterOverlaysExistingReview(t *testing.T) {
+	m := commitModel(t)
+	key(m, '2')
+	m.Width, m.Height = 120, 20
+	before := ansi.Strip(m.View().Content)
+	key(m, 'C')
+	opened := ansi.Strip(m.View().Content)
+	if !strings.Contains(opened, "╭") || !strings.Contains(opened, "example/review #42") || !strings.Contains(opened, "Description [1]") {
+		t.Fatalf("picker replaced review instead of overlaying it:\n%s", opened)
+	}
+	key(m, 'C')
+	if got := ansi.Strip(m.View().Content); got != before {
+		t.Fatal("closing picker changed the review")
+	}
+}
+
+func TestCommitFilterModalMouseCoordinates(t *testing.T) {
+	for _, size := range [][2]int{{120, 20}, {60, 10}, {40, 6}} {
+		m := commitModel(t)
+		key(m, '2')
+		m.Width, m.Height = size[0], size[1]
+		key(m, 'C')
+		m.commitFilterKey("end")
+		card, choices := m.commitFilterPickerBounds()
+		generation := m.commitFilter.generation
+		// Background clicks and the card's footer cannot select a commit.
+		for _, point := range []image.Point{{0, 3}, {card.Min.X + 2, card.Max.Y - 2}} {
+			m.Update(tea.MouseClickMsg{X: point.X, Y: point.Y, Button: tea.MouseLeft})
+		}
+		if m.commitFilter.generation != generation {
+			t.Fatal("background or footer click selected a commit")
+		}
+		index := m.commitFilter.focus - m.commitFilter.offset
+		m.Update(tea.MouseClickMsg{X: choices.Min.X, Y: choices.Min.Y + index, Button: tea.MouseLeft})
+		if !m.commitFilter.subset || !m.commitFilter.selected[strings.Repeat("b", 40)] {
+			t.Fatalf("modal click missed selected row at %v", size)
+		}
 	}
 }
 func TestCommitFilterEmptyAndStaleResult(t *testing.T) {

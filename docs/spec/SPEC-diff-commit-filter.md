@@ -31,6 +31,11 @@ Render a mouse-selectable `Commits [C]` control above the diff workspace, visibl
 at both wide and narrow widths. Show `All changes` or `N selected` beside it so
 filter state remains clear when the picker is closed.
 
+The picker is a centered modal layered over the current Files/Guide workspace,
+with the existing review visible around it. It never replaces the review with a
+separate page. Its bounded card scrolls on short terminals; mouse choices use
+the same card coordinates as rendering, and background clicks do not navigate.
+
 The picker contains `All changes` first, then captured commits with checkboxes,
 escaped subject, author, and abbreviated SHA. Preserve captured order and show
 the capture limitation notice when membership is incomplete. Clip long metadata

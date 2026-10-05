@@ -1,4 +1,6 @@
-Commits [C] · All changes
-Select commits for one net diff.
-› [x] All changes
-Space/Enter: toggle · j/k: move · Esc/C:
+ex╭──────────────────────────────────╮
+  │ Commits [C] · All changes        │e
+┌ │ Select commits for one net diff. │L┐
+│›│ › [x] All changes                │ │
+└─│ Space: toggle · Esc/C: close     │─┘
+0/╰──────────────────────────────────╯

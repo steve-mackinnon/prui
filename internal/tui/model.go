@@ -1918,7 +1918,7 @@ func (m *Model) View() tea.View {
 		}
 	}
 	if m.commitFilter.open && m.top() == pageReview && m.diffReviewView() {
-		text = m.commitFilterPickerView()
+		text = m.commitFilterModalView(text)
 	}
 	if modal := m.loadingModal(); modal.active {
 		text = renderLoadingModal(m.Width, m.Height, text, modal)
