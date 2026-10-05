@@ -19,6 +19,10 @@ type binding struct {
 
 var bindings = []binding{
 	{keys: "C", desc: "filter Files/Guide by captured commits (one read-only net diff)", groups: groupHelp, section: "Views"},
+	{keys: "f3/shift+f3", desc: "next/previous code search match", groups: groupHelp, section: "Navigate"},
+	{keys: "ctrl+e, alt+o/n, ctrl+d, ctrl+w", desc: "expand pinned context, full OLD/NEW, diff, whitespace presentation (Files)", groups: groupHelp, section: "Navigate"},
+	{keys: "alt+up/down", desc: "previous/next loaded unresolved thread", groups: groupHelp, section: "Navigate"},
+	{keys: "/", desc: "find code text in Files or the current Guide section", groups: groupHelp, section: "Navigate"},
 	{keys: "P", desc: "open the pull-request switcher", groups: groupFooter | groupHelp, section: "App"},
 	{keys: "j/k", desc: "move the focused list or diff cursor", groups: groupNav | groupHelp, section: "Navigate"},
 	{keys: "up/down", desc: "move list selection or scroll continuous diff", groups: groupNav | groupHelp, section: "Navigate"},
@@ -35,7 +39,8 @@ var bindings = []binding{
 	{keys: "left/right", desc: "horizontal scroll", groups: groupNav | groupHelp, section: "Navigate"},
 	{keys: "home", desc: "reset active diff scroll", groups: groupNav | groupHelp, section: "Navigate"},
 	{keys: "i", desc: "toggle full inventory; every raw unit, unfiltered by guides", groups: groupFooter | groupHelp, section: "Views"},
-	{keys: "F/G", desc: "select Files or Guide", groups: groupFooter | groupHelp, section: "Views"},
+	{keys: "F", desc: "filter Files by filename or path", groups: groupHelp, section: "Navigate"},
+	{keys: "G", desc: "select Guide", groups: groupFooter | groupHelp, section: "Views"},
 	{keys: "S", desc: "toggle side-by-side detail (unified default; falls back below 160 columns)", groups: groupFooter | groupHelp, section: "Views"},
 	{keys: "e", desc: "show evidence scope", groups: groupFooter | groupHelp, section: "Views"},
 	{keys: "v/V", desc: "next/previous PR context view", groups: groupFooter | groupHelp, section: "Views"},

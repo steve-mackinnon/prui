@@ -1,0 +1,12 @@
+example/review #42
+  ╭──────────────────────────────────────────────────────╮Co
+┌ │ Find: l▏                                             │─┐
+│›│ Files · saved diff text only                         │ │
+│ │ 4 matches in 1 file                                  │ │
+│ │ main.go   (4)                                        │ │
+│ │ ›  L1 - old greeting                                 │ │
+│ │    R1 + hello world                                  │ │
+│ │    R1 + hello world                                  │ │
+└─│ Esc: select results · Enter: jump                    │─┘
+0/╰──────────────────────────────────────────────────────╯
+j/k: files · enter: diff · m: mark file · ?: Help

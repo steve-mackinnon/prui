@@ -231,9 +231,9 @@ func TestFilesViewAndGuideTabNeedsOptIn(t *testing.T) {
 	if m.Files || !strings.Contains(ansi.Strip(m.View().Content), "No guide yet. Press g") {
 		t.Fatal("empty Guide tab did not offer explicit generation")
 	}
-	key(m, 'F')
+	key(m, '2')
 	if !m.Files || !strings.Contains(ansi.Strip(m.View().Content), "main.go") {
-		t.Fatal("F did not restore the changed-file picker")
+		t.Fatal("2 did not restore the changed-file picker")
 	}
 }
 
@@ -299,7 +299,7 @@ func TestWideReviewSeparatesPanesAndIdentifiesFocus(t *testing.T) {
 		}
 		view := ansi.Strip(rendered)
 		lines := strings.Split(view, "\n")
-		if !strings.HasPrefix(lines[2], "┌ Files · ▽ Filter (/) ") || !strings.Contains(lines[2], "┬ Commits [C] · All changes · Diff · FILES") {
+		if !strings.HasPrefix(lines[2], "┌ Files · ▽ Filter (F) ") || !strings.Contains(lines[2], "┬ Commits [C] · All changes · Find (/) · Diff · FILES") {
 			t.Fatalf("missing pane headers:\n%s", view)
 		}
 		if !strings.HasPrefix(lines[3], "│› main.go") || strings.Count(lines[3], "│") != 3 || !strings.HasPrefix(lines[3+m.bodyHeight()], "└") {

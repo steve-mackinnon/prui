@@ -89,7 +89,7 @@ func (m *Model) fileFilterKey(v tea.KeyPressMsg) {
 	}
 }
 
-const fileFilterControl = "▽ Filter (/)"
+const fileFilterControl = "▽ Filter (F)"
 
 // Header text and hit bounds share the same width calculation.
 func (m *Model) fileFilterHeader() (string, image.Rectangle) {

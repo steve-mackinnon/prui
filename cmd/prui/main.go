@@ -103,7 +103,7 @@ func run(args []string) int {
 	}
 	r := source.NewRunner()
 	limits := source.Defaults()
-	app := application{store: store, runner: r, limits: limits, offline: o.Offline}
+	app := application{store: store, runner: r, limits: limits, cacheFullSource: o.CacheFullSource, offline: o.Offline}
 	// gh runs outside both the workspace and the reviewed checkout.
 	if !o.Offline {
 		dir, err := os.MkdirTemp("", "prui-gh-")

@@ -204,3 +204,31 @@ reopens a summary. All GitHub history is synthetic; no fixture contacts GitHub.
 Malformed, null, capped, or failed history cannot enable retry. Manual terminal
 usability and GitHub's delayed in-flight request behavior remain outside this
 synthetic verification.
+
+
+## Diff text search
+
+Run `go test ./internal/tui -run TestDiffSearch -count=1` for matching,
+current-section scope, source navigation, stale-result rejection, result limits,
+wrapping/split/resize behavior, escaping, colorless output, and mouse ownership.
+`TestPTYSmoke` also drives `/`, query editing, Escape-to-results, `j/k`, and result activation through the
+compiled binary in an offline synthetic review, asserting no GitHub invocation.
+
+Run `go test ./internal/tui -run '^$' -bench BenchmarkDiffSearch -benchmem -count=3`
+for a 100,020-line fixture. On Apple M2 Max / Go 1.26.8, warm absent-query scans
+measured 5.36–5.49 ms mean and 5.93–5.95 ms p95 (2026-10-04), with 497 B/op.
+The capped 10,000-result popover measured 0.67–0.76 ms per render; only nearby
+snippets are formatted. These exclude terminal output and are observations, not
+portable CI thresholds. Deterministic tests enforce cancellation and result caps.
+
+Human terminal review should check light/dark highlight contrast and keyboard/
+mouse discoverability. Automated color-cell assertions and PTY checks do not
+replace that subjective usability review.
+
+Issue #30 focused synthetic/offline regression coverage:
+`go test ./internal/tui ./internal/inventory ./internal/session ./internal/review ./cmd/prui`.
+New tests cover explicit full-source consent, immutable blobs despite changed
+working files, offline restart/deletion/integrity, AI-input equivalence, source
+coverage, insertion/deletion middle/EOF coordinates across display modes,
+whitespace progress/search reveal and loaded unresolved-thread navigation.
+Human terminal QA remains unverified; screen/PTY checks do not establish it.

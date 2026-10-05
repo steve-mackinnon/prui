@@ -15,9 +15,9 @@ import (
 
 const usage = `prui
 prui --version
-prui [--theme NAME]
-prui open <PR-URL-or-number> [--github-repo owner/repo] [--plain] [--theme NAME]
-prui prs [owner/repo] [--plain] [--theme NAME]
+prui [--theme NAME] [--cache-full-source]
+prui open <PR-URL-or-number> [--github-repo owner/repo] [--plain] [--theme NAME] [--cache-full-source]
+prui prs [owner/repo] [--plain] [--theme NAME] [--cache-full-source]
 prui sessions
 prui resume <id> [--offline] [--plain] [--new] [--repo <checkout>] [--theme NAME]
 prui eval-guides <id>
@@ -37,6 +37,7 @@ type options struct {
 	Artifacts           string
 	MeasureRuns         int
 	OpenTimeout         time.Duration
+	CacheFullSource     bool
 	Plain, Offline, New bool
 }
 
@@ -56,6 +57,9 @@ func parseOptions(args []string) (options, error) {
 	f.SetOutput(io.Discard)
 	if o.Command == "current" || o.Command == "open" || o.Command == "resume" || o.Command == "prs" {
 		f.StringVar(&o.ThemeName, "theme", "", "interactive color theme")
+	}
+	if o.Command == "current" || o.Command == "open" || o.Command == "prs" || o.Command == "resume" {
+		f.BoolVar(&o.CacheFullSource, "cache-full-source", false, "consent to private local full OLD/NEW source storage; 1 MiB/blob, 4 MiB total, no upload")
 	}
 	start := 2
 	var repository string
@@ -100,7 +104,7 @@ func parseOptions(args []string) (options, error) {
 	if err := f.Parse(args[start:]); err != nil {
 		return o, err
 	}
-	if f.NArg() != 0 || o.Offline && o.New {
+	if f.NArg() != 0 || o.Offline && o.New || o.CacheFullSource && (o.Offline || o.Command == "resume" && !o.New) {
 		return o, errors.New(usage)
 	}
 	if o.ThemeName != "" {

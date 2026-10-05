@@ -5,6 +5,8 @@ These documents preserve requirements, acceptance criteria, and the reasoning be
 ## Specifications
 
 - [Spec: Commit Filter in the Diff Workspace](SPEC-diff-commit-filter.md)
+- [Spec: Diff Text Search](SPEC-diff-text-search.md)
+
 - [Spec: Configurable guide models with Charm Fantasy](SPEC-MULTI-PROVIDER-GUIDES.md)
 - [Spec: Current-Checkout Pull Request Picker](SPEC-current-checkout-pr-picker.md)
 - [Spec: PR Picker Preview](SPEC-pr-picker-preview.md)
@@ -40,3 +42,6 @@ These documents preserve requirements, acceptance criteria, and the reasoning be
 Implementation plans and checklists live in [tasks](../../tasks/).
 
 - [Spec: Top-Level Review Tabs](SPEC-top-level-review-tabs.md)
+
+- [Pinned code context and navigation](SPEC-code-navigation.md): #30 full-source
+  consent/storage, expanded context, search scope and immutable coordinate policy.

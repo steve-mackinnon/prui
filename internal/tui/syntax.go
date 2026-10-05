@@ -100,6 +100,7 @@ func wrappedSyntax(line diffLine, part string, offset *int) diffLine {
 		return line
 	}
 	start := *offset + at
+	line.sourceOffset += start - 1
 	line.syntax = cropSpans(line.syntax, start, start+len(part), 1)
 	line.oldSyntax = cropSpans(line.oldSyntax, start, start+len(part), 1)
 	*offset = start + len(part)
@@ -109,6 +110,9 @@ func wrappedSyntax(line diffLine, part string, offset *int) diffLine {
 // syntaxText styles only at the presentation boundary, after rune panning and
 // cell clipping. Source caches and all review coordinates stay unstyled.
 func (m *Model) syntaxText(line diffLine, horizontal, width int, prefix string) string {
+	if highlighted, ok := m.searchHighlightedText(line, horizontal, width, prefix); ok {
+		return highlighted
+	}
 	prefix = clip(prefix, width)
 	runes := []rune(line.Text)
 	start := len(string(runes[:min(max(horizontal, 0), len(runes))]))

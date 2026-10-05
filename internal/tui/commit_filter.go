@@ -384,7 +384,7 @@ func (m *Model) filteredReviewView(title string) string {
 		}
 		lines = append(lines, m.paneBodyRow(styledLine{Class: lc, Text: left}, styledLine{Class: rc, Text: right}, m.listWidth(), m.detailWidth(), f.readingFocus, paneBodyBorders{classPaneBorder, classPaneBorder, classPaneBorder}))
 	}
-	footer := "Selected commits: reading only; use All changes to mark files or Commits to discuss a commit.\nR: review PR · C: filter commits"
+	footer := "Selected commits: reading only; use All changes for source/search or marking files.\nR: review PR · C: filter commits"
 	if m.Height < 10 {
 		footer = "Reading only · C: commits · R: review PR"
 	}

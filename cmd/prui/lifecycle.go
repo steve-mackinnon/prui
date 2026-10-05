@@ -28,6 +28,7 @@ type application struct {
 	setupError             error
 	runner                 source.Runner
 	limits                 source.Limits
+	cacheFullSource        bool
 	offline                bool
 	newAnalyzer            func() (guide.Analyzer, error)
 	guideClient            *http.Client
@@ -362,7 +363,7 @@ func (a *application) open(ctx context.Context, checkout string, id source.Ident
 	}
 	var profile review.Timing
 	started := time.Now()
-	raw, err := review.OpenWithConfig(ctx, checkout, id, gh, a.runner, a.limits, notify, review.Config{Timing: &profile})
+	raw, err := review.OpenWithConfig(ctx, checkout, id, gh, a.runner, a.limits, notify, review.Config{Timing: &profile, CacheFullSource: a.cacheFullSource})
 	openedIn := time.Since(started)
 	if err != nil {
 		return nil, err

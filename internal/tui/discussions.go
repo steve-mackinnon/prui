@@ -290,6 +290,13 @@ func (m *Model) discussionKey(key string) tea.Cmd {
 	d := &m.discussions
 	threads := discussionEntries(d.snapshot.Snapshot)
 	switch key {
+	case "alt+up", "alt+down":
+		delta := 1
+		if key == "alt+up" {
+			delta = -1
+		}
+		m.nextUnresolved(delta)
+		return nil
 	case "e", "z":
 		if len(threads) == 0 || !d.detail {
 			return nil

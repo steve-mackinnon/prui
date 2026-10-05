@@ -6,5 +6,5 @@ example/review #42
 │                                                          │
 │                                                          │
 └──────────────────────────────────────────────────────────┘
-Selected commits: reading only; use All changes to mark file
+Selected commits: reading only; use All changes for source/s
 R: review PR · C: filter commits

@@ -307,6 +307,7 @@ func (m *Model) renderSideBySideCell(cell *diffCell, width, horizontal int) stri
 	gutter := fmt.Sprintf("%5d %s ", cell.number, marker)
 	source := *cell.line
 	source.Text = text
+	source.sourceOffset += len(marker)
 	source.syntax = cropSpans(source.syntax, len(marker), len(cell.line.Text), 0)
 	value := m.syntaxText(source, horizontal, width, gutter)
 	value += strings.Repeat(" ", max(0, width-visibleWidth(value)))
@@ -368,6 +369,8 @@ func textHunkLines(f inventory.FileChange, u inventory.ReviewUnit, patch []byte,
 			}
 		}
 		if len(raw) > 0 && (row.oldLine > 0 || row.newLine > 0) {
+			row.searchID = searchSourceID{u.ID, index}
+			row.rawSource = string(raw[1:])
 			row.oldSyntax = escapedSpans(raw[1:], tokens[index].Old)
 			row.syntax = escapedSpans(raw[1:], tokens[index].New)
 			if row.newLine == 0 {

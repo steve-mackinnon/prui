@@ -341,6 +341,19 @@ def main():
         os.write(terminal.master, b"\x1b")
         terminal.wait_until(lambda screen: "╭" not in screen and "0/2 read" in screen,
                             "restore review after commit modal", start)
+        terminal.key(b"/", "Type to search diff text")
+        terminal.key(b"needle", "2 matches in 2 files")
+        terminal.key(b"q", "No matches in saved diff text")
+        terminal.key(b"\x7f", "2 matches in 2 files")
+        terminal.key(b"\x1b", "j/k")
+        terminal.key(b"j", "›  R1 + search-needle-b.go")
+        start = len(terminal.output)
+        os.write(terminal.master, b"\r")
+        terminal.wait_until(lambda screen: "Find: needle" not in screen and
+                            "› [ ] b.go" in screen and "search-needle-b.go" in screen,
+                            "search result activation", start)
+        terminal.key(b"h", "› [ ] b.go")
+        terminal.key(b"\x1b[A", "› [ ] a.go")
         # SGR coordinates are one-based. Select the second file without an
         # activation key, then drag the existing divider from column 38 to 50.
         terminal.key(b"\x1b[<0;5;5M\x1b[<0;5;5m", "› [ ] b.go")

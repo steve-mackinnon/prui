@@ -95,6 +95,33 @@ func TestKeyboardRangesKeepTargetsThroughLayoutQueueEditAndRefresh(t *testing.T)
 		}
 	}
 }
+func TestQueuedRangeSurvivesSourceWhitespaceAndSearch(t *testing.T) {
+	m := rangeTestModel()
+	selectRawTarget(t, m, "RIGHT", 1)
+	ctrlKey(m, 'v')
+	selectRawTarget(t, m, "RIGHT", 2)
+	namedKey(m, tea.KeyEnter)
+	if m.Composer == nil {
+		t.Fatal("range composer unavailable")
+	}
+	want := m.Composer.Target
+	key(m, '/')
+	if m.searchOpen() || m.Composer.Draft != "/" {
+		t.Fatal("search stole range draft text")
+	}
+	ctrlKey(m, 'p')
+	for _, command := range []string{"alt+n", "ctrl+w", "ctrl+e", "ctrl+d"} {
+		if !m.codeNavigationKey(command) {
+			t.Fatal("navigation unavailable", command)
+		}
+	}
+	searchInput(m, "second")
+	m.activateSearchMatch()
+	if len(m.Pending) != 1 || m.Pending[0].Target != want || m.Pending[0].Body != "/" {
+		t.Fatal("source/search presentation changed queued range draft")
+	}
+}
+
 func TestRangeRejectsCrossSideWithoutDiscardingSelection(t *testing.T) {
 	m := rangeTestModel()
 	selectRawTarget(t, m, "LEFT", 1)

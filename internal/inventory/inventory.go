@@ -41,6 +41,7 @@ type ReviewUnit struct {
 	PatchReference, UnavailableReason string
 }
 type Inventory struct {
+	FullSource *FullSource `json:"full_source,omitempty"`
 	Comparison source.PinnedComparison
 	Files      []FileChange
 	Units      []ReviewUnit

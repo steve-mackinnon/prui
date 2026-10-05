@@ -130,3 +130,17 @@ func TestOptionsVerifyRejectsNewPersonalThemes(t *testing.T) {
 		}
 	}
 }
+
+func TestFullSourceConsentOptions(t *testing.T) {
+	for _, args := range [][]string{{"current", "--cache-full-source"}, {"open", "https://github.com/o/r/pull/1", "--cache-full-source"}, {"prs", "o/r", "--cache-full-source"}, {"resume", "01234567890123456789012345678901", "--new", "--cache-full-source"}} {
+		o, err := parseOptions(args)
+		if err != nil || !o.CacheFullSource {
+			t.Fatal(args, o, err)
+		}
+	}
+	for _, args := range [][]string{{"resume", "01234567890123456789012345678901", "--offline", "--cache-full-source"}, {"resume", "01234567890123456789012345678901", "--cache-full-source"}, {"verify", "https://github.com/o/r/pull/1", "--cache-full-source"}} {
+		if _, err := parseOptions(args); err == nil {
+			t.Fatal("consent accepted outside new capture", args)
+		}
+	}
+}

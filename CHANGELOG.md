@@ -9,6 +9,9 @@ User-visible changes are recorded here before each release. See
 
 - Filter Files and Guide by selected commits with `C`, showing one net diff while retaining the dedicated Commits browser.
 
+- Find code text with `/` in Files and the current Guide section, with results
+  grouped by file, direct match navigation, and highlights in unified and split diffs.
+
 - Highlight diff syntax using full pinned-file context, with theme-aware colors and saved token spans for offline reviews.
 
 - Add full foreground/background theming with 22 named presets, bringing the catalog to 26 themes, and group the theme picker into Dark and Light sections with candidate previews.
@@ -62,3 +65,6 @@ First public release of prui, a terminal interface for reviewing GitHub pull req
 - Requires Git and an authenticated GitHub CLI (`gh`); supports GitHub.com repositories.
 - The 0.x series is under active development. Minor releases may include documented
   breaking changes; patch releases preserve compatibility.
+
+- Add opt-in pinned full OLD/NEW source, expanded unchanged context, local full-file
+  search, whitespace presentation and loaded unresolved-thread navigation (#30).

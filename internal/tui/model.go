@@ -90,6 +90,8 @@ type descriptionRenderCache struct {
 // review. Window dimensions and services remain shared by the workspace.
 type reviewTabState struct {
 	draft                                                draftState
+	navigation                                           codeNavigation
+	search                                               [2]*diffSearchState
 	discussions                                          discussionState
 	commit                                               commitState
 	commitFilter                                         commitFilterState
@@ -365,13 +367,29 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return model, tea.Batch(cmd, carouselCmd)
 }
 
-func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m *Model) update(msg tea.Msg) (updated tea.Model, command tea.Cmd) {
+	defer func() {
+		if m.Session != nil && m.diffReviewView() && m.existingSearch() != nil {
+			s := m.searchState()
+			if s.scope != m.currentSearchScope() {
+				command = tea.Batch(command, m.startSearch())
+			}
+		}
+	}()
 	defer func() {
 		if !m.mouseAvailable() {
 			m.cancelMouseDrag()
 		}
 	}()
 	switch v := msg.(type) {
+	case diffSearchResult:
+		m.applySearchResult(v)
+		return m, nil
+	case tea.PasteMsg:
+		if m.searchOpen() {
+			return m, m.insertSearchText(v.Content)
+		}
+		return m, nil
 	case tea.ColorProfileMsg:
 		m.colorProfile = v.Profile
 		return m, nil
@@ -634,6 +652,7 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.ensureCommitEditorVisible()
 			return m, nil
 		}
+		keepSearchMatch := m.searchMatchAtCursor()
 		cursorTarget, cursorCommentID := m.cursorAnchor()
 		m.Width = max(1, v.Width)
 		m.Height = max(1, v.Height)
@@ -645,6 +664,9 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.cursorInViewport(1)
 		}
 		m.ensureReplyEditorVisible()
+		if keepSearchMatch {
+			m.revealSearchMatch()
+		}
 		return m, m.restartGuidePathScroll()
 	case tea.KeyPressMsg:
 		m.cancelMouseDrag()
@@ -662,12 +684,20 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// interpret discard confirmation as a remote comment submission.
 			return m, m.pageKey(pageQuitPending, v)
 		}
+		if m.searchAvailable() {
+			if m.searchOpen() && v.String() != "ctrl+c" {
+				return m, m.searchKey(v)
+			}
+			if v.String() == "/" {
+				return m, m.openSearch()
+			}
+		}
 		if m.top() == pageReview && m.fileView() && m.discussions.published == nil && m.discussions.editor == nil && !m.commitFilter.open && !m.commitFilter.subset && m.Composer == nil && m.CommentMenu == nil && !m.Busy {
 			if m.fileFilterEditing && v.String() != "ctrl+c" {
 				m.fileFilterKey(v)
 				return m, m.restartGuidePathScroll()
 			}
-			if v.String() == "/" {
+			if v.String() == "F" {
 				m.openFileFilter()
 				return m, nil
 			}
@@ -715,6 +745,32 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			if v.String() == "C" && m.Session != nil && m.diffReviewView() {
 				m.openCommitFilter()
+				return m, nil
+			}
+			if v.String() == "f3" || v.String() == "shift+f3" {
+				if !m.searchAvailable() {
+					return m, nil
+				}
+				s := m.existingSearch()
+				if s != nil && len(s.matches) > 0 {
+					delta := 1
+					if v.String() == "shift+f3" {
+						delta = -1
+					}
+					s.selected = (s.selected + delta + len(s.matches)) % len(s.matches)
+					m.activateSearchMatch()
+				}
+				return m, nil
+			}
+			if m.codeNavigationKey(v.String()) {
+				return m, nil
+			}
+			if v.String() == "alt+up" || v.String() == "alt+down" {
+				delta := 1
+				if v.String() == "alt+up" {
+					delta = -1
+				}
+				m.nextUnresolved(delta)
 				return m, nil
 			}
 			if v.String() == "D" && m.Session != nil {
@@ -819,13 +875,18 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		case "F":
 			m.selectReviewView(viewFiles)
+			m.openFileFilter()
 		case "G":
 			m.selectReviewView(viewGuide)
 		case "S":
 			if m.diffReviewView() {
+				keepSearchMatch := m.searchMatchAtCursor()
 				target, commentID := m.cursorAnchor()
 				m.layout = m.layout.toggled()
 				m.restoreCursorAnchor(target, commentID)
+				if keepSearchMatch {
+					m.revealSearchMatch()
+				}
 			}
 		case "e":
 			m.push(pageEvidence)
@@ -989,6 +1050,7 @@ func (m *Model) registerReviewTab(s *review.Session, activate bool) {
 }
 
 func (m *Model) activateTab(index int) bool {
+	m.closeSearchPopovers()
 	if index < 0 || index >= len(m.tabs) {
 		return false
 	}
@@ -1077,6 +1139,7 @@ func (m *Model) cycleReviewView(delta int) {
 }
 
 func (m *Model) selectReviewView(view reviewView) {
+	m.closeSearchPopovers()
 	m.cancelMouseDrag()
 	if m.Session == nil {
 		return
@@ -1372,7 +1435,7 @@ func (m *Model) selectFile(f int) {
 			end = m.fileOffset(f + 1)
 		}
 		for i, line := range m.displayDetail()[start:end] {
-			if line.target != nil || line.commentID > 0 {
+			if m.navigableLine(line) {
 				m.setCursor(start + i)
 				break
 			}
@@ -1794,11 +1857,11 @@ func (m *Model) cursorInDetail(detail []diffLine) int {
 		return -1
 	}
 	stored, ok := m.cursorValue()
-	if ok && stored >= 0 && stored < len(detail) && (detail[stored].target != nil || detail[stored].commentID > 0) {
+	if ok && stored >= 0 && stored < len(detail) && m.navigableLine(detail[stored]) {
 		return stored
 	}
 	for i, line := range detail {
-		if line.target != nil || line.commentID > 0 {
+		if m.navigableLine(line) {
 			m.setCursor(i)
 			return i
 		}
@@ -1887,7 +1950,7 @@ func (m *Model) moveCursor(delta int) {
 	}
 	targets := make([]int, 0, len(detail))
 	for i, line := range detail {
-		if line.target != nil || line.commentID > 0 {
+		if m.navigableLine(line) {
 			targets = append(targets, i)
 		}
 	}
@@ -1939,7 +2002,7 @@ func (m *Model) cursorInViewport(delta int) {
 	}
 	if delta < 0 {
 		for i := min(len(detail)-1, end-1); i >= start; i-- {
-			if detail[i].target != nil || detail[i].commentID > 0 {
+			if m.navigableLine(detail[i]) {
 				m.setCursor(i)
 				return
 			}
@@ -1947,7 +2010,7 @@ func (m *Model) cursorInViewport(delta int) {
 		return
 	}
 	for i := max(0, start); i < min(len(detail), end); i++ {
-		if detail[i].target != nil || detail[i].commentID > 0 {
+		if m.navigableLine(detail[i]) {
 			m.setCursor(i)
 			return
 		}
@@ -2066,6 +2129,9 @@ func (m *Model) View() tea.View {
 	if m.discussions.published != nil {
 		text = m.publishedView()
 	}
+	if m.searchOpen() {
+		text = m.searchPopover(text)
+	}
 	if modal := m.loadingModal(); modal.active {
 		text = renderLoadingModal(m.Width, m.Height, text, modal, m.modalSurface)
 	}
@@ -2155,7 +2221,7 @@ func (m *Model) reviewViewForLayout(preferSideBySide bool) string {
 	if m.Inventory {
 		leftLabel = "Full inventory (i)"
 	}
-	rightLabel := "Diff · " + text
+	rightLabel := "Find (/) · Diff · " + text
 	if m.Width < 100 {
 		leftLabel += " · Commits [C] · " + m.commitFilterLabel()
 	} else {
@@ -2303,7 +2369,7 @@ func (m *Model) paneFrameHeader(listLabel, detailLabel string) string {
 	if m.Width < 100 {
 		label := listLabel + " · List"
 		if m.Focus == paneDiff {
-			label = listLabel + " · Diff"
+			label = listLabel + " · Find (/) · Diff"
 		}
 		return m.styleLine(classPaneHeaderFocused, "┌"+paneHeaderText(label, m.Width-2)+"┐")
 	}

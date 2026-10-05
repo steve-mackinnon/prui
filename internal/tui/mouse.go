@@ -30,6 +30,9 @@ func (m *Model) mouseUpdate(msg tea.MouseMsg) tea.Cmd {
 		m.cancelMouseDrag()
 		return nil
 	}
+	if m.searchOpen() {
+		return m.searchMouse(msg)
+	}
 	event := msg.Mouse()
 	if event.Mod != 0 {
 		m.cancelMouseDrag()
@@ -52,6 +55,9 @@ func (m *Model) mouseUpdate(msg tea.MouseMsg) tea.Cmd {
 	if m.top() == pageDiscussions {
 		m.discussionMouseClick(click.Y)
 		return nil
+	}
+	if m.searchAvailable() && image.Pt(click.X, click.Y).In(m.searchHeaderBounds()) {
+		return m.openSearch()
 	}
 	if m.top() == pageReview {
 		return m.mouseReviewClick(click.X, click.Y)
