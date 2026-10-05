@@ -259,3 +259,28 @@ I/r/Escape dispatch with real pinned full-source capture and durable v3/v4
 private attempts; asserts unchanged layout/cursors/pins/payload generations,
 canonical targets and read-only source-row identity. Foreign PR/session/workspace
 records are rejected. Main's Alt+R/C/F/slash/Alt+C controls remain covered.
+
+## Word-level highlighting (#37)
+
+`go test ./internal/tui -run 'WordDiff|Syntax|Wrap|Navigation|Whitespace|Search|Anchor' -count=1`
+checks changed-token fixtures (Go, Python, JSON and prose), Unicode/combining and
+wide characters, tabs, wrapping/panning, unified/split styling, raw text and
+canonical comment targets, ambiguous/many-to-many fallback, invalid UTF-8 and
+patch/line/token/work limits. Source/navigation/search regression tests accompany
+the focused word tests. These are synthetic renderer checks; live human terminal
+behavior and accessibility have not been verified for this release.
+
+Restacked word-diff integration: `go test ./internal/tui -run '^TestWordDiff' -count=1`
+includes a real Git capture saved in SQLite, deletion of the source repository,
+and offline recovery of combined v3 suggestion/v4 general drafts. It checks
+immutable dispatched comment/general bytes alongside line/range/file targets,
+raw suggestion Before/replacement text, Unicode multi-line emphasis, both layouts,
+wrap/pan/resize, the Alt+C collapse handler, full OLD/NEW source and search IDs.
+Exact token-work boundaries and oversized replacement blocks also retain line-diff
+fallback. Renderer fixtures remain synthetic terminal evidence, not human QA.
+
+`TestIssueContextUpdatePrivateAttemptsSourceAndLayoutIntegration` now also uses
+Unicode changed-word source. Actual I/r/Escape open/refresh/cancel and late results
+preserve word spans, raw patch/source text, canonical old/new targets and search
+IDs alongside prepared suggestion payload bytes, immutable review/general
+attempts, SQLite draft generations, layouts and read-only full-source cursors.

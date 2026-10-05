@@ -24,10 +24,10 @@ func TestIssueContextUpdatePrivateAttemptsSourceAndLayoutIntegration(t *testing.
 			r := testutil.NewRepo(t)
 			r.Write(".gitattributes", "generated.go review-generated\n")
 			r.Write("generated.go", "old generated\n")
-			r.Write("code.go", "old\ncontext needle\n")
+			r.Write("code.go", "value := 12 // café 世界\ncontext needle\n")
 			base := r.Commit()
 			r.Write("generated.go", "new generated\n")
-			r.Write("code.go", "new\ncontext needle\n")
+			r.Write("code.go", "value := 56 // café 世界\ncontext needle\n")
 			head := r.Commit()
 			meta := source.Metadata{Identity: source.Identity{Repository: "o/r", Number: 7}, BaseRepository: "o/r", HeadRepository: "o/r", BaseSHA: base, HeadSHA: head}
 			captured, err := review.OpenWithConfig(ctx, r.Dir, meta.Identity, incrementalGH{meta}, source.NewRunner(), source.Defaults(), nil, review.Config{CacheFullSource: true})
@@ -62,9 +62,33 @@ func TestIssueContextUpdatePrivateAttemptsSourceAndLayoutIntegration(t *testing.
 			m.Focus = paneDiff
 			selectRawTarget(t, m, "RIGHT", 1)
 			canonical := *m.selectedDiffTarget()
+			wordState := func() []byte {
+				var rows []any
+				highlighted := 0
+				for unit, file := range m.Session.UnitFiles {
+					if file != code {
+						continue
+					}
+					for _, row := range unitLines(m.Session, unit) {
+						if len(row.wordChanges) > 0 {
+							highlighted++
+						}
+						rows = append(rows, []any{row.Text, row.rawSource, row.searchID, row.wordChanges, row.target, row.oldTarget})
+					}
+				}
+				if highlighted != 2 {
+					t.Fatal("context fixture lost word-level emphasis", highlighted)
+				}
+				b, e := json.Marshal(rows)
+				if e != nil {
+					t.Fatal(e)
+				}
+				return b
+			}
+			wordBefore := wordState()
 			// Keep real durable attempt payloads and a prepared suggestion while reading.
 			body, _ := source.SuggestionBody("private replacement")
-			a := source.SuggestionApplication{Metadata: meta, Target: canonical, CommentID: 9, Branch: "feature", Before: "new", Replacement: "private replacement", Content: "private replacement\ncontext needle\n", CommentBody: body}
+			a := source.SuggestionApplication{Metadata: meta, Target: canonical, CommentID: 9, Branch: "feature", Before: "value := 56 // café 世界", Replacement: "private replacement", Content: "private replacement\ncontext needle\n", CommentBody: body}
 			input := map[string]any{"branch": map[string]string{"repositoryNameWithOwner": meta.HeadRepository, "refName": a.Branch}, "expectedHeadOid": head, "message": map[string]string{"headline": "Apply review suggestion #9"}, "fileChanges": map[string]any{"additions": []map[string]string{{"path": "code.go", "contents": base64.StdEncoding.EncodeToString([]byte(a.Content))}}}}
 			a.Payload, _ = json.Marshal(map[string]any{"query": `mutation($input:CreateCommitOnBranchInput!){createCommitOnBranch(input:$input){commit{oid url} ref{target{oid}}}}`, "variables": map[string]any{"input": input}})
 			m.SuggestionApply = &a
@@ -137,6 +161,9 @@ func TestIssueContextUpdatePrivateAttemptsSourceAndLayoutIntegration(t *testing.
 			if !bytes.Equal(presentationBefore, presentation()) {
 				t.Fatal("context open/refresh/cancel mutated reading layout/cursor")
 			}
+			if !bytes.Equal(wordBefore, wordState()) {
+				t.Fatal("context open/refresh/cancel changed word spans/raw text/targets/search IDs")
+			}
 			// Actual merged shortcuts remain available and keep canonical coordinates.
 			keyCmd(tea.KeyPressMsg{Code: 'c', Mod: tea.ModAlt})
 			keyCmd(tea.KeyPressMsg{Code: 'c', Mod: tea.ModAlt})
@@ -169,6 +196,9 @@ func TestIssueContextUpdatePrivateAttemptsSourceAndLayoutIntegration(t *testing.
 				if m.selectedDiffTarget() != nil || !layoutRowHasSourceID(m.displayDetail()[m.cursor()], sourceID) || !bytes.Equal(readOnlyBefore, presentation()) {
 					t.Fatal("context retargeted readonly source cursor")
 				}
+			}
+			if !bytes.Equal(wordBefore, wordState()) {
+				t.Fatal("context source search changed canonical word metadata")
 			}
 			// Both historical private attempt shapes survive all context Update calls.
 			privateAfter, err := store.LoadDraft(ctx, session.DraftKeyFor(meta))

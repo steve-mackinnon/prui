@@ -341,3 +341,19 @@ contains issue descriptions in plaintext; it is separate from frozen source.
 Saved Linear entries show captured workspace/auth mode and historical
 at-capture authorization; current account access is unknown. Changing your
 configuration or credential never relabels saved data as current authorization.
+
+Word-level diff emphasis is presentation-only: in unified and split views, changed
+words, numbers, whitespace runs, and punctuation in a confidently paired
+removed/added lines are bold and underlined. This initial release is language-neutral
+text comparison, not structural, AST, semantic, or move detection. Ordinary line
+markers remain visible; colorless/plain output retains the original text.
+Unequal or ambiguous replacement blocks, unrelated or ambiguously aligned tokens, invalid
+UTF-8/binary content, and exhausted limits retain standard line highlighting.
+Limits per patch are 256 KiB and 1,048,576 token-matrix cells (both LCS passes); each paired line is
+limited to 4 KiB and 256 tokens; replacement blocks are limited to 16 lines per side.
+Equal-size blocks require each positional pair to have a uniquely best token
+similarity on both sides. Highlighting uses the saved patch offline and
+never changes source or comment coordinates. Expanded context preserves canonical
+patch highlighting; full OLD/NEW source has no paired-change emphasis, and hiding
+whitespace-only changes retains its existing behavior. Human terminal readability
+and accessibility require live verification.
