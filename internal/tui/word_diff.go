@@ -1,8 +1,9 @@
 package tui
 
 import (
-	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 	"prui/internal/syntax"
+	"strings"
 	"unicode"
 	"unicode/utf8"
 )
@@ -219,7 +220,11 @@ func (m *Model) wordHighlightedText(line diffLine, horizontal, width int, prefix
 		piece.syntax = cropSpans(line.syntax, start+a, start+b, 0)
 		styled := m.syntaxText(piece, 0, visibleWidth(piece.Text), "")
 		if changed {
-			styled = lipgloss.NewStyle().Bold(true).Underline(true).TabWidth(lipgloss.NoTabConversion).Render(styled)
+			// Lipgloss's underline renderer styles individual runes, which splits
+			// embedded syntax-color sequences. Wrap the complete ANSI stream and
+			// restore emphasis after syntax resets instead.
+			emphasis := ansi.NewStyle().Bold().Underline(true)
+			styled = emphasis.Styled(strings.ReplaceAll(styled, ansi.ResetStyle, ansi.ResetStyle+emphasis.String()))
 		}
 		out += styled
 	}
