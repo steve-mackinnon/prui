@@ -53,8 +53,29 @@ its local text while retaining the immutable attempt, blocks retry, confirms a
 thread resolution, then restarts. The original durable drafts recover unchanged;
 published text/state never enters SQLite draft payloads and recovery never writes
 remotely. Focused draft, thread/conversation, commit-filter and modal suites pass.
-Final fresh integrated review and the coordinator's broad-gate release are pending;
-the earlier repaired-head validation above applies to its stated previous base.
+Fresh independent `draft_integration_review` approved `b53f488ba6ab651905094784db89993ee2ad6cbe`
+against that base without required findings. Disabling the uncertain-submit guard
+in a disposable copy failed with `unknown edit retried`. Full verification and lint
+also passed, but main advanced with PR #45 before finalization.
+
+### Integration after PR #45 merged
+
+Final implementation `69c3e82e6b35bc3dbae8c97bbe044bb3bea64bd4` rebases onto actual
+main `bdedc5476e0e837c6409445f5c6c396e16b62934`. The GraphQL field conflict preserves
+both `startDiffSide` and the published-action permission fields. Both range/file
+and published-action contracts remain intact.
+
+The combined real-store regression now covers line comments, range suggestions
+and file comments. Exact bodies and full target coordinates survive an uncertain
+published edit, confirmed thread resolution and restart; published state stays
+out of durable draft payloads. Focused source/TUI/application suites, including
+range/file targets and modal/input ownership, pass. Fresh independent
+`draft_integration_review` approved this exact implementation against that main
+without required findings. Final integrated `GOFLAGS=-p=2 ./scripts/verify.sh`
+passed formatting, vet, every race-test package and build. Lint reports 0 issues;
+`git diff --check` passes. Main remained unchanged at the stated base. The broad
+reservation was released after terminal gate success. Final documentation-head
+re-review and exact-head CI are recorded in PR #44.
 
 ## Behavior and boundaries
 
