@@ -361,6 +361,7 @@ func textHunkLines(f inventory.FileChange, u inventory.ReviewUnit, patch []byte,
 				old++
 			case ' ':
 				row.oldLine, row.newLine = old, new
+				row.oldTarget = target(f.OldPath, "LEFT", old)
 				row.target = target(f.NewPath, "RIGHT", new)
 				old++
 				new++

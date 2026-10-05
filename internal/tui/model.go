@@ -2,6 +2,7 @@ package tui
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -92,6 +93,7 @@ type reviewTabState struct {
 	discussions                                          discussionState
 	commit                                               commitState
 	commitFilter                                         commitFilterState
+	rangeStart                                           *source.ReviewCommentTarget
 	savedCursorTarget                                    *source.ReviewCommentTarget
 	savedCursorCommentID                                 int64
 	CursorTarget, GuideCursorTarget                      map[int]source.ReviewCommentTarget
@@ -756,6 +758,21 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.cycleReviewView(-1)
 				return m, m.restartGuidePathScroll()
 			}
+			if v.String() == "ctrl+o" {
+				m.switchCommentSide()
+				return m, nil
+			}
+			if v.String() == "ctrl+v" {
+				m.toggleCommentRange()
+				return m, nil
+			}
+			if v.String() == "ctrl+f" {
+				return m, m.openFileComposer()
+			}
+			if v.String() == "esc" && m.rangeStart != nil {
+				m.rangeStart = nil
+				return m, nil
+			}
 			if m.selectedReviewView() == viewDescription && m.descriptionKey(v.String()) {
 				return m, nil
 			}
@@ -1156,9 +1173,19 @@ func (m *Model) openCommentComposer() tea.Cmd {
 	if target == nil || target.Path == "" || !utf8.ValidString(target.Path) {
 		return nil
 	}
-	m.Composer = &commentComposer{Target: *target, PendingIndex: -1}
+	selected, err := m.completeCommentRange(*target)
+	if err != nil {
+		m.ActionError = err
+		return nil
+	}
+	if selected.Side == "LEFT" && selected.StartLine == 0 && targetIsOldContext(m.displayDetail()[cursor], selected) {
+		m.ActionError = errors.New("old-side context requires a multiline range; use ctrl+v")
+		return nil
+	}
+	m.rangeStart = nil
+	m.Composer = &commentComposer{Target: selected, PendingIndex: -1}
 	for i, pending := range m.Pending {
-		if pending.Target == *target {
+		if pending.Target == selected {
 			m.Composer.PendingIndex = i
 			m.Composer.Draft = pending.Body
 			m.Composer.Cursor = len([]rune(pending.Body))
@@ -1471,24 +1498,26 @@ func (m *Model) detail() []diffLine {
 	base := m.baseDetail()
 	// Source rows are immutable; the renderer copies just the visible viewport.
 	// Avoid rebuilding the whole review on every navigation call without overlays.
+	if m.Composer != nil && m.Composer.Target.SubjectType == "file" {
+		return append(m.inlineEditorLines(), m.wrapSource(base)...)
+	}
 	if len(m.Comments) == 0 && len(m.Pending) == 0 && m.Composer == nil && (m.CommentMenu == nil || m.CommentMenu.mode != commentActionReply) {
 		return m.wrapSource(base)
 	}
 	lines := make([]diffLine, 0, len(base)+len(m.Comments)+2)
 	for _, line := range base {
 		lines = append(lines, m.wrapSource([]diffLine{line})...)
-		if line.target == nil {
-			continue
-		}
-		for _, comment := range m.Comments {
-			if comment.Target == *line.target && comment.ParentID == 0 {
-				lines = append(lines, m.reviewCommentThread(comment, 0)...)
+		for _, target := range sourceLineTargets(line) {
+			for _, comment := range m.Comments {
+				if targetEndsAt(comment.Target, target) && comment.ParentID == 0 {
+					lines = append(lines, m.reviewCommentThread(comment, 0)...)
+				}
 			}
-		}
-		lines = append(lines, m.recoveredReplyLines(*line.target)...)
-		lines = append(lines, m.pendingLines(*line.target)...)
-		if m.Composer != nil && m.Composer.Target == *line.target {
-			lines = append(lines, m.inlineEditorLines()...)
+			lines = append(lines, m.recoveredReplyLines(target)...)
+			lines = append(lines, m.pendingLines(target)...)
+			if m.Composer != nil && targetEndsAt(m.Composer.Target, target) {
+				lines = append(lines, m.inlineEditorLines()...)
+			}
 		}
 	}
 	return lines
@@ -1519,6 +1548,9 @@ func (m *Model) sideBySideDetail() []diffLine {
 	} else {
 		base = projectSideBySideDetail(m.baseDetail())
 	}
+	if m.Composer != nil && m.Composer.Target.SubjectType == "file" {
+		return append(m.inlineEditorLines(), m.wrapSource(base)...)
+	}
 	if len(m.Comments) == 0 && len(m.Pending) == 0 && m.Composer == nil && (m.CommentMenu == nil || m.CommentMenu.mode != commentActionReply) {
 		return m.wrapSource(base)
 	}
@@ -1533,13 +1565,13 @@ func (m *Model) sideBySideDetail() []diffLine {
 		// order stable: old/LEFT before new/RIGHT.
 		for _, target := range rowTargets(row) {
 			for _, comment := range m.Comments {
-				if comment.Target == target && comment.ParentID == 0 {
+				if targetEndsAt(comment.Target, target) && comment.ParentID == 0 {
 					lines = append(lines, m.reviewCommentThread(comment, 0)...)
 				}
 			}
 			lines = append(lines, m.recoveredReplyLines(target)...)
 			lines = append(lines, m.pendingLines(target)...)
-			if m.Composer != nil && m.Composer.Target == target {
+			if m.Composer != nil && targetEndsAt(m.Composer.Target, target) {
 				lines = append(lines, m.inlineEditorLines()...)
 			}
 		}
@@ -1549,8 +1581,8 @@ func (m *Model) sideBySideDetail() []diffLine {
 
 func rowTargets(row diffRow) []source.ReviewCommentTarget {
 	targets := make([]source.ReviewCommentTarget, 0, 2)
-	if row.old != nil && row.old.line != nil && row.old.line.target != nil {
-		targets = append(targets, *row.old.line.target)
+	if row.old != nil && row.old.line != nil {
+		targets = append(targets, sourceLineTargets(*row.old.line)...)
 	}
 	if row.new != nil && row.new.line != nil && row.new.line.target != nil {
 		targets = append(targets, *row.new.line.target)
@@ -1656,7 +1688,12 @@ func (m *Model) inlineEditorLines() []diffLine {
 	if c == nil {
 		return nil
 	}
-	return m.inlineEditorLinesFor(c.Draft, c.Cursor, 0)
+	lines := m.inlineEditorLinesFor(c.Draft, c.Cursor, 0)
+	if c.Target.StartLine != 0 || c.Target.SubjectType == "file" {
+		label := diffLine{styledLine: styledLine{Class: classWarning, Text: "Comment target · " + commentTargetLabel(c.Target)}, editor: true}
+		lines = append([]diffLine{label}, lines...)
+	}
+	return lines
 }
 
 // inlineEditorLinesFor is the one editor presentation shared by a new inline

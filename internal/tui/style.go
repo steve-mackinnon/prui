@@ -47,7 +47,8 @@ type styledLine struct {
 type diffLine struct {
 	styledLine
 	syntax, oldSyntax []syntax.Span
-	oldLine, newLine  int // raw source coordinates; zero means absent
+	oldLine, newLine  int                         // raw source coordinates; zero means absent
+	oldTarget         *source.ReviewCommentTarget // alternate raw context coordinate, used only for ranges
 	target            *source.ReviewCommentTarget
 	commentID         int64       // nonzero only for an already anchored overlay comment
 	editor            bool        // true for rows in the active inline editor

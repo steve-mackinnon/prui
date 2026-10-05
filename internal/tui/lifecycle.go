@@ -44,8 +44,9 @@ type CommentSubmission struct {
 type CommentSubmitter func(context.Context, CommentSubmission) (source.ReviewComment, error)
 
 type ReviewSubmission struct {
-	Metadata source.Metadata
-	Review   source.PullRequestReview
+	Inventory *inventory.Inventory
+	Metadata  source.Metadata
+	Review    source.PullRequestReview
 }
 type ReviewSubmitter func(context.Context, ReviewSubmission) error
 type CommentReader func(context.Context, source.Metadata) ([]source.ReviewComment, error)
@@ -264,14 +265,14 @@ func commentOverlay(comments []source.ReviewComment, session *review.Session) []
 	targets := map[source.ReviewCommentTarget]bool{}
 	for i := range session.Inventory.Units {
 		for _, line := range unitLines(session, i) {
-			if line.target != nil {
-				targets[*line.target] = true
+			for _, t := range sourceLineTargets(line) {
+				targets[t] = true
 			}
 		}
 	}
 	out := make([]source.ReviewComment, 0, len(comments))
 	for _, comment := range comments {
-		if comment.Target.Identity == metadata.Identity && comment.Target.CommitID == metadata.HeadSHA && targets[comment.Target] {
+		if comment.Target.Identity == metadata.Identity && comment.Target.CommitID == metadata.HeadSHA && (targets[comment.Target] || (comment.Target.StartLine != 0 || comment.Target.SubjectType == "file") && commits.InventoryContainsTarget(session.Inventory.Files, session.Inventory.Units, session.Inventory.Patches, comment.Target)) {
 			out = append(out, comment)
 		}
 	}
@@ -345,6 +346,10 @@ func (m *Model) commentComposerKey(key tea.KeyPressMsg) tea.Cmd {
 		m.ActionError = errors.New("offline mode: discussion refresh is unavailable")
 		return nil
 	case "ctrl+p":
+		if composer.Target.SubjectType == "file" {
+			m.ActionError = errors.New("GitHub batch reviews do not support file-level comments; enter posts immediately")
+			return nil
+		}
 		if composer.CommitSHA != "" {
 			m.ActionError = errors.New("commit comments cannot be queued into a PR review")
 			return nil
@@ -389,6 +394,9 @@ func (m *Model) commentComposerKey(key tea.KeyPressMsg) tea.Cmd {
 			Comment:   source.ReviewComment{Target: composer.Target, Body: composer.Draft},
 			CommitSHA: composer.CommitSHA, CommitBundle: composer.CommitBundle, CommitInventory: composer.CommitInventory,
 			Metadata: m.Session.Inventory.Comparison.Metadata,
+		}
+		if submission.CommitInventory == nil {
+			submission.CommitInventory = &m.Session.Inventory
 		}
 		m.notice = "Submitting pull request comment..."
 		ctx := m.beginAction()

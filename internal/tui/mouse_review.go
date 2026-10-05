@@ -154,7 +154,7 @@ func diffLineHasTarget(line diffLine, target source.ReviewCommentTarget) bool {
 			}
 		}
 	}
-	return line.target != nil && *line.target == target
+	return line.target != nil && *line.target == target || line.oldTarget != nil && *line.oldTarget == target
 }
 
 func (m *Model) setSelectedDiffTarget(target *source.ReviewCommentTarget) {
@@ -202,6 +202,16 @@ func (m *Model) selectedDiffTargetForLine(line diffLine) *source.ReviewCommentTa
 			key = -1
 		}
 		target, ok = m.CursorTarget[key]
+	}
+	if m.rangeStart != nil && m.rangeStart.Side == "LEFT" && line.oldTarget != nil {
+		return line.oldTarget
+	}
+	if m.rangeStart != nil && line.sideBySide != nil {
+		for _, candidate := range rowTargets(*line.sideBySide) {
+			if candidate.Side == m.rangeStart.Side {
+				return &candidate
+			}
+		}
 	}
 	if ok && diffLineHasTarget(line, target) {
 		return &target

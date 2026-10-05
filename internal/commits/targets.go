@@ -30,7 +30,30 @@ func ContainsTarget(bundle *Bundle, target source.ReviewCommentTarget) bool {
 // InventoryContainsTarget is shared by delivery validation for the frozen PR
 // inventory and the selected commit. Presentation never determines an anchor.
 func InventoryContainsTarget(files []inventory.FileChange, units []inventory.ReviewUnit, patches map[string][]byte, target source.ReviewCommentTarget) bool {
-	if target.Line <= 0 || (target.Side != "LEFT" && target.Side != "RIGHT") || target.Path == "" || !utf8.ValidString(target.Path) {
+	if source.ValidateCommentCoordinates(target) != nil || target.Path == "" || !utf8.ValidString(target.Path) {
+		return false
+	}
+	if target.SubjectType == "file" {
+		for _, f := range files {
+			path := f.NewPath
+			if f.Status == "D" {
+				path = f.OldPath
+			}
+			if string(path) != target.Path {
+				continue
+			}
+			eligible := false
+			for _, u := range units {
+				if u.FileChangeID != f.ID {
+					continue
+				}
+				if u.Kind == inventory.Unavailable {
+					return false
+				}
+				eligible = true
+			}
+			return eligible
+		}
 		return false
 	}
 	byID := make(map[string]inventory.FileChange, len(files))
@@ -47,12 +70,20 @@ func InventoryContainsTarget(files []inventory.FileChange, units []inventory.Rev
 		}
 		oldLine, newLine := 0, 0
 		anchored := false
+		next := target.StartLine
+		if next == 0 {
+			next = target.Line
+		}
 		for raw := range bytes.SplitSeq(patches[u.PatchReference], []byte("\n")) {
 			if header := targetHunkHeader.FindSubmatch(raw); header != nil {
 				var e1, e2 error
 				oldLine, e1 = strconv.Atoi(string(header[1]))
 				newLine, e2 = strconv.Atoi(string(header[2]))
 				anchored = e1 == nil && e2 == nil
+				next = target.StartLine
+				if next == 0 {
+					next = target.Line
+				}
 				continue
 			}
 			if !anchored || len(raw) == 0 {
@@ -69,13 +100,19 @@ func InventoryContainsTarget(files []inventory.FileChange, units []inventory.Rev
 				oldLine++
 			case ' ':
 				path, side, line = string(f.NewPath), "RIGHT", newLine
+				if target.StartLine != 0 && target.Side == "LEFT" {
+					path, side, line = string(f.OldPath), "LEFT", oldLine
+				}
 				oldLine++
 				newLine++
 			default:
 				continue
 			}
-			if target.Path == path && target.Side == side && target.Line == line {
-				return true
+			if target.Path == path && target.Side == side && next == line {
+				if line == target.Line {
+					return true
+				}
+				next++
 			}
 		}
 	}
@@ -86,7 +123,7 @@ func InventoryContainsTarget(files []inventory.FileChange, units []inventory.Rev
 // GitHub: ordinary single-parent additions and modifications on the right side.
 // Deleted lines, renamed files, and root or merge commits remain unsupported.
 func HistoricalCommentTarget(bundle *Bundle, target source.ReviewCommentTarget) bool {
-	if bundle == nil || bundle.Status != Captured || target.Side != "RIGHT" {
+	if bundle == nil || bundle.Status != Captured || target.Side != "RIGHT" || target.StartLine != 0 || target.SubjectType != "" {
 		return false
 	}
 	for _, entry := range bundle.Entries {
