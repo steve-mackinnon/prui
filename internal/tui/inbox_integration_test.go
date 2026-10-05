@@ -208,6 +208,43 @@ func inboxCombinedPersistence(t *testing.T, uncertain bool) {
 	if m.Session.ID != first.ID || m.navigation != navigation || m.Scroll[0] != scroll || m.Cursor[0] != cursor || m.Horizontal != horizontal || m.Focus != paneDiff {
 		t.Fatal("returning to original inbox identity disturbed navigation")
 	}
+	if m.top() == pagePullRequestPicker {
+		namedKey(m, tea.KeyEscape)
+	}
+	// Read and refresh context after the real cross-repository round trip. The
+	// inbox account stays pinned while context remains historical PR evidence.
+	contextSnapshot := source.IssueContext{Identity: first.Inventory.Comparison.Metadata.Identity, HeadSHA: first.Inventory.Comparison.Metadata.HeadSHA, CapturedAt: time.Now().UTC(), Complete: true, Labels: []string{"saved context"}}
+	m.SetIssueContextReader(func(_ context.Context, id source.Identity, refresh bool) (source.IssueContext, error) {
+		if id != contextSnapshot.Identity {
+			t.Fatal("context borrowed another inbox PR identity")
+		}
+		return contextSnapshot, nil
+	})
+	_, contextLoad := m.Update(tea.KeyPressMsg{Code: 'I', Text: "I"})
+	if contextLoad == nil || m.top() != pageIssueContext {
+		t.Fatalf("context inaccessible after inbox restore: page=%v busy=%v cmd=%v stack=%v", m.top(), m.Busy, contextLoad != nil, m.Stack)
+	}
+	m.Update(contextLoad())
+	_, contextRefresh := m.Update(tea.KeyPressMsg{Code: 'r', Text: "r"})
+	m.Update(contextRefresh())
+	if !m.issues.loaded || !m.issues.fresh || m.inbox.options.Account != "account" {
+		t.Fatal("context refresh changed pinned inbox account")
+	}
+	m.Update(inboxResult{Generation: m.inbox.generation, Data: source.Inbox{Viewer: "foreign-account", Complete: true}})
+	if m.inbox.data.Viewer != "account" || m.inbox.options.Account != "account" || m.inbox.err == nil {
+		t.Fatal("context screen accepted foreign inbox account")
+	}
+	_, lateContext := m.Update(tea.KeyPressMsg{Code: 'r', Text: "r"})
+	namedKey(m, tea.KeyEscape)
+	m.Update(lateContext())
+	if m.top() == pageIssueContext || !layoutRowHasSourceID(m.displayDetail()[m.cursor()], sourceID) || m.selectedDiffTarget() != nil {
+		t.Fatal("late context result moved restored source or reopened modal")
+	}
+	afterPin, _ = json.Marshal(first)
+	afterDraft, _ = json.Marshal(draftContent(m.reviewTabState))
+	if !bytes.Equal(pin, afterPin) || !bytes.Equal(draft, afterDraft) || !bytes.Equal(rawRows, inboxPrivateRows(t, store.Path())) {
+		t.Fatal("combined inbox/context refresh changed frozen source or durable attempts")
+	}
 	key(m, 'S')
 	m.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
 	m.Update(tea.WindowSizeMsg{Width: 160, Height: 24})
