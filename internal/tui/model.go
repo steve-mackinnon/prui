@@ -15,6 +15,7 @@ import (
 	"prui/internal/commits"
 	"prui/internal/guideconfig"
 	"prui/internal/inventory"
+	"prui/internal/layoutprefs"
 	"prui/internal/review"
 	"prui/internal/session"
 	"prui/internal/source"
@@ -110,6 +111,7 @@ type reviewTabState struct {
 	Row                                                  int
 	fileFilter                                           string
 	fileFilterEditing                                    bool
+	groupFiles, collapseGenerated                        bool
 	Files                                                bool
 	collapsed                                            expansion
 	Scroll                                               map[int]int
@@ -212,6 +214,9 @@ type Model struct {
 	guideCache        guideDetailCache
 	fileCache         fileDetailCache
 	*reviewTabState
+	layoutPreferences     layoutprefs.Preferences
+	saveLayoutPreferences func(layoutprefs.Preferences) error
+
 	drag                 dividerDrag
 	pendingCenter        bool
 	helpScroll           int
@@ -702,14 +707,18 @@ func (m *Model) update(msg tea.Msg) (updated tea.Model, command tea.Cmd) {
 			return m, nil
 		}
 		keepSearchMatch := m.searchMatchAtCursor()
+		sourceRestore := m.sourceCursorRestorer()
 		cursorTarget, cursorCommentID := m.cursorAnchor()
 		m.Width = max(1, v.Width)
 		m.Height = max(1, v.Height)
 		m.restoreCursorAnchor(cursorTarget, cursorCommentID)
+		if sourceRestore != nil {
+			sourceRestore()
+		}
 		// A split-preference resize can change the number of display rows above a
 		// target. Keep its semantic cursor and saved reading offset intact across
 		// the unified fallback instead of replacing it with a nearby visible row.
-		if m.diffLayout() != diffLayoutSideBySide {
+		if m.diffLayout() != diffLayoutSideBySide && cursorTarget == nil && cursorCommentID == 0 && sourceRestore == nil {
 			m.cursorInViewport(1)
 		}
 		m.ensureReplyEditorVisible()
@@ -947,12 +956,37 @@ func (m *Model) update(msg tea.Msg) (updated tea.Model, command tea.Cmd) {
 			m.openFileFilter()
 		case "G":
 			m.selectReviewView(viewGuide)
+		case "B":
+			if m.fileView() {
+				m.groupFiles = !m.groupFiles
+				m.saveLayout()
+			}
+		case "alt+c":
+			if m.fileView() {
+				keepSearchMatch := m.searchMatchAtCursor()
+				sourceRestore := m.sourceCursorRestorer()
+				target, commentID := m.cursorAnchor()
+				m.collapseGenerated = !m.collapseGenerated
+				m.restoreCursorAnchor(target, commentID)
+				if sourceRestore != nil {
+					sourceRestore()
+				}
+				if keepSearchMatch {
+					m.revealSearchMatch()
+				}
+				m.saveLayout()
+			}
 		case "S":
 			if m.diffReviewView() {
 				keepSearchMatch := m.searchMatchAtCursor()
+				sourceRestore := m.sourceCursorRestorer()
 				target, commentID := m.cursorAnchor()
 				m.layout = m.layout.toggled()
+				m.saveLayout()
 				m.restoreCursorAnchor(target, commentID)
+				if sourceRestore != nil {
+					sourceRestore()
+				}
 				if keepSearchMatch {
 					m.revealSearchMatch()
 				}
@@ -1451,7 +1485,7 @@ func (m *Model) listWidth() int {
 }
 
 func (m *Model) clampListWidth(width int) int {
-	return min(max(18, width), m.Width-3-40)
+	return min(max(18, width), m.Width-3-40, 4096)
 }
 
 func (m *Model) resizeList(delta int) {
@@ -1460,12 +1494,22 @@ func (m *Model) resizeList(delta int) {
 	}
 	if m.commitFilter.subset {
 		m.listWidthPreference = m.clampListWidth(m.listWidth() + delta)
+		m.saveLayout()
 		return
 	}
+	keepSearchMatch := m.searchMatchAtCursor()
+	sourceRestore := m.sourceCursorRestorer()
 	target, commentID := m.cursorAnchor()
 	m.listWidthPreference = m.clampListWidth(m.listWidth() + delta)
+	m.saveLayout()
 	m.restoreCursorAnchor(target, commentID)
-	if m.diffLayout() != diffLayoutSideBySide {
+	if sourceRestore != nil {
+		sourceRestore()
+	}
+	if keepSearchMatch {
+		m.revealSearchMatch()
+	}
+	if m.diffLayout() != diffLayoutSideBySide && target == nil && commentID == 0 && !keepSearchMatch && sourceRestore == nil {
 		m.cursorInViewport(1)
 	}
 	m.ensureReplyEditorVisible()
@@ -1479,7 +1523,7 @@ func (m *Model) file(delta int) {
 		return
 	}
 	f := m.Session.UnitFiles[m.Selected]
-	if m.fileView() && m.fileFilter != "" {
+	if m.fileView() && (m.fileFilter != "" || m.groupFiles || m.collapseGenerated) {
 		files := m.filteredFiles()
 		if len(files) == 0 {
 			return
@@ -1608,7 +1652,27 @@ func (m *Model) syncFileToLine(index int) {
 	}
 	file = max(0, min(len(m.Session.Slices)-1, file-1))
 	if len(m.Session.Slices[file].Units) > 0 {
+		if !m.collapseGenerated || m.Session.UnitFiles[m.Selected] == file {
+			m.Selected = m.Session.Slices[file].Units[0]
+			return
+		}
+		// A generated body can contract above the current cursor as selection moves.
+		// Preserve its raw target and viewport position, never the old display index.
+		sourceRestore := m.sourceCursorRestorer()
+		target, commentID := m.cursorAnchor()
+		oldCursor, oldOffset := m.cursor(), m.offset()
+		relativeOffset := oldOffset - m.fileOffset(file)
 		m.Selected = m.Session.Slices[file].Units[0]
+		m.restoreCursorAnchor(target, commentID)
+		if sourceRestore != nil {
+			sourceRestore()
+		}
+		after, afterID := m.cursorAnchor()
+		if sourceRestore != nil || target != nil && after != nil && *target == *after || commentID > 0 && afterID == commentID {
+			m.setOffset(m.clampOffset(oldOffset + m.cursor() - oldCursor))
+		} else {
+			m.setOffset(m.clampOffset(m.fileOffset(file) + max(0, relativeOffset)))
+		}
 	}
 }
 
@@ -1617,7 +1681,7 @@ func (m *Model) baseDetail() []diffLine {
 		return m.cachedGuideDetail(guide).lines
 	}
 	if m.fileView() {
-		return m.cachedFileDetail(false)
+		return m.presentedFileDetail(false)
 	}
 	if m.Session == nil || m.Selected < 0 || m.Selected >= len(m.Session.Inventory.Units) {
 		return nil
@@ -1683,7 +1747,7 @@ func (m *Model) sideBySideDetail() []diffLine {
 	if guide, ok := m.activeGuide(); ok {
 		base = m.cachedGuideDetail(guide).splitLines
 	} else if m.fileView() {
-		base = m.cachedFileDetail(true)
+		base = m.presentedFileDetail(true)
 	} else {
 		base = projectSideBySideDetail(m.baseDetail())
 	}
@@ -2005,6 +2069,60 @@ func (m *Model) cursorAnchor() (*source.ReviewCommentTarget, int64) {
 		return &target, line.commentID
 	}
 	return nil, line.commentID
+}
+
+// sourceCursorRestorer preserves a read-only captured source row across layout
+// projections without assigning it a GitHub comment target.
+func (m *Model) sourceCursorRestorer() func() {
+	if m.navigation.mode == "" || m.selectedDiffTarget() != nil {
+		return nil
+	}
+	cursor := m.cursor()
+	if cursor < 0 {
+		return nil
+	}
+	line := m.displayDetail()[cursor]
+	if line.commentID > 0 {
+		return nil
+	}
+	if line.sideBySide != nil {
+		if line.sideBySide.new != nil {
+			line = *line.sideBySide.new.line
+		} else if line.sideBySide.old != nil {
+			line = *line.sideBySide.old.line
+		}
+	}
+	if line.searchID.Unit == "" {
+		return nil
+	}
+	id, offset := line.searchID, line.sourceOffset
+	return func() {
+		fallback := -1
+		for i, row := range m.displayDetail() {
+			cells := []diffLine{row}
+			if row.sideBySide != nil {
+				cells = nil
+				if row.sideBySide.new != nil {
+					cells = append(cells, *row.sideBySide.new.line)
+				}
+				if row.sideBySide.old != nil {
+					cells = append(cells, *row.sideBySide.old.line)
+				}
+			}
+			for _, cell := range cells {
+				if cell.searchID == id {
+					fallback = i
+					if cell.sourceOffset >= offset {
+						m.setCursor(i)
+						return
+					}
+				}
+			}
+		}
+		if fallback >= 0 {
+			m.setCursor(fallback)
+		}
+	}
 }
 
 // restoreCursorAnchor keeps a semantic selection stable while a resize or

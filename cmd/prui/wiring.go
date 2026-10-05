@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
+	"prui/internal/layoutprefs"
 
 	"prui/internal/guide"
 	"prui/internal/guideconfig"
@@ -109,6 +111,15 @@ func (a *application) model(ctx context.Context, o options) *tui.Model {
 		})
 	}
 	m.SetThemeSelectionLocked(o.ThemeName != "")
+	if path, err := globalThemeConfigPath(); err == nil {
+		preferencePath := filepath.Join(filepath.Dir(path), "layout.json")
+		preferences, err := layoutprefs.Load(preferencePath)
+		if err != nil {
+			m.ActionError = err
+		} else {
+			m.SetLayoutPreferences(preferences, func(p layoutprefs.Preferences) error { return layoutprefs.Save(preferencePath, p) })
+		}
+	}
 	return m
 }
 

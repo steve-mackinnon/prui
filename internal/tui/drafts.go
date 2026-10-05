@@ -247,6 +247,7 @@ func (m *Model) applyDraftReconciled(v draftReconciled) {
 
 func (m *Model) newDraftReviewTab(s *session.Record) *reviewTabState {
 	state := newReviewTabState(s)
+	m.applyLayoutPreferences(state)
 	m.loadDraft(state)
 	return state
 }

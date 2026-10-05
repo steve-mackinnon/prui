@@ -57,6 +57,7 @@ func (m *Model) mouseResize(msg tea.MouseMsg) (tea.Cmd, bool) {
 		width := m.clampListWidth(event.X - m.drag.grabOffset - 1)
 		if m.selectedReviewView() == viewCommits {
 			m.commit.width = width
+			m.saveLayout()
 			m.commitOffset()
 			return nil, true
 		}
@@ -65,11 +66,21 @@ func (m *Model) mouseResize(msg tea.MouseMsg) (tea.Cmd, bool) {
 		}
 		if m.commitFilter.subset {
 			m.listWidthPreference = width
+			m.saveLayout()
 			return nil, true
 		}
+		keepSearchMatch := m.searchMatchAtCursor()
+		sourceRestore := m.sourceCursorRestorer()
 		target, commentID := m.cursorAnchor()
 		m.listWidthPreference = width
+		m.saveLayout()
 		m.restoreCursorAnchor(target, commentID)
+		if sourceRestore != nil {
+			sourceRestore()
+		}
+		if keepSearchMatch {
+			m.revealSearchMatch()
+		}
 		m.setOffset(m.clampOffset(m.offset()))
 		if m.cursorActive {
 			m.ensureCursorVisible()

@@ -3,6 +3,7 @@ package tui
 import (
 	"image"
 	"path"
+	"sort"
 	"strings"
 	"unicode/utf8"
 
@@ -53,8 +54,15 @@ func (m *Model) filteredFiles() []int {
 	files := make([]int, 0, len(m.Session.Inventory.Files))
 	for i, f := range m.Session.Inventory.Files {
 		if query == "" || strings.Contains(strings.ToLower(string(f.NewPath)), query) || strings.Contains(strings.ToLower(string(f.OldPath)), query) {
-			files = append(files, i)
+			if !m.collapseGenerated || query != "" || m.fileCategory(i) != inventory.Generated || len(m.Session.UnitFiles) > m.Selected && m.Selected >= 0 && m.Session.UnitFiles[m.Selected] == i {
+				files = append(files, i)
+			}
 		}
+	}
+	if m.groupFiles {
+		sort.SliceStable(files, func(i, j int) bool {
+			return categoryOrder(m.fileCategory(files[i])) < categoryOrder(m.fileCategory(files[j]))
+		})
 	}
 	return files
 }
@@ -99,10 +107,53 @@ func (m *Model) fileFilterHeader() (string, image.Rectangle) {
 	}
 	start := 2 + visibleWidth(prefix)
 	end := min(start+visibleWidth(fileFilterControl), 1+m.listWidth())
-	return prefix + fileFilterControl, image.Rect(start, 2, end, 3)
+	label := prefix + fileFilterControl
+	if m.groupFiles {
+		label += " · grouped"
+	}
+	return label, image.Rect(start, 2, end, 3)
 }
 
 func (m *Model) openFileFilter() {
 	m.fileFilterEditing = true
 	m.Focus = paneList
+}
+
+func categoryOrder(c inventory.Category) int {
+	for i, category := range inventory.Categories {
+		if c == category {
+			return i
+		}
+	}
+	return len(inventory.Categories)
+}
+func (m *Model) fileCategory(i int) inventory.Category {
+	if c, ok := m.Session.Inventory.Classifications[m.Session.Inventory.Files[i].ID]; ok {
+		return c.Category
+	}
+	// Old frozen sessions have no attribute evidence; don't reinterpret the checkout.
+	return inventory.Support
+}
+func (m *Model) categoryCounts() map[inventory.Category]int {
+	counts := map[inventory.Category]int{}
+	for i := range m.Session.Inventory.Files {
+		counts[m.fileCategory(i)]++
+	}
+	return counts
+}
+func categoryLabel(c inventory.Category) string {
+	switch c {
+	case inventory.Implementation:
+		return "Implementation"
+	case inventory.Tests:
+		return "Tests"
+	case inventory.Documentation:
+		return "Documentation"
+	case inventory.Generated:
+		return "Generated"
+	case inventory.Assets:
+		return "Assets"
+	default:
+		return "Support"
+	}
 }

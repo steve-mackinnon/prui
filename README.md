@@ -283,3 +283,9 @@ lines/ranges shows Before/After, Enter posts, and `ctrl+p` queues. On an existin
 inline suggestion, Enter opens actions and `ctrl+a` prepares a separately confirmed
 remote commit. Application checks canonical source, comments, permission and expected
 head without changing your checkout. See [suggestion limits and uncertainty](docs/REFERENCE.md#suggested-changes).
+
+File organization and layout: `B` toggles category grouping, `Alt+C` collapses or
+reveals generated files, and `F` finds every changed path including collapsed
+files. Split/unified and pane widths persist across runs; narrow terminals keep
+the desired wide layout for later restoration. See
+[attribute rules, pinned provenance, defaults and limits](docs/spec/SPEC-file-categories-layout.md).
