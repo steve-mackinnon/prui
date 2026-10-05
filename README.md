@@ -77,7 +77,8 @@ prui open https://github.com/owner/repo/pull/42
 ```
 
 The PR picker shows the list beside a description and metadata preview on wide
-terminals, and stacks them on narrower terminals. Use Tab to focus the preview,
+terminals, and stacks them on narrower terminals. Target branches appear in list rows
+when space allows, in the selected PR preview, and in the opened Description tab. Use Tab to focus the preview,
 then `j` / `k` or Page Up / Page Down to scroll; Tab returns to the list.
 Shift+J / Shift+K scroll the preview from either panel without changing focus. Mouse
 clicks focus either panel and the wheel scrolls the panel under the pointer.

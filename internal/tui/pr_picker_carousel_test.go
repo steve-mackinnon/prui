@@ -70,7 +70,7 @@ func TestPRPickerCarouselKeepsIdentityAndMetadataFixedAtNarrowAndWideWidths(t *t
 		m := New(context.Background(), nil)
 		m.Stack = []page{pagePullRequestPicker}
 		m.Width, m.Height = width, 24
-		pr := source.PullRequest{Identity: source.Identity{Number: 42}, Title: strings.Repeat("界 retry ", 30) + "END", Author: "alice", Checks: source.ChecksPassed}
+		pr := source.PullRequest{Identity: source.Identity{Number: 42}, Title: strings.Repeat("界 retry ", 30) + "END", Author: "alice", TargetBranch: "release/next", Checks: source.ChecksPassed}
 		m.PullRequests = []source.PullRequest{pr}
 		m.Update(tea.WindowSizeMsg{Width: width, Height: 24})
 		generation := m.prCarousel.generation

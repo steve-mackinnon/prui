@@ -14,6 +14,7 @@ func TestSnapshotDescriptionRoundTripsAndAbsentDescriptionRemainsReadable(t *tes
 	description := "frozen description"
 	snapshot := fixture()
 	snapshot.PullRequestDescription = &description
+	snapshot.Inventory.Comparison.Metadata.TargetBranch = "release/next"
 	recorded, err := s.Create(snapshot)
 	if err != nil {
 		t.Fatal(err)
@@ -31,7 +32,7 @@ func TestSnapshotDescriptionRoundTripsAndAbsentDescriptionRemainsReadable(t *tes
 	}
 	defer s.Close()
 	got, err := s.Load(recorded.ID)
-	if err != nil || got.PullRequestDescription == nil || *got.PullRequestDescription != description {
+	if err != nil || got.PullRequestDescription == nil || *got.PullRequestDescription != description || got.Inventory.Comparison.Metadata.TargetBranch != "release/next" {
 		t.Fatalf("stored description = %#v, %v", got, err)
 	}
 	old, err := s.Load(withoutDescription.ID)
@@ -56,6 +57,10 @@ func TestComparisonSnapshotCacheReSessionsFrozenSourceWhenDescriptionChanges(t *
 	}
 	if got, err := s.LoadComparisonSnapshot(metadata); err != nil || got == nil || got.PullRequestDescription == nil || *got.PullRequestDescription != description {
 		t.Fatalf("matching description cache result = %#v, %v", got, err)
+	}
+	metadata.TargetBranch = "release/next"
+	if got, err := s.LoadComparisonSnapshot(metadata); err != nil || got == nil || got.Inventory.Comparison.Metadata.TargetBranch != metadata.TargetBranch {
+		t.Fatalf("changed target cache result = %#v, %v", got, err)
 	}
 	metadata.Description = "edited description"
 	if got, err := s.LoadComparisonSnapshot(metadata); err != nil || got == nil || got.PullRequestDescription == nil || *got.PullRequestDescription != metadata.Description || got.Inventory.Comparison.Metadata.Description != metadata.Description {

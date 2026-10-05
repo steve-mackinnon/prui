@@ -7,6 +7,8 @@ User-visible changes are recorded here before each release. See
 
 ### Added
 
+- Show each pull request’s target branch in the PR list, selected preview, and opened Description view.
+
 - Filter Files and Guide by selected commits with `C`, showing one net diff while retaining the dedicated Commits browser.
 
 - Find code text with `/` in Files and the current Guide section, with results
