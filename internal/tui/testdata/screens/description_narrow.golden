@@ -1,18 +1,18 @@
 example/review #42
-  PRs [P]  › Description [1]    Files [2]    Guide [3]    Co
-Description
-Frozen from GitHub when this review opened.
-Target branch: main
-
-   Summary
-
-  • review the loading path
-  • confirm the fallback
-
-    fmt.Println("ready")
-
-  Reference https://example.com
-
-  <em>literal HTML</em>
+  PRs [P]  › Overview [1]    Files [2]    Guide [3]    Commi
+Overview · Discussions [D]
+┌──────────────────────────────────────────────────────────┐
+│ Description · captured when review opened                │
+│ Target branch: main                                      │
+│                                                          │
+│    Summary                                               │
+│                                                          │
+│   • review the loading path                              │
+│   • confirm the fallback                                 │
+│                                                          │
+│     fmt.Println("ready")                                 │
+│                                                          │
+│   Reference https://example.com                          │
+│                                                          │
 0/2 read · R Review (0) · ? Freshness unknown · ?: Help
-↑/↓: scroll · 1/2/3/4: views · ?: Help
+↑/↓: scroll · n: comment · D: discussions · enter: expand ·

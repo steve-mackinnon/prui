@@ -42,7 +42,7 @@ func TestProgramPublishedEditUnknownRefreshAndCanonicalResult(t *testing.T) {
 	h.expect("review", func(f programFrame) bool { return !f.loading && f.page == pageReview })
 	h.key('c')
 	h.key('D')
-	h.expect("discussion list", func(f programFrame) bool { return f.page == pageDiscussions && strings.Contains(f.text, "old") })
+	h.expect("discussion list", func(f programFrame) bool { return f.page == pageReview && strings.Contains(f.text, "old") })
 	h.key(tea.KeyEnter)
 	h.key('e')
 	h.expect("published editor", func(f programFrame) bool { return strings.Contains(f.text, "Edit published comment") })

@@ -32,24 +32,32 @@ type DiscussionResult struct {
 type discussionCount struct{ total, outdated int }
 
 type discussionState struct {
-	anchorIndex        map[source.ReviewCommentTarget][]source.Discussion
-	counts             map[string]discussionCount
-	indexGeneration    uint64
-	cancel             context.CancelFunc
-	snapshot           DiscussionSnapshot
-	loaded             bool
-	generation         uint64
-	confirmedPublished map[string]confirmedPublished
-	published          *publishedEditor
-	editor             *generalCommentEditor
-	selectedID         string
-	confirmed          map[int64]bool
-	confirmedEvents    map[string]source.ConversationEvent
-	selected, scroll   int
-	detail             bool
-	notice             string
-	returnCommit       *commitState
-	returnView         reviewView
+	markdown             conversationRenderCache
+	codeContexts         overviewCodeContexts
+	overviewCursor       int
+	overviewCursorActive bool
+	overviewExpanded     map[string]bool
+	overviewFocus        bool
+	returnOverview       bool
+	returnFiles          *discussionFilesReturn
+	anchorIndex          map[source.ReviewCommentTarget][]source.Discussion
+	counts               map[string]discussionCount
+	indexGeneration      uint64
+	cancel               context.CancelFunc
+	snapshot             DiscussionSnapshot
+	loaded               bool
+	generation           uint64
+	confirmedPublished   map[string]confirmedPublished
+	published            *publishedEditor
+	editor               *generalCommentEditor
+	selectedID           string
+	confirmed            map[int64]bool
+	confirmedEvents      map[string]source.ConversationEvent
+	selected, scroll     int
+	detail               bool
+	notice               string
+	returnCommit         *commitState
+	returnView           reviewView
 }
 
 func (m *Model) SetDiscussionReader(read DiscussionReader) { m.readDiscussions = read }
@@ -77,6 +85,10 @@ func (m *Model) applyDiscussionResult(v DiscussionResult) {
 		return
 	}
 	d := &state.discussions
+	relative, preservePosition := 0, false
+	if v.Target == m.activeTab {
+		relative, preservePosition = m.overviewPosition()
+	}
 	if v.Err != nil {
 		label := "Discussions stale: "
 		if !d.loaded {
@@ -167,8 +179,8 @@ func (m *Model) applyDiscussionResult(v DiscussionResult) {
 	d.anchorIndex = nil
 	state.Comments = discussionCurrentComments(v.Snapshot, state.Session)
 	state.commit.cache = commitRenderCache{}
-	d.selected = 0
 	entries := discussionEntries(d.snapshot.Snapshot)
+	d.selected = max(0, min(d.selected, len(entries)-1))
 	for i, thread := range entries {
 		if thread.ID == d.selectedID {
 			d.selected = i
@@ -182,6 +194,9 @@ func (m *Model) applyDiscussionResult(v DiscussionResult) {
 		d.detail = false
 	}
 	if v.Target == m.activeTab {
+		if preservePosition {
+			m.restoreOverviewPosition(relative)
+		}
 		m.ensureCommitEditorVisible()
 	}
 }
@@ -400,6 +415,11 @@ func (m *Model) restoreDiscussionContext() bool {
 	m.commit = *d.returnCommit
 	m.ContextView = d.returnView
 	d.returnCommit = nil
+	if d.returnOverview {
+		d.returnOverview = false
+		d.overviewFocus = true
+		return true
+	}
 	d.detail = true
 	m.push(pageDiscussions)
 	return true
@@ -473,7 +493,9 @@ func (m *Model) discussionsView() string {
 				body = append(body, fmt.Sprintf("%s · %s:%d · %s", Escape(shortCommitSHA(t.OriginalCommitID)), Escape(t.OriginalAnchor.Path), t.OriginalAnchor.Line, Escape(t.OriginalAnchor.Side)))
 			}
 			for _, c := range t.Comments {
-				body = append(body, "@"+Escape(c.Author), Escape(c.Body), "")
+				body = append(body, "@"+Escape(c.Author))
+				body = append(body, m.conversationLines(c.Body, true)...)
+				body = append(body, "")
 				if replacement, err := source.ParseSuggestion(c.Body); err == nil {
 					before, ok := m.targetSource(c.Target)
 					if !ok {

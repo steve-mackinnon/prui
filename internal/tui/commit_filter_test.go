@@ -52,7 +52,7 @@ func TestCommitFilterOverlaysExistingReview(t *testing.T) {
 	before := ansi.Strip(m.View().Content)
 	key(m, 'C')
 	opened := ansi.Strip(m.View().Content)
-	if !strings.Contains(opened, "╭") || !strings.Contains(opened, "example/review #42") || !strings.Contains(opened, "Description [1]") {
+	if !strings.Contains(opened, "╭") || !strings.Contains(opened, "example/review #42") || !strings.Contains(opened, "Overview [1]") {
 		t.Fatalf("picker replaced review instead of overlaying it:\n%s", opened)
 	}
 	key(m, 'C')

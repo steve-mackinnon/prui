@@ -355,7 +355,7 @@ func (m *Model) draftRecoveryKey(key tea.KeyPressMsg) tea.Cmd {
 		}
 		m.pop()
 		if m.discussions.editor != nil {
-			m.push(pageDiscussions)
+			m.openOverviewDiscussions()
 		}
 	case "ctrl+r":
 		if m.discussions.editor != nil && m.draft.attempt == "" {

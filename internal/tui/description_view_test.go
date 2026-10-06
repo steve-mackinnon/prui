@@ -23,7 +23,7 @@ func TestDescriptionViewRendersFrozenEscapedTextAndProvenance(t *testing.T) {
 	m.Update(tea.KeyPressMsg{Code: '1', Text: "1"})
 
 	view := ansi.Strip(m.View().Content)
-	for _, want := range []string{"› Description [1]", "Frozen from GitHub when this review opened.", "Summary", `\x1b]52;c;unsafe\x07`} {
+	for _, want := range []string{"› Overview [1]", "Description · captured when review opened", "Summary", `\x1b]52;c;unsafe\x07`} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("description view missing %q:\n%s", want, view)
 		}
@@ -108,7 +108,9 @@ func TestDescriptionViewScrollIsTabOwnedAndLeavesChangesStateUntouched(t *testin
 	m.Selected, m.Row, m.Focus = 1, 1, paneDiff
 	m.Scroll[1], m.Horizontal = 3, 5
 	key(m, '1')
-	key(m, 'j')
+	for i := 0; i < m.overviewHeight()+1; i++ {
+		key(m, 'j')
+	}
 	namedKey(m, tea.KeyEscape)
 	if m.DescriptionScroll == 0 {
 		t.Fatal("description navigation did not scroll")

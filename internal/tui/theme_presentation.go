@@ -48,6 +48,7 @@ func (m *Model) themeContent(content string) string {
 	preview.theme = candidate
 	preview.styles = stylesFor(candidate)
 	preview.descriptionCache = descriptionRenderCache{}
+	preview.discussions.markdown = conversationRenderCache{}
 	background := preview.View().Content
 
 	rows := strings.Split(painted, "\n")

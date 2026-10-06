@@ -156,6 +156,9 @@ func (m *Model) reviewStatus() string {
 }
 
 func (m *Model) reviewHints() string {
+	if m.discussions.editor != nil && m.selectedReviewView() == viewDescription {
+		return m.styleLine(classWarning, clip("Enter: post · shift+enter: newline · ctrl+r: refresh · esc: cancel", m.Width))
+	}
 	if m.rangeStart != nil {
 		end := m.commentSelectionTarget()
 		text := fmt.Sprintf("Range start %s:%d", m.rangeStart.Side, m.rangeStart.Line)
@@ -209,8 +212,40 @@ func (m *Model) reviewHints() string {
 		if m.commit.focus == paneDiff {
 			hints = "j/k: scroll · n/p: commit · PgUp/PgDn: page · esc/h: list · ?: Help"
 		}
-	case !m.diffReviewView():
-		hints = "↑/↓: scroll · 1/2/3/4: views · ?: Help"
+	case m.selectedReviewView() == viewDescription:
+		hints = "↑/↓: scroll · n: comment · D: discussions · enter: expand · ?: Help"
+		if m.discussions.overviewFocus {
+			hints = "↑/↓: scroll · enter: expand · n: comment · c: refresh · esc: back"
+			entries := m.discussionEntries()
+			if len(entries) > 0 {
+				t := entries[m.discussions.selected]
+				if t.Kind == "PR comment" {
+					hints = "↑/↓: scroll · enter: expand · r: reply · n: comment · c: refresh · esc: back"
+				} else if t.Kind != "Review" {
+					hints = "↑/↓: scroll · enter: expand"
+					if m.submitCommentAction != nil && m.discussionFilesReason(t) == "" {
+						hints += " · r: reply"
+					}
+					if m.discussionFilesReason(t) == "" {
+						hints += " · f: Files"
+					}
+					if m.overviewOriginalAvailable(t) {
+						hints += " · o: original"
+					}
+					hints += " · c: refresh · esc: back"
+				}
+			}
+		}
+		if m.discussions.overviewFocus && m.discussions.overviewExpanded[m.discussions.selectedID] {
+			hints = "enter: collapse · esc: collapse · ↑/↓: scroll · tab: activity · c: refresh"
+			entries := m.discussionEntries()
+			if m.discussions.overviewFocus && len(entries) > 0 {
+				actions := m.overviewDiscussionActions(entries[max(0, min(m.discussions.selected, len(entries)-1))])
+				if len(actions) > 0 {
+					hints = strings.Join(actions, " · ") + " · " + hints
+				}
+			}
+		}
 	case m.Focus == paneDiff:
 		hints = "↑/↓: scroll · enter: comment/menu · m: mark file · esc: list · ?: Help"
 	case !m.Files && !m.Inventory:

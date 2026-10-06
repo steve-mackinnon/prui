@@ -29,6 +29,10 @@ func (m *Model) mouseReviewClick(x, y int) tea.Cmd {
 		}
 		return nil
 	}
+	if m.selectedReviewView() == viewDescription {
+		m.overviewMouseClick(y)
+		return nil
+	}
 	if m.selectedReviewView() == viewCommits {
 		g := m.commitGeometry()
 		p := image.Pt(x, y)
@@ -223,7 +227,7 @@ func (m *Model) clearSelectedDiffTarget() { m.setSelectedDiffTarget(nil) }
 
 // Plain labels are shared by rendering and hit testing, before styling or clipping.
 func (m *Model) contextTabLabels() []string {
-	labels := []string{"Description [1]", "Files [2]", "Guide [3]", "Commits [4]"}
+	labels := []string{"Overview [1]", "Files [2]", "Guide [3]", "Commits [4]"}
 	for i, label := range labels {
 		prefix := "  "
 		if reviewViews[i] == m.selectedReviewView() {

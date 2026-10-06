@@ -173,16 +173,23 @@ func (m *Model) applyGeneralCommentResult(v GeneralCommentResult) {
 	}
 	d.detail = true
 	d.scroll = 0
+	if state.ContextView == viewDescription {
+		d.detail = false
+		d.overviewFocus = true
+	}
 	d.editor = nil
-	d.notice = "General PR comment posted"
+	d.notice = "PR comment posted"
+	if state == m.reviewTabState && m.top() == pageReview && m.selectedReviewView() == viewDescription {
+		m.revealOverviewActivity()
+	}
 	// Invalidate any concurrent read that began before this confirmed creation.
 	d.generation++
 }
 func (m *Model) generalCommentView() string {
 	e := m.discussions.editor
-	title := "New general PR comment · posts immediately"
+	title := "New PR comment · posts immediately"
 	if e.replyTo != "" {
-		title = "General PR reply · new @mention PR comment"
+		title = "Reply · new PR comment mentioning the author"
 	}
 	draft := []rune(e.draft)
 	cursor := max(0, min(e.cursor, len(draft)))

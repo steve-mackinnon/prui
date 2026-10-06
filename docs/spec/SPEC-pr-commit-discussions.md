@@ -1,3 +1,9 @@
+> Navigation update (2026-10-05): [Overview conversation](SPEC-overview-conversation.md)
+> supersedes the separate Description/Discussions navigation: Overview combines
+> the captured description and live activity; D jumps to Discussions; f opens
+> a verified inline comment in Files and Escape returns. Existing data, draft,
+> and write-safety contracts remain applicable.
+
 # Spec: Commit Discussions and Outdated Review Comments
 
 Status: Read-side scope and verified head-commit composer implemented

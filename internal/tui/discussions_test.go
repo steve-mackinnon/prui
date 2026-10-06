@@ -4,6 +4,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"context"
 	"errors"
+	"github.com/charmbracelet/x/ansi"
 	"prui/internal/review"
 	"prui/internal/source"
 	"strings"
@@ -20,7 +21,7 @@ func TestDiscussionsUnplaceableStatusAndDetail(t *testing.T) {
 	m.discussions.snapshot = DiscussionSnapshot{Snapshot: source.DiscussionSnapshot{Complete: true, Threads: []source.Discussion{testDiscussion("thread", strings.Repeat("f", 40))}}, CurrentVerified: true}
 	m.openDiscussions()
 	m.discussionKey("enter")
-	text := m.discussionsView()
+	text := ansi.Strip(m.discussionsView())
 	for _, want := range []string{"Historical concern", "Outdated on current PR", "Original commit not captured", "Original context unavailable", "+old", "https://github.com"} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("missing %q in %s", want, text)

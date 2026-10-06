@@ -134,8 +134,8 @@ func (m *Model) mouseWheel(wheel tea.MouseWheelMsg) tea.Cmd {
 	}
 	p := image.Pt(wheel.X, wheel.Y)
 	if m.selectedReviewView() == viewDescription {
-		if wheel.Y >= 3 && wheel.Y < 3+m.descriptionBodyHeight() {
-			m.DescriptionScroll = max(0, min(m.DescriptionScroll+delta, max(0, len(m.descriptionLines())-m.descriptionBodyHeight())))
+		if wheel.Y >= 3 && wheel.Y < 3+m.overviewHeight() {
+			m.DescriptionScroll = max(0, min(m.DescriptionScroll+delta, max(0, len(m.overviewRows())-m.overviewHeight())))
 		}
 		return nil
 	}

@@ -1,11 +1,18 @@
-Discussions
-Outdated on current PR
-Original commit not captured
-Original context unavailable
-@alice
-Context survives an unavailable commit.
-
-Historical snippet
-+old
-https://github.com/a/b/pull/1#discussion_r1
-j/k: scroll · e: edit · z: resolve/reopen · o: original · c: refresh · esc: back
+example/review #42
+  PRs [P]  › Overview [1]    Files [2]    Guide [3]    Commits [4]
+Overview · Discussions [D]
+┌─ Selected ──────────────────────────────────────────────────────────────────────────────────────┐
+▸ > @alice · Outdated on current PR · Unresolved                                                  │
+│ Original context unavailable                                                                    │
+│ Historical snippet                                                                              │
+│ +old                                                                                            │
+│ > @alice                                                                                        │
+│   Historical concern                                                                            │
+│   @bob                                                                                          │
+│   This concern still needs attention.                                                           │
+│ Open in Files unavailable · Outdated; current Files location unavailable                        │
+│ https://github.com/a/b/pull/1#discussion_r1                                                     │
+│                                                                                                 │
+└─────────────────────────────────────────────────────────────────────────────────────────────────┘
+0/2 read · R Review (0) · ? Freshness unknown · ?: Help
+enter: collapse · esc: collapse · ↑/↓: scroll · tab: activity · c: refresh

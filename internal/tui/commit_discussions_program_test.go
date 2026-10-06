@@ -35,7 +35,7 @@ func TestProgramCommitDiscussionReadFallbackJumpReturn(t *testing.T) {
 	})
 	h.key('D')
 	h.expect("discussion list", func(f programFrame) bool {
-		return f.page == pageDiscussions && strings.Contains(f.text, "Outdated on current PR")
+		return f.page == pageReview && strings.Contains(f.text, "Outdated on current PR")
 	})
 	h.key(tea.KeyEnter)
 	h.expect("captured detail", func(f programFrame) bool {
@@ -45,20 +45,20 @@ func TestProgramCommitDiscussionReadFallbackJumpReturn(t *testing.T) {
 	h.expect("jump to commit", func(f programFrame) bool { return f.page == pageReview && strings.Contains(f.text, "Second commit") })
 	h.key(tea.KeyEscape)
 	h.expect("return detail", func(f programFrame) bool {
-		return f.page == pageDiscussions && strings.Contains(f.text, "Historical snippet")
+		return f.page == pageReview && strings.Contains(f.text, "Historical snippet")
 	})
 	h.key(tea.KeyEscape)
 	h.expect("return list", func(f programFrame) bool {
-		return f.page == pageDiscussions && !strings.Contains(f.text, "Historical snippet")
+		return f.page == pageReview && strings.Contains(f.text, "enter: expand") && strings.Contains(f.text, "Unavailable original concern")
 	})
-	h.key('j')
+	h.key(tea.KeyTab)
 	h.key(tea.KeyEnter)
 	h.expect("fallback detail", func(f programFrame) bool {
 		return strings.Contains(f.text, "Original commit not captured") && strings.Contains(f.text, "Unavailable original concern")
 	})
 	h.key('o')
 	h.expect("fallback remains readable", func(f programFrame) bool {
-		return f.page == pageDiscussions && strings.Contains(f.text, "Original commit not captured")
+		return f.page == pageReview && strings.Contains(f.text, "Original commit not captured")
 	})
 	if reads.Load() != 1 {
 		t.Fatal("navigation fetched discussions")
@@ -124,10 +124,10 @@ func TestProgramCommitCommentNullCurrentAndPartialRefresh(t *testing.T) {
 				return posts.Load() == 1 && !f.busy && strings.Contains(f.text, "Status unknown")
 			})
 			h.key('D')
-			h.expect("created overlay", func(f programFrame) bool { return f.page == pageDiscussions && strings.Contains(f.text, "@alice") })
+			h.expect("created overlay", func(f programFrame) bool { return f.page == pageReview && strings.Contains(f.text, "@alice") })
 			h.key('c')
 			h.expect("partial retains created", func(f programFrame) bool {
-				return f.page == pageDiscussions && strings.Contains(f.text, "Loaded threads") && strings.Contains(f.text, "@alice")
+				return f.page == pageReview && strings.Contains(f.text, "Loaded activity") && strings.Contains(f.text, "@alice")
 			})
 			h.key(tea.KeyEnter)
 			h.expect("created detail", func(f programFrame) bool {
@@ -173,9 +173,9 @@ func TestProgramDiscussionFreshnessMismatchSuppressesMainCards(t *testing.T) {
 	})
 	h.key('D')
 	h.expect("live discussion remains discoverable", func(f programFrame) bool {
-		return f.page == pageDiscussions && strings.Contains(f.text, "snapshot differs") && strings.Contains(f.text, "Live snapshot concern")
+		return f.page == pageReview && strings.Contains(f.text, "snapshot differs") && strings.Contains(f.text, "Live snapshot concern")
 	})
-	h.key(tea.KeyEscape)
+	h.key('2')
 	h.expect("main remains clean", func(f programFrame) bool {
 		return f.page == pageReview && !strings.Contains(f.text, "Live snapshot concern")
 	})

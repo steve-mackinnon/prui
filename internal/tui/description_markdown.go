@@ -43,6 +43,11 @@ func renderDescriptionMarkdownForTheme(body string, width int, themeName string)
 // renderDescriptionMarkdownWithTheme retains the existing syntax foregrounds
 // while letting explicit base colors own ordinary text and block surfaces.
 func renderDescriptionMarkdownWithTheme(body string, width int, palette theme.Theme) ([]string, error) {
+	return renderSafeMarkdown(normalizeDescriptionControls(body), width, palette, false)
+}
+
+// renderSafeMarkdown accepts only input normalized by a display adapter.
+func renderSafeMarkdown(body string, width int, palette theme.Theme, compactLinks bool) ([]string, error) {
 	if width < 1 {
 		width = 1
 	}
@@ -53,24 +58,34 @@ func renderDescriptionMarkdownWithTheme(body string, width int, palette theme.Th
 	}
 	hasBase := palette.Syntax(theme.Foreground) != "default" || palette.Syntax(theme.Background) != "default"
 	option := glamour.WithStandardStyle(style)
-	if hasBase {
+	if hasBase || compactLinks {
 		local := *styles.DefaultStyles[style]
-		local.Document.Color = nil
-		local.H1.BackgroundColor = nil
-		local.Code.BackgroundColor = nil
-		local.CodeBlock.BackgroundColor = nil
+		if hasBase {
+			local.Document.Color = nil
+			local.H1.BackgroundColor = nil
+			local.Code.BackgroundColor = nil
+			local.CodeBlock.BackgroundColor = nil
+		}
+		if compactLinks {
+			// Keep clickable labels without appending long destination URLs.
+			local.Link.Format = "{{if false}}{{.text}}{{end}}"
+			local.LinkText.Format = "{{.text}}"
+			local.Image.Format = "{{if false}}{{.text}}{{end}}"
+			local.ImageText.Format = "{{.text}}"
+		}
 		option = glamour.WithStyles(local)
 	}
 	renderer, err := glamour.NewTermRenderer(
 		option,
 		glamour.WithWordWrap(width),
 		glamour.WithTableWrap(true),
+		glamour.WithInlineTableLinks(compactLinks),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("create markdown renderer: %w", err)
 	}
 
-	rendered, err := renderer.Render(normalizeDescriptionControls(body))
+	rendered, err := renderer.Render(body)
 	if err != nil {
 		return nil, fmt.Errorf("render markdown description: %w", err)
 	}
@@ -101,6 +116,10 @@ func descriptionWithoutBackgrounds(lines []string) []string {
 }
 
 func normalizeDescriptionControls(body string) string {
+	return normalizeMarkdownControls(body, false)
+}
+
+func normalizeMarkdownControls(body string, literalCode bool) string {
 	body = strings.ReplaceAll(body, "\r\n", "\n")
 	body = strings.ReplaceAll(body, "\r", "\n")
 	codeLines := descriptionCodeLines(body)
@@ -123,11 +142,19 @@ func normalizeDescriptionControls(body string) string {
 
 	var safe strings.Builder
 	safe.Grow(len(body))
-	for _, r := range body {
+	// Entity rewriting can change offsets; classify code again for this pass.
+	if literalCode {
+		codeLines = descriptionCodeLines(body)
+	}
+	for pos, r := range body {
 		switch {
 		case r == '\n' || r == '\t':
 			safe.WriteRune(r)
 		case r == '<':
+			if literalCode && inDescriptionCodeLine(pos, codeLines) {
+				safe.WriteRune(r)
+				continue
+			}
 			// Glamour sanitizes raw HTML away. Encode it before parsing so it
 			// remains visible, inert text as approved for PR descriptions.
 			safe.WriteString("&lt;")
@@ -164,7 +191,7 @@ func sanitizeDescriptionEntity(entity string) string {
 // Code blocks display entity references literally. Use Glamour's Goldmark
 // extensions to identify their source lines before rewriting other references.
 func descriptionCodeLines(body string) [][2]int {
-	if !strings.Contains(body, "&") {
+	if !strings.ContainsAny(body, "&<") {
 		return nil
 	}
 	md := goldmark.New(

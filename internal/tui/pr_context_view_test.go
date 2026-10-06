@@ -95,7 +95,7 @@ func TestPRContextViewRendersTextualTabStripAndContextPlaceholder(t *testing.T) 
 			m.Width, m.Height = width, 12
 			m.Update(tea.KeyPressMsg{Code: '1', Text: "1"})
 			view := ansi.Strip(m.View().Content)
-			wantTab := "› Description [1]"
+			wantTab := "› Overview [1]"
 			if !strings.Contains(view, wantTab) {
 				t.Fatalf("context tab strip does not identify active Description:\n%s", view)
 			}
@@ -118,7 +118,7 @@ func TestPRContextTabsFollowIdentityAndHaveDirectNumberKeys(t *testing.T) {
 	view := ansi.Strip(m.View().Content)
 	_, tabsAndBody, _ := strings.Cut(view, "\n")
 	first, _, _ := strings.Cut(tabsAndBody, "\n")
-	if first != "  PRs [P]  › Description [1]    Files [2]    Guide [3]    Commits [4]" {
+	if first != "  PRs [P]  › Overview [1]    Files [2]    Guide [3]    Commits [4]" {
 		t.Fatalf("top row = %q, want direct tab strip below identity", first)
 	}
 	if strings.Contains(first, "review ·") || strings.Contains(first, "ctrl+p") {
@@ -149,7 +149,7 @@ func TestPRContextTabsHighlightOnlyTheSelectedView(t *testing.T) {
 		label string
 	}{
 		{viewFiles, "Files [2]"},
-		{viewDescription, "Description [1]"},
+		{viewDescription, "Overview [1]"},
 		{viewCommits, "Commits [4]"},
 		{viewGuide, "Guide [3]"},
 	} {
@@ -159,7 +159,7 @@ func TestPRContextTabsHighlightOnlyTheSelectedView(t *testing.T) {
 		if !strings.Contains(tabs, active) {
 			t.Fatalf("selected %s tab is not highlighted", tc.label)
 		}
-		for _, other := range []string{"Files [2]", "Description [1]", "Guide [3]", "Commits [4]"} {
+		for _, other := range []string{"Files [2]", "Overview [1]", "Guide [3]", "Commits [4]"} {
 			if other != tc.label && strings.Contains(tabs, m.styleLine(selectedClass(true), "› "+other)) {
 				t.Fatalf("unselected %s tab is highlighted", other)
 			}

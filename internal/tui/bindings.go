@@ -18,6 +18,8 @@ type binding struct {
 }
 
 var bindings = []binding{
+	{keys: "D", desc: "jump to Discussions beneath the Overview description", groups: groupHelp | groupFooter, section: "Views"},
+	{keys: "tab/shift+tab, f, o", desc: "in Overview Discussions: select activity, open exact comment in Files, or original commit; Escape returns", groups: groupHelp, section: "Navigate"},
 	{keys: "C", desc: "filter Files/Guide by captured commits (one read-only net diff)", groups: groupHelp, section: "Views"},
 	{keys: "alt+r", desc: "inspect live checks, required reviews, and merge blockers; r refreshes readiness, l opens lifecycle controls", groups: groupFooter | groupHelp, section: "Review"},
 	{keys: "I", desc: "show saved reviewers and issue context; r explicitly refreshes", groups: groupHelp, section: "Views"},
@@ -48,7 +50,7 @@ var bindings = []binding{
 	{keys: "S", desc: "toggle side-by-side detail (unified default; falls back below 160 columns)", groups: groupFooter | groupHelp, section: "Views"},
 	{keys: "e", desc: "show evidence scope", groups: groupFooter | groupHelp, section: "Views"},
 	{keys: "v/V", desc: "next/previous PR context view", groups: groupFooter | groupHelp, section: "Views"},
-	{keys: "1/2/3/4", desc: "select Description, Files, Guide, or Commits", groups: groupFooter | groupHelp, section: "Views"},
+	{keys: "1/2/3/4", desc: "select Overview, Files, Guide, or Commits", groups: groupFooter | groupHelp, section: "Views"},
 	{keys: "g", desc: "choose provider and model, then generate a guide", groups: groupFooter | groupHelp, section: "Review"},
 	{keys: "U", desc: "show GitHub URL", groups: groupFooter | groupHelp, section: "Review"},
 	{keys: "m", desc: "mark/unmark the whole file slice, including its units under other guides", groups: groupFooter | groupHelp, section: "Review"},
