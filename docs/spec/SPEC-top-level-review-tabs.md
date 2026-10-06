@@ -1,3 +1,7 @@
+> Navigation update (2026-10-05): [Overview conversation](SPEC-overview-conversation.md)
+> renames Description to Overview and adds live Discussions beneath the description.
+> The four tab shortcuts remain 1–4.
+
 # Spec: Top-Level Review Tabs
 
 ## Objective

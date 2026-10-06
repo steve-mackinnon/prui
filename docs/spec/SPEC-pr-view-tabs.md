@@ -1,3 +1,9 @@
+> Navigation update (2026-10-05): [Overview conversation](SPEC-overview-conversation.md)
+> supersedes the separate Description/Discussions navigation: Overview combines
+> the captured description and live activity; D jumps to Discussions; f opens
+> a verified inline comment in Files and Escape returns. Existing data, draft,
+> and write-safety contracts remain applicable.
+
 > Navigation update (2026-10-04): the context-tab row starts with `PRs [P]`.
 > Clicking it or pressing uppercase `P` opens the PR list over the current
 > review; Escape returns to the preserved review view. The identity row no

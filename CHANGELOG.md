@@ -5,6 +5,13 @@ User-visible changes are recorded here before each release. See
 
 ## [Unreleased]
 
+### Fixed
+
+- Render discussion Markdown and embedded HTML as readable prose, hide bot
+  metadata, and expand collapsed details in place in the Overview feed.
+- Separate descriptions and discussions with bordered cards, keep a visible
+  page cursor while scrolling, and compose comments and replies inside the feed.
+
 ### Added
 
 - Open HTTP and HTTPS links from Description and code views with a mouse click; underline links on hover.

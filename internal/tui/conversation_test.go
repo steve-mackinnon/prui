@@ -101,7 +101,7 @@ func TestGeneralReplyDistinctFromInline(t *testing.T) {
 	m.openDiscussions()
 	m.discussionKey("enter")
 	m.discussionKey("r")
-	if m.discussions.editor == nil || m.discussions.editor.draft != "@alice " || !strings.Contains(m.generalCommentView(), "@mention PR comment") {
+	if m.discussions.editor == nil || m.discussions.editor.draft != "@alice " || !strings.Contains(m.generalCommentView(), "new PR comment mentioning the author") {
 		t.Fatal("general reply not distinct")
 	}
 	m.discussions.editor = nil
@@ -124,16 +124,16 @@ func TestProgramGeneralPRCommentJourney(t *testing.T) {
 	h.expect("review", func(f programFrame) bool { return f.page == pageReview && !f.loading })
 	h.key('D')
 	h.key('n')
-	h.expect("general composer", func(f programFrame) bool { return strings.Contains(f.text, "New general PR comment") })
+	h.expect("general composer", func(f programFrame) bool { return strings.Contains(f.text, "New PR comment") })
 	h.key('t')
 	h.key('q')
 	h.key(tea.KeyEnter)
 	h.expect("confirmed comment", func(f programFrame) bool {
-		return strings.Contains(f.text, "General PR comment posted") && strings.Contains(f.text, "tq") && strings.Contains(f.text, "2026-10-04T01:00:00Z")
+		return strings.Contains(f.text, "PR comment posted") && strings.Contains(f.text, "tq") && strings.Contains(f.text, "2026-10-04T01:00:00Z")
 	})
 	h.key('r')
 	h.expect("general reply", func(f programFrame) bool {
-		return strings.Contains(f.text, "@mention PR comment") && strings.Contains(f.text, "@alice")
+		return strings.Contains(f.text, "new PR comment mentioning the author") && strings.Contains(f.text, "@alice")
 	})
 	h.key(tea.KeyEscape)
 	h.expect("discard", func(f programFrame) bool {

@@ -320,7 +320,7 @@ def main():
     resume = ["resume", session_id, "--offline"]
     with Terminal(binary, resume, environment) as terminal:
         terminal.wait_for("0/2 read")
-        terminal.wait_for("› Description [1]")
+        terminal.wait_for("› Overview [1]")
         terminal.key(b"2", "› Files [2]")
         terminal.key(b"C", "Select commits for one net diff.")
         terminal.wait_for("╭")
@@ -385,9 +385,9 @@ def main():
 
     with Terminal(binary, resume, environment) as terminal:
         terminal.wait_for("1/2 read")
-        terminal.wait_for("› Description [1]")
+        terminal.wait_for("› Overview [1]")
         terminal.key(b"2", "[x] b.go")
-        terminal.key(b"1", "› Description [1]")
+        terminal.key(b"1", "› Overview [1]")
         terminal.key(b"v", "› Files [2]")
         terminal.key(b"v", "No guide yet. Press g to generate.")
         terminal.wait_for("› Guide [3]")

@@ -161,7 +161,7 @@ func TestDescriptionViewportPreservesFooterWhenScrolledToEnd(t *testing.T) {
 	m.selectReviewView(viewDescription)
 	m.DescriptionScroll = 10000
 	lines := strings.Split(ansi.Strip(m.View().Content), "\n")
-	if len(lines) > m.Height || !strings.Contains(strings.Join(lines, "\n"), "Final description sentence") {
+	if len(lines) > m.Height || !strings.Contains(strings.Join(lines, "\n"), "Discussions") {
 		t.Fatalf("description end is not visible in viewport: %q", lines)
 	}
 	footer := ansi.Strip(m.reviewStatus())

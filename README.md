@@ -78,7 +78,7 @@ prui open https://github.com/owner/repo/pull/42
 
 The PR picker shows the list beside a description and metadata preview on wide
 terminals, and stacks them on narrower terminals. Target branches appear in list rows
-when space allows, in the selected PR preview, and in the opened Description tab. Use Tab to focus the preview,
+when space allows, in the selected PR preview, and in the opened Overview tab. Use Tab to focus the preview,
 then `j` / `k` or Page Up / Page Down to scroll; Tab returns to the list.
 Shift+J / Shift+K scroll the preview from either panel without changing focus. Mouse
 clicks focus either panel and the wheel scrolls the panel under the pointer.
@@ -137,8 +137,8 @@ For offline reading, list session IDs with `prui sessions`, then run
 | `m` | Mark or unmark a file as read |
 | `/` | Find code text across Files or within the current Guide section |
 | `F` | Filter Files by filename or path; Enter keeps the filter, Escape clears it |
-| `1` / `2` / `3` / `4` | Show Description / Files / Guide / Commits |
-| `v` / `V` | Cycle forward / backward through Description, Files, Guide, and Commits |
+| `1` / `2` / `3` / `4` | Show Overview / Files / Guide / Commits |
+| `v` / `V` | Cycle forward / backward through Overview, Files, Guide, and Commits |
 | `P` | Switch PRs |
 | `ctrl+p` | Inside a line/range editor, queue the comment |
 | `ctrl+v` | Start/cancel a range; j/k selects the end |
@@ -153,7 +153,36 @@ For offline reading, list session IDs with `prui sessions`, then run
 | `s` | Browse saved sessions |
 | `?` / `q` | Health & help / quit |
 
-Newly opened pull requests start on the Description tab. Use `2` to switch to Files. The file list shows filenames beside muted directories. Click **Filter (F)** in the file header or press `F` to filter filenames and paths (case-insensitive, including previous names for renamed files). Enter returns to navigation with the filter applied; Escape in the list clears it.
+Overview shows the captured PR description followed by live Discussions. Press
+`D` (or click **Discussions [D]**) to jump past a long description. In Discussions,
+Up/Down moves the cursor, Tab/Shift+Tab jumps between activity, Enter expands
+or collapses a card in place, and
+`c` explicitly refreshes. Inline cards show captured code before the comment;
+outdated or unplaceable comments retain labeled historical context. General
+comments and review decisions appear in chronological order alongside inline
+activity. `n` opens a new PR comment box at the bottom of the feed and scrolls to it.
+`r` opens a reply editor beneath a selected comment: inline comments reply to
+their code thread, while PR comments create a new message mentioning the author.
+Enter posts; Escape cancels in place.
+
+Discussion bodies render Markdown with real paragraph breaks, lists, code,
+tables and clickable link labels. Embedded HTML is converted to readable text;
+images use their labels, and hidden bot metadata is omitted. Expand collapsed
+details with Enter; Escape collapses the selected card. Bordered backgrounds
+separate the description and discussion cards, and highlight the card under the cursor.
+Code examples stay literal, and rendering never changes the text used to edit
+or post a comment. PR descriptions retain their existing literal HTML policy.
+
+Use **Open in Files [f]** on a placeable inline activity to select its exact
+comment or reply in Files, then Enter to open the existing reply/thread actions.
+Escape closes inner editors first and then returns to the originating Overview
+activity, restoring the previous Files filter and reading position. **View
+original commit [o]** is available when its original anchor is captured. Missing,
+outdated, stale, or mismatched anchors show why Files navigation is unavailable.
+Discussion refresh and posting retain the existing freshness and delivery checks;
+view switching does not fetch or post.
+
+Newly opened pull requests start on the Overview tab. Use `2` to switch to Files. The file list shows filenames beside muted directories. Click **Filter (F)** in the file header or press `F` to filter filenames and paths (case-insensitive, including previous names for renamed files). Enter returns to navigation with the filter applied; Escape in the list clears it.
 
 Press **/** or click **Find** in the diff header to search saved diff text.
 Results are grouped by file; Up/Down selects a match and Enter jumps to it.

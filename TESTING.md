@@ -1,5 +1,15 @@
 # Automated verification
 
+## Conversation Markdown and HTML
+
+`go test ./internal/tui -run 'ConversationMarkdown|OverviewRenders|OverviewConversationMarkdown' -count=1`
+covers hidden bot metadata, HTML conversion and tables, collapsed/nested/malformed
+details, image labels, referenced links, literal code, raw/decoded controls,
+unsafe destinations, Unicode wrapping, bounded caches, theme/resize changes and
+Enter/Escape activity identity. Screen fixtures include the screenshot-like
+Vercel comment in wide, narrow and expanded views. These are synthetic offline
+checks; live GitHub rendering and subjective terminal readability require human QA.
+
 ## Diff scrolling performance
 
 Run `go test ./internal/tui -run '^$' -bench BenchmarkFilesScrollTransition -benchmem -count=3`

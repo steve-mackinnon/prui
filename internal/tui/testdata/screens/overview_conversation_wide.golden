@@ -1,0 +1,24 @@
+example/review #42
+  PRs [P]  › Overview [1]    Files [2]    Guide [3]    Commits [4]
+Overview · Discussions [D]
+┌──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│ Description · captured when review opened                                                                            │
+│                                                                                                                      │
+│   This PR improves the greeting.                                                                                     │
+│                                                                                                                      │
+│                                                                                                                      │
+└──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Discussions
+▸─ Selected ───────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│ > @alice · Inline comment · 2026-10-05T12:00:00Z · Unresolved                                                        │
+│ main.go · captured PR diff                                                                                           │
+│ >         1 +hello world                                                                                             │
+│   Could we handle an empty greeting here?                                                                            │
+│ Open in Files [f]                                                                                                    │
+│                                                                                                                      │
+└──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+0/2 read · R Submit review (0) · ? Freshness unknown · ?: Health & help
+↑/↓: scroll · enter: expand · f: Files · c: refresh · esc: back

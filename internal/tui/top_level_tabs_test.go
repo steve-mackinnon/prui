@@ -15,14 +15,14 @@ func TestTopLevelReviewTabsOrderAndKeyboardSelection(t *testing.T) {
 	defer m.Close()
 	m.openReviewTab(screenSession())
 	m.Width, m.Height = 120, 16
-	want := "  PRs [P]  › Description [1]    Files [2]    Guide [3]    Commits [4]"
+	want := "  PRs [P]  › Overview [1]    Files [2]    Guide [3]    Commits [4]"
 	if got := strings.Split(ansi.Strip(m.View().Content), "\n")[1]; got != want {
 		t.Fatalf("tab strip = %q, want %q", got, want)
 	}
 	for _, tc := range []struct {
 		key   rune
 		label string
-	}{{'1', "Description [1]"}, {'2', "Files [2]"}, {'3', "Guide [3]"}, {'4', "Commits [4]"}, {'G', "Guide [3]"}, {'2', "Files [2]"}} {
+	}{{'1', "Overview [1]"}, {'2', "Files [2]"}, {'3', "Guide [3]"}, {'4', "Commits [4]"}, {'G', "Guide [3]"}, {'2', "Files [2]"}} {
 		key(m, tc.key)
 		got := ansi.Strip(m.View().Content)
 		if !strings.Contains(strings.Split(got, "\n")[1], "› "+tc.label) {
@@ -43,13 +43,13 @@ func TestTopLevelReviewTabsCycleAndWrap(t *testing.T) {
 	defer m.Close()
 	m.openReviewTab(screenSession())
 	key(m, '1')
-	for _, label := range []string{"Files [2]", "Guide [3]", "Commits [4]", "Description [1]"} {
+	for _, label := range []string{"Files [2]", "Guide [3]", "Commits [4]", "Overview [1]"} {
 		key(m, 'v')
 		if !strings.Contains(ansi.Strip(m.contextViewTabs()), "› "+label) {
 			t.Fatalf("forward cycle did not select %s", label)
 		}
 	}
-	for _, label := range []string{"Commits [4]", "Guide [3]", "Files [2]", "Description [1]"} {
+	for _, label := range []string{"Commits [4]", "Guide [3]", "Files [2]", "Overview [1]"} {
 		key(m, 'V')
 		if !strings.Contains(ansi.Strip(m.contextViewTabs()), "› "+label) {
 			t.Fatalf("reverse cycle did not select %s", label)
@@ -63,7 +63,7 @@ func TestTopLevelReviewTabsMouseSelection(t *testing.T) {
 	m.openReviewTab(screenSession())
 	m.Width, m.Height = 120, 16
 	x := visibleWidth("  PRs [P]") + 2
-	for _, label := range []string{"Description [1]", "Files [2]", "Guide [3]", "Commits [4]"} {
+	for _, label := range []string{"Overview [1]", "Files [2]", "Guide [3]", "Commits [4]"} {
 		m.Update(tea.MouseClickMsg{Button: tea.MouseLeft, X: x + 3, Y: 1})
 		if !strings.Contains(ansi.Strip(m.contextViewTabs()), "› "+label) {
 			t.Fatalf("mouse did not select %s", label)

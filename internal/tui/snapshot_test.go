@@ -93,6 +93,8 @@ func TestScreenSnapshots(t *testing.T) {
 			m.openReviewTab(m.Session)
 			key(m, '4')
 		}},
+		{"overview_conversation_wide", 120, 24, func(m *Model) { setupOverviewScreen(m) }},
+		{"overview_conversation_narrow", 60, 16, func(m *Model) { setupOverviewScreen(m) }},
 		{"description_wide", 120, 18, func(m *Model) {
 			description := descriptionMarkdown
 			m.Session.PullRequestDescription = &description
@@ -280,4 +282,19 @@ func TestDiscussionScreenSnapshots(t *testing.T) {
 			checkScreen(t, tc.name, strings.Join(lines, "\n")+"\n")
 		})
 	}
+}
+
+func setupOverviewScreen(m *Model) {
+	description := "This PR improves the greeting."
+	m.Session.PullRequestDescription = &description
+	var target source.ReviewCommentTarget
+	for _, row := range unitLines(m.Session, 0) {
+		if row.target != nil && row.target.Side == "RIGHT" {
+			target = *row.target
+			break
+		}
+	}
+	no := false
+	m.applyDiscussionResult(DiscussionResult{Target: m.activeTab, Session: m.Session, Snapshot: DiscussionSnapshot{CurrentVerified: true, Snapshot: source.DiscussionSnapshot{Complete: true, Timeline: true, Threads: []source.Discussion{{ID: "thread", CurrentAnchor: &target, Outdated: &no, Resolved: &no, Comments: []source.ReviewComment{{ID: 600, Target: target, Author: "alice", Body: "Could we handle an empty greeting here?", CreatedAt: time.Date(2026, 10, 5, 12, 0, 0, 0, time.UTC)}}}}}}})
+	m.openOverviewDiscussions()
 }

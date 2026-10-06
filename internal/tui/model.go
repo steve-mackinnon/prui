@@ -736,6 +736,7 @@ func (m *Model) update(msg tea.Msg) (updated tea.Model, command tea.Cmd) {
 	case tea.MouseMsg:
 		return m, m.mouseUpdate(v)
 	case tea.WindowSizeMsg:
+		overviewRelative, preserveOverview := m.overviewPosition()
 		m.cancelMouseDrag()
 		if m.commitFilter.subset && m.diffReviewView() {
 			m.Width, m.Height = max(1, v.Width), max(1, v.Height)
@@ -764,6 +765,9 @@ func (m *Model) update(msg tea.Msg) (updated tea.Model, command tea.Cmd) {
 			m.cursorInViewport(1)
 		}
 		m.ensureReplyEditorVisible()
+		if preserveOverview {
+			m.restoreOverviewPosition(overviewRelative)
+		}
 		if keepSearchMatch {
 			m.revealSearchMatch()
 		}
@@ -795,7 +799,7 @@ func (m *Model) update(msg tea.Msg) (updated tea.Model, command tea.Cmd) {
 				return m, m.openSearch()
 			}
 		}
-		if m.top() == pageReview && m.fileView() && m.discussions.published == nil && m.discussions.editor == nil && !m.commitFilter.open && !m.commitFilter.subset && m.Composer == nil && m.CommentMenu == nil && !m.Busy {
+		if m.top() == pageReview && m.selectedReviewView() == viewFiles && m.fileView() && m.discussions.published == nil && m.discussions.editor == nil && !m.commitFilter.open && !m.commitFilter.subset && m.Composer == nil && m.CommentMenu == nil && !m.Busy {
 			if m.fileFilterEditing && v.String() != "ctrl+c" {
 				m.fileFilterKey(v)
 				return m, m.restartGuidePathScroll()
@@ -809,7 +813,7 @@ func (m *Model) update(msg tea.Msg) (updated tea.Model, command tea.Cmd) {
 				return m, nil
 			}
 		}
-		editingReviewText := m.Composer != nil || (m.CommentMenu != nil && m.CommentMenu.mode == commentActionReply) || m.discussions.published != nil || m.top() == pageReviewSubmit || (m.top() == pageDiscussions && m.discussions.editor != nil)
+		editingReviewText := m.Composer != nil || (m.CommentMenu != nil && m.CommentMenu.mode == commentActionReply) || m.discussions.published != nil || m.top() == pageReviewSubmit || (m.discussions.editor != nil && (m.top() == pageDiscussions || m.top() == pageReview && m.selectedReviewView() == viewDescription && m.discussions.overviewFocus))
 		if m.top() == pageInboxFilters && v.String() != "ctrl+c" {
 			return m, m.inboxFilterKey(v.String())
 		}
@@ -830,7 +834,7 @@ func (m *Model) update(msg tea.Msg) (updated tea.Model, command tea.Cmd) {
 			if m.CommentMenu != nil {
 				return m, m.commentActionKey(v)
 			}
-			if m.top() == pageDiscussions && m.discussions.editor != nil {
+			if m.discussions.editor != nil && (m.top() == pageDiscussions || m.top() == pageReview && m.selectedReviewView() == viewDescription && m.discussions.overviewFocus) {
 				return m, m.generalCommentKey(v)
 			}
 			if m.top() == pageThemePicker {
@@ -902,7 +906,7 @@ func (m *Model) update(msg tea.Msg) (updated tea.Model, command tea.Cmd) {
 				return m, m.openIssueContext()
 			}
 			if v.String() == "D" && m.Session != nil {
-				m.openDiscussions()
+				m.openOverviewDiscussions()
 				return m, nil
 			}
 			if v.String() == "5" && m.Session != nil {
@@ -912,7 +916,7 @@ func (m *Model) update(msg tea.Msg) (updated tea.Model, command tea.Cmd) {
 			if v.String() == "c" && m.readDiscussions != nil {
 				return m, tea.Batch(m.refreshDiscussions(), m.refreshComments())
 			}
-			if v.String() == "esc" && !m.commitFilter.subset && m.restoreDiscussionContext() {
+			if v.String() == "esc" && (m.restoreDiscussionFiles() || m.restoreDiscussionContext()) {
 				return m, nil
 			}
 			if v.String() == "z" && !m.commitFilter.subset && m.diffReviewView() && m.Focus == paneDiff {
@@ -970,8 +974,10 @@ func (m *Model) update(msg tea.Msg) (updated tea.Model, command tea.Cmd) {
 				m.rangeStart = nil
 				return m, nil
 			}
-			if m.selectedReviewView() == viewDescription && m.descriptionKey(v.String()) {
-				return m, nil
+			if m.selectedReviewView() == viewDescription {
+				if cmd, handled := m.overviewKey(v.String()); handled {
+					return m, cmd
+				}
 			}
 			if m.selectedReviewView() == viewCommits && v.String() != "?" && v.String() != "U" {
 				if v.String() == "enter" && m.commit.focus == paneDiff {
@@ -1304,6 +1310,9 @@ func (m *Model) selectReviewView(view reviewView) {
 	if m.Session == nil {
 		return
 	}
+	m.discussions.returnFiles = nil
+	m.discussions.returnCommit = nil
+	m.discussions.returnOverview = false
 	m.ContextView = view
 	switch view {
 	case viewFiles:
@@ -1771,6 +1780,7 @@ func (m *Model) detail() []diffLine {
 	lines := make([]diffLine, 0, len(base)+len(m.Comments)+2)
 	for _, line := range base {
 		lines = append(lines, m.wrapSource([]diffLine{line})...)
+		lines = append(lines, m.fileDiscussionLines(line)...)
 		for _, target := range sourceLineTargets(line) {
 			for _, comment := range m.Comments {
 				if targetEndsAt(comment.Target, target) && comment.ParentID == 0 {
@@ -1821,6 +1831,7 @@ func (m *Model) sideBySideDetail() []diffLine {
 	lines := make([]diffLine, 0, len(base)+len(m.Comments)+2)
 	for _, line := range base {
 		lines = append(lines, m.wrapSource([]diffLine{line})...)
+		lines = append(lines, m.fileDiscussionLines(line)...)
 		if line.sideBySide == nil {
 			continue
 		}
@@ -2306,6 +2317,10 @@ func (m *Model) ensureCursorVisible() {
 // Keep the reply box in the detail viewport after opening or editing it.
 // An editor taller than the viewport cannot fit, so show its final rows.
 func (m *Model) ensureReplyEditorVisible() {
+	if m.selectedReviewView() == viewDescription && m.CommentMenu != nil {
+		m.ensureOverviewEditorVisibleRows(m.overviewRows())
+		return
+	}
 	if m.CommentMenu == nil || m.CommentMenu.mode != commentActionReply {
 		return
 	}
@@ -2474,7 +2489,7 @@ func (m *Model) reviewViewForLayout(preferSideBySide bool) string {
 	title := m.workspaceIdentity() + "\n" + m.contextViewTabs()
 	if !m.diffReviewView() {
 		if m.selectedReviewView() == viewDescription {
-			return title + "\n" + m.descriptionView() + "\n" + m.reviewStatus()
+			return title + "\n" + m.overviewView() + "\n" + m.reviewStatus()
 		}
 		return title + "\n" + m.commitsView() + "\n" + m.reviewStatus()
 	}
@@ -2743,22 +2758,6 @@ func (m *Model) contextViewPlaceholder() string {
 	}
 }
 
-func (m *Model) descriptionView() string {
-	lines := m.descriptionLines()
-	if target := m.Session.Inventory.Comparison.Metadata.TargetBranch; target != "" {
-		branchLines := strings.Split(ansi.Wrap("Target branch: "+Escape(target), max(1, m.Width), ""), "\n")
-		lines = append(branchLines, lines...)
-	}
-	height := m.descriptionBodyHeight()
-	m.DescriptionScroll = max(0, min(m.DescriptionScroll, max(0, len(lines)-height)))
-	end := min(len(lines), m.DescriptionScroll+height)
-	visible := append([]string(nil), lines[m.DescriptionScroll:end]...)
-	for len(visible) < height {
-		visible = append(visible, "")
-	}
-	return m.styleLine(classTitle, "Description") + "\nFrozen from GitHub when this review opened.\n" + strings.Join(visible, "\n")
-}
-
 func (m *Model) descriptionLines() []string {
 	if m.Session.PullRequestDescription == nil {
 		m.descriptionCache = descriptionRenderCache{}
@@ -2779,35 +2778,6 @@ func (m *Model) descriptionLines() []string {
 	}
 	m.descriptionCache = descriptionRenderCache{body: body, width: width, themeName: m.theme.Name, lines: lines, valid: true}
 	return lines
-}
-
-func (m *Model) descriptionBodyHeight() int { return max(1, m.Height-4-m.reviewFooterRows()) }
-
-func (m *Model) descriptionKey(key string) bool {
-	var delta int
-	switch key {
-	case "esc":
-		return true
-	case "j", "down", "n":
-		delta = 1
-	case "k", "up", "p":
-		delta = -1
-	case "J", "shift+j":
-		delta = diffStep
-	case "K", "shift+k":
-		delta = -diffStep
-	case "d", "pgdown":
-		delta = m.descriptionBodyHeight()
-	case "u", "pgup":
-		delta = -m.descriptionBodyHeight()
-	case "home":
-		m.DescriptionScroll = 0
-		return true
-	default:
-		return false
-	}
-	m.DescriptionScroll = max(0, min(m.DescriptionScroll+delta, max(0, len(m.descriptionLines())-m.descriptionBodyHeight())))
-	return true
 }
 
 // styledFooter paints the footer as chrome, or as a warning when the last
