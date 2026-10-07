@@ -2021,9 +2021,10 @@ func (m *Model) inlineEditorLinesFor(draft string, editorCursor, indent int) []d
 		if i == cursorLine && m.editorCursorVisible {
 			content = Escape(beforeLine) + "▏" + Escape(afterLine)
 		}
-		content = clip(content, inner)
-		content += strings.Repeat(" ", max(0, inner-visibleWidth(content)))
-		lines = append(lines, diffLine{styledLine: styledLine{Class: classWarning, Text: prefix + "| " + content + " |"}})
+		for _, part := range strings.Split(ansi.Hardwrap(content, inner, true), "\n") {
+			part += strings.Repeat(" ", max(0, inner-visibleWidth(part)))
+			lines = append(lines, diffLine{styledLine: styledLine{Class: classWarning, Text: prefix + "| " + part + " |"}})
+		}
 	}
 	if m.ActionError != nil {
 		content := clip("! "+Escape(m.ActionError.Error()), inner)
