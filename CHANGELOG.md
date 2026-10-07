@@ -14,6 +14,8 @@ User-visible changes are recorded here before each release. See
 
 ### Added
 
+- Toggle full file context in Guide with Ctrl+E, showing enclosing declarations and all file hunks from cached pinned source; Ctrl+D restores the compact diff.
+
 - Open HTTP and HTTPS links from Description and code views with a mouse click; underline links on hover.
 
 - Show each pull request’s target branch in the PR list, selected preview, and opened Description view.

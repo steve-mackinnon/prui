@@ -10,6 +10,13 @@ The option is rejected on ordinary/offline resume and on verify. Consent is not
 remembered across launches; reopening a saved snapshot reads its captured data.
 Without the option, ordinary patch reviews retain their existing storage behavior.
 
+In Files and Guide, Ctrl+E toggles full file context and Ctrl+D restores the
+compact diff. In Guide, each referenced file is expanded once per section,
+including its other hunks; section/file navigation boundaries and original
+review-unit ownership stay intact. Guide expansion is independent of the Files
+source mode. Guide search still covers only the original current-section patches.
+Missing cached source keeps the patch visible with a `--cache-full-source` hint.
+
 On Files:
 
 - Ctrl+E toggles all available unchanged context around the saved hunks.
