@@ -225,6 +225,34 @@ func TestOverviewInactiveStoredDraftDoesNotClaimNavigation(t *testing.T) {
 	}
 }
 
+func TestOverviewOriginalJumpBeforeBrowsingCommits(t *testing.T) {
+	m := commitModel(t)
+	key(m, '1')
+	m.commit = commitState{}
+	sha := m.commitEntries()[1].SHA
+	target := source.ReviewCommentTarget{Identity: m.Session.Inventory.Comparison.Metadata.Identity, CommitID: sha, Path: "changed.go", Line: 12, Side: "RIGHT"}
+	thread := testDiscussion("historical", sha)
+	thread.OriginalAnchor = &target
+	m.discussions.loaded = true
+	m.discussions.snapshot = DiscussionSnapshot{CurrentVerified: true, Snapshot: source.DiscussionSnapshot{Complete: true, Threads: []source.Discussion{thread}}}
+	key(m, 'D')
+	key(m, 'o')
+	if m.selectedReviewView() != viewCommits || m.commit.selectedSHA != sha || m.commit.focus != paneDiff {
+		t.Fatal("did not open original commit diff")
+	}
+	cursor := m.commitCursor()
+	if row := m.commitRows()[cursor]; row.target == nil || *row.target != target {
+		t.Fatal("did not select original comment anchor")
+	}
+	if m.commit.offsets[sha] != max(0, cursor-2) {
+		t.Fatal("did not scroll to original comment anchor")
+	}
+	namedKey(m, tea.KeyEscape)
+	if m.selectedReviewView() != viewDescription || !m.discussions.overviewFocus {
+		t.Fatal("did not restore overview discussion")
+	}
+}
+
 func TestOverviewOriginalReturnWithFilteredFiles(t *testing.T) {
 	m := commitModel(t)
 	m.commitFilter.subset = true
