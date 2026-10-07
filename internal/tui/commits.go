@@ -459,6 +459,7 @@ func (m *Model) viewOriginalDiscussion(target *source.ReviewCommentTarget, sha s
 			for n, row := range m.commitRows() {
 				if row.target != nil && *row.target == *target {
 					m.commitCursor()
+					m.commitOffset()
 					m.commit.cursors[sha] = n
 					m.commit.offsets[sha] = max(0, n-2)
 					break

@@ -7,6 +7,8 @@ User-visible changes are recorded here before each release. See
 
 ### Fixed
 
+- Prevent a crash when opening a discussion comment's original line before browsing Commits.
+
 - Submit all pending comments with a Comment review without adding a summary.
 
 - Render discussion Markdown and embedded HTML as readable prose, hide bot
