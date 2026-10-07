@@ -247,6 +247,7 @@ type Model struct {
 	reader               review.MetadataReader
 	fresh                FreshLoader
 	worker               <-chan struct{}
+	fullSourceLoader     FullSourceLoader
 	ctx                  context.Context
 	cancel               context.CancelFunc
 	load                 Loader
@@ -430,6 +431,9 @@ func (m *Model) update(msg tea.Msg) (updated tea.Model, command tea.Cmd) {
 		return m, nil
 	case tea.ColorProfileMsg:
 		m.colorProfile = v.Profile
+		return m, nil
+	case fullSourceResult:
+		m.applyFullSource(v)
 		return m, nil
 	case GeneralCommentResult:
 		m.applyGeneralCommentResult(v)
@@ -890,7 +894,7 @@ func (m *Model) update(msg tea.Msg) (updated tea.Model, command tea.Cmd) {
 				return m, nil
 			}
 			if m.codeNavigationKey(v.String()) {
-				return m, nil
+				return m, m.loadNavigationSource()
 			}
 			if v.String() == "alt+up" || v.String() == "alt+down" {
 				delta := 1

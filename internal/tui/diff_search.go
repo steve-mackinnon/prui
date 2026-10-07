@@ -336,6 +336,11 @@ func (m *Model) startSearch() tea.Cmd {
 	ctx, cancel := context.WithCancel(m.ctx)
 	s.cancel = cancel
 	docs, skipped, session, query := s.documents, s.skipped, s.session, s.query
+	if scope.Source != "" && m.navigation.source != nil {
+		copy := *session
+		copy.Inventory = m.navigationInventory()
+		session = &copy
+	}
 	return func() tea.Msg {
 		if docs == nil {
 			docs, skipped = searchDocuments(ctx, session, scope)

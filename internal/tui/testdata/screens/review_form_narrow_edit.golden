@@ -7,4 +7,4 @@ ex╭─────────────────────────
 │ │ Comment: ▏                                           │ │
 └─│ enter: confirm · esc: back                           │─┘
 0/╰──────────────────────────────────────────────────────╯
-j/k: files · enter: diff · m: mark file · ?: Help
+j/k: files · E: expand · enter: diff · m: mark file · ?: Hel

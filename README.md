@@ -299,10 +299,12 @@ automatically. Matching uses the original attempted request, not later edits.
 Identical earlier submissions conservatively count as matches; delayed requests
 still have no GitHub idempotency guarantee.
 
-For complete pinned OLD/NEW source and expanded context, opt in with
+Press `E` in Files or Guide to expand context, loading the selected file’s pinned
+OLD/NEW source on demand. Loaded source stays in memory for the open tab. For
+offline source across saved sessions, opt in with
 `prui open <PR> --cache-full-source` (also available on `current`, `prs`, and
 `resume --new`). This stores bounded, private, unencrypted local source without
-AI upload. In Files and Guides use Ctrl+E to toggle full file context and Ctrl+D
+AI upload. In Files and Guides use E to toggle full file context and Ctrl+D
 to return to the compact diff. Guides show every hunk of each referenced file
 with unchanged context; reading progress still follows the original guide units.
 Guide search remains scoped to the original section patches. On Files use Alt+O/N for OLD/NEW,

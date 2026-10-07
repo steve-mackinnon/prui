@@ -88,6 +88,7 @@ func (a *application) model(ctx context.Context, o options) *tui.Model {
 	if _, supported := a.gh.(source.ReadinessReader); !a.offline && supported {
 		m.SetReadinessReader(a.readReadiness)
 	}
+	m.SetFullSourceLoader(a.loadFileSource)
 	m.SetIssueContextReader(a.readIssueContext)
 	if _, supported := a.gh.(source.DiscussionReader); !a.offline && supported {
 		m.SetDiscussionReader(a.listDiscussions)
