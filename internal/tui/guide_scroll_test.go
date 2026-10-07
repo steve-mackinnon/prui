@@ -74,6 +74,43 @@ func TestGuideRowNavigationScrollsDiff(t *testing.T) {
 	}
 }
 
+func TestGuideRowNavigationKeepsDiffCursorInView(t *testing.T) {
+	for _, width := range []int{120, 180} {
+		t.Run(fmt.Sprint(width), func(t *testing.T) {
+			s := largeTextSession(2, 2)
+			s.Guides = &guide.Bundle{Status: guide.Generated, Items: []guide.Item{{Title: "Changes", Sections: []guide.Section{
+				{Title: "First", UnitIDs: []string{s.Inventory.Units[0].ID}},
+				{Title: "Second", UnitIDs: []string{s.Inventory.Units[1].ID}},
+			}}}}
+			m := loaded(t, s, width, 12)
+			defer m.Close()
+			if width >= sideBySideMinimumWidth {
+				m.layout = diffLayoutSideBySide
+			}
+			m.cursorActive = true
+			check := func() {
+				t.Helper()
+				cursor := m.cursor()
+				if cursor < m.offset() || cursor >= m.offset()+m.bodyHeight() {
+					t.Fatalf("cursor %d outside viewport [%d, %d)", cursor, m.offset(), m.offset()+m.bodyHeight())
+				}
+			}
+			for range 3 {
+				key(m, 'j')
+			}
+			check()
+			cursor := m.cursor()
+			key(m, 'j') // The portion shares the section's viewport.
+			if m.cursor() != cursor {
+				t.Fatal("navigation moved a cursor that was already visible")
+			}
+			key(m, 'k')
+			key(m, 'k')
+			check()
+		})
+	}
+}
+
 // Showing a cursor must not multiply whole-guide allocations by viewport height.
 func TestGuideCursorRenderAllocationGrowth(t *testing.T) {
 	m := guideScrollModel(10, 120)

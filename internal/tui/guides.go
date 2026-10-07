@@ -197,6 +197,7 @@ func (m *Model) moveRow(rows []row, delta int) {
 	if offset, ok := m.wrappedGuideAnchor(m.cachedGuideDetail(rows[m.Row].guide), rows[m.Row]); ok {
 		m.setOffset(m.clampOffset(offset))
 	}
+	m.cursorInViewport(delta)
 	m.Horizontal = 0
 }
 
