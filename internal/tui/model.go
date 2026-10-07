@@ -2564,6 +2564,19 @@ func (m *Model) reviewViewForLayout(preferSideBySide bool) string {
 		}
 	}
 	cursor := m.cursorInDetail(detail)
+	var selectedCommentID int64
+	selectedCommentStart := -1
+	if m.cursorActive && cursor >= 0 {
+		selectedCommentID = detail[cursor].commentID
+		if selectedCommentID > 0 {
+			for i, line := range detail {
+				if line.commentID == selectedCommentID {
+					selectedCommentStart = i
+					break
+				}
+			}
+		}
+	}
 	var selected *source.ReviewCommentTarget
 	if useSideBySide && m.cursorActive && cursor >= 0 {
 		selected = m.selectedDiffTargetForLine(detail[cursor])
@@ -2635,16 +2648,10 @@ func (m *Model) reviewViewForLayout(preferSideBySide bool) string {
 				marker = ""
 			}
 			detail[i].Text = marker + line.Text
-			if line.commentID > 0 && offset+i == cursor {
-				detail[i].Class = selectedClass(true)
-			}
 			continue
 		}
 		detail[i].Text = m.syntaxText(line, m.Horizontal, m.detailWidth(), marker)
 		detail[i].Class = sourceLineClass(line.Class)
-		if line.commentID > 0 && offset+i == cursor {
-			detail[i].Class = selectedClass(true)
-		}
 	}
 	body := []string{}
 	borders := paneBodyBorders{paneBorderClass(m.Focus == paneList), classPaneBorderFocused, paneBorderClass(m.Focus == paneDiff)}
@@ -2661,6 +2668,14 @@ func (m *Model) reviewViewForLayout(preferSideBySide bool) string {
 		}
 		if row < len(detail) {
 			right, class = detail[row].Text, detail[row].Class
+			if detail[row].commentID > 0 && detail[row].commentID == selectedCommentID {
+				right = m.selectedCommentBorder(m.styleLine(class, clip(right, m.detailWidth())), offset+row == selectedCommentStart)
+				class = classPlain
+			}
+			if detail[row].commentID > 0 && m.colorProfile > colorprofile.Ascii {
+				right = m.modalSurface(m.styleLine(class, clip(right, m.detailWidth())))
+				class = classPlain
+			}
 		}
 		body = append(body, m.paneBodyRow(styledLine{Class: leftClass, Text: left}, styledLine{Class: class, Text: right}, m.listWidth(), m.detailWidth(), m.Focus, borders, mutedFrom))
 	}
