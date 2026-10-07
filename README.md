@@ -103,7 +103,8 @@ reloads it. Opening a review captures its own frozen description.
    **Enter in the editor posts immediately.** Ctrl+P queues it for a review,
    Shift+Enter adds a newline, and Escape discards the editor.
 5. Press `R` to choose Comment, Approve, or Request changes, add a summary, and
-   submit it with your queued comments after a separate confirmation.
+   submit it with your queued comments after a separate confirmation. For Comment,
+   the summary is optional when you have queued comments.
 
 Use `ctrl+v` on a raw diff line to set a range start, `j/k` to select its end,
 and Enter to compose. Both endpoints must be on the same side and in one captured

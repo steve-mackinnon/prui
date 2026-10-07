@@ -376,3 +376,52 @@ func TestDiscardDraftsConfirmationIsModal(t *testing.T) {
 		t.Fatal("cancel discarded drafts or failed to return")
 	}
 }
+
+func TestCommentOnlyReviewSubmitsPendingWithoutSummary(t *testing.T) {
+	m := New(context.Background(), nil)
+	m.Loading = false
+	m.Session, m.Width, m.Height = kindsSession(), 100, 25
+	metadata := m.Session.Inventory.Comparison.Metadata
+	m.Pending = []source.ReviewComment{
+		{Target: source.ReviewCommentTarget{Identity: metadata.Identity, CommitID: metadata.HeadSHA, Path: "a.go", Side: "RIGHT", Line: 1}, Body: "First comment"},
+		{Target: source.ReviewCommentTarget{Identity: metadata.Identity, CommitID: metadata.HeadSHA, Path: "a.go", Side: "RIGHT", Line: 2}, Body: "Second comment"},
+	}
+	var submitted ReviewSubmission
+	m.SetReviewSubmitter(func(_ context.Context, request ReviewSubmission) error { submitted = request; return nil })
+	m.openReviewForm()
+	if strings.Contains(m.reviewFormView(), "Comment (required)") {
+		t.Fatal("pending-only review marks summary required")
+	}
+	namedKey(m, tea.KeyEnter)
+	namedKey(m, tea.KeyEnter)
+	if !m.ReviewForm.Confirm || m.ActionError != nil {
+		t.Fatalf("pending-only review cannot confirm: %v", m.ActionError)
+	}
+	if submitted.Review.Event != "" {
+		t.Fatal("submitted before confirmation")
+	}
+	_, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	completeAction(t, m, cmd)
+	if submitted.Review.Event != "COMMENT" || submitted.Review.Body != "" || len(submitted.Review.Comments) != 2 {
+		t.Fatalf("submission = %#v", submitted.Review)
+	}
+	if len(m.Pending) != 0 || m.ReviewForm != nil || !m.ReviewSubmitted {
+		t.Fatal("successful submission retained pending review")
+	}
+}
+
+func TestReviewRequiresSummaryWithoutPendingOrWhenRequestingChanges(t *testing.T) {
+	for _, event := range []int{0, 2} {
+		m := New(context.Background(), nil)
+		m.Session = kindsSession()
+		m.openReviewForm()
+		m.ReviewForm.Event, m.ReviewForm.Focus, m.ReviewForm.Body = event, 1, " \n"
+		if event == 2 {
+			m.Pending = []source.ReviewComment{{Body: "pending"}}
+		}
+		namedKey(m, tea.KeyEnter)
+		if m.ReviewForm.Confirm || m.ActionError == nil {
+			t.Fatalf("event %d accepted missing summary", event)
+		}
+	}
+}

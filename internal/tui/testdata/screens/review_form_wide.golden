@@ -7,7 +7,7 @@ example/re╭──────────────────────�
 │         │   ○ Approve · Approve merging these changes                                                      │         │
 │         │   ○ Request changes · Suggest changes before merging                                             │         │
 │         │                                                                                                  │         │
-│         │ Comment (required)                                                                               │         │
+│         │ Comment                                                                                          │         │
 │         │   ┌────────────────────────────────────────────────────────────────────────────────────────────┐ │         │
 │         │   │ Leave a comment                                                                            │ │         │
 │         │   └────────────────────────────────────────────────────────────────────────────────────────────┘ │         │

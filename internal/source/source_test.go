@@ -189,7 +189,7 @@ func TestCreatePullRequestReviewSendsPendingCommentsTogether(t *testing.T) {
 				Body string `json:"body"`
 			} `json:"comments"`
 		}
-		if err := json.Unmarshal(request.Stdin, &payload); err != nil || payload.CommitID != sha || payload.Event != "REQUEST_CHANGES" || payload.Body != "Summary" || len(payload.Comments) != 1 || payload.Comments[0].Path != "a.go" || payload.Comments[0].Line != 9 || payload.Comments[0].Side != "RIGHT" || payload.Comments[0].Body != comment.Body {
+		if err := json.Unmarshal(request.Stdin, &payload); err != nil || payload.CommitID != sha || (payload.Event != "REQUEST_CHANGES" || payload.Body != "Summary") && (payload.Event != "COMMENT" || payload.Body != "") || len(payload.Comments) != 1 || payload.Comments[0].Path != "a.go" || payload.Comments[0].Line != 9 || payload.Comments[0].Side != "RIGHT" || payload.Comments[0].Body != comment.Body {
 			t.Fatalf("payload = %#v, err = %v", payload, err)
 		}
 		return []byte(`{"id":123,"state":"CHANGES_REQUESTED"}`), nil
@@ -197,7 +197,10 @@ func TestCreatePullRequestReviewSendsPendingCommentsTogether(t *testing.T) {
 	if err := g.CreatePullRequestReview(context.Background(), PullRequestReview{Identity: id, CommitID: sha, Event: "REQUEST_CHANGES", Body: "Summary", Comments: []ReviewComment{comment}}); err != nil || called != 1 {
 		t.Fatal(err, called)
 	}
-	if err := g.CreatePullRequestReview(context.Background(), PullRequestReview{Identity: id, CommitID: sha, Event: "COMMENT", Comments: []ReviewComment{comment}}); err == nil || called != 1 {
+	if err := g.CreatePullRequestReview(context.Background(), PullRequestReview{Identity: id, CommitID: sha, Event: "COMMENT", Comments: []ReviewComment{comment}}); err != nil || called != 2 {
+		t.Fatal("pending-only review failed", err, called)
+	}
+	if err := g.CreatePullRequestReview(context.Background(), PullRequestReview{Identity: id, CommitID: sha, Event: "COMMENT"}); err == nil || called != 2 {
 		t.Fatal("invalid review reached GitHub", err, called)
 	}
 }
@@ -407,6 +410,21 @@ func TestGitHubListRejectsInvalidTargetBranch(t *testing.T) {
 		})}
 		if _, err := g.ListPullRequests(context.Background(), "owner/repo"); err == nil {
 			t.Fatalf("accepted invalid branch %q", branch)
+		}
+	}
+}
+
+func TestValidatePendingOnlyReview(t *testing.T) {
+	id := Identity{Repository: "owner/repo", Number: 42}
+	sha := "0123456789abcdef0123456789abcdef01234567"
+	comment := ReviewComment{Target: ReviewCommentTarget{Identity: id, CommitID: sha, Path: "a.go", Side: "RIGHT", Line: 9}, Body: "Fix this"}
+	for _, body := range []string{"", "  \n"} {
+		for _, event := range []string{"COMMENT", "REQUEST_CHANGES"} {
+			review := PullRequestReview{Identity: id, CommitID: sha, Event: event, Body: body, Comments: []ReviewComment{comment}}
+			err := ValidatePullRequestReview(review)
+			if (err == nil) != (event == "COMMENT") {
+				t.Fatalf("event=%s body=%q: %v", event, body, err)
+			}
 		}
 	}
 }
