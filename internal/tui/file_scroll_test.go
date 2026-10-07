@@ -20,6 +20,44 @@ func fileScrollModel(width int) *Model {
 	return m
 }
 
+func TestFilesPaneScrollKeepsDiffCursorVisible(t *testing.T) {
+	for _, width := range []int{120, 180} {
+		for _, input := range []rune{'J', 'K'} {
+			t.Run(fmt.Sprintf("width=%d/key=%c", width, input), func(t *testing.T) {
+				m := fileScrollModel(width)
+				defer m.Close()
+				m.Focus = paneList
+				if input == 'J' {
+					m.setCursor(m.offset() + 1)
+				} else {
+					m.setCursor(m.offset() + m.bodyHeight() - 1)
+				}
+				before := m.offset()
+				key(m, input)
+				if m.offset() == before {
+					t.Fatal("fixture did not scroll")
+				}
+				start := m.offset()
+				if stickyFileHeader(m.displayDetail(), start) >= 0 {
+					start++
+				}
+				if cursor := m.cursor(); cursor < start || cursor >= m.offset()+m.bodyHeight() {
+					t.Fatalf("cursor %d outside visible diff [%d, %d)", cursor, start, m.offset()+m.bodyHeight())
+				}
+				offset, cursor := m.offset(), m.cursor()
+				key(m, 'l')
+				if m.Focus != paneDiff || !m.cursorActive || m.offset() != offset || m.cursor() != cursor {
+					t.Fatal("focusing diff changed the reading position or lost the cursor")
+				}
+				m.ensureCursorVisible()
+				if m.offset() != offset {
+					t.Fatal("revealing cursor jumped the diff scroll")
+				}
+			})
+		}
+	}
+}
+
 func BenchmarkFilesScroll(b *testing.B) {
 	for _, width := range []int{120, 180} {
 		b.Run(fmt.Sprint(width), func(b *testing.B) {

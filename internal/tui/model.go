@@ -1647,7 +1647,7 @@ func (m *Model) scroll(delta int) {
 	if m.fileView() {
 		m.syncFileToOffset()
 	}
-	if m.Focus == paneDiff {
+	if m.fileView() || m.Focus == paneDiff {
 		m.cursorInViewport(delta)
 	}
 }
