@@ -30,6 +30,26 @@ func commitModel(t *testing.T) *Model {
 	return m
 }
 
+func TestCommitsShiftJKScrollDiff(t *testing.T) {
+	for _, focus := range []pane{paneList, paneDiff} {
+		m := commitModel(t)
+		m.commit.focus = focus
+		m.commitSelection()
+		sha := m.commit.selectedSHA
+		key(m, 'J')
+		if got := m.commitOffset(); got != diffStep {
+			t.Fatalf("focus %v: J scroll offset = %d, want %d", focus, got, diffStep)
+		}
+		key(m, 'K')
+		if got := m.commitOffset(); got != 0 {
+			t.Fatalf("focus %v: K scroll offset = %d, want 0", focus, got)
+		}
+		if m.commit.selectedSHA != sha || m.commit.focus != focus {
+			t.Fatal("J/K changed commit selection or focus")
+		}
+	}
+}
+
 func TestCommitsSelectionScrollAndIsolation(t *testing.T) {
 	m := commitModel(t)
 	m.Selected, m.Focus, m.Horizontal = 1, paneDiff, 7

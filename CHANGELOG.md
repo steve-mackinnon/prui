@@ -7,6 +7,8 @@ User-visible changes are recorded here before each release. See
 
 ### Fixed
 
+- Restore J/K scrolling of the source diff in Commits, including while the commit list is focused.
+
 - Prevent a crash when opening a discussion comment's original line before browsing Commits.
 
 - Submit all pending comments with a Comment review without adding a summary.
