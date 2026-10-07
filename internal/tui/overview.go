@@ -393,6 +393,10 @@ func (m *Model) toggleOverviewExpansion() {
 func (m *Model) overviewKey(key string) (tea.Cmd, bool) {
 	d := &m.discussions
 	switch key {
+	case "y":
+		if d.overviewFocus {
+			return m.copyDiscussionURL(), true
+		}
 	case "tab", "shift+tab":
 		entries := m.discussionEntries()
 		delta := 1

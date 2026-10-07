@@ -904,6 +904,10 @@ func (m *Model) update(msg tea.Msg) (updated tea.Model, command tea.Cmd) {
 				m.nextUnresolved(delta)
 				return m, nil
 			}
+			if v.String() == "y" && m.diffReviewView() && m.Focus == paneDiff {
+				_, id := m.cursorAnchor()
+				return m, m.copyCommentURL(id)
+			}
 			if v.String() == "alt+r" && m.Session != nil {
 				m.push(pageReadiness)
 				return m, m.refreshReadiness()

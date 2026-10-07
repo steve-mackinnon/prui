@@ -305,6 +305,8 @@ func (m *Model) discussionKey(key string) tea.Cmd {
 	d := &m.discussions
 	threads := discussionEntries(d.snapshot.Snapshot)
 	switch key {
+	case "y":
+		return m.copyDiscussionURL()
 	case "alt+up", "alt+down":
 		delta := 1
 		if key == "alt+up" {

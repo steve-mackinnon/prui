@@ -445,6 +445,8 @@ func (m *Model) commentActionKey(key tea.KeyPressMsg) tea.Cmd {
 	}
 	if menu.mode == commentActionPick {
 		switch key.String() {
+		case "y":
+			return m.copyCommentURL(menu.CommentID)
 		case "e", "z":
 			if m.openPublished(menu.CommentID, "", key.String() == "z") {
 				m.CommentMenu = nil
