@@ -57,46 +57,46 @@ func TestSourceSyntaxCacheReuseAndLimits(t *testing.T) {
 	f.OldPath, f.NewPath = []byte("x.go"), []byte("x.go")
 	cache := m.sourceSyntaxCache()
 	inv := m.navigationInventory()
-	tokens := cache.tokens(nil, inv, 0, false)
+	tokens := cache.tokens(context.Background(), inv, 0, false)
 	if len(tokens[1]) == 0 {
 		t.Fatal("missing Go tokens")
 	}
 	used := cache.bytes
-	cache.tokens(nil, inv, 0, false)
+	cache.tokens(context.Background(), inv, 0, false)
 	if cache.bytes != used || len(cache.entries) != 1 {
 		t.Fatal("relexed cached source")
 	}
 	// Same OID, different extension must not reuse Go tokens.
 	inv.Files[0].NewPath = []byte("x.unknown-extension")
-	if got := cache.tokens(nil, inv, 0, false); len(got) != 0 {
+	if got := cache.tokens(context.Background(), inv, 0, false); len(got) != 0 {
 		t.Fatal("reused lexer across rename")
 	}
 	used = cache.bytes
-	cache.tokens(nil, inv, 0, false)
+	cache.tokens(context.Background(), inv, 0, false)
 	if cache.bytes != used || len(cache.entries) != 2 {
 		t.Fatal("failed attempt retried")
 	}
 	inv.Files[0].NewPath = []byte("other.go")
 	cache.spans = 31999
 	inv.FullSource.Blobs[f.NewOID] = []byte("var x = 123\n")
-	if got := cache.tokens(nil, inv, 0, false); got != nil || cache.spans != 31999 {
+	if got := cache.tokens(context.Background(), inv, 0, false); got != nil || cache.spans != 31999 {
 		t.Fatal("partially admitted spans")
 	}
 	used = cache.bytes
-	cache.tokens(nil, inv, 0, false)
+	cache.tokens(context.Background(), inv, 0, false)
 	if cache.bytes != used {
 		t.Fatal("span failure retried")
 	}
 	inv.Files[0].NewPath = []byte("time.go")
 	cache.elapsed = 500 * time.Millisecond
 	used = cache.bytes
-	if cache.tokens(nil, inv, 0, false) != nil || cache.bytes != used {
+	if cache.tokens(context.Background(), inv, 0, false) != nil || cache.bytes != used {
 		t.Fatal("time budget exceeded")
 	}
 	inv.Files[0].NewPath = []byte("bytes.go")
 	cache.elapsed = 0
 	cache.bytes = 4 << 20
-	if cache.tokens(nil, inv, 0, false) != nil || cache.bytes != 4<<20 {
+	if cache.tokens(context.Background(), inv, 0, false) != nil || cache.bytes != 4<<20 {
 		t.Fatal("byte budget exceeded")
 	}
 	// Snapshot replacement gets a fresh cache; no path-keyed cross-snapshot reuse.
@@ -113,17 +113,17 @@ func TestSourceSyntaxMissingAndOversize(t *testing.T) {
 	inv.Files[0].NewPath = []byte("x.go")
 	cache := m.sourceSyntaxCache()
 	delete(inv.FullSource.Blobs, "new")
-	if cache.tokens(nil, inv, 0, false) != nil || len(cache.entries) != 0 {
+	if cache.tokens(context.Background(), inv, 0, false) != nil || len(cache.entries) != 0 {
 		t.Fatal("missing source cached as failed lex")
 	}
 	inv.FullSource.Blobs["new"] = []byte("package p\n")
-	if len(cache.tokens(nil, inv, 0, false)) == 0 {
+	if len(cache.tokens(context.Background(), inv, 0, false)) == 0 {
 		t.Fatal("newly loaded source not lexed")
 	}
 	inv.Files[0].NewOID = "large"
 	inv.FullSource.Blobs["large"] = []byte(strings.Repeat("x", syntax.MaxBytes+1))
 	used := cache.bytes
-	if cache.tokens(nil, inv, 0, false) != nil || cache.bytes != used {
+	if cache.tokens(context.Background(), inv, 0, false) != nil || cache.bytes != used {
 		t.Fatal("oversize blob lexed")
 	}
 }
