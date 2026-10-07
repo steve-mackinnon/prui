@@ -1,8 +1,13 @@
 package tui
 
 import (
+	"context"
+	"github.com/charmbracelet/colorprofile"
+	"github.com/charmbracelet/x/ansi"
+	"prui/internal/guide"
 	"prui/internal/inventory"
 	"prui/internal/syntax"
+	"prui/internal/theme"
 	"reflect"
 	"strings"
 	"testing"
@@ -120,5 +125,84 @@ func TestSourceSyntaxMissingAndOversize(t *testing.T) {
 	used := cache.bytes
 	if cache.tokens(nil, inv, 0, false) != nil || cache.bytes != used {
 		t.Fatal("oversize blob lexed")
+	}
+}
+
+func TestSourceSyntaxProjectionReuseAndRendering(t *testing.T) {
+	text := "var 日本 = \"hello\" // \t\x1b[31m"
+	m := navigationModel("@@ -2 +2 @@\n-old\n+new\n", text+"\nold\n", text+"\nnew\n", inventory.Range{Start: 2, Count: 1}, inventory.Range{Start: 2, Count: 1})
+	defer m.Close()
+	f := &m.Session.Inventory.Files[0]
+	f.OldPath, f.NewPath = []byte("x.go"), []byte("x.go")
+	m.navigation.mode = "expanded"
+	lines := m.cachedFileDetail(false)
+	cache := m.sourceSyntaxCache()
+	used, elapsed := cache.bytes, cache.elapsed
+	m.Session.Guides = &guide.Bundle{Status: guide.Generated, Items: []guide.Item{{Sections: []guide.Section{{UnitIDs: []string{m.Session.Inventory.Units[0].ID}}}}}}
+	m.guideExpanded = true
+	detail := m.cachedGuideDetail(0)
+	found := false
+	for _, row := range detail.lines {
+		if row.rawSource == text {
+			found = true
+			if len(row.syntax) == 0 || len(row.oldSyntax) == 0 {
+				t.Fatal("guide lacks syntax")
+			}
+		}
+	}
+	if !found {
+		t.Fatal("guide lacks context")
+	}
+	for _, name := range []string{theme.GitHubLight, theme.GitHubDark} {
+		m.theme = themeForName(t, name)
+		m.styles = stylesFor(m.theme)
+		for _, profile := range []colorprofile.Profile{colorprofile.TrueColor, colorprofile.Ascii} {
+			m.colorProfile = profile
+			for _, row := range lines {
+				if row.rawSource != text {
+					continue
+				}
+				for _, horizontal := range []int{0, 5, 13} {
+					for _, width := range []int{15, 70, 180} {
+						plain := row
+						plain.syntax = nil
+						actual := m.syntaxText(row, horizontal, width, "")
+						if ansi.Strip(actual) != ansi.Strip(m.syntaxText(plain, horizontal, width, "")) {
+							t.Fatal("syntax changed escaped/clipped text")
+						}
+					}
+				}
+				if profile == colorprofile.TrueColor {
+					rendered := m.syntaxText(row, 0, 180, "")
+					cells := canvasCells(rendered, visibleWidth(row.Text), 1)
+					keyword, _ := m.theme.Color(theme.FocusedBorder)
+					if !sameCanvasColor(cells.CellAt(1, 0).Style.Fg, keyword) {
+						t.Fatal("keyword palette lost")
+					}
+				}
+			}
+		}
+		m.fileCache = fileDetailCache{}
+		m.cachedFileDetail(true)
+	}
+	if cache.bytes != used || cache.elapsed != elapsed {
+		t.Fatal("projections relexed source")
+	}
+}
+
+func TestSourceSyntaxCanceledAttemptIsCached(t *testing.T) {
+	m := navigationModel("", "package p\n", "package p\n", inventory.Range{}, inventory.Range{})
+	defer m.Close()
+	inv := m.navigationInventory()
+	inv.Files[0].NewPath = []byte("x.go")
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	cache := m.sourceSyntaxCache()
+	if cache.tokens(ctx, inv, 0, false) != nil {
+		t.Fatal("canceled work highlighted")
+	}
+	used := cache.bytes
+	if cache.tokens(context.Background(), inv, 0, false) != nil || cache.bytes != used {
+		t.Fatal("canceled attempt retried")
 	}
 }

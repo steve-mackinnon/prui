@@ -1,6 +1,6 @@
 # Spec: Expanded source syntax highlighting
 
-Status: Proposed; implementation has not started.
+Status: Implemented. Human terminal usability QA remains unverified.
 
 ## Objective and scope
 
@@ -161,3 +161,21 @@ main sources of uncertainty.
 
 No blocking product questions. Proposed scope includes full OLD/NEW views and
 Guide expansion; review can narrow that scope before implementation.
+
+## Implementation record
+
+The TUI keeps a per-tab cache keyed by blob OID and lexer path, with successful
+and empty attempts retained across Files/Guide row projection invalidation.
+Expanded rows carry both sides' escaped spans; full-source rows carry the chosen
+side's spans. Temporary projection Models share the cache and cancellation
+context. No session encoding or dependencies changed.
+
+Regressions cover independent multiline lexical state, split projection,
+Files/Guide reuse, theme colors, clipped Unicode and escaped controls, renames,
+missing and newly loaded source, cancellation, snapshot replacement, and byte,
+span, and time budgets. The new missing-span regression failed before the
+implementation and passed afterward. Terminal layout/style/search regressions
+remain covered by the existing rendering suite. Human terminal QA was not run.
+
+Verification: focused syntax/navigation tests and `sh scripts/verify.sh` passed
+(formatting, vet, full race-enabled suite, build). `git diff --check` passed.

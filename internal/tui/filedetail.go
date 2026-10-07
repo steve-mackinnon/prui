@@ -36,7 +36,7 @@ func (m *Model) cachedFileDetail(split bool) []diffLine {
 		for f, slice := range m.Session.Slices {
 			c.lines = append(c.lines, diffLine{styledLine: styledLine{Class: classFileHeader, Text: fileDivider(m.Session.Inventory.Files[f])}})
 			if navigation.mode != "" || navigation.whitespace {
-				c.lines = append(c.lines, (&Model{reviewTabState: &reviewTabState{Session: m.Session, sourceTokens: m.sourceSyntaxCache(), navigation: navigation}}).navigationDetail(f)...)
+				c.lines = append(c.lines, (&Model{ctx: m.ctx, reviewTabState: &reviewTabState{Session: m.Session, sourceTokens: m.sourceSyntaxCache(), navigation: navigation}}).navigationDetail(f)...)
 				continue
 			}
 			for _, unit := range slice.Units {

@@ -618,6 +618,9 @@ changed-file source locally for newly opened comparisons; it is not remembered
 or AI-upload consent. On Files, E expands unchanged context, Alt+O/N opens
 OLD/NEW source, Ctrl+D restores diff and Ctrl+W hides whitespace-only replacement
 runs. / searches that source scope; F3/Shift+F3 step between results.
+Loaded expanded context and full OLD/NEW views use the active theme’s syntax
+colors. Highlighting uses each side’s complete pinned source and falls back to
+plain source foregrounds for unsupported languages or exhausted limits.
 Additional context/full files are read-only; canonical patches retain comment
 anchors and progress. Missing source and limited search coverage remain visible.
 Alt+Up/Down open previous/next loaded unresolved-thread detail; unknown resolution

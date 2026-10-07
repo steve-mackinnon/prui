@@ -37,9 +37,10 @@ func (c *sourceSyntaxCache) tokens(ctx context.Context, inv inventory.Inventory,
 		return nil
 	}
 	raw, ok := inv.FullSource.Blobs[key.oid]
+	// Missing source can arrive later; it is not a lexing failure.
 	if !ok {
 		return nil
-	} // Missing source can arrive later; it is not a lexing failure.
+	}
 	if result, ok := c.entries[key]; ok {
 		return result
 	}
