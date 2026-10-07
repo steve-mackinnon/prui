@@ -18,6 +18,7 @@ type binding struct {
 }
 
 var bindings = []binding{
+	{keys: "y", desc: "copy selected comment or discussion URL to clipboard (OSC 52)", groups: groupHelp, section: "Review"},
 	{keys: "D", desc: "jump to Discussions beneath the Overview description", groups: groupHelp | groupFooter, section: "Views"},
 	{keys: "tab/shift+tab, f, o", desc: "in Overview Discussions: select activity, open exact comment in Files, or original commit; Escape returns", groups: groupHelp, section: "Navigate"},
 	{keys: "C", desc: "filter Files/Guide by captured commits (one read-only net diff)", groups: groupHelp, section: "Views"},

@@ -166,6 +166,11 @@ activity. `n` opens a new PR comment box at the bottom of the feed and scrolls t
 their code thread, while PR comments create a new message mentioning the author.
 Enter posts; Escape cancels in place.
 
+Press `y` to copy the selected discussion item's URL, or a selected inline
+comment's URL in Files/Guide or its action menu. Clipboard writes use
+OSC 52 and require a terminal that allows it. The shortcut leaves text editors
+unchanged; items without a URL show an unavailable notice.
+
 Discussion bodies render Markdown with real paragraph breaks, lists, code,
 tables and clickable link labels. Embedded HTML is converted to readable text;
 images use their labels, and hidden bot metadata is omitted. Expand collapsed

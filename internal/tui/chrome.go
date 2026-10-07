@@ -177,7 +177,7 @@ func (m *Model) reviewHints() string {
 		return m.styleLine(classWarning, clip("enter: post now · ctrl+p: save pending · esc: discard · shift+enter: newline", m.Width))
 	}
 	if menu := m.CommentMenu; menu != nil {
-		text := "Comment actions: r reply · a react · z resolve/reopen · esc cancel"
+		text := "Comment actions: r reply · a react · y copy URL · z resolve/reopen · esc cancel"
 		switch menu.mode {
 		case commentActionReply:
 			text = "Reply editor open · enter submit · esc cancel"
