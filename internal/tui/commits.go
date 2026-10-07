@@ -304,6 +304,10 @@ func (m *Model) commitMove(delta int) {
 }
 func (m *Model) commitKey(key string) {
 	switch key {
+	case "J", "shift+j":
+		m.commitScroll(diffStep)
+	case "K", "shift+k":
+		m.commitScroll(-diffStep)
 	case "n":
 		m.commitMove(1)
 	case "p":
