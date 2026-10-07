@@ -447,6 +447,7 @@ func TestGuideExpandLoadsSelectedSourceOnDemand(t *testing.T) {
 	m := navigationModel("@@ -2 +2 @@\n-old\n+new\n", old, newText, inventory.Range{Start: 2, Count: 1}, inventory.Range{Start: 2, Count: 1})
 	defer m.Close()
 	f := &m.Session.Inventory.Files[0]
+	f.OldPath, f.NewPath = []byte("x.cpp"), []byte("x.cpp")
 	oid := func(b string) string {
 		return fmt.Sprintf("%x", sha1.Sum([]byte(fmt.Sprintf("blob %d\x00%s", len(b), b))))
 	}
@@ -471,6 +472,16 @@ func TestGuideExpandLoadsSelectedSourceOnDemand(t *testing.T) {
 	if m.Session.Inventory.FullSource != nil {
 		t.Fatal("guide source mutated saved snapshot")
 	}
+	foundSyntax := false
+	for _, row := range m.baseDetail() {
+		if row.rawSource == "class Example {" {
+			foundSyntax = len(row.syntax) > 0 && len(row.oldSyntax) > 0
+		}
+	}
+	if !foundSyntax {
+		t.Fatal("loaded guide projection lacks source syntax")
+	}
+
 	m.Update(tea.KeyPressMsg{Code: 'E'})
 	if m.guideExpanded {
 		t.Fatal("E did not restore compact guide")
