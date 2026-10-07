@@ -11,4 +11,4 @@ example/review #42
 │      README.md [file_metadata]     │                                                                                 │
 └────────────────────────────────────┴─────────────────────────────────────────────────────────────────────────────────┘
 0/2 read · R Submit review (0) · ? Freshness unknown · ?: Health & help
-j/k: guides · tab: expand · enter: diff · ?: Help
+j/k: guides · E: context · tab: expand · enter: diff · ?: Help

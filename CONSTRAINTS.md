@@ -158,6 +158,10 @@
   with a 60-second maximum capture deadline and no cache-specific fetch/retry.
   Invalid UTF-8, NUL/binary, gitlinks, absent capture and exhausted limits remain
   visibly unavailable. Empty/absent sides are not missing-source failures.
+- Explicit context expansion may retrieve the selected file’s immutable OLD/NEW
+  blobs from GitHub, validate their Git OIDs and text bounds, and retain them only
+  in tab-owned memory. This does not change the saved snapshot or AI input.
+  Offline refusal precedes network access; retries require a reviewer action.
 - Stored source is private local unencrypted data and may include sensitive
   unchanged content. It extends local storage only, never AI input or permission
   to write externally. Existing immutable SQLite integrity/deletion rules apply.

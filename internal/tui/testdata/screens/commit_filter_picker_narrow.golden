@@ -7,4 +7,4 @@ example/review #42
 │ │   [ ] bbbbbbbbbbbb Second commit · Alice             │ │
 └─│ Space/Enter: toggle · j/k: move · Esc/C: close       │─┘
 0/╰──────────────────────────────────────────────────────╯
-j/k: files · enter: diff · m: mark file · ?: Help
+j/k: files · E: expand · enter: diff · m: mark file · ?: Hel

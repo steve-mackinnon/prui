@@ -14,7 +14,7 @@ User-visible changes are recorded here before each release. See
 
 ### Added
 
-- Toggle full file context in Guide with Ctrl+E, showing enclosing declarations and all file hunks from cached pinned source; Ctrl+D restores the compact diff.
+- Expand context with E in Files or Guide, fetching the selected file’s pinned source on demand and reusing it in the open tab; the footer advertises E. Ctrl+D restores the compact diff.
 
 - Open HTTP and HTTPS links from Description and code views with a mouse click; underline links on hover.
 

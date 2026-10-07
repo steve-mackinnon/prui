@@ -610,9 +610,12 @@ without changing source text. Queries and results are not persisted.
 
 ## Complete pinned source and navigation
 
+E on Files loads the selected file’s pinned source on demand into memory for
+the open tab; no launch flag is needed. Offline expansion requires saved source.
+
 `--cache-full-source` is explicit consent to store bounded complete OLD/NEW
 changed-file source locally for newly opened comparisons; it is not remembered
-or AI-upload consent. On Files, Ctrl+E expands unchanged context, Alt+O/N opens
+or AI-upload consent. On Files, E expands unchanged context, Alt+O/N opens
 OLD/NEW source, Ctrl+D restores diff and Ctrl+W hides whitespace-only replacement
 runs. / searches that source scope; F3/Shift+F3 step between results.
 Additional context/full files are read-only; canonical patches retain comment

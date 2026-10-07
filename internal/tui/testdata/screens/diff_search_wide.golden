@@ -15,4 +15,4 @@ example/review #42
 │                             │                                                                                      │ │
 └─────────────────────────────│ Esc: select results · Enter: jump                                                    │─┘
 0/2 read · R Submit review (0)╰──────────────────────────────────────────────────────────────────────────────────────╯
-j/k: files · enter: diff · m: mark file · ?: Help
+j/k: files · E: expand · enter: diff · m: mark file · ?: Help

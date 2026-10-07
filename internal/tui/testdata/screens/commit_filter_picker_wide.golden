@@ -9,4 +9,4 @@ example/review #42
 │                     │ Space/Enter: toggle · j/k: move · Esc/C: close                           │                     │
 └─────────────────────╰──────────────────────────────────────────────────────────────────────────╯─────────────────────┘
 0/2 read · R Submit review (0) · ? Freshness unknown · ?: Health & help
-j/k: files · enter: diff · m: mark file · ?: Help
+j/k: files · E: expand · enter: diff · m: mark file · ?: Help

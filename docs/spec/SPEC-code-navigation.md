@@ -2,6 +2,12 @@
 
 ## User workflow
 
+Press E in Files or Guide to load the selected file’s pinned OLD/NEW blobs on demand.
+Source is bounded, verified against Git object IDs, kept only in memory for the
+open tab, and never uploaded to AI. Offline sessions use already captured source.
+Failures retain the patch and allow retrying; binary and oversized source remain
+unavailable. The footer advertises E.
+
 Launch `prui --cache-full-source`, `prui open <PR> --cache-full-source`, or
 `prui prs [owner/repo] --cache-full-source` to consent to additional **local**
 complete-source capture for comparisons opened by that process. For a new
@@ -10,16 +16,16 @@ The option is rejected on ordinary/offline resume and on verify. Consent is not
 remembered across launches; reopening a saved snapshot reads its captured data.
 Without the option, ordinary patch reviews retain their existing storage behavior.
 
-In Files and Guide, Ctrl+E toggles full file context and Ctrl+D restores the
+In Files and Guide, E toggles full file context and Ctrl+D restores the
 compact diff. In Guide, each referenced file is expanded once per section,
 including its other hunks; section/file navigation boundaries and original
 review-unit ownership stay intact. Guide expansion is independent of the Files
 source mode. Guide search still covers only the original current-section patches.
-Missing cached source keeps the patch visible with a `--cache-full-source` hint.
+Missing source keeps the patch visible with an on-demand loading or retry hint.
 
 On Files:
 
-- Ctrl+E toggles all available unchanged context around the saved hunks.
+- E toggles all available unchanged context around the saved hunks.
 - Alt+O / Alt+N show complete pinned OLD / NEW versions across changed files.
 - Ctrl+D restores the ordinary diff.
 - Ctrl+W hides equal-length replacement runs that differ only in whitespace.

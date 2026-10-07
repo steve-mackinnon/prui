@@ -3,6 +3,8 @@ package tui
 import (
 	tea "charm.land/bubbletea/v2"
 	"context"
+	"crypto/sha1"
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
@@ -323,6 +325,68 @@ func TestExpandedSearchCountsUnavailableFilesOnce(t *testing.T) {
 	}
 }
 
+func TestExpandFetchesSelectedFileOnDemand(t *testing.T) {
+	m := navigationModel("", "", "", inventory.Range{}, inventory.Range{})
+	m.Session.Inventory.FullSource = nil
+	f := &m.Session.Inventory.Files[0]
+	f.OldOID = fmt.Sprintf("%x", sha1.Sum([]byte("blob 7\x00before\n")))
+	f.NewOID = fmt.Sprintf("%x", sha1.Sum([]byte("blob 6\x00after\n")))
+	calls := 0
+	m.SetFullSourceLoader(func(_ context.Context, f inventory.FileChange, _ source.PinnedComparison) (*inventory.FullSource, error) {
+		calls++
+		return &inventory.FullSource{Blobs: map[string][]byte{f.OldOID: []byte("before\n"), f.NewOID: []byte("after\n")}}, nil
+	})
+	_, cmd := m.Update(tea.KeyPressMsg{Code: 'E'})
+	if cmd == nil || m.navigation.mode != "expanded" {
+		t.Fatal("E did not request expanded source")
+	}
+	m.Update(cmd())
+	if lines, ok := m.navigationInventory().SourceLines(0, false); !ok || lines[0] != "after" {
+		t.Fatal("source not loaded", lines)
+	}
+	m.Update(tea.KeyPressMsg{Code: 'E'})
+	_, cmd = m.Update(tea.KeyPressMsg{Code: 'E'})
+	if cmd != nil || calls != 1 {
+		t.Fatal("cached source fetched again")
+	}
+	if m.Session.Inventory.FullSource != nil {
+		t.Fatal("on-demand source leaked into saved snapshot")
+	}
+	copy := *m.Session
+	copy.Inventory = m.navigationInventory()
+	docs, skipped := searchDocuments(context.Background(), &copy, searchScope{Source: "NEW"})
+	if skipped != 0 || len(docs) == 0 {
+		t.Fatal("loaded source not searchable", skipped)
+	}
+	if !strings.Contains(renderBindings(groupFooter), "E: expand") {
+		t.Fatal("missing footer binding")
+	}
+}
+
+func TestExpandSourceFailureCanRetryAndIgnoresReplacedSession(t *testing.T) {
+	m := navigationModel("", "", "", inventory.Range{}, inventory.Range{})
+	m.Session.Inventory.FullSource = nil
+	m.SetFullSourceLoader(func(context.Context, inventory.FileChange, source.PinnedComparison) (*inventory.FullSource, error) {
+		return nil, fmt.Errorf("offline")
+	})
+	_, cmd := m.Update(tea.KeyPressMsg{Code: 'E'})
+	m.Update(cmd())
+	if m.navigation.loading || m.navigation.sourceError == "" {
+		t.Fatal("failure status missing")
+	}
+	_, cmd = m.Update(tea.KeyPressMsg{Code: 'E'})
+	if cmd == nil || m.navigation.mode != "expanded" {
+		t.Fatal("E did not retry failed source")
+	}
+	result := cmd()
+	m.Session = largeTextSession(1, 1)
+	m.navigation = codeNavigation{}
+	m.Update(result)
+	if m.navigation.sourceError != "" || m.navigation.source != nil {
+		t.Fatal("stale source affected replacement session")
+	}
+}
+
 func TestGuideFullContextToggle(t *testing.T) {
 	m := navigationModel("@@ -2 +2 @@\n-old\n+new\n", "class Example {\nold\n};\n", "class Example {\nnew\n};\n", inventory.Range{Start: 2, Count: 1}, inventory.Range{Start: 2, Count: 1})
 	defer m.Close()
@@ -370,10 +434,61 @@ func TestGuideFullContextOccurrencesAndUnavailable(t *testing.T) {
 	}
 	m.Session.Inventory.FullSource = nil
 	m.guideCache = guideDetailCache{}
-	if !strings.Contains(joinNavigation(m.baseDetail()), "--cache-full-source") || !strings.Contains(joinNavigation(m.baseDetail()), "+new") {
+	if !strings.Contains(joinNavigation(m.baseDetail()), "E: retry") || !strings.Contains(joinNavigation(m.baseDetail()), "+new") {
 		t.Fatal("unavailable context lost patch or recovery instruction")
 	}
 	if !m.codeNavigationKey("ctrl+d") || m.guideExpanded {
 		t.Fatal("compact diff control failed")
+	}
+}
+
+func TestGuideExpandLoadsSelectedSourceOnDemand(t *testing.T) {
+	old, newText := "class Example {\nold\n};\n", "class Example {\nnew\n};\n"
+	m := navigationModel("@@ -2 +2 @@\n-old\n+new\n", old, newText, inventory.Range{Start: 2, Count: 1}, inventory.Range{Start: 2, Count: 1})
+	defer m.Close()
+	f := &m.Session.Inventory.Files[0]
+	oid := func(b string) string {
+		return fmt.Sprintf("%x", sha1.Sum([]byte(fmt.Sprintf("blob %d\x00%s", len(b), b))))
+	}
+	f.OldOID, f.NewOID = oid(old), oid(newText)
+	m.Session.Inventory.FullSource = nil
+	m.Session.Guides = &guide.Bundle{Status: guide.Generated, Items: []guide.Item{{Sections: []guide.Section{{UnitIDs: []string{m.Session.Inventory.Units[0].ID}}}}}}
+	m.selectReviewView(viewGuide)
+	m.SetFullSourceLoader(func(_ context.Context, f inventory.FileChange, _ source.PinnedComparison) (*inventory.FullSource, error) {
+		return &inventory.FullSource{Blobs: map[string][]byte{f.OldOID: []byte(old), f.NewOID: []byte(newText)}}, nil
+	})
+	_, cmd := m.Update(tea.KeyPressMsg{Code: 'E'})
+	if !m.guideExpanded || cmd == nil {
+		t.Fatal("guide E did not request source")
+	}
+	if !strings.Contains(joinNavigation(m.baseDetail()), "Loading pinned") {
+		t.Fatal("missing loading state")
+	}
+	m.Update(cmd())
+	if !strings.Contains(joinNavigation(m.baseDetail()), "class Example") {
+		t.Fatal("guide cache did not refresh with fetched context")
+	}
+	if m.Session.Inventory.FullSource != nil {
+		t.Fatal("guide source mutated saved snapshot")
+	}
+	m.Update(tea.KeyPressMsg{Code: 'E'})
+	if m.guideExpanded {
+		t.Fatal("E did not restore compact guide")
+	}
+}
+
+func TestCompactNavigationDoesNotLoadInactiveViewSource(t *testing.T) {
+	m := navigationModel("", "", "", inventory.Range{}, inventory.Range{})
+	defer m.Close()
+	m.Session.Inventory.FullSource = nil
+	m.navigation.mode = "expanded"
+	m.selectReviewView(viewGuide)
+	m.SetFullSourceLoader(func(context.Context, inventory.FileChange, source.PinnedComparison) (*inventory.FullSource, error) {
+		t.Fatal("compact guide loaded Files source")
+		return nil, nil
+	})
+	_, cmd := m.Update(tea.KeyPressMsg{Code: 'd', Mod: tea.ModCtrl})
+	if cmd != nil || m.navigation.loading {
+		t.Fatal("compact guide started a source request")
 	}
 }

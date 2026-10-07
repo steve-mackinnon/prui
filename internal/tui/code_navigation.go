@@ -1,7 +1,10 @@
 package tui
 
 import (
+	tea "charm.land/bubbletea/v2"
+	"context"
 	"fmt"
+	"prui/internal/review"
 	"strings"
 
 	"prui/internal/inventory"
@@ -9,8 +12,11 @@ import (
 )
 
 type codeNavigation struct {
-	mode       string // empty, expanded, OLD, NEW
-	whitespace bool
+	mode        string // empty, expanded, OLD, NEW
+	whitespace  bool
+	source      *inventory.FullSource
+	loading     bool
+	sourceError string
 }
 
 func sourceRow(file inventory.FileChange, side string, n int, text string) diffLine {
@@ -26,7 +32,7 @@ func sourceRow(file inventory.FileChange, side string, n int, text string) diffL
 // navigationDetail is a pure projection. Complete-source rows have coordinates
 // but deliberately no comment targets; only canonical patch rows can compose.
 func (m *Model) navigationDetail(file int) []diffLine {
-	inv := m.Session.Inventory
+	inv := m.navigationInventory()
 	f := inv.Files[file]
 	var result []diffLine
 	if m.navigation.mode == "OLD" || m.navigation.mode == "NEW" {
@@ -64,7 +70,12 @@ func (m *Model) navigationDetail(file int) []diffLine {
 	if m.navigation.mode == "expanded" {
 		label := "Expanded unchanged context · pinned source · added context read-only"
 		if !expanded {
-			label = "UNAVAILABLE expanded context · full source not cached · reopen with --cache-full-source · search coverage limited to patch"
+			label = "UNAVAILABLE expanded context · E: retry loading source · search coverage limited to patch"
+			if m.navigation.loading {
+				label = "Loading pinned full source…"
+			} else if m.navigation.sourceError != "" {
+				label += " · " + Escape(m.navigation.sourceError)
+			}
 		}
 		result = append(result, diffLine{styledLine: styledLine{classMetadata, label}})
 	}
@@ -163,22 +174,22 @@ func hideWhitespacePairs(lines []diffLine) []diffLine {
 }
 
 func (m *Model) codeNavigationKey(key string) bool {
-	if m.Session != nil && !m.Inventory && m.selectedReviewView() == viewGuide && !m.commitFilter.open && !m.commitFilter.subset && m.discussions.published == nil && m.discussions.editor == nil && (key == "ctrl+e" || key == "ctrl+d") {
+	if m.Session != nil && !m.Inventory && m.selectedReviewView() == viewGuide && !m.commitFilter.open && !m.commitFilter.subset && m.discussions.published == nil && m.discussions.editor == nil && (key == "E" || key == "ctrl+e" || key == "ctrl+d") {
 		target, commentID := m.cursorAnchor()
-		m.guideExpanded = key == "ctrl+e" && !m.guideExpanded
+		m.guideExpanded = (key == "E" || key == "ctrl+e") && (!m.guideExpanded || m.navigation.sourceError != "")
 		m.guideCache = guideDetailCache{}
 		m.fileCache = fileDetailCache{}
 		m.closeSearchPopovers()
 		m.restoreCursorAnchor(target, commentID)
-		m.notice = "Ctrl+E: full file context · Ctrl+D: compact guide diff"
+		m.notice = "E: full file context · Ctrl+D: compact guide diff"
 		return true
 	}
 	if m.Session == nil || !m.fileView() || m.selectedReviewView() != viewFiles || len(m.Session.Inventory.Files) == 0 || m.commitFilter.open || m.commitFilter.subset || m.discussions.published != nil || m.discussions.editor != nil {
 		return false
 	}
 	switch key {
-	case "ctrl+e":
-		if m.navigation.mode == "expanded" {
+	case "E", "ctrl+e":
+		if m.navigation.mode == "expanded" && m.navigation.sourceError == "" {
 			m.navigation.mode = ""
 		} else {
 			m.navigation.mode = "expanded"
@@ -197,7 +208,7 @@ func (m *Model) codeNavigationKey(key string) bool {
 	m.fileCache = fileDetailCache{}
 	m.closeSearchPopovers()
 	m.setOffset(m.fileOffset(m.Session.UnitFiles[m.Selected]))
-	m.notice = "Ctrl+E: context · Alt+O/N: OLD/NEW · Ctrl+D: diff · Ctrl+W: whitespace · Alt+↑/↓: unresolved"
+	m.notice = "E: context · Alt+O/N: OLD/NEW · Ctrl+D: diff · Ctrl+W: whitespace · Alt+↑/↓: unresolved"
 	return true
 }
 
@@ -295,4 +306,97 @@ func (m *Model) navigableLine(line diffLine) bool {
 		}
 	}
 	return false
+}
+
+// FullSourceLoader reads only the requested file's pinned blobs.
+type FullSourceLoader func(context.Context, inventory.FileChange, source.PinnedComparison) (*inventory.FullSource, error)
+
+func (m *Model) SetFullSourceLoader(load FullSourceLoader) { m.fullSourceLoader = load }
+
+type fullSourceResult struct {
+	target  int
+	session *review.Session
+	source  *inventory.FullSource
+	err     error
+}
+
+func (m *Model) navigationInventory() inventory.Inventory {
+	inv := m.Session.Inventory
+	if m.navigation.source != nil {
+		inv.FullSource = m.navigation.source
+	}
+	return inv
+}
+func (m *Model) loadNavigationSource() tea.Cmd {
+	activeSource := m.selectedReviewView() == viewFiles && m.navigation.mode != "" || m.selectedReviewView() == viewGuide && m.guideExpanded
+	if !activeSource || m.navigation.loading || m.Selected < 0 || m.Selected >= len(m.Session.UnitFiles) {
+		return nil
+	}
+	file := m.Session.UnitFiles[m.Selected]
+	inv := m.navigationInventory()
+	_, oldOK := inv.SourceLines(file, true)
+	_, newOK := inv.SourceLines(file, false)
+	if oldOK && newOK {
+		return nil
+	}
+	if m.fullSourceLoader == nil {
+		m.navigation.sourceError = "source loading unavailable offline"
+		return nil
+	}
+	m.guideCache = guideDetailCache{}
+	m.navigation.loading = true
+	m.navigation.sourceError = ""
+	target := m.activeTab
+	session, f, comparison, load, ctx := m.Session, inv.Files[file], inv.Comparison, m.fullSourceLoader, m.ctx
+	return func() tea.Msg {
+		data, err := load(ctx, f, comparison)
+		return fullSourceResult{session: session, source: data, err: err, target: target}
+	}
+}
+func (m *Model) applyFullSource(v fullSourceResult) {
+	// A completion for a closed/replaced tab must never affect another comparison.
+	state := m.reviewStateForTarget(v.target)
+	if state == nil || state.Session != v.session {
+		return
+	}
+	nav := &state.navigation
+	nav.loading = false
+	if v.err != nil {
+		nav.sourceError = v.err.Error()
+	} else if v.source != nil {
+		inv := state.Session.Inventory
+		if nav.source != nil {
+			inv.FullSource = nav.source
+		}
+		merged := &inventory.FullSource{Blobs: map[string][]byte{}}
+		if inv.FullSource != nil {
+			for oid, b := range inv.FullSource.Blobs {
+				merged.Blobs[oid] = b
+			}
+		}
+		for oid, b := range v.source.Blobs {
+			merged.Blobs[oid] = b
+		}
+		if merged.Valid(inv.Files) {
+			nav.source = merged
+		} else {
+			nav.sourceError = "source cache limit reached"
+		}
+	}
+	for _, search := range state.search {
+		if search != nil {
+			if search.cancel != nil {
+				search.cancel()
+			}
+			search.generation++
+			search.documents = nil
+			search.matches = nil
+			search.pending = false
+		}
+	}
+	if v.target == m.activeTab {
+		m.fileCache = fileDetailCache{}
+		m.guideCache = guideDetailCache{}
+		m.closeSearchPopovers()
+	}
 }

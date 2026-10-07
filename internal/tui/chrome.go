@@ -202,7 +202,7 @@ func (m *Model) reviewHints() string {
 	if m.ReviewSubmitted {
 		return m.styleLine(classTitle, clip("✓ Review submitted on GitHub · ?: Health & help", m.Width))
 	}
-	hints := "j/k: files · enter: diff · m: mark file · ?: Help"
+	hints := "j/k: files · E: expand · enter: diff · m: mark file · ?: Help"
 	switch {
 	case m.selectedReviewView() == viewCommits:
 		if m.Session.Commits != nil && !m.Session.Commits.Complete && m.Session.Commits.Status == "captured" {
@@ -247,9 +247,9 @@ func (m *Model) reviewHints() string {
 			}
 		}
 	case m.Focus == paneDiff:
-		hints = "↑/↓: scroll · enter: comment/menu · m: mark file · esc: list · ?: Help"
+		hints = "↑/↓: scroll · E: expand · enter: comment/menu · m: mark file · esc: list · ?: Help"
 	case !m.Files && !m.Inventory:
-		hints = "j/k: guides · tab: expand · enter: diff · ?: Help"
+		hints = "j/k: guides · E: context · tab: expand · enter: diff · ?: Help"
 	case m.Inventory:
 		hints = "j/k: units · enter: diff · m: mark file · ?: Help"
 	}
