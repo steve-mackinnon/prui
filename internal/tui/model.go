@@ -1466,6 +1466,19 @@ func (m *Model) openCommentActionMenu() bool {
 	}
 	for _, comment := range m.Comments {
 		if comment.ID == line.commentID {
+			if comment.HistoricalProjection {
+				m.openDiscussions()
+				for i, thread := range discussionEntries(m.discussions.snapshot.Snapshot) {
+					for _, c := range thread.Comments {
+						if c.ID == comment.ID {
+							m.discussions.selected, m.discussions.selectedID = i, thread.ID
+							m.discussions.detail = true
+							return true
+						}
+					}
+				}
+				return true
+			}
 			m.CommentMenu = &commentActionMenu{CommentID: comment.ID, ReplyToID: m.topLevelCommentID(comment.ID), Target: comment.Target, Author: comment.Author}
 			m.resolveReplyRoot(m.CommentMenu)
 			m.ensureCursorVisible()
@@ -1935,6 +1948,9 @@ func (m *Model) reviewCommentLinesAt(comment source.ReviewComment, indent int) [
 	}
 	lines := []diffLine{{styledLine: styledLine{Class: classMetadata, Text: border}, commentID: comment.ID}}
 	lines = append(lines, wrappedLines(classMetadata, "@"+author)...)
+	if comment.HistoricalProjection {
+		lines = append(lines, wrappedLines(classMetadata, "Earlier commit · matched unchanged code · enter: discussion")...)
+	}
 	if label := m.publishedStatus(comment.ID); label != "" {
 		lines = append(lines, wrappedLines(classMetadata, label)...)
 	}
@@ -1946,7 +1962,9 @@ func (m *Model) reviewCommentLinesAt(comment source.ReviewComment, indent int) [
 		for _, p := range suggestionPreview(before, replacement) {
 			lines = append(lines, wrappedLines(p.Class, p.Text)...)
 		}
-		lines = append(lines, wrappedLines(classMetadata, "ctrl+a in comment actions: apply suggestion")...)
+		if !comment.HistoricalProjection {
+			lines = append(lines, wrappedLines(classMetadata, "ctrl+a in comment actions: apply suggestion")...)
+		}
 	}
 	for _, body := range strings.Split(comment.Body, "\n") {
 		lines = append(lines, wrappedLines(classPlain, body)...)

@@ -575,7 +575,18 @@ func (m *Model) overviewMouseClick(y int) {
 }
 
 func (m *Model) currentDiscussionTarget(t source.Discussion) *source.ReviewCommentTarget {
-	if !m.discussions.snapshot.CurrentVerified || t.Retained || t.CurrentAnchor == nil || t.Outdated != nil && *t.Outdated {
+	if !m.discussions.snapshot.CurrentVerified || t.Retained || m.Session == nil {
+		return nil
+	}
+	if t.CurrentAnchor == nil || t.Outdated != nil && *t.Outdated {
+		if len(t.Comments) > 0 {
+			for _, c := range m.Comments {
+				if c.ID == t.Comments[0].ID && c.HistoricalProjection {
+					target := c.Target
+					return &target
+				}
+			}
+		}
 		return nil
 	}
 	target := *t.CurrentAnchor
@@ -592,7 +603,7 @@ func (m *Model) discussionFilesReason(t source.Discussion) string {
 	if t.Retained {
 		return "Stale retained activity"
 	}
-	if t.Outdated != nil && *t.Outdated {
+	if t.Outdated != nil && *t.Outdated && m.currentDiscussionTarget(t) == nil {
 		return "Outdated; current Files location unavailable"
 	}
 	target := m.currentDiscussionTarget(t)

@@ -89,17 +89,18 @@ type GitHub interface {
 // review comment. It is intentionally separate from GitHub, whose operations
 // are otherwise read-only.
 type ReviewComment struct {
-	Retained       bool // live overlay identity omitted by a partial refresh
-	CreatedAt      time.Time
-	ID             int64
-	ParentID       int64
-	Author         string
-	Target         ReviewCommentTarget
-	Body           string
-	CurrentAnchor  *ReviewCommentTarget // associated raw anchor before display-head normalization
-	OriginalAnchor *ReviewCommentTarget
-	URL            string
-	DiffHunk       string
+	HistoricalProjection bool `json:"-"` // display-only match; actions use the authoritative discussion
+	Retained             bool // live overlay identity omitted by a partial refresh
+	CreatedAt            time.Time
+	ID                   int64
+	ParentID             int64
+	Author               string
+	Target               ReviewCommentTarget
+	Body                 string
+	CurrentAnchor        *ReviewCommentTarget // associated raw anchor before display-head normalization
+	OriginalAnchor       *ReviewCommentTarget
+	URL                  string
+	DiffHunk             string
 }
 
 // ReviewCommentTarget identifies a frozen line, same-side range, or file.

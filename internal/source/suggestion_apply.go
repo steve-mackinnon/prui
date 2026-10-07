@@ -129,7 +129,7 @@ func (g *GH) PrepareSuggestion(ctx context.Context, m Metadata, c ReviewComment,
 	if err != nil {
 		return a, err
 	}
-	if c.CurrentAnchor != nil && *c.CurrentAnchor != c.Target {
+	if c.HistoricalProjection || c.CurrentAnchor != nil && *c.CurrentAnchor != c.Target {
 		return a, errors.New("stale suggestion anchor")
 	}
 	if c.Target.CommitID != m.HeadSHA || c.Target.Side != "RIGHT" || c.Target.SubjectType != "" {

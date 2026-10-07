@@ -25,6 +25,17 @@ progress, offline, and terminal-escaping contracts remain applicable.
 
 ## Scope and Decisions
 
+Files display extension: historical threads may project onto the frozen PR diff
+using captured original/head blobs at the same path. Identical blobs preserve
+coordinates; otherwise a RIGHT-side line or range must match uniquely in both
+blobs, and every resulting coordinate must belong to a captured PR hunk. Missing,
+changed, ambiguous, binary, LEFT-side or stale evidence produces no projection.
+The inline card labels this as an earlier-commit match and opens the authoritative
+discussion by stable identity. Original/current anchors and outdated/resolved
+status remain unchanged; projected coordinates cannot be submitted or used to
+apply a published suggestion. This extends the original read-only placement
+rules without relocating any GitHub comment.
+
 - PR review threads and comments, including replies, current and original anchors,
   original commit identity, a bounded historical snippet, and a GitHub permalink.
 - Inline discussions in the main diff and the selected commit's first-parent diff.
