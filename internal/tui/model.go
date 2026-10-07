@@ -90,6 +90,7 @@ type descriptionRenderCache struct {
 // reviewTabState is the reviewer-visible state that must travel with an open
 // review. Window dimensions and services remain shared by the workspace.
 type reviewTabState struct {
+	sourceTokens                                         *sourceSyntaxCache
 	incremental                                          incrementalViewState
 	draft                                                draftState
 	issues                                               issueContextState

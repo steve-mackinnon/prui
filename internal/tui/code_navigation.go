@@ -9,6 +9,7 @@ import (
 
 	"prui/internal/inventory"
 	"prui/internal/source"
+	"prui/internal/syntax"
 )
 
 type codeNavigation struct {
@@ -34,6 +35,7 @@ func sourceRow(file inventory.FileChange, side string, n int, text string) diffL
 func (m *Model) navigationDetail(file int) []diffLine {
 	inv := m.navigationInventory()
 	f := inv.Files[file]
+	cache := m.sourceSyntaxCache()
 	var result []diffLine
 	if m.navigation.mode == "OLD" || m.navigation.mode == "NEW" {
 		side := m.navigation.mode
@@ -49,8 +51,10 @@ func (m *Model) navigationDetail(file int) []diffLine {
 			}
 			result = append(result, diffLine{styledLine: styledLine{classHunk, fmt.Sprintf("@@ -%d,%d +%d,%d @@ full %s read-only", oldStart, len(lines), newStart, len(lines), side)}})
 		}
+		tokens := cache.tokens(m.ctx, inv, file, side == "OLD")
 		for i, text := range lines {
 			line := sourceRow(f, side, i+1, text)
+			line.syntax = escapedSpans([]byte(text), tokens[i+1])
 			line.Class = classAdded
 			line.Text = "+" + Escape(text)
 			if side == "OLD" {
@@ -79,6 +83,11 @@ func (m *Model) navigationDetail(file int) []diffLine {
 		}
 		result = append(result, diffLine{styledLine: styledLine{classMetadata, label}})
 	}
+	var oldTokens, newTokens syntax.Lines
+	if expanded {
+		oldTokens = cache.tokens(m.ctx, inv, file, true)
+		newTokens = cache.tokens(m.ctx, inv, file, false)
+	}
 	o, n := 1, 1
 	gap := func(endOld, endNew int) {
 		if !expanded {
@@ -101,6 +110,8 @@ func (m *Model) navigationDetail(file int) []diffLine {
 		for o < endOld {
 			line := sourceRow(f, "NEW", n, newLines[n-1])
 			line.oldLine = o
+			line.oldSyntax = escapedSpans([]byte(old[o-1]), oldTokens[o])
+			line.syntax = escapedSpans([]byte(newLines[n-1]), newTokens[n])
 			result = append(result, line)
 			o++
 			n++

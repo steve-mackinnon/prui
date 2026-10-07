@@ -165,7 +165,7 @@ func (m *Model) cachedGuideDetail(index int) guideDetail {
 	if c.session != m.Session || c.bundle != m.Session.Guides || c.index != index || c.expanded != m.guideExpanded {
 		*c = guideDetailCache{session: m.Session, bundle: m.Session.Guides, index: index, expanded: m.guideExpanded}
 		if m.guideExpanded {
-			projection := &Model{reviewTabState: &reviewTabState{Session: m.Session, navigation: codeNavigation{mode: "expanded", source: m.navigation.source, loading: m.navigation.loading, sourceError: m.navigation.sourceError}}}
+			projection := &Model{reviewTabState: &reviewTabState{Session: m.Session, sourceTokens: m.sourceSyntaxCache(), navigation: codeNavigation{mode: "expanded", source: m.navigation.source, loading: m.navigation.loading, sourceError: m.navigation.sourceError}}}
 			c.detail = guideDetailFor(m.Session, index, projection.navigationDetail)
 		} else {
 			c.detail = detailFor(m.Session, index)
