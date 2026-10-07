@@ -31,6 +31,8 @@ User-visible changes are recorded here before each release. See
 
 ### Fixed
 
+- Wrap long inline comment and reply drafts within the editor, keeping the caret visible without changing submitted text.
+
 - Preserve syntax colors and source text when underlining changed words in diffs.
 
 - Keep visible search results at the diff's left margin instead of horizontally clipping the surrounding code; pan only for matches beyond the viewport.
