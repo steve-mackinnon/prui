@@ -67,7 +67,12 @@
   output. Offline refusal and explicit refresh/no-polling rules still apply.
 - Current anchors may render only after metadata before/after retrieval matches
   the frozen PR pins, and only at an exact raw diff target. Original anchors may
-  render only at their own captured commit SHA/path/side/line; unplaceable threads
+  render at their own captured commit SHA/path/side/line. Files may additionally
+  display a labeled historical projection when captured original/head blobs at
+  the same path prove identical source or a uniquely matching RIGHT-side line
+  range, and the projected target belongs to the frozen PR diff. Projections
+  preserve authoritative anchors/status and open discussion actions by identity;
+  they never supply outbound comment or suggestion-application targets. Unplaceable threads
   remain discoverable. Outdated never implies resolved; uncaptured never implies
   removed. Partial retrieval cannot imply complete counts or no discussions.
 - Commit composers post immediately and cannot enter the head-based pending

@@ -184,7 +184,12 @@ comment or reply in Files, then Enter to open the existing reply/thread actions.
 Escape closes inner editors first and then returns to the originating Overview
 activity, restoring the previous Files filter and reading position. **View
 original commit [o]** is available when its original anchor is captured. Missing,
-outdated, stale, or mismatched anchors show why Files navigation is unavailable.
+stale, or mismatched anchors show why Files navigation is unavailable. Older
+threads also stay inline in Files when captured original/head source at the same
+path proves the RIGHT-side code unchanged, including uniquely matched shifted
+lines and ranges. These cards are labeled **Earlier commit** and open their
+original discussion for actions; GitHub's outdated/resolved status is preserved.
+Changed or ambiguous code and unavailable source remain in historical context.
 Discussion refresh and posting retain the existing freshness and delivery checks;
 view switching does not fetch or post.
 

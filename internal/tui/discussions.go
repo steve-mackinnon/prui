@@ -555,16 +555,25 @@ func discussionCurrentComments(snapshot DiscussionSnapshot, s *review.Session) [
 	}
 	var comments []source.ReviewComment
 	for _, thread := range snapshot.Snapshot.Threads {
-		if thread.CurrentAnchor == nil || (thread.Outdated != nil && *thread.Outdated) {
+		target := thread.CurrentAnchor
+		historical := target == nil || thread.Outdated != nil && *thread.Outdated
+		if historical {
+			target = historicalFilesTarget(thread, s)
+		}
+		if target == nil {
 			continue
 		}
 		for _, c := range thread.Comments {
 			if c.Retained || thread.Retained {
 				continue
 			}
-			associated := *thread.CurrentAnchor
-			c.CurrentAnchor = &associated
-			c.Target = *thread.CurrentAnchor
+			if thread.CurrentAnchor != nil {
+				associated := *thread.CurrentAnchor
+				c.CurrentAnchor = &associated
+			}
+			c.HistoricalProjection = historical
+			c.OriginalAnchor = thread.OriginalAnchor
+			c.Target = *target
 			c.Target.CommitID = s.Inventory.Comparison.Metadata.HeadSHA
 			comments = append(comments, c)
 		}

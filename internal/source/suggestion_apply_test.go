@@ -10,6 +10,19 @@ import (
 	"testing"
 )
 
+func TestSuggestionRejectsHistoricalDisplayProjection(t *testing.T) {
+	head := strings.Repeat("a", 40)
+	body, _ := SuggestionBody("replacement")
+	c := ReviewComment{ID: 9, HistoricalProjection: true, Target: ReviewCommentTarget{Identity: Identity{"owner/repo", 1}, CommitID: head, Path: "a.go", Side: "RIGHT", Line: 1}, Body: body}
+	g := &GH{Runner: listRunner(func(context.Context, Request) ([]byte, error) {
+		t.Fatal("historical projection reached remote preparation")
+		return nil, nil
+	})}
+	if _, err := g.PrepareSuggestion(context.Background(), Metadata{HeadSHA: head}, c, "original"); err == nil {
+		t.Fatal("display coordinates accepted for suggestion application")
+	}
+}
+
 func TestSuggestionRemoteCommitProtocol(t *testing.T) {
 	for _, scenario := range []string{"success", "fork", "permission", "edited", "deleted", "confirm-edit", "push", "confirm-push", "race", "conflict", "mode", "timeout", "bad-response"} {
 		t.Run(scenario, func(t *testing.T) {
