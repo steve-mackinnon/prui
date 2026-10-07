@@ -7,6 +7,8 @@ User-visible changes are recorded here before each release. See
 
 ### Fixed
 
+- Submit all pending comments with a Comment review without adding a summary.
+
 - Render discussion Markdown and embedded HTML as readable prose, hide bot
   metadata, and expand collapsed details in place in the Overview feed.
 - Separate descriptions and discussions with bordered cards, keep a visible

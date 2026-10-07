@@ -112,7 +112,7 @@ func (m *Model) reviewFormView() string {
 		if f.Focus == 1 {
 			label = "› Comment"
 		}
-		if f.Event != 1 {
+		if f.Event == 2 || f.Event == 0 && len(m.Pending) == 0 {
 			label += " (required)"
 		}
 		lines = append(lines, label)
@@ -351,7 +351,7 @@ func (m *Model) reviewFormKey(key tea.KeyPressMsg) tea.Cmd {
 		case 0:
 			f.Focus = 1
 		case 1:
-			if f.Event != 1 && strings.TrimSpace(f.Body) == "" {
+			if (f.Event == 2 || f.Event == 0 && len(m.Pending) == 0) && strings.TrimSpace(f.Body) == "" {
 				m.ActionError = errors.New("review comment is required")
 				return nil
 			}

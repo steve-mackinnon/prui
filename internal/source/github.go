@@ -241,7 +241,7 @@ func ValidatePullRequestReview(review PullRequestReview) error {
 	}
 	switch review.Event {
 	case "COMMENT", "REQUEST_CHANGES":
-		if strings.TrimSpace(review.Body) == "" {
+		if strings.TrimSpace(review.Body) == "" && (review.Event == "REQUEST_CHANGES" || len(review.Comments) == 0) {
 			return errors.New("review summary is required")
 		}
 	case "APPROVE":
