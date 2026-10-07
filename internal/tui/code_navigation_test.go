@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"prui/internal/guide"
 	"prui/internal/inventory"
 	"prui/internal/source"
 )
@@ -319,5 +320,60 @@ func TestExpandedSearchCountsUnavailableFilesOnce(t *testing.T) {
 	documents, skipped := searchDocuments(context.Background(), m.Session, m.currentSearchScope())
 	if skipped != 1 || len(documents) != 2 {
 		t.Fatalf("documents=%d skipped files=%d; want 2, 1", len(documents), skipped)
+	}
+}
+
+func TestGuideFullContextToggle(t *testing.T) {
+	m := navigationModel("@@ -2 +2 @@\n-old\n+new\n", "class Example {\nold\n};\n", "class Example {\nnew\n};\n", inventory.Range{Start: 2, Count: 1}, inventory.Range{Start: 2, Count: 1})
+	defer m.Close()
+	m.Session.Guides = &guide.Bundle{Status: guide.Generated, Items: []guide.Item{{Title: "Example", Sections: []guide.Section{{Title: "Methods", UnitIDs: []string{m.Session.Inventory.Units[0].ID}}}}}}
+	m.selectReviewView(viewGuide)
+	before := joinNavigation(m.baseDetail())
+	ctrlKey(m, 'e')
+	if !m.guideExpanded {
+		t.Fatal("guide context toggle unavailable")
+	}
+	if !strings.Contains(joinNavigation(m.baseDetail()), "class Example") {
+		t.Fatal("enclosing class missing")
+	}
+	for _, l := range m.baseDetail() {
+		if l.rawSource == "class Example {" && l.target != nil {
+			t.Fatal("context became commentable")
+		}
+	}
+	if !m.codeNavigationKey("ctrl+e") || joinNavigation(m.baseDetail()) != before {
+		t.Fatal("compact guide not restored")
+	}
+}
+
+func TestGuideFullContextOccurrencesAndUnavailable(t *testing.T) {
+	m := navigationModel("@@ -2 +2 @@\n-old\n+new\n", "class Example {\nold\n};\n", "class Example {\nnew\n};\n", inventory.Range{Start: 2, Count: 1}, inventory.Range{Start: 2, Count: 1})
+	defer m.Close()
+	id := m.Session.Inventory.Units[0].ID
+	m.Session.Guides = &guide.Bundle{Status: guide.Generated, Items: []guide.Item{{Sections: []guide.Section{{UnitIDs: []string{id, id}}, {UnitIDs: []string{id}}}}}}
+	m.selectReviewView(viewGuide)
+	m.codeNavigationKey("ctrl+e")
+	for _, layout := range []diffLayout{diffLayoutUnified, diffLayoutSideBySide} {
+		m.layout = layout
+		d := m.cachedGuideDetail(0)
+		if len(d.files) != 2 || len(d.splitFiles) != 2 || strings.Count(joinNavigation(d.lines), "class Example") != 2 {
+			t.Fatal("file context duplicated within section or occurrence lost")
+		}
+		for _, a := range d.files {
+			if d.lines[a.offset].guideAnchor == nil {
+				t.Fatal("missing navigation boundary")
+			}
+		}
+		if len(m.displayDetail()) == 0 {
+			t.Fatal("empty rendered context")
+		}
+	}
+	m.Session.Inventory.FullSource = nil
+	m.guideCache = guideDetailCache{}
+	if !strings.Contains(joinNavigation(m.baseDetail()), "--cache-full-source") || !strings.Contains(joinNavigation(m.baseDetail()), "+new") {
+		t.Fatal("unavailable context lost patch or recovery instruction")
+	}
+	if !m.codeNavigationKey("ctrl+d") || m.guideExpanded {
+		t.Fatal("compact diff control failed")
 	}
 }

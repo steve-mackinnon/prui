@@ -93,6 +93,7 @@ type reviewTabState struct {
 	incremental                                          incrementalViewState
 	draft                                                draftState
 	issues                                               issueContextState
+	guideExpanded                                        bool
 	navigation                                           codeNavigation
 	search                                               [2]*diffSearchState
 	readiness                                            readinessState
@@ -516,6 +517,7 @@ func (m *Model) update(msg tea.Msg) (updated tea.Model, command tea.Cmd) {
 				}
 				m.search = [2]*diffSearchState{}
 				m.navigation = codeNavigation{}
+				m.guideExpanded = false
 				if m.issues.cancel != nil {
 					m.issues.cancel()
 				}
@@ -2140,7 +2142,7 @@ func (m *Model) cursorAnchor() (*source.ReviewCommentTarget, int64) {
 // sourceCursorRestorer preserves a read-only captured source row across layout
 // projections without assigning it a GitHub comment target.
 func (m *Model) sourceCursorRestorer() func() {
-	if m.navigation.mode == "" || m.selectedDiffTarget() != nil {
+	if m.navigation.mode == "" && !m.guideExpanded || m.selectedDiffTarget() != nil {
 		return nil
 	}
 	cursor := m.cursor()

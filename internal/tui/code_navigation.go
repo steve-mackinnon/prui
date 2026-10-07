@@ -64,7 +64,7 @@ func (m *Model) navigationDetail(file int) []diffLine {
 	if m.navigation.mode == "expanded" {
 		label := "Expanded unchanged context · pinned source · added context read-only"
 		if !expanded {
-			label = "UNAVAILABLE expanded context · full source not cached · search coverage limited to patch"
+			label = "UNAVAILABLE expanded context · full source not cached · reopen with --cache-full-source · search coverage limited to patch"
 		}
 		result = append(result, diffLine{styledLine: styledLine{classMetadata, label}})
 	}
@@ -163,6 +163,16 @@ func hideWhitespacePairs(lines []diffLine) []diffLine {
 }
 
 func (m *Model) codeNavigationKey(key string) bool {
+	if m.Session != nil && !m.Inventory && m.selectedReviewView() == viewGuide && !m.commitFilter.open && !m.commitFilter.subset && m.discussions.published == nil && m.discussions.editor == nil && (key == "ctrl+e" || key == "ctrl+d") {
+		target, commentID := m.cursorAnchor()
+		m.guideExpanded = key == "ctrl+e" && !m.guideExpanded
+		m.guideCache = guideDetailCache{}
+		m.fileCache = fileDetailCache{}
+		m.closeSearchPopovers()
+		m.restoreCursorAnchor(target, commentID)
+		m.notice = "Ctrl+E: full file context · Ctrl+D: compact guide diff"
+		return true
+	}
 	if m.Session == nil || !m.fileView() || m.selectedReviewView() != viewFiles || len(m.Session.Inventory.Files) == 0 || m.commitFilter.open || m.commitFilter.subset || m.discussions.published != nil || m.discussions.editor != nil {
 		return false
 	}
@@ -271,7 +281,7 @@ func (m *Model) navigableLine(line diffLine) bool {
 	if line.target != nil || line.commentID > 0 {
 		return true
 	}
-	if !m.fileView() || m.navigation.mode == "" {
+	if !m.guideExpanded && (!m.fileView() || m.navigation.mode == "") {
 		return false
 	}
 	if line.searchID.Unit != "" {

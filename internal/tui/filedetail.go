@@ -26,6 +26,9 @@ func (m *Model) cachedFileDetail(split bool) []diffLine {
 	navigation := m.navigation
 	if m.selectedReviewView() != viewFiles {
 		navigation = codeNavigation{}
+		if m.guideExpanded {
+			navigation.mode = "expanded"
+		}
 	}
 	c := &m.fileCache
 	if c.session != m.Session || c.navigation != navigation {
@@ -33,7 +36,7 @@ func (m *Model) cachedFileDetail(split bool) []diffLine {
 		for f, slice := range m.Session.Slices {
 			c.lines = append(c.lines, diffLine{styledLine: styledLine{Class: classFileHeader, Text: fileDivider(m.Session.Inventory.Files[f])}})
 			if navigation.mode != "" || navigation.whitespace {
-				c.lines = append(c.lines, m.navigationDetail(f)...)
+				c.lines = append(c.lines, (&Model{reviewTabState: &reviewTabState{Session: m.Session, navigation: navigation}}).navigationDetail(f)...)
 				continue
 			}
 			for _, unit := range slice.Units {

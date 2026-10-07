@@ -46,6 +46,10 @@ func anchorForLayout(detail guideDetail, r row, sideBySide bool) (int, bool) {
 // detailFor preserves guide and section order, including repeated file
 // occurrences, while inserting a visible boundary at each file transition.
 func detailFor(s *review.Session, guide int) guideDetail {
+	return guideDetailFor(s, guide, nil)
+}
+
+func guideDetailFor(s *review.Session, guide int, fullFile func(int) []diffLine) guideDetail {
 	if s == nil || s.Guides == nil || guide < 0 || guide >= len(s.Guides.Items) {
 		return guideDetail{}
 	}
@@ -58,6 +62,7 @@ func detailFor(s *review.Session, guide int) guideDetail {
 		detail.lines = append(detail.lines, lines...)
 		detail.splitLines = append(detail.splitLines, projectSideBySideDetail(lines)...)
 	}
+	seen := map[[2]int]bool{}
 	previous := -1
 	previousSection := -1
 	for si, section := range s.Guides.Items[guide].Sections {
@@ -67,22 +72,33 @@ func detailFor(s *review.Session, guide int) guideDetail {
 				continue
 			}
 			file := s.UnitFiles[unit]
+			if fullFile != nil {
+				key := [2]int{si, file}
+				if seen[key] {
+					continue
+				}
+				seen[key] = true
+			}
 			if file == previous && si != previousSection {
 				detail.files = append(detail.files, fileAnchor{section: si, file: file, offset: len(detail.lines)})
 				detail.splitFiles = append(detail.splitFiles, fileAnchor{section: si, file: file, offset: len(detail.splitLines)})
 			}
-			if file != previous && s.Inventory.Units[unit].Kind != inventory.FileMetadata {
+			if file != previous && (fullFile != nil || s.Inventory.Units[unit].Kind != inventory.FileMetadata) {
 				detail.files = append(detail.files, fileAnchor{section: si, file: file, offset: len(detail.lines)})
 				detail.splitFiles = append(detail.splitFiles, fileAnchor{section: si, file: file, offset: len(detail.splitLines)})
 				appendLines([]diffLine{{styledLine: styledLine{Class: classFileHeader, Text: fileDivider(s.Inventory.Files[file])}}})
 			}
-			if file != previous && s.Inventory.Units[unit].Kind == inventory.FileMetadata {
+			if file != previous && fullFile == nil && s.Inventory.Units[unit].Kind == inventory.FileMetadata {
 				detail.files = append(detail.files, fileAnchor{section: si, file: file, offset: len(detail.lines)})
 				detail.splitFiles = append(detail.splitFiles, fileAnchor{section: si, file: file, offset: len(detail.splitLines)})
 			}
 			previous = file
 			previousSection = si
-			appendLines(unitLines(s, unit))
+			if fullFile != nil {
+				appendLines(fullFile(file))
+			} else {
+				appendLines(unitLines(s, unit))
+			}
 		}
 	}
 	// Attach occurrence boundaries after projection so wrapping and overlays
@@ -134,10 +150,11 @@ func (m *Model) syncGuideToLine(index int) {
 // immutable; selecting another snapshot or replacing its bundle misses the cache.
 // Overlay/editor rows and styled text are built separately, never cached here.
 type guideDetailCache struct {
-	session *review.Session
-	bundle  *guide.Bundle
-	index   int
-	detail  guideDetail
+	expanded bool
+	session  *review.Session
+	bundle   *guide.Bundle
+	index    int
+	detail   guideDetail
 }
 
 func (m *Model) cachedGuideDetail(index int) guideDetail {
@@ -145,8 +162,14 @@ func (m *Model) cachedGuideDetail(index int) guideDetail {
 		return guideDetail{}
 	}
 	c := &m.guideCache
-	if c.session != m.Session || c.bundle != m.Session.Guides || c.index != index {
-		*c = guideDetailCache{session: m.Session, bundle: m.Session.Guides, index: index, detail: detailFor(m.Session, index)}
+	if c.session != m.Session || c.bundle != m.Session.Guides || c.index != index || c.expanded != m.guideExpanded {
+		*c = guideDetailCache{session: m.Session, bundle: m.Session.Guides, index: index, expanded: m.guideExpanded}
+		if m.guideExpanded {
+			projection := &Model{reviewTabState: &reviewTabState{Session: m.Session, navigation: codeNavigation{mode: "expanded"}}}
+			c.detail = guideDetailFor(m.Session, index, projection.navigationDetail)
+		} else {
+			c.detail = detailFor(m.Session, index)
+		}
 	}
 	return c.detail
 }
