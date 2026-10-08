@@ -228,6 +228,10 @@ beyond highlighting limits use the normal source foreground. Colors follow the
 active theme; colored `+`/`-` markers and full-row green/red backgrounds keep
 additions and deletions distinct. Ordinary source stays the same color whether
 or not a line has syntax tokens, and changed-word emphasis preserves token colors.
+Functions, types, macros, constants, attributes, and built-ins use separate token
+categories where Chroma recognizes them, with configurable symbol colors. Rust
+function calls and many custom type uses remain plain because its lexer does not
+classify them. Saved reviews retain the categories captured when they were opened.
 See the [user reference](docs/REFERENCE.md) for all controls and limitations,
 or run `prui --help` for command syntax.
 

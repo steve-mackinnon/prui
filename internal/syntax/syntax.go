@@ -21,6 +21,13 @@ const (
 	Comment
 	Name
 	Operator
+	// Append categories: numeric values are persisted in saved reviews.
+	Function
+	Type
+	Macro
+	Constant
+	Attribute
+	Builtin
 )
 
 // Span uses byte offsets in a raw source line, excluding its patch marker.
@@ -57,6 +64,7 @@ func Tokenize(ctx context.Context, path string, source []byte) (lines Lines) {
 		return nil
 	}
 	lines = Lines{}
+	rust := lexer.Config().Name == "Rust"
 	line, column, offset, count := 1, 0, 0, 0
 	deadline := time.Now().Add(100 * time.Millisecond)
 	for {
@@ -73,6 +81,11 @@ func Tokenize(ctx context.Context, path string, source []byte) (lines Lines) {
 		}
 		offset += len(token.Value)
 		kind := category(token.Type)
+		// Chroma uses FunctionMagic for Rust macros, but also for ordinary
+		// special methods in other languages (for example Python's __init__).
+		if rust && token.Type == chroma.NameFunctionMagic && strings.HasSuffix(token.Value, "!") {
+			kind = Macro
+		}
 		parts := strings.Split(token.Value, "\n")
 		for i, part := range parts {
 			if i > 0 {
@@ -96,6 +109,18 @@ func Tokenize(ctx context.Context, path string, source []byte) (lines Lines) {
 }
 
 func category(t chroma.TokenType) Kind {
+	switch t {
+	case chroma.KeywordType, chroma.NameClass:
+		return Type
+	case chroma.KeywordConstant, chroma.NameConstant:
+		return Constant
+	case chroma.NameFunction, chroma.NameFunctionMagic:
+		return Function
+	case chroma.NameAttribute, chroma.NameDecorator, chroma.CommentPreproc, chroma.CommentPreprocFile:
+		return Attribute
+	case chroma.NameBuiltin, chroma.NameBuiltinPseudo:
+		return Builtin
+	}
 	switch {
 	case t.InCategory(chroma.Keyword):
 		return Keyword

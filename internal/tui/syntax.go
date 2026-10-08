@@ -21,7 +21,7 @@ func escapedSpans(raw []byte, spans []syntax.Span) []syntax.Span {
 	}
 	end, display := 0, 1
 	for _, s := range spans {
-		if s.Start < end || s.End <= s.Start || s.End > len(raw) || s.Kind < syntax.Keyword || s.Kind > syntax.Operator || (s.Start < len(raw) && !utf8.RuneStart(raw[s.Start])) || (s.End < len(raw) && !utf8.RuneStart(raw[s.End])) {
+		if s.Start < end || s.End <= s.Start || s.End > len(raw) || s.Kind < syntax.Keyword || s.Kind > syntax.Builtin || (s.Start < len(raw) && !utf8.RuneStart(raw[s.Start])) || (s.End < len(raw) && !utf8.RuneStart(raw[s.End])) {
 			continue
 		}
 		display += len(Escape(string(raw[end:s.Start])))
@@ -203,6 +203,18 @@ func (m *Model) sourceText(line diffLine, horizontal, width int, prefix string, 
 			token = theme.Title
 		case syntax.Operator:
 			token = theme.FileHeader
+		case syntax.Function:
+			token = theme.SyntaxFunction
+		case syntax.Type:
+			token = theme.SyntaxType
+		case syntax.Macro:
+			token = theme.SyntaxMacro
+		case syntax.Constant:
+			token = theme.SyntaxConstant
+		case syntax.Attribute:
+			token = theme.SyntaxAttribute
+		case syntax.Builtin:
+			token = theme.SyntaxBuiltin
 		}
 		c, ok := m.theme.Color(token)
 		if ok {

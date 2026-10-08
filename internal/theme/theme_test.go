@@ -48,6 +48,28 @@ func TestTerminalUsesInheritedChromeAndSemanticAccents(t *testing.T) {
 	}
 }
 
+func TestSymbolPaletteIsIndependentOfChromeOverrides(t *testing.T) {
+	for _, name := range BuiltInNames() {
+		base, err := Resolve(name, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		custom, err := Resolve(name, map[Token]string{Warning: "red", FocusedBorder: "red", SyntaxFunction: "#123456"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if custom.Syntax(SyntaxFunction) != "#123456" || custom.Syntax(SyntaxType) != base.Syntax(SyntaxType) {
+			t.Fatalf("%s: syntax override mixed with chrome", name)
+		}
+		if base.Syntax(SyntaxFunction) == base.Syntax(FocusedBorder) {
+			t.Fatalf("%s: functions indistinguishable from keywords", name)
+		}
+		if base.Syntax(SyntaxType) == base.Syntax(Foreground) || base.Syntax(SyntaxMacro) == base.Syntax(Foreground) {
+			t.Fatalf("%s: symbols use plain foreground", name)
+		}
+	}
+}
+
 func TestParseColorAcceptsDocumentedSyntax(t *testing.T) {
 	for _, input := range []string{
 		"#112233", "#AABBCC", "0", "15", "255", "default",

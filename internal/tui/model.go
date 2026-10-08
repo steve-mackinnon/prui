@@ -482,7 +482,7 @@ func (m *Model) update(msg tea.Msg) (updated tea.Model, command tea.Cmd) {
 		}
 		return m, nextLoadingTick()
 	case editorCursorTick:
-		if (m.Composer == nil && (m.CommentMenu == nil || m.CommentMenu.mode != commentActionReply)) || v.generation != m.editorCursorGeneration {
+		if (m.Composer == nil && (m.CommentMenu == nil || m.CommentMenu.mode != commentActionReply) && !m.searchOpen()) || v.generation != m.editorCursorGeneration {
 			return m, nil
 		}
 		m.editorCursorVisible = !m.editorCursorVisible
