@@ -332,13 +332,19 @@ func (m *Model) commitKey(key string) {
 		if key == "k" || key == "up" {
 			delta = -1
 		}
-		if key == "d" || key == "pgdown" {
+		if key == "d" {
+			delta = fastScrollStep
+		}
+		if key == "u" {
+			delta = -fastScrollStep
+		}
+		if key == "pgdown" {
 			delta = m.bodyHeight()
 			if m.commit.focus == paneList {
 				delta = max(1, m.bodyHeight()/2)
 			}
 		}
-		if key == "u" || key == "pgup" {
+		if key == "pgup" {
 			delta = -m.bodyHeight()
 			if m.commit.focus == paneList {
 				delta = -max(1, m.bodyHeight()/2)

@@ -482,10 +482,16 @@ func (m *Model) overviewKey(key string) (tea.Cmd, bool) {
 		delta = diffStep
 	case "K", "shift+k":
 		delta = -diffStep
-	case "d", "pgdown":
+	case "d":
+		m.pageOverviewCursor(fastScrollStep)
+		return nil, true
+	case "pgdown":
 		m.pageOverviewCursor(m.overviewHeight())
 		return nil, true
-	case "u", "pgup":
+	case "u":
+		m.pageOverviewCursor(-fastScrollStep)
+		return nil, true
+	case "pgup":
 		m.pageOverviewCursor(-m.overviewHeight())
 		return nil, true
 	case "home":

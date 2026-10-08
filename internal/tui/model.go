@@ -37,6 +37,7 @@ const (
 )
 
 const diffStep = 5
+const fastScrollStep = 15
 
 // reviewView is deliberately UI-local: frozen sessions record source review
 // content, while an open workspace tab owns which surface the reviewer sees.
@@ -1160,9 +1161,9 @@ func (m *Model) update(msg tea.Msg) (updated tea.Model, command tea.Cmd) {
 		case "K":
 			m.scroll(-diffStep)
 		case "d":
-			m.scroll(m.pageStep())
+			m.scroll(fastScrollStep)
 		case "u":
-			m.scroll(-m.pageStep())
+			m.scroll(-fastScrollStep)
 		case "pgdown":
 			m.scroll(m.pageStep())
 		case "pgup":

@@ -87,9 +87,13 @@ func (m *Model) readinessKey(key string) tea.Cmd {
 		m.readiness.scroll++
 	case "k", "up":
 		m.readiness.scroll = max(0, m.readiness.scroll-1)
-	case "d", "pgdown":
+	case "d":
+		m.readiness.scroll += fastScrollStep
+	case "pgdown":
 		m.readiness.scroll += m.pageStep()
-	case "u", "pgup":
+	case "u":
+		m.readiness.scroll = max(0, m.readiness.scroll-fastScrollStep)
+	case "pgup":
 		m.readiness.scroll = max(0, m.readiness.scroll-m.pageStep())
 	case "home":
 		m.readiness.scroll = 0
