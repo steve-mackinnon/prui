@@ -5,22 +5,26 @@ User-visible changes are recorded here before each release. See
 
 ## [Unreleased]
 
-### Fixed
-
-- Move through Files diff headers and metadata one display row at a time with j/k.
-
-- Restore J/K scrolling of the source diff in Commits, including while the commit list is focused.
-
-- Prevent a crash when opening a discussion comment's original line before browsing Commits.
-
-- Submit all pending comments with a Comment review without adding a summary.
-
-- Render discussion Markdown and embedded HTML as readable prose, hide bot
-  metadata, and expand collapsed details in place in the Overview feed.
-- Separate descriptions and discussions with bordered cards, keep a visible
-  page cursor while scrolling, and compose comments and replies inside the feed.
+## [0.3.0]
 
 ### Added
+
+- Recover unsent inline comments, replies, pending reviews, and general PR
+  conversation drafts privately, including offline recovery and reconciliation
+  after uncertain submissions.
+- Edit published comments and resolve or reopen review threads with explicit
+  GitHub actions; compose range and file comments alongside line comments.
+- Compare changes since a previous saved review and carry reading progress only
+  when captured source proves the file unchanged.
+- Inspect live checks, required reviews, and merge policy with `Alt+R`; use `l`
+  there for separately confirmed merge, auto-merge, queue, draft/ready, and
+  close/reopen actions.
+- Browse a cached cross-repository review inbox with `prui inbox`, with explicit
+  refresh, filters, local activity tracking, and offline access.
+- Read requested reviewers and linked GitHub or authorized Linear issue context
+  with `I`, independently of frozen code and AI guides.
+- Group files by category, collapse generated files, find changed paths, and
+  retain split/unified layouts and pane widths across runs.
 
 - Select the next or previous search match with `n` or `N` while results are focused, or jump between retained matches directly from the diff.
 
@@ -43,7 +47,38 @@ User-visible changes are recorded here before each release. See
 
 - Add full foreground/background theming with 22 named presets, bringing the catalog to 26 themes, and group the theme picker into Dark and Light sections with candidate previews.
 
+### Changed
+
+- Make added and removed diff rows stand out with stronger, full-width green/red backgrounds, including blank lines and files without syntax highlighting.
+
+- Simplify the Generate guide dialog with a centered header, distinct field labels and values, and grouped consent and keyboard help.
+
+- Default OpenAI reading guides to `gpt-6.1-sol`; configured and remembered model choices still take precedence.
+
+- Show only the active guide, keep its copy expanded, pin its position tracker, and continue diff navigation across guides.
+
+- Promote Guide to a top-level tab alongside Description, Files, and Commits, with number shortcuts 1–4.
+
+- Wrap diff lines at word boundaries in unified and side-by-side views; use left/right to scroll long tokens.
+
+- Replace the working indicator with a single-cell breathing-dot animation beside the loading label.
+
+- Emphasize changed words in paired diff lines with bold and underline.
+
 ### Fixed
+
+- Move through Files diff headers and metadata one display row at a time with j/k.
+
+- Restore J/K scrolling of the source diff in Commits, including while the commit list is focused.
+
+- Prevent a crash when opening a discussion comment's original line before browsing Commits.
+
+- Submit all pending comments with a Comment review without adding a summary.
+
+- Render discussion Markdown and embedded HTML as readable prose, hide bot
+  metadata, and expand collapsed details in place in the Overview feed.
+- Separate descriptions and discussions with bordered cards, keep a visible
+  page cursor while scrolling, and compose comments and replies inside the feed.
 
 - Wrap long inline comment and reply drafts within the editor, keeping the caret visible without changing submitted text.
 
@@ -71,21 +106,23 @@ User-visible changes are recorded here before each release. See
 
 - Open the Guide tab at the first section instead of following the current file selection.
 
-### Changed
+- Scroll 15 lines with `d`/`u` and keep cursor and line numbers aligned in Files,
+  Guide, and Commits.
+- Preserve quotes and backslashes in displayed source, highlight expanded and
+  full pinned source, and retain historical review threads on unchanged code.
 
-- Make added and removed diff rows stand out with stronger, full-width green/red backgrounds, including blank lines and files without syntax highlighting.
+### Compatibility
 
-- Simplify the Generate guide dialog with a centered header, distinct field labels and values, and grouped consent and keyboard help.
-
-- Default OpenAI reading guides to `gpt-6.1-sol`; configured and remembered model choices still take precedence.
-
-- Show only the active guide, keep its copy expanded, pin its position tracker, and continue diff navigation across guides.
-
-- Promote Guide to a top-level tab alongside Description, Files, and Commits, with number shortcuts 1–4.
-
-- Wrap diff lines at word boundaries in unified and side-by-side views; use left/right to scroll long tokens.
-
-- Replace the working indicator with a single-cell breathing-dot animation beside the loading label.
+- Requires Git and an authenticated GitHub CLI (`gh`); binaries remain available
+  for macOS and Linux on ARM64 and AMD64.
+- Saved draft payloads now include range, suggestion, and general conversation
+  state. Earlier binaries reject and preserve newer unsupported draft records;
+  reopen them with this release to recover the work. Back up the private local
+  data directory before downgrading. No manual data migration is required.
+- Guide is now a top-level tab and tab shortcuts are `1`–`4`. Existing configured
+  guide models still take precedence over the new default.
+- `v0.2.0` was tagged but did not publish because its changelog release section
+  was missing. This release includes the changes since published `v0.1.0`.
 
 ## [0.1.0]
 
