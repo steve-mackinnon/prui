@@ -79,9 +79,10 @@ func completePalette(c paletteColors) map[Token]string {
 // roles let users tune code without changing warnings, borders, or diff markers.
 func syntaxPalette(base map[Token]string, appearance Appearance) map[Token]string {
 	typeColor, macroColor, constantColor := "#79c0c0", "#d2a8ff", "#ffa657"
-	if appearance == AppearanceLight {
+	switch appearance {
+	case AppearanceLight:
 		typeColor, macroColor, constantColor = "#055d73", "#6639ba", "#953800"
-	} else if appearance == AppearanceTerminal {
+	case AppearanceTerminal:
 		typeColor, macroColor, constantColor = "cyan", "magenta", "bright-yellow"
 	}
 	return map[Token]string{
