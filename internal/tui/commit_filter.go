@@ -379,7 +379,8 @@ func (m *Model) filteredReviewView(title string) string {
 			right = rows[i].Text
 			rc = rows[i].Class
 			if !split {
-				right = m.syntaxText(rows[i], f.horizontal, m.detailWidth(), "")
+				presented := m.presentUnifiedDiffLine(rows[i], f.horizontal, m.detailWidth(), "")
+				right, rc = presented.Text, presented.Class
 			}
 		}
 		lines = append(lines, m.paneBodyRow(styledLine{Class: lc, Text: left}, styledLine{Class: rc, Text: right}, m.listWidth(), m.detailWidth(), f.readingFocus, paneBodyBorders{classPaneBorder, classPaneBorder, classPaneBorder}))

@@ -572,7 +572,7 @@ func TestDiffCursorMovesBetweenCommentTargetsAndKeepsThemVisible(t *testing.T) {
 		t.Fatalf("initial cursor target = %#v, want first commentable context line", got)
 	}
 	view := ansi.Strip(m.View().Content)
-	if !strings.Contains(view, "›  context") {
+	if !strings.Contains(view, "›    1    1  context") {
 		t.Fatalf("initial comment target is not visibly marked:\n%s", view)
 	}
 	if !strings.Contains(view, "│  ── text") {

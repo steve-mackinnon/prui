@@ -3,8 +3,8 @@ example/review #42
 ┌ Commits [C] · 1 selected · Selected┬ Net diff · 1 selected ──────────────────────────────────────────────────────────┐
 │› main.go                           │── main.go                                                                       │
 │  README.md                         │@@ -1 +1 @@                                                                      │
-│                                    │-old greeting                                                                    │
-│                                    │+hello world                                                                     │
+│                                    │   1      -old greeting                                                          │
+│                                    │        1 +hello world                                                           │
 │                                    │                                                                                 │
 │                                    │                                                                                 │
 └────────────────────────────────────┴─────────────────────────────────────────────────────────────────────────────────┘

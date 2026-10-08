@@ -126,6 +126,7 @@ type reviewTabState struct {
 	cursorActive                                         bool
 	Horizontal                                           int
 	listWidthPreference                                  int
+	hideLineNumbers                                      bool
 	layout                                               diffLayout
 	diffWrapCache                                        diffWrapCache
 	guidePathOffset, guidePathPause, guidePathGeneration int
@@ -990,6 +991,10 @@ func (m *Model) update(msg tea.Msg) (updated tea.Model, command tea.Cmd) {
 				if cmd, handled := m.overviewKey(v.String()); handled {
 					return m, cmd
 				}
+			}
+			if v.String() == "L" && (m.diffReviewView() || m.selectedReviewView() == viewCommits) {
+				m.toggleLineNumbers()
+				return m, nil
 			}
 			if m.selectedReviewView() == viewCommits && v.String() != "?" && v.String() != "U" {
 				if v.String() == "enter" && m.commit.focus == paneDiff {

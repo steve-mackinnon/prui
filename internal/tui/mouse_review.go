@@ -121,6 +121,7 @@ func (m *Model) mouseReviewClick(x, y int) tea.Cmd {
 		if m.cursorActive {
 			gutter = 2
 		}
+		gutter += visibleWidth(m.lineNumberPrefix(line))
 		local := x - g.Detail.Min.X
 		if local >= gutter+visibleWidth(text) {
 			return nil

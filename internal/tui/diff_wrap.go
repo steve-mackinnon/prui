@@ -9,6 +9,10 @@ import (
 // Wrap source before attaching overlays so every visual row participates in
 // scrolling and cursor navigation. Unbroken tokens stay intact for panning.
 func wrapDiffLines(lines []diffLine, width int) []diffLine {
+	return wrapDiffLinesWithNumbers(lines, width, true)
+}
+
+func wrapDiffLinesWithNumbers(lines []diffLine, width int, numbers bool) []diffLine {
 	var result []diffLine
 	for _, line := range lines {
 		if line.sideBySide == nil || line.sideBySide.full != nil {
@@ -27,6 +31,10 @@ func wrapDiffLines(lines []diffLine, width int) []diffLine {
 		}
 		row := *line.sideBySide
 		bounds, _ := splitCellBounds(width)
+		gutter := 2
+		if numbers {
+			gutter = 8
+		}
 		wrapCell := func(cell *diffCell) []*diffCell {
 			if cell == nil || cell.line == nil {
 				return nil
@@ -34,7 +42,7 @@ func wrapDiffLines(lines []diffLine, width int) []diffLine {
 			marker, text := splitPatchMarker(cell.line.Text)
 			var cells []*diffCell
 			offset := len(marker)
-			for _, part := range strings.Split(ansi.Wordwrap(text, max(1, bounds.Dx()-8), ""), "\n") {
+			for _, part := range strings.Split(ansi.Wordwrap(text, max(1, bounds.Dx()-gutter), ""), "\n") {
 				source := wrappedSyntax(*cell.line, part, &offset)
 				source.Text = marker + part
 				copy := *cell
@@ -70,6 +78,9 @@ type diffWrapCache struct {
 func (m *Model) wrapSource(lines []diffLine) []diffLine {
 	// Reserve cursor gutters even while the list is focused to keep row positions stable.
 	width := max(1, m.detailWidth()-2)
+	if m.lineNumbersEnabled() && !m.sideBySideEnabled() {
+		width = max(1, width-10)
+	}
 	if len(lines) > 0 && lines[0].sideBySide != nil {
 		width = max(1, m.detailWidth()-4)
 	}
@@ -77,7 +88,7 @@ func (m *Model) wrapSource(lines []diffLine) []diffLine {
 	if len(lines) > 0 && len(cache.source) == len(lines) && cache.width == width && &cache.source[0] == &lines[0] {
 		return cache.rows
 	}
-	rows := wrapDiffLines(lines, width)
+	rows := wrapDiffLinesWithNumbers(lines, width, m.lineNumbersEnabled())
 	*cache = diffWrapCache{source: lines, rows: rows, width: width}
 	return rows
 }

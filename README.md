@@ -135,6 +135,7 @@ For offline reading, list session IDs with `prui sessions`, then run
 | `j` / `k` | Select files or guide rows |
 | `h` / `l` | Focus list / diff |
 | Up / down | Scroll the focused diff |
+| `L` | Toggle line numbers across Files, Guide, and Commits in this review tab |
 | `m` | Mark or unmark a file as read |
 | `/` | Find code text across Files or within the current Guide section |
 | `F` | Filter Files by filename or path; Enter keeps the filter, Escape clears it |
