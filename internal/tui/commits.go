@@ -361,7 +361,11 @@ func (m *Model) commitsView() string {
 	rail := m.commitRail()
 	rows := m.commitRows()
 	offset := m.commitOffset()
-	rows = rows[offset:min(len(rows), offset+m.bodyHeight())]
+	activeLine := offset
+	if m.commit.focus == paneDiff {
+		activeLine = max(offset, m.commitCursor())
+	}
+	rows, _ = diffViewport(rows, offset, m.bodyHeight(), activeLine, false)
 	leftLabel := fmt.Sprintf("Commits · %d/%d", min(len(m.commitEntries()), m.commit.selected+1), len(m.commitEntries()))
 	rightLabel := "Commit diff · enter/l: focus"
 	if len(m.commitEntries()) > 0 {
@@ -396,7 +400,8 @@ func (m *Model) commitsView() string {
 			row := rows[i]
 			numbered := numberedPatchText(row)
 			prefix := numbered[:len(numbered)-len(row.Text)]
-			r, rc = m.syntaxText(row, 0, right, prefix), sourceLineClass(row.Class)
+			presented := m.presentUnifiedDiffLine(row, 0, right, prefix)
+			r, rc = presented.Text, presented.Class
 			if focus == paneDiff && offset+i == m.commitCursor() {
 				rc = classSelectionFocused
 			}

@@ -2601,44 +2601,16 @@ func (m *Model) reviewViewForLayout(preferSideBySide bool) string {
 		selected = m.selectedDiffTargetForLine(detail[cursor])
 	}
 	offset := min(m.offset(), max(0, len(detail)-1))
-	activeHeader := -1
 	activeLine := offset
 	if m.Focus == paneDiff && m.cursorActive && cursor >= 0 {
 		activeLine = cursor
 	} else if m.fileView() {
 		activeLine = m.fileOffset(s.UnitFiles[m.Selected])
 	}
-	for i, line := range detail {
-		if i > activeLine {
-			break
-		}
-		if line.Class == classFileHeader && strings.HasPrefix(line.Text, "── ") {
-			activeHeader = i
-		}
-	}
-	// Copy the viewport so selection styling never changes cached source rows.
-	sticky := stickyFileHeader(detail, offset)
+	detail, sticky := diffViewport(detail, offset, bodyHeight, activeLine, true)
 	var pinned diffLine
-	if sticky >= 0 && bodyHeight > 1 {
-		pinned = detail[sticky]
-	}
-	detail = append([]diffLine(nil), detail[offset:min(len(detail), offset+bodyHeight)]...)
-	if i := activeHeader - offset; i >= 0 && i < len(detail) {
-		detail[i].Class = classSelection
-		if detail[i].sideBySide != nil && detail[i].sideBySide.full != nil {
-			row := *detail[i].sideBySide
-			full := *row.full
-			full.Class = classSelection
-			row.full = &full
-			detail[i].sideBySide = &row
-		}
-	}
-	if sticky >= 0 && bodyHeight > 1 {
-		// Replace only the occluded top row; source indexes and bottom geometry stay stable.
-		detail[0] = pinned
-		if sticky == activeHeader {
-			detail[0].Class = classSelection
-		}
+	if sticky >= 0 {
+		pinned = detail[0]
 	}
 	if useSideBySide {
 		detail = m.renderSideBySideViewport(detail, m.detailWidth(), m.Horizontal, cursor-offset, selected)
@@ -2650,9 +2622,6 @@ func (m *Model) reviewViewForLayout(preferSideBySide bool) string {
 		if i == 0 && sticky >= 0 && bodyHeight > 1 {
 			detail[i].Text = pinned.Text
 			detail[i].Class = pinned.Class
-			if sticky == activeHeader {
-				detail[i].Class = classSelection
-			}
 			if m.cursorActive {
 				detail[i].Text = cursorMarker(false) + pinned.Text
 			}
@@ -2669,8 +2638,7 @@ func (m *Model) reviewViewForLayout(preferSideBySide bool) string {
 			detail[i].Text = marker + line.Text
 			continue
 		}
-		detail[i].Text = m.syntaxText(line, m.Horizontal, m.detailWidth(), marker)
-		detail[i].Class = sourceLineClass(line.Class)
+		detail[i].styledLine = m.presentUnifiedDiffLine(line, m.Horizontal, m.detailWidth(), marker)
 	}
 	body := []string{}
 	borders := paneBodyBorders{paneBorderClass(m.Focus == paneList), classPaneBorderFocused, paneBorderClass(m.Focus == paneDiff)}
