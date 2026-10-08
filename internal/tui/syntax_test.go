@@ -92,3 +92,53 @@ func TestSyntaxThemeColorsSurviveDiffAndSelectionStyles(t *testing.T) {
 		}
 	}
 }
+
+func TestSymbolColorsSurviveDiffGeometry(t *testing.T) {
+	raw := []byte("\tα function type macro constant attribute builtin\x1b")
+	roles := []struct {
+		text  string
+		kind  syntax.Kind
+		token theme.Token
+	}{
+		{"function", syntax.Function, theme.SyntaxFunction}, {"type", syntax.Type, theme.SyntaxType},
+		{"macro", syntax.Macro, theme.SyntaxMacro}, {"constant", syntax.Constant, theme.SyntaxConstant},
+		{"attribute", syntax.Attribute, theme.SyntaxAttribute}, {"builtin", syntax.Builtin, theme.SyntaxBuiltin},
+	}
+	var spans []syntax.Span
+	overrides := map[theme.Token]string{}
+	for i, role := range roles {
+		start := strings.Index(string(raw), role.text)
+		spans = append(spans, syntax.Span{Start: start, End: start + len(role.text), Kind: role.kind})
+		overrides[role.token] = []string{"#ff0000", "#00ff00", "#0000ff", "#ffff00", "#ff00ff", "#00ffff"}[i]
+	}
+	for _, name := range []string{theme.Dark, theme.GitHubLight, theme.Terminal} {
+		palette, err := theme.Resolve(name, overrides)
+		if err != nil {
+			t.Fatal(err)
+		}
+		m := &Model{theme: palette, styles: stylesFor(palette), colorProfile: colorprofile.TrueColor}
+		line := diffLine{styledLine: styledLine{classAdded, "+" + Escape(string(raw))}, syntax: escapedSpans(raw, spans)}
+		if len(line.syntax) != len(roles) {
+			t.Fatal("new categories dropped during escaping")
+		}
+		for _, class := range []lineClass{classAdded, classRemoved, classSelection} {
+			cells := canvasCells(m.styleLine(class, m.syntaxText(line, 0, 120, "")), 120, 1)
+			for _, role := range roles {
+				x := visibleWidth(line.Text[:strings.Index(line.Text, role.text)])
+				expected, _ := palette.Color(role.token)
+				if !sameCanvasColor(cells.CellAt(x, 0).Style.Fg, expected) {
+					t.Fatalf("%s: lost %s color", name, role.text)
+				}
+			}
+		}
+		for _, row := range wrapDiffLines([]diffLine{line}, 19) {
+			if got := ansi.Strip(m.syntaxText(row, 2, 16, "› ")); got != "› "+clip(string([]rune(row.Text)[2:]), 14) {
+				t.Fatalf("wrapped text changed: %q", got)
+			}
+		}
+		m.colorProfile = colorprofile.NoTTY
+		if got := m.syntaxText(line, 0, 120, ""); got != line.Text {
+			t.Fatal("colorless text changed")
+		}
+	}
+}

@@ -5,6 +5,12 @@ User-visible changes are recorded here before each release. See
 
 ## [Unreleased]
 
+### Changed
+
+- Richer diff syntax highlighting distinguishes functions, types, Rust macros,
+  constants, attributes, and built-ins where supported by the language lexer.
+  Symbol colors can be configured independently of the rest of the interface.
+
 ## [0.3.0]
 
 ### Added
