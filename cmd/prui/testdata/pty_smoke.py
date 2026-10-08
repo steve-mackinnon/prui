@@ -326,7 +326,7 @@ def main():
         terminal.wait_for("╭")
         terminal.wait_for("› Files [2]")
         terminal.key(b"j", "› [ ] cccccccccccc")
-        terminal.key(b"\r", "1 selected")
+        terminal.key(b"\r", "1 commits")
         start = len(terminal.output)
         os.write(terminal.master, b"\x1b")
         terminal.wait_until(lambda screen: "╭" not in screen and
@@ -334,9 +334,9 @@ def main():
                             "close commit modal", start)
         terminal.wait_for("reading only")
         terminal.key(b"C", "╭")
-        terminal.wait_for("1 selected")
-        terminal.key(b"\x1b[H", "› [ ] All changes")
-        terminal.key(b"\r", "All changes")
+        terminal.wait_for("1 commits")
+        terminal.key(b"\x1b[H", "› [ ] All commits")
+        terminal.key(b"\r", "All commits")
         start = len(terminal.output)
         os.write(terminal.master, b"\x1b")
         terminal.wait_until(lambda screen: "╭" not in screen and "0/2 read" in screen,
@@ -381,7 +381,7 @@ def main():
                             "return from help", start)
         terminal.quit(b"\x03")
     print("PASS resume, keyboard marking, resize, help/back, Ctrl+C, restoration")
-    print("PASS offline commit picker, legacy source state, and All changes restoration")
+    print("PASS offline commit picker, legacy source state, and All commits restoration")
 
     with Terminal(binary, resume, environment) as terminal:
         terminal.wait_for("1/2 read")

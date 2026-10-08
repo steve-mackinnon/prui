@@ -1,6 +1,6 @@
 example/review #42
   PRs [P]    Overview [1]  › Files [2]    Guide [3]    Commi
-┌ Files · ▽ Filter (F) · Commits [C] · All changes · Find (┐
+┌ Files · ▽ Filter (F) · Commits [C] · All commits · Find (┐
 │── main.go                                                │
 │@@ -1 +1 @@                                               │
 │   1      -old greeting                                   │

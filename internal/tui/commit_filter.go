@@ -43,9 +43,9 @@ type commitFilterResult struct {
 
 func (m *Model) commitFilterLabel() string {
 	if m.commitFilter.subset {
-		return fmt.Sprintf("%d selected", len(m.commitFilter.selected))
+		return fmt.Sprintf("%d commits", len(m.commitFilter.selected))
 	}
-	return "All changes"
+	return "All commits"
 }
 func (m *Model) openCommitFilter() {
 	m.commitFilter.open = true
@@ -192,7 +192,7 @@ func (m *Model) commitFilterPickerRows() []string {
 	var rows []string
 	for i := f.offset; i < min(count, f.offset+height); i++ {
 		checked := !f.subset
-		label := "All changes"
+		label := "All commits"
 		if i > 0 {
 			e := m.commitEntries()[i-1]
 			checked = f.subset && f.selected[e.SHA]
@@ -340,7 +340,10 @@ func (m *Model) filteredRows() []diffLine {
 }
 func (m *Model) filteredReviewView(title string) string {
 	f := &m.commitFilter
-	label := "Selected files"
+	label := ""
+	if len(f.inventory.Files) > 0 {
+		label = fmt.Sprintf("file %d/%d", f.file+1, len(f.inventory.Files))
+	}
 	if m.selectedReviewView() == viewGuide {
 		label = "Guide · full PR interpretation"
 	}
@@ -385,11 +388,11 @@ func (m *Model) filteredReviewView(title string) string {
 		}
 		lines = append(lines, m.paneBodyRow(styledLine{Class: lc, Text: left}, styledLine{Class: rc, Text: right}, m.listWidth(), m.detailWidth(), f.readingFocus, paneBodyBorders{classPaneBorder, classPaneBorder, classPaneBorder}))
 	}
-	footer := "Selected commits: reading only; use All changes for source/search or marking files.\nR: review PR · C: filter commits"
+	footer := "Selected commits: reading only; use All commits for source/search or marking files.\nR: review PR · C: filter commits"
 	if m.Height < 10 {
 		footer = "Reading only · C: commits · R: review PR"
 	}
-	return title + "\n" + frame.paneFrameHeader("Commits [C] · "+m.commitFilterLabel()+" · "+label, "Net diff · "+m.commitFilterLabel()) + "\n" + strings.Join(lines, "\n") + "\n" + frame.paneFrameFooter() + "\n" + footer
+	return title + "\n" + frame.reviewPaneHeader(label) + "\n" + strings.Join(lines, "\n") + "\n" + frame.paneFrameFooter() + "\n" + footer
 }
 func (m *Model) commitFilterMouse(msg tea.MouseMsg) (tea.Cmd, bool) {
 	event := msg.Mouse()
@@ -649,23 +652,23 @@ func (m *Model) filteredGuideExplanation(file inventory.FileChange) []diffLine {
 
 func (m *Model) commitFilterControlContains(x int) bool {
 	start := 2
-	if !m.commitFilter.subset && len(m.Session.Inventory.Units) == 0 {
+	empty := !m.commitFilter.subset && len(m.Session.Inventory.Units) == 0
+	switch {
+	case empty:
 		start = 0
-	}
-	if !m.commitFilter.subset && len(m.Session.Inventory.Units) > 0 {
-		if m.Width >= 100 {
-			start = m.listWidth() + 3
-		} else {
-			label, _ := m.fileFilterHeader()
-			start += visibleWidth(label + " · ")
+	case m.Width >= 100:
+		start = m.listWidth() + 3
+	default:
+		label, _ := m.fileFilterHeader()
+		if m.selectedReviewView() == viewGuide {
+			label = "Guide"
 		}
+		if m.Inventory {
+			label = "Full inventory (i)"
+		}
+		start += visibleWidth(label + " · ")
 	}
-	end := start + visibleWidth("Commits [C] · "+m.commitFilterLabel())
-	if m.Width >= 100 && (m.commitFilter.subset || len(m.Session.Inventory.Units) == 0) {
-		end = min(end, m.listWidth()+1)
-	} else {
-		end = min(end, m.Width-1)
-	}
+	end := min(start+visibleWidth("Commits [C] · "+m.commitFilterLabel()), m.Width-1)
 	return x >= start && x < end
 }
 func (m *Model) resetCommitFilter() {

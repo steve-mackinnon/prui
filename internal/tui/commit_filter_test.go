@@ -295,7 +295,9 @@ func TestCommitFilterMouseDerivedOnlyNarrow(t *testing.T) {
 	if f.open {
 		t.Fatal("out of bounds control click")
 	}
-	m.Update(tea.MouseClickMsg{X: 3, Y: 2, Button: tea.MouseLeft})
+	header := strings.Split(ansi.Strip(m.View().Content), "\n")[2]
+	start := strings.Index(header, "Commits [C]")
+	m.Update(tea.MouseClickMsg{X: visibleWidth(header[:start]), Y: 2, Button: tea.MouseLeft})
 	if !f.open {
 		t.Fatal("visible control not clickable")
 	}
@@ -316,9 +318,9 @@ func TestCommitFilterControlHitRange(t *testing.T) {
 		t.Fatal("Commits label missed")
 	}
 	key(m, 'C')
-	m.Update(tea.MouseClickMsg{X: start + visibleWidth("Commits [C] · All changes") - 1, Y: 2, Button: tea.MouseLeft})
+	m.Update(tea.MouseClickMsg{X: start + visibleWidth("Commits [C] · All commits") - 1, Y: 2, Button: tea.MouseLeft})
 	if !m.commitFilter.open {
-		t.Fatal("All changes label missed")
+		t.Fatal("All commits label missed")
 	}
 }
 func TestCommitFilterGuideNavigationOrderAndInterpretation(t *testing.T) {
@@ -421,5 +423,44 @@ func TestCommitFilterDividerResize(t *testing.T) {
 				t.Fatal("modal allowed background resize")
 			}
 		})
+	}
+}
+
+func TestCommitFilterKeepsReviewHeader(t *testing.T) {
+	for _, width := range []int{80, 120, 180} {
+		for _, focus := range []pane{paneList, paneDiff} {
+			m := commitModel(t)
+			key(m, '2')
+			m.Width, m.Height, m.Focus = width, 20, focus
+			for _, count := range []int{-1, 0, 1, 2} {
+				m.commitFilter.subset = count >= 0
+				m.commitFilter.readingFocus = focus
+				m.commitFilter.inventory = m.Session.Inventory
+				m.commitFilter.selected = map[string]bool{}
+				for i := 0; i < count; i++ {
+					m.commitFilter.selected[fmt.Sprint(i)] = true
+				}
+				header := strings.Split(ansi.Strip(m.View().Content), "\n")[2]
+				label := "All commits"
+				if count >= 0 {
+					label = fmt.Sprintf("%d commits", count)
+				}
+				if !strings.HasPrefix(header, "┌ Files · ▽ Filter (F) ") || !strings.Contains(header, "Commits [C] · "+label) {
+					t.Fatalf("width %d, focus %v, count %d: inconsistent header: %s", width, focus, count, header)
+				}
+				for _, removed := range []string{"FILES", " · Diff", "Net diff", "selected"} {
+					if strings.Contains(header, removed) {
+						t.Fatalf("header retains %q: %s", removed, header)
+					}
+				}
+				start := strings.Index(header, "Commits [C]")
+				x := visibleWidth(header[:start])
+				m.Update(tea.MouseClickMsg{X: x, Y: 2, Button: tea.MouseLeft})
+				if !m.commitFilter.open {
+					t.Fatalf("visible commit control missed at width %d, count %d", width, count)
+				}
+				m.commitFilter.open = false
+			}
+		}
 	}
 }
