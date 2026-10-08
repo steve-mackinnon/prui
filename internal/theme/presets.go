@@ -75,6 +75,23 @@ func completePalette(c paletteColors) map[Token]string {
 	}
 }
 
+// Symbol colors complement each preset's existing accents. Independent syntax
+// roles let users tune code without changing warnings, borders, or diff markers.
+func syntaxPalette(base map[Token]string, appearance Appearance) map[Token]string {
+	typeColor, macroColor, constantColor := "#79c0c0", "#d2a8ff", "#ffa657"
+	switch appearance {
+	case AppearanceLight:
+		typeColor, macroColor, constantColor = "#055d73", "#6639ba", "#953800"
+	case AppearanceTerminal:
+		typeColor, macroColor, constantColor = "cyan", "magenta", "bright-yellow"
+	}
+	return map[Token]string{
+		SyntaxFunction: base[Warning], SyntaxType: typeColor,
+		SyntaxMacro: macroColor, SyntaxConstant: constantColor,
+		SyntaxAttribute: macroColor, SyntaxBuiltin: typeColor,
+	}
+}
+
 // Catalog order remains stable; the picker groups entries by Appearance.
 var presets = []preset{
 	{Definition: Definition{Terminal, "Terminal", "Inherits terminal colors with ANSI accents.", AppearanceTerminal}, colors: map[Token]string{Foreground: "default", Background: "default",
