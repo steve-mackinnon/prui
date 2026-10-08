@@ -12,6 +12,18 @@ Your checkout stays untouched, so you can review while working on another branch
 
 ## Install
 
+Install or update to the latest release on macOS or Linux:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/steve-mackinnon/prui/main/scripts/install.sh | sh
+```
+
+Requires `curl` and an authenticated [GitHub CLI](https://cli.github.com/)
+(`gh auth login`). The installer detects your platform, verifies the release's
+SHA-256 checksum, and installs `prui` to `~/.local/bin` without sudo. If that
+directory is not on your `PATH`, run `export PATH="$HOME/.local/bin:$PATH"`
+and add it to your shell's startup file for future terminals.
+
 Requires macOS or Linux, Git, and an authenticated
 [GitHub CLI](https://cli.github.com/). Supports GitHub.com repositories.
 No Go installation or AI API key is needed to use a released binary.
