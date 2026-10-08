@@ -1133,7 +1133,7 @@ func (m *Model) update(msg tea.Msg) (updated tea.Model, command tea.Cmd) {
 			switch {
 			case m.fileView() && m.Focus == paneDiff:
 				m.cursorActive = true
-				m.moveCursor(1)
+				m.moveDisplayCursor(1)
 			case m.fileView():
 				m.file(1)
 			case m.Focus == paneDiff:
@@ -1146,7 +1146,7 @@ func (m *Model) update(msg tea.Msg) (updated tea.Model, command tea.Cmd) {
 			switch {
 			case m.fileView() && m.Focus == paneDiff:
 				m.cursorActive = true
-				m.moveCursor(-1)
+				m.moveDisplayCursor(-1)
 			case m.fileView():
 				m.file(-1)
 			case m.Focus == paneDiff:
@@ -1755,9 +1755,13 @@ func (m *Model) syncFileToLine(index int) {
 		sourceRestore := m.sourceCursorRestorer()
 		target, commentID := m.cursorAnchor()
 		oldCursor, oldOffset := m.cursor(), m.offset()
+		relativeCursor := oldCursor - m.fileOffset(file)
 		relativeOffset := oldOffset - m.fileOffset(file)
 		m.Selected = m.Session.Slices[file].Units[0]
 		m.restoreCursorAnchor(target, commentID)
+		if target == nil && commentID == 0 && sourceRestore == nil {
+			m.setCursor(min(len(m.displayDetail())-1, m.fileOffset(file)+max(0, relativeCursor)))
+		}
 		if sourceRestore != nil {
 			sourceRestore()
 		}
@@ -2103,9 +2107,9 @@ func (m *Model) setOffset(offset int) {
 	}
 }
 
-// cursor is the selected commentable detail line. It is kept separately for
-// every raw unit and guide so changing tabs or detail modes preserves review
-// context without changing the list selection.
+// cursor is the selected detail line, including noncommentable rows in Files.
+// It is kept separately for every raw unit and guide so changing tabs or detail
+// modes preserves review context without changing the list selection.
 func (m *Model) cursor() int {
 	return m.cursorInDetail(m.displayDetail())
 }
@@ -2115,7 +2119,7 @@ func (m *Model) cursorInDetail(detail []diffLine) int {
 		return -1
 	}
 	stored, ok := m.cursorValue()
-	if ok && stored >= 0 && stored < len(detail) && m.navigableLine(detail[stored]) {
+	if ok && stored >= 0 && stored < len(detail) && (m.fileView() && m.navigation.mode == "" || m.navigableLine(detail[stored])) {
 		return stored
 	}
 	for i, line := range detail {
@@ -2251,6 +2255,22 @@ func (m *Model) restoreCursorAnchor(target *source.ReviewCommentTarget, commentI
 	}
 }
 
+// moveDisplayCursor keeps j/k movement uniform across noncommentable rows.
+func (m *Model) moveDisplayCursor(delta int) {
+	if m.navigation.mode != "" {
+		m.moveCursor(delta)
+		return
+	}
+	detail := m.displayDetail()
+	current := m.cursorInDetail(detail)
+	if current < 0 {
+		return
+	}
+	m.setCursor(max(0, min(len(detail)-1, current+delta)))
+	m.ensureCursorVisible()
+	m.syncFileToLine(m.cursor())
+}
+
 func (m *Model) moveCursor(delta int) {
 	if delta == 0 {
 		return
@@ -2265,6 +2285,17 @@ func (m *Model) moveCursor(delta int) {
 		if m.navigableLine(line) {
 			targets = append(targets, i)
 		}
+	}
+	if m.fileView() && !m.navigableLine(detail[current]) {
+		for i := current + delta; i >= 0 && i < len(detail); i += delta {
+			if m.navigableLine(detail[i]) {
+				m.setCursor(i)
+				m.ensureCursorVisible()
+				m.syncFileToLine(m.cursor())
+				return
+			}
+		}
+		return
 	}
 	for i, target := range targets {
 		if target == current {

@@ -134,3 +134,26 @@ func TestGeneratedCursorCrossingKeepsRawAnchor(t *testing.T) {
 		t.Fatal("raw source or reading progress changed")
 	}
 }
+
+func TestFilesJKKeepsHeaderAcrossGeneratedCollapse(t *testing.T) {
+	m := largeModel(largeTextSession(2, 3), 120, 24)
+	defer m.Close()
+	m.Session.Inventory.Classifications = map[string]inventory.Classification{
+		m.Session.Inventory.Files[0].ID: {Category: inventory.Generated},
+	}
+	m.collapseGenerated = true
+	m.selectFile(0)
+	m.Focus, m.cursorActive = paneDiff, true
+	m.setCursor(m.fileOffset(1) - 1)
+	key(m, 'j')
+	if got, want := m.cursor(), m.fileOffset(1); got != want {
+		t.Fatalf("j lost the file header as generated source collapsed: got %d, want %d", got, want)
+	}
+	if m.Session.UnitFiles[m.Selected] != 1 {
+		t.Fatal("selected file did not follow the header")
+	}
+	key(m, 'n')
+	if target, _ := m.cursorAnchor(); target == nil || target.Path != "file-1" {
+		t.Fatalf("n did not reach the new file's comment target: %+v", target)
+	}
+}

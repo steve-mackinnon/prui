@@ -7,6 +7,8 @@ User-visible changes are recorded here before each release. See
 
 ### Fixed
 
+- Move through Files diff headers and metadata one display row at a time with j/k.
+
 - Restore J/K scrolling of the source diff in Commits, including while the commit list is focused.
 
 - Prevent a crash when opening a discussion comment's original line before browsing Commits.

@@ -236,3 +236,45 @@ func TestFilesDetailCacheInvalidatesSession(t *testing.T) {
 		t.Fatal("clearing the session retained cached source")
 	}
 }
+
+func TestFilesJKMovesOneDisplayRow(t *testing.T) {
+	for _, width := range []int{120, 180} {
+		t.Run(fmt.Sprint(width), func(t *testing.T) {
+			m := fileScrollModel(width)
+			defer m.Close()
+			m.setOffset(0)
+			m.setCursor(0)
+			rows := m.displayDetail()
+			if m.navigableLine(rows[0]) {
+				t.Fatal("fixture must begin with a noncommentable header")
+			}
+			for i := 1; i < min(len(rows), 80); i++ {
+				before := m.offset()
+				key(m, 'j')
+				if i >= m.bodyHeight() && m.offset() != before+1 {
+					t.Fatalf("j scrolled from %d to %d, want one row", before, m.offset())
+				}
+				if got := m.cursor(); got != i {
+					t.Fatalf("j cursor = %d, want display row %d", got, i)
+				}
+			}
+			for i := min(len(rows), 80) - 2; i >= 0; i-- {
+				key(m, 'k')
+				if got := m.cursor(); got != i {
+					t.Fatalf("k cursor = %d, want display row %d", got, i)
+				}
+			}
+			key(m, 'k')
+			if m.cursor() != 0 {
+				t.Fatal("k moved before the first display row")
+			}
+			if target, comment := m.cursorAnchor(); target != nil || comment != 0 {
+				t.Fatal("header acquired a comment target")
+			}
+			key(m, 'n')
+			if !m.navigableLine(m.displayDetail()[m.cursor()]) {
+				t.Fatal("n did not find a comment target from the header")
+			}
+		})
+	}
+}
