@@ -199,7 +199,7 @@ Press **/** or click **Find** in the diff header to search saved diff text.
 Results are grouped by file; Up/Down selects a match and Enter jumps to it.
 Matches are highlighted in the diff. Guide search covers only the current section,
 including collapsed children. Escape moves from query editing to results; use
-`j/k` or arrows to select a match, `/` to edit again, and Escape again to close.
+`n/N`, `j/k`, or arrows to select a match, `/` to edit again, and Escape again to close.
 Search is literal and case-insensitive,
 and does not fetch omitted context or full files.
 

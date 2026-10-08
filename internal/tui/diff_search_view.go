@@ -194,7 +194,7 @@ func (m *Model) searchPopover(background string) string {
 	}
 	footer := "Esc: select results · Enter: jump"
 	if !s.editing {
-		footer = "j/k ↑↓: select · Enter: jump · /: edit · Esc: close"
+		footer = "n/N j/k ↑↓: select · Enter: jump · /: edit · Esc: close"
 	}
 	content = append(content, modalLine(footer, inside), "╰"+strings.Repeat("─", w-2)+"╯")
 	canvas := lipgloss.NewCanvas(m.Width, m.Height)

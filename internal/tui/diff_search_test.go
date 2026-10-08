@@ -469,6 +469,38 @@ func TestDiffSearchVimFocusModes(t *testing.T) {
 	}
 }
 
+func TestDiffSearchVimNextPreviousMatches(t *testing.T) {
+	m := largeModel(largeTextSession(2, 2), 120, 24)
+	m.selectReviewView(viewFiles)
+	searchInput(m, "new 19")
+	m.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
+	for _, step := range []struct {
+		key      rune
+		selected int
+	}{{'n', 1}, {'n', 1}, {'N', 0}, {'N', 0}} {
+		key(m, step.key)
+		if s := m.searchState(); s.selected != step.selected || s.query != "new 19" || !m.searchOpen() {
+			t.Fatalf("%c: selected=%d query=%q open=%v", step.key, s.selected, s.query, m.searchOpen())
+		}
+	}
+	key(m, '/')
+	for _, r := range "nN" {
+		_, cmd := m.Update(tea.KeyPressMsg{Code: r, Text: string(r)})
+		if cmd != nil {
+			m.Update(cmd())
+		}
+	}
+	if m.searchState().query != "new 19nN" {
+		t.Fatal("n/N must remain literal text while editing")
+	}
+	m.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
+	key(m, 'n')
+	key(m, 'N')
+	if m.searchState().selected != 0 {
+		t.Fatal("navigation with no matches must keep selection at zero")
+	}
+}
+
 func TestDiffSearchInsetResultClickAndQuerySlash(t *testing.T) {
 	m := largeModel(largeTextSession(2, 2), 120, 24)
 	m.selectReviewView(viewFiles)
