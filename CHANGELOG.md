@@ -10,6 +10,12 @@ User-visible changes are recorded here before each release. See
 - Install or update the latest release with a single README command that detects
   macOS/Linux and ARM64/x86-64, verifies the checksum, and installs to `~/.local/bin`.
 
+### Changed
+
+- Richer diff syntax highlighting distinguishes functions, types, Rust macros,
+  constants, attributes, and built-ins where supported by the language lexer.
+  Symbol colors can be configured independently of the rest of the interface.
+
 ## [0.3.0]
 
 ### Added
