@@ -1,6 +1,8 @@
 package tui
 
 import (
+	"image/color"
+	"math"
 	"strings"
 	"testing"
 
@@ -72,4 +74,62 @@ func TestChangedRowBackgroundSurvivesMultipleSyntaxResets(t *testing.T) {
 			}
 		}
 	}
+}
+
+// A changed row should retain most of the theme's original text contrast.
+func TestDiffFillPreservesTextContrast(t *testing.T) {
+	for _, name := range theme.BuiltInNames() {
+		if name == theme.GitHubDark {
+			continue
+		} // Its existing fill is the reference.
+		palette, _ := theme.Resolve(name, nil)
+		base, _ := palette.Color(theme.Background)
+		if palette.Syntax(theme.Background) == "default" {
+			base = color.RGBA{24, 24, 24, 255}
+			if palette.IsLight() {
+				base = color.RGBA{255, 255, 255, 255}
+			}
+		}
+		for _, role := range []theme.Token{theme.Added, theme.Removed} {
+			fill := diffBackground(palette, role)
+			for _, token := range []theme.Token{theme.Foreground, theme.FocusedBorder, theme.Added, theme.Warning, theme.Metadata} {
+				if palette.Syntax(token) == "default" {
+					continue
+				}
+				fg, _ := palette.Color(token)
+				original := diffContrast(fg, base)
+				if got := diffContrast(fg, fill); got < original*0.8 {
+					t.Errorf("%s %s/%s: contrast %.2f retains less than 80%% of %.2f", name, role, token, got, original)
+				}
+			}
+		}
+	}
+}
+
+func TestGitHubDarkDiffFillRemainsUnchanged(t *testing.T) {
+	palette, _ := theme.Resolve(theme.GitHubDark, nil)
+	for role, want := range map[theme.Token]color.Color{
+		theme.Added:   color.RGBA{25, 59, 37, 255},
+		theme.Removed: color.RGBA{72, 33, 35, 255},
+	} {
+		if !sameCanvasColor(diffBackground(palette, role), want) {
+			t.Errorf("%s fill changed", role)
+		}
+	}
+}
+
+func diffContrast(a, b color.Color) float64 {
+	luminance := func(c color.Color) float64 {
+		r, g, b, _ := c.RGBA()
+		linear := func(v uint32) float64 {
+			x := float64(v) / 65535
+			if x <= 0.04045 {
+				return x / 12.92
+			}
+			return math.Pow((x+0.055)/1.055, 2.4)
+		}
+		return 0.2126*linear(r) + 0.7152*linear(g) + 0.0722*linear(b)
+	}
+	x, y := luminance(a), luminance(b)
+	return (math.Max(x, y) + 0.05) / (math.Min(x, y) + 0.05)
 }

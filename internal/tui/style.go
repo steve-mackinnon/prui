@@ -202,8 +202,8 @@ func (m *Model) styleLine(c lineClass, s string) string {
 }
 
 // Diff backgrounds belong to rows, independently of language support or visible
-// tokens. A quarter accent gives changed blocks a clear surface while retaining
-// readable syntax colors. Inherited themes use their light/dark family baseline.
+// tokens. A subtle accent preserves source and syntax contrast. GitHub Dark
+// retains its established fill; inherited themes use their family baseline.
 func diffBackground(t theme.Theme, role theme.Token) color.Color {
 	background, _ := t.Color(theme.Background)
 	if background == nil || t.Syntax(theme.Background) == "default" {
@@ -216,12 +216,16 @@ func diffBackground(t theme.Theme, role theme.Token) color.Color {
 	if accent == nil {
 		return background
 	}
+	totalWeight := uint64(12)
+	if t.Name == theme.GitHubDark {
+		totalWeight = 4
+	}
 	ar, ag, ab, _ := accent.RGBA()
 	br, bg, bb, _ := background.RGBA()
 	channel := func(accent, base uint32) uint8 {
 		// RGBA channels are 16-bit values; widen the blend and explicitly
 		// bound its result before narrowing to an 8-bit output channel.
-		value := (uint64(accent) + 3*uint64(base)) / 4 >> 8
+		value := (uint64(accent) + (totalWeight-1)*uint64(base)) / totalWeight >> 8
 		if value > 255 {
 			return 255
 		}

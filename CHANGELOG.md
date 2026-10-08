@@ -7,6 +7,8 @@ User-visible changes are recorded here before each release. See
 
 ### Fixed
 
+- Preserve diff text contrast with softer background fills across themes, keeping GitHub Dark unchanged.
+
 - Move through Files diff headers and metadata one display row at a time with j/k.
 
 - Restore J/K scrolling of the source diff in Commits, including while the commit list is focused.
