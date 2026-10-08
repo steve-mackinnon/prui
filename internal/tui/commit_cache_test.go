@@ -121,7 +121,7 @@ func TestCommitCacheKeepsEditorFreshAndRemovesCancelledDraft(t *testing.T) {
 		t.Fatalf("editor changes stale: %s", got)
 	}
 	m.editorCursorVisible = false
-	if got := text(); strings.Contains(got, "▏") || !strings.Contains(got, "updated") {
+	if got := text(); strings.Contains(got, "▏") || !strings.Contains(got, "upd ated") {
 		t.Fatalf("cursor blink stale: %s", got)
 	}
 	m.commentComposerKey(tea.KeyPressMsg{Code: tea.KeyEscape})

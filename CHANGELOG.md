@@ -10,6 +10,10 @@ User-visible changes are recorded here before each release. See
 - Install or update the latest release with a single README command that detects
   macOS/Linux and ARM64/x86-64, verifies the checksum, and installs to `~/.local/bin`.
 
+### Fixed
+
+- Keep comment editor text and line wrapping stationary while the cursor blinks.
+
 ## [0.3.0]
 
 ### Added

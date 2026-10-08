@@ -1104,7 +1104,7 @@ func TestReplyEditorAndCanonicalReplyRenderAsIndentedThread(t *testing.T) {
 	m.Comments = []source.ReviewComment{{ID: 7, Target: target, Body: "parent"}, {ID: 8, Target: target, ParentID: 7, Body: "reply"}}
 	m.CommentMenu = &commentActionMenu{CommentID: 7, Target: target, mode: commentActionReply, Draft: "draft"}
 	view := ansi.Strip(m.reviewView())
-	for _, want := range []string{"  | parent", "      | reply", "      | draft"} {
+	for _, want := range []string{"  | parent", "      | reply", "      |  draft"} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("threaded reply missing %q:\n%s", want, view)
 		}
