@@ -408,9 +408,9 @@ func (m *Model) searchKey(v tea.KeyPressMsg) tea.Cmd {
 		case "/", "tab", "shift+tab":
 			s.editing = true
 			return nil
-		case "j":
+		case "j", "n":
 			k = "down"
-		case "k":
+		case "k", "N":
 			k = "up"
 		case "esc":
 			m.closeSearch()

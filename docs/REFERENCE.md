@@ -592,7 +592,7 @@ Up/Down or PageUp/PageDown selects a result; Enter or a result click reveals it
 in the diff without opening a comment. Activating a file hidden by the filename
 filter clears that filter and shows a notice. `F` filters filenames.
 
-Escape leaves the query field and focuses results. Use `j/k` or Up/Down to
+Escape leaves the query field and focuses results. Use `n/N`, `j/k`, or Up/Down to
 select results; Enter jumps to the selected match. Press `/` (or click the query)
 to edit again, and Escape from results to close while keeping highlights. Tab
 also switches between editing and results. There are no Clear/Close buttons;
