@@ -17,19 +17,25 @@ import (
 type Token string
 
 const (
-	Foreground    Token = "foreground"
-	Background    Token = "background"
-	Title         Token = "title"
-	FileHeader    Token = "fileHeader"
-	Hunk          Token = "hunk"
-	Added         Token = "added"
-	Removed       Token = "removed"
-	Metadata      Token = "metadata"
-	Warning       Token = "warning"
-	Unavailable   Token = "unavailable"
-	Selection     Token = "selection"
-	FocusedBorder Token = "focusedBorder"
-	Border        Token = "border"
+	Foreground      Token = "foreground"
+	Background      Token = "background"
+	Title           Token = "title"
+	FileHeader      Token = "fileHeader"
+	Hunk            Token = "hunk"
+	Added           Token = "added"
+	Removed         Token = "removed"
+	Metadata        Token = "metadata"
+	Warning         Token = "warning"
+	Unavailable     Token = "unavailable"
+	Selection       Token = "selection"
+	FocusedBorder   Token = "focusedBorder"
+	Border          Token = "border"
+	SyntaxFunction  Token = "syntaxFunction"
+	SyntaxType      Token = "syntaxType"
+	SyntaxMacro     Token = "syntaxMacro"
+	SyntaxConstant  Token = "syntaxConstant"
+	SyntaxAttribute Token = "syntaxAttribute"
+	SyntaxBuiltin   Token = "syntaxBuiltin"
 )
 
 const (
@@ -43,6 +49,7 @@ var tokens = []Token{
 	Foreground, Background,
 	Title, FileHeader, Hunk, Added, Removed, Metadata, Warning, Unavailable,
 	Selection, FocusedBorder, Border,
+	SyntaxFunction, SyntaxType, SyntaxMacro, SyntaxConstant, SyntaxAttribute, SyntaxBuiltin,
 }
 
 // Color is a validated color value. Its source syntax is retained for stable
@@ -149,9 +156,11 @@ func ParseColor(s string) (Color, error) {
 // already-keyed token overrides. Validation happens before a Theme is returned.
 func Resolve(name string, overrides map[Token]string) (Theme, error) {
 	var base map[Token]string
+	var appearance Appearance
 	for _, preset := range presets {
 		if preset.Name == name {
 			base = preset.colors
+			appearance = preset.Appearance
 			break
 		}
 	}
@@ -159,8 +168,13 @@ func Resolve(name string, overrides map[Token]string) (Theme, error) {
 		return Theme{}, fmt.Errorf("unknown theme %q", name)
 	}
 	colors := make(map[Token]Color, len(tokens))
+	symbols := syntaxPalette(base, appearance)
 	for _, token := range tokens {
-		parsed, err := ParseColor(base[token])
+		raw := base[token]
+		if raw == "" {
+			raw = symbols[token]
+		}
+		parsed, err := ParseColor(raw)
 		if err != nil {
 			return Theme{}, fmt.Errorf("invalid built-in %q color for %q: %w", name, token, err)
 		}

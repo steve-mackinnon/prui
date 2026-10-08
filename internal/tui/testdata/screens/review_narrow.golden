@@ -3,8 +3,8 @@ example/review #42
 ┌ Files · ▽ Filter (F) · Commits [C] · All changes · Find (┐
 │── main.go                                                │
 │@@ -1 +1 @@                                               │
-│-old greeting                                             │
-│+hello world                                              │
+│   1      -old greeting                                   │
+│        1 +hello world                                    │
 └──────────────────────────────────────────────────────────┘
 0/2 read · R Review (0) · ? Freshness unknown · ?: Help
 ↑/↓: scroll · E: expand · enter: comment/menu · m: mark file

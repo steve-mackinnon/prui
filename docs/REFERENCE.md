@@ -436,7 +436,10 @@ It may select a built-in and override the fixed semantic color tokens:
 
 Supported tokens are `foreground`, `background`, `title`, `fileHeader`, `hunk`, `added`, `removed`,
 `metadata`, `warning`, `unavailable`, `selection`, `focusedBorder`, and
-`border`. Values must be `#RRGGBB`, `default`, an ANSI name (such as `red` or
+`border`. Diff symbol colors also accept `syntaxFunction`, `syntaxType`,
+`syntaxMacro`, `syntaxConstant`, `syntaxAttribute`, and `syntaxBuiltin`.
+These roles are independent of UI overrides such as `warning` and `focusedBorder`.
+Values must be `#RRGGBB`, `default`, an ANSI name (such as `red` or
 `bright-yellow`), or an ANSI palette index from `0` through `255`, written as
 a string. The explicit `--theme` name wins over the file's `theme` value, and
 valid `colors` overrides remain applied. Invalid JSON, duplicate or unknown
@@ -446,6 +449,8 @@ Such a file is never overwritten. `foreground` and `background` are optional
 base-channel overrides; `default` inherits that channel from the terminal.
 Existing configuration files need no migration. Older prui versions reject new theme IDs and the
 two new keys, so omit them when sharing configuration with those versions.
+Older versions also reject the new `syntax*` keys; omit those keys when sharing
+configuration with them.
 
 Press `t` in an interactive review or navigation picker to open a
 theme picker. It is unavailable while another modal owns input.
@@ -463,7 +468,12 @@ review or session data. A failed save keeps the active palette unchanged.
 PR-description Markdown inherits the app background and ordinary foreground
 when base colors are explicit. The preset’s Dark/Light classification selects
 the corresponding existing Markdown baseline. Its Markdown and syntax foreground
-colors remain; these presets do not introduce syntax themes.
+colors remain. Diff highlighting additionally colors functions, types, constants,
+attributes/preprocessor directives, built-ins, and Rust macros where Chroma's lexer
+recognizes them. Custom syntax colors apply to these diff symbols, not Markdown
+code blocks. Function calls and custom type uses can remain plain, especially in
+Rust. Existing saved reviews retain their original token categories; newly opened
+reviews capture the richer categories.
 
 Color is still detected once at startup from the terminal and process
 environment. `NO_COLOR` and `TERM=dumb` disable it, `CLICOLOR_FORCE` follows
@@ -592,7 +602,8 @@ Up/Down or PageUp/PageDown selects a result; Enter or a result click reveals it
 in the diff without opening a comment. Activating a file hidden by the filename
 filter clears that filter and shows a notice. `F` filters filenames.
 
-Escape leaves the query field and focuses results. Use `j/k` or Up/Down to
+With search results retained, `n`/`N` in the diff jumps to the next/previous match.
+Escape leaves the query field and focuses results. Use `n/N`, `j/k`, or Up/Down to
 select results; Enter jumps to the selected match. Press `/` (or click the query)
 to edit again, and Escape from results to close while keeping highlights. Tab
 also switches between editing and results. There are no Clear/Close buttons;

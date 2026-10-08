@@ -15,7 +15,12 @@ func TestSyntaxSurvivesOfflineStoreRestart(t *testing.T) {
 		t.Fatal(err)
 	}
 	snapshot := commitFixture()
-	tokens := map[string]syntax.Patch{"unit": {1: {Old: []syntax.Span{{Start: 0, End: 3, Kind: syntax.Comment}}}}}
+	tokens := map[string]syntax.Patch{"unit": {1: {
+		Old: []syntax.Span{{Start: 0, End: 3, Kind: syntax.Comment}},
+		New: []syntax.Span{{Start: 0, End: 1, Kind: syntax.Function}, {Start: 1, End: 2, Kind: syntax.Type},
+			{Start: 2, End: 3, Kind: syntax.Macro}, {Start: 3, End: 4, Kind: syntax.Constant},
+			{Start: 4, End: 5, Kind: syntax.Attribute}, {Start: 5, End: 6, Kind: syntax.Builtin}},
+	}}}
 	snapshot.Inventory.Syntax = tokens
 	snapshot.Commits.Entries[0].Diff.Syntax = tokens
 	saved, err := s.Create(snapshot)

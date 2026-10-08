@@ -123,26 +123,14 @@ func (m *Model) searchPopover(background string) string {
 	bounds := m.searchBounds()
 	w, h := bounds.Dx(), bounds.Dy()
 	inside := max(1, w-4)
-	query := []rune(s.query)
+	query := []rune(s.inputQuery())
 	cursor := min(s.cursor, len(query))
-	input := Escape(s.query)
+	input := Escape(s.inputQuery())
 	if s.editing {
 		input = Escape(string(query[:cursor])) + "▏" + Escape(string(query[cursor:]))
 	}
 	if w < 24 || h < 9 {
-		return strings.Join([]string{clip("Find: "+input, w), clip("Resize for results · Esc: back", w)}, "\n")
-	}
-	scope := "Files · saved diff text only"
-	if m.Inventory {
-		scope = "Inventory · saved diff text only"
-	} else if m.selectedReviewView() == viewGuide {
-		scope = "Current section · saved diff text only"
-	}
-	if s.scope.Source != "" {
-		scope = "Files · pinned " + s.scope.Source + " source only"
-	}
-	if s.skipped > 0 {
-		scope += fmt.Sprintf(" · %d files skipped", s.skipped)
+		return strings.Join([]string{clip("Find: "+strings.Replace(input, "▏", searchCaret(m.editorCursorVisible), 1), w), clip("Resize for results · Esc: back", w)}, "\n")
 	}
 	summary := "Type to search diff text"
 	switch {
@@ -168,9 +156,16 @@ func (m *Model) searchPopover(background string) string {
 		}
 		summary = fmt.Sprintf("%d %s in %d %s", len(s.matches), matchLabel, len(files), fileLabel)
 	}
-	content := []string{"╭" + strings.Repeat("─", w-2) + "╮", modalLine("Find: "+clipSearchInput(input, inside-6), inside), modalLine(scope, inside), modalLine(summary, inside)}
+	if s.skipped > 0 {
+		summary += fmt.Sprintf(" · %d files skipped", s.skipped)
+	}
+	input = clipSearchInput(input, inside-6)
+	if !m.editorCursorVisible {
+		input = strings.Replace(input, "▏", " ", 1)
+	}
+	content := []string{"╭" + strings.Repeat("─", w-2) + "╮", modalLine("Find: "+input, inside), modalLine(summary, inside)}
 	rows := m.searchResultRows(inside)
-	capacity := h - 6
+	capacity := h - 5
 	selectedRow := 0
 	for i, row := range rows {
 		if row.match == s.selected {
@@ -194,11 +189,17 @@ func (m *Model) searchPopover(background string) string {
 	}
 	footer := "Esc: select results · Enter: jump"
 	if !s.editing {
-		footer = "j/k ↑↓: select · Enter: jump · /: edit · Esc: close"
+		footer = "n/N j/k ↑↓: select · Enter: jump · /: edit · Esc: close"
 	}
 	content = append(content, modalLine(footer, inside), "╰"+strings.Repeat("─", w-2)+"╯")
 	canvas := lipgloss.NewCanvas(m.Width, m.Height)
 	return canvas.Compose(lipgloss.NewCompositor(lipgloss.NewLayer(strings.Join(viewportLines(background, m.Width, m.Height), "\n")), lipgloss.NewLayer(m.styleLine(classPaneBorderFocused, strings.Join(content, "\n"))).X(bounds.Min.X).Y(bounds.Min.Y))).Render()
+}
+func searchCaret(visible bool) string {
+	if visible {
+		return "▏"
+	}
+	return " "
 }
 func clipSearchInput(input string, width int) string {
 	cursor := strings.Index(input, "▏")
@@ -232,12 +233,12 @@ func (m *Model) searchMouse(msg tea.MouseMsg) tea.Cmd {
 	y := click.Y - bounds.Min.Y
 	if y == 1 {
 		s.editing = true
-		s.cursor = utf8.RuneCountInString(s.query)
-		return nil
+		s.cursor = utf8.RuneCountInString(s.inputQuery())
+		return m.startSearchCursor()
 	}
 	rows := m.searchResultRows(max(1, bounds.Dx()-4))
-	i := y - 4 + s.scroll
-	if y >= 4 && y < bounds.Dy()-2 && i >= 0 && i < len(rows) && rows[i].match >= 0 {
+	i := y - 3 + s.scroll
+	if y >= 3 && y < bounds.Dy()-2 && i >= 0 && i < len(rows) && rows[i].match >= 0 {
 		s.selected = rows[i].match
 		m.activateSearchMatch()
 	}

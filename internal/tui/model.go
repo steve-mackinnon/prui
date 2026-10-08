@@ -37,6 +37,7 @@ const (
 )
 
 const diffStep = 5
+const fastScrollStep = 15
 
 // reviewView is deliberately UI-local: frozen sessions record source review
 // content, while an open workspace tab owns which surface the reviewer sees.
@@ -125,6 +126,7 @@ type reviewTabState struct {
 	cursorActive                                         bool
 	Horizontal                                           int
 	listWidthPreference                                  int
+	hideLineNumbers                                      bool
 	layout                                               diffLayout
 	diffWrapCache                                        diffWrapCache
 	guidePathOffset, guidePathPause, guidePathGeneration int
@@ -480,7 +482,7 @@ func (m *Model) update(msg tea.Msg) (updated tea.Model, command tea.Cmd) {
 		}
 		return m, nextLoadingTick()
 	case editorCursorTick:
-		if (m.Composer == nil && (m.CommentMenu == nil || m.CommentMenu.mode != commentActionReply)) || v.generation != m.editorCursorGeneration {
+		if (m.Composer == nil && (m.CommentMenu == nil || m.CommentMenu.mode != commentActionReply) && !m.searchOpen()) || v.generation != m.editorCursorGeneration {
 			return m, nil
 		}
 		m.editorCursorVisible = !m.editorCursorVisible
@@ -805,6 +807,9 @@ func (m *Model) update(msg tea.Msg) (updated tea.Model, command tea.Cmd) {
 			if v.String() == "/" {
 				return m, m.openSearch()
 			}
+			if (v.String() == "n" || v.String() == "N") && m.repeatSearchMatch(v.String() == "N") {
+				return m, nil
+			}
 		}
 		if m.top() == pageReview && m.selectedReviewView() == viewFiles && m.fileView() && m.discussions.published == nil && m.discussions.editor == nil && !m.commitFilter.open && !m.commitFilter.subset && m.Composer == nil && m.CommentMenu == nil && !m.Busy {
 			if m.fileFilterEditing && v.String() != "ctrl+c" {
@@ -990,6 +995,10 @@ func (m *Model) update(msg tea.Msg) (updated tea.Model, command tea.Cmd) {
 					return m, cmd
 				}
 			}
+			if v.String() == "L" && (m.diffReviewView() || m.selectedReviewView() == viewCommits) {
+				m.toggleLineNumbers()
+				return m, nil
+			}
 			if m.selectedReviewView() == viewCommits && v.String() != "?" && v.String() != "U" {
 				if v.String() == "enter" && m.commit.focus == paneDiff {
 					return m, m.openCommitComposer()
@@ -1160,9 +1169,9 @@ func (m *Model) update(msg tea.Msg) (updated tea.Model, command tea.Cmd) {
 		case "K":
 			m.scroll(-diffStep)
 		case "d":
-			m.scroll(m.pageStep())
+			m.scroll(fastScrollStep)
 		case "u":
-			m.scroll(-m.pageStep())
+			m.scroll(-fastScrollStep)
 		case "pgdown":
 			m.scroll(m.pageStep())
 		case "pgup":

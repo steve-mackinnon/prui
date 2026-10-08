@@ -43,5 +43,23 @@ Source foregrounds and changed-word/search attributes follow the
 lines and fragments use the same normal foreground as ordinary text between
 tokens; missing foreground channels are resolved before row styling. Structural
 patch markers retain added/removed colors independently of source colors.
+### Expanded symbol categories
+
+Append Function, Type, Macro, Constant, Attribute, and Builtin after the existing
+numeric kinds so frozen legacy spans keep their meanings. Preserve Chroma's
+function/class/type/constant/decorator/builtin distinctions. Preprocessor tokens
+use Attribute. Rust NameFunctionMagic tokens ending in `!` use Macro; special
+methods in other languages remain Function. Generic Name and NameOther remain
+plain; do not guess types or calls from capitalization or adjacent punctuation.
+
+New symbols render through `syntaxFunction`, `syntaxType`, `syntaxMacro`,
+`syntaxConstant`, `syntaxAttribute`, and `syntaxBuiltin` theme roles. Function
+colors initially reuse each preset's warning accent; attributes and macros use
+a purple accent, types/built-ins cyan, and constants orange, with light/dark/ANSI
+variants. These independent roles accept validated global color overrides.
+Existing keyword/string/number/comment/name/operator color mappings remain.
+No Chroma upgrade or native dependency is required. Saved reviews are immutable
+and retain the captured categories; only new captures get richer spans.
+
 Changed-word and active-search emphasis is applied to trusted rendered cells so
 nested SGR resets cannot split an identifier's color or corrupt ANSI sequences.

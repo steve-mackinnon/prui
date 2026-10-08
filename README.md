@@ -12,6 +12,18 @@ Your checkout stays untouched, so you can review while working on another branch
 
 ## Install
 
+Install or update to the latest release on macOS or Linux:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/steve-mackinnon/prui/main/scripts/install.sh | sh
+```
+
+Requires `curl` and an authenticated [GitHub CLI](https://cli.github.com/)
+(`gh auth login`). The installer detects your platform, verifies the release's
+SHA-256 checksum, and installs `prui` to `~/.local/bin` without sudo. If that
+directory is not on your `PATH`, run `export PATH="$HOME/.local/bin:$PATH"`
+and add it to your shell's startup file for future terminals.
+
 Requires macOS or Linux, Git, and an authenticated
 [GitHub CLI](https://cli.github.com/). Supports GitHub.com repositories.
 No Go installation or AI API key is needed to use a released binary.
@@ -135,6 +147,7 @@ For offline reading, list session IDs with `prui sessions`, then run
 | `j` / `k` | Select files or guide rows |
 | `h` / `l` | Focus list / diff |
 | Up / down | Scroll the focused diff |
+| `L` | Toggle line numbers across Files, Guide, and Commits in this review tab |
 | `m` | Mark or unmark a file as read |
 | `/` | Find code text across Files or within the current Guide section |
 | `F` | Filter Files by filename or path; Enter keeps the filter, Escape clears it |
@@ -199,7 +212,8 @@ Press **/** or click **Find** in the diff header to search saved diff text.
 Results are grouped by file; Up/Down selects a match and Enter jumps to it.
 Matches are highlighted in the diff. Guide search covers only the current section,
 including collapsed children. Escape moves from query editing to results; use
-`j/k` or arrows to select a match, `/` to edit again, and Escape again to close.
+`n/N`, `j/k`, or arrows to select a match, `/` to edit again, and Escape again to close.
+With search results retained, `n`/`N` in the diff jumps to the next/previous match.
 Search is literal and case-insensitive,
 and does not fetch omitted context or full files.
 
@@ -214,6 +228,10 @@ beyond highlighting limits use the normal source foreground. Colors follow the
 active theme; colored `+`/`-` markers and full-row green/red backgrounds keep
 additions and deletions distinct. Ordinary source stays the same color whether
 or not a line has syntax tokens, and changed-word emphasis preserves token colors.
+Functions, types, macros, constants, attributes, and built-ins use separate token
+categories where Chroma recognizes them, with configurable symbol colors. Rust
+function calls and many custom type uses remain plain because its lexer does not
+classify them. Saved reviews retain the categories captured when they were opened.
 See the [user reference](docs/REFERENCE.md) for all controls and limitations,
 or run `prui --help` for command syntax.
 

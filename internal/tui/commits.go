@@ -332,13 +332,19 @@ func (m *Model) commitKey(key string) {
 		if key == "k" || key == "up" {
 			delta = -1
 		}
-		if key == "d" || key == "pgdown" {
+		if key == "d" {
+			delta = fastScrollStep
+		}
+		if key == "u" {
+			delta = -fastScrollStep
+		}
+		if key == "pgdown" {
 			delta = m.bodyHeight()
 			if m.commit.focus == paneList {
 				delta = max(1, m.bodyHeight()/2)
 			}
 		}
-		if key == "u" || key == "pgup" {
+		if key == "pgup" {
 			delta = -m.bodyHeight()
 			if m.commit.focus == paneList {
 				delta = -max(1, m.bodyHeight()/2)
@@ -398,13 +404,12 @@ func (m *Model) commitsView() string {
 		}
 		if i < len(rows) {
 			row := rows[i]
-			numbered := numberedPatchText(row)
-			prefix := numbered[:len(numbered)-len(row.Text)]
+			prefix := ""
+			if focus == paneDiff {
+				prefix = cursorMarker(offset+i == m.commitCursor())
+			}
 			presented := m.presentUnifiedDiffLine(row, 0, right, prefix)
 			r, rc = presented.Text, presented.Class
-			if focus == paneDiff && offset+i == m.commitCursor() {
-				rc = classSelectionFocused
-			}
 		}
 		lines = append(lines, m.paneBodyRow(styledLine{Class: lc, Text: l}, styledLine{Class: rc, Text: r}, left, right, focus, borders))
 	}

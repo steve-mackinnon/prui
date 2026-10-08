@@ -21,6 +21,9 @@ if [ -n "$unformatted" ]; then
     exit 1
 fi
 
+sh -n scripts/install.sh
+python3 scripts/install_test.py
+
 go vet ./...
 go test -race -count=1 -timeout=5m ./...
 go build ./...

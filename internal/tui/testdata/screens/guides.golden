@@ -3,8 +3,8 @@ example/review #42
 ┌ Guide ─────────────────────────────┬ Commits [C] · All changes · Find (/) · Diff · GUIDES 1 · guide 1/1 · marking: wh┐
 │› - 1. Greeting                     │── main.go                                                                       │
 │  01 / 01 · { previous · } next     │@@ -1 +1 @@                                                                      │
-│    Update the greeting and its     │-old greeting                                                                    │
-│    documentation.                  │+hello world                                                                     │
+│    Update the greeting and its     │   1      -old greeting                                                          │
+│    documentation.                  │        1 +hello world                                                           │
 │    - 1.1 Implementation            │                                                                                 │
 │      main.go                       │── README.md                                                                     │
 │    - 1.2 Documentation             │                                                                                 │

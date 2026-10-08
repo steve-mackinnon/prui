@@ -67,6 +67,60 @@ func TestDiffSearchInputAndActivation(t *testing.T) {
 	}
 }
 
+func TestDiffSearchSubmitClearsInputPreservingResults(t *testing.T) {
+	m := largeModel(largeTextSession(2, 2), 120, 24)
+	m.selectReviewView(viewFiles)
+	searchInput(m, "new 19")
+	m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	s := m.searchState()
+	if s.query != "new 19" || len(s.matches) != 2 || !m.searchMatchAtCursor() {
+		t.Fatal("submission lost editor search results")
+	}
+	m.openSearch()
+	view := ansi.Strip(m.View().Content)
+	if strings.Contains(view, "Find: new 19") || !strings.Contains(view, "Find: ▏") {
+		t.Fatal("reopened search input was not empty")
+	}
+	m.Update(tea.KeyPressMsg{Code: tea.KeyBackspace})
+	if len(s.matches) != 2 {
+		t.Fatal("backspace in fresh input cleared editor results")
+	}
+	_, cmd := m.Update(tea.PasteMsg{Content: "old"})
+	if cmd != nil {
+		m.Update(cmd())
+	}
+	if s.query != "old" || s.cursor != 3 {
+		t.Fatalf("fresh input appended to previous query: %q", s.query)
+	}
+}
+
+func TestDiffSearchCursorBlinks(t *testing.T) {
+	m := largeModel(largeTextSession(1, 1), 120, 24)
+	m.selectReviewView(viewFiles)
+	searchInput(m, "new")
+	if !strings.Contains(m.View().Content, "▏") {
+		t.Fatal("missing initial caret")
+	}
+	generation := m.editorCursorGeneration
+	_, cmd := m.Update(editorCursorTick{generation: generation})
+	if strings.Contains(m.View().Content, "▏") || cmd == nil {
+		t.Fatal("caret did not blink off and schedule the next tick")
+	}
+	m.Update(editorCursorTick{generation: generation - 1})
+	if strings.Contains(m.View().Content, "▏") {
+		t.Fatal("stale tick changed caret")
+	}
+	m.Update(editorCursorTick{generation: generation})
+	if !strings.Contains(m.View().Content, "▏") {
+		t.Fatal("caret did not blink on")
+	}
+	m.closeSearch()
+	_, cmd = m.Update(editorCursorTick{generation: generation})
+	if cmd != nil {
+		t.Fatal("closed search kept blinking")
+	}
+}
+
 func TestDiffSearchJumpKeepsVisibleCodeAtLeftMargin(t *testing.T) {
 	for _, split := range []bool{false, true} {
 		for _, wrapped := range []bool{false, true} {
@@ -469,6 +523,65 @@ func TestDiffSearchVimFocusModes(t *testing.T) {
 	}
 }
 
+func TestDiffSearchVimNextPreviousMatches(t *testing.T) {
+	m := largeModel(largeTextSession(2, 2), 120, 24)
+	m.selectReviewView(viewFiles)
+	searchInput(m, "new 19")
+	m.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
+	for _, step := range []struct {
+		key      rune
+		selected int
+	}{{'n', 1}, {'n', 1}, {'N', 0}, {'N', 0}} {
+		key(m, step.key)
+		if s := m.searchState(); s.selected != step.selected || s.query != "new 19" || !m.searchOpen() {
+			t.Fatalf("%c: selected=%d query=%q open=%v", step.key, s.selected, s.query, m.searchOpen())
+		}
+	}
+	key(m, '/')
+	for _, r := range "nN" {
+		_, cmd := m.Update(tea.KeyPressMsg{Code: r, Text: string(r)})
+		if cmd != nil {
+			m.Update(cmd())
+		}
+	}
+	if m.searchState().query != "new 19nN" {
+		t.Fatal("n/N must remain literal text while editing")
+	}
+	m.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
+	key(m, 'n')
+	key(m, 'N')
+	if m.searchState().selected != 0 {
+		t.Fatal("navigation with no matches must keep selection at zero")
+	}
+}
+
+func TestDiffSearchRepeatFromDiff(t *testing.T) {
+	for _, view := range []reviewView{viewFiles, viewGuide} {
+		session := largeTextSession(2, 2)
+		session.Guides = &guide.Bundle{Status: guide.Generated, Items: []guide.Item{{Title: "Guide", Sections: []guide.Section{
+			{Title: "Matches", UnitIDs: []string{session.Inventory.Units[0].ID, session.Inventory.Units[1].ID}},
+		}}}}
+		m := largeModel(session, 120, 24)
+		m.selectReviewView(view)
+		if view == viewGuide {
+			m.Row = 1
+		}
+		searchInput(m, "new 19")
+		m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+		if m.searchOpen() || m.Focus != paneDiff {
+			t.Fatal("search activation must focus diff")
+		}
+		key(m, 'n')
+		if m.searchState().selected != 1 || m.searchOpen() || !m.searchMatchAtCursor() {
+			t.Fatalf("view %v: n did not reveal next match in diff", view)
+		}
+		key(m, 'N')
+		if m.searchState().selected != 0 || m.searchOpen() || !m.searchMatchAtCursor() {
+			t.Fatalf("view %v: N did not reveal previous match in diff", view)
+		}
+	}
+}
+
 func TestDiffSearchInsetResultClickAndQuerySlash(t *testing.T) {
 	m := largeModel(largeTextSession(2, 2), 120, 24)
 	m.selectReviewView(viewFiles)
@@ -484,7 +597,7 @@ func TestDiffSearchInsetResultClickAndQuerySlash(t *testing.T) {
 	}
 	bounds := m.searchBounds()
 	// Heading + first result + second heading + second result.
-	m.Update(tea.MouseClickMsg{Button: tea.MouseLeft, X: bounds.Min.X + 4, Y: bounds.Min.Y + 7})
+	m.Update(tea.MouseClickMsg{Button: tea.MouseLeft, X: bounds.Min.X + 4, Y: bounds.Min.Y + 6})
 	if m.searchOpen() || m.Session.UnitFiles[m.Selected] != 1 {
 		t.Fatal("inset result click did not reveal second file")
 	}

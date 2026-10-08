@@ -8,7 +8,7 @@ import (
 
 func (m *Model) helpLines() []string {
 	_, body, _ := strings.Cut(m.healthHelpView(), "\n")
-	body += "\n\nFiles\n/: filter by filename or path. Enter: keep filter and navigate. Escape: clear filter.\n\n\nCommits (3)\nj/k or arrows: select commit in list, scroll in diff. n/p: next/previous commit in either pane.\nEnter/l: focus diff; Escape/h: return to list. PgUp/PgDn or u/d: page. Home/End: first/last item or diff row.\n[/]: resize commit rail at 100+ columns. Below 100 columns, focus selects the visible pane. Commit diffs are read-only.\n\nDiscussions (D)\nj/k: select thread; Enter: detail; o: view original captured commit; Escape: return. c: refresh comments and discussions.\nOutdated describes the current anchor, independently of Resolved. Missing context remains readable here.\n\nMouse\nClick: select item or diff cell; Enter: activate.\nHover URLs to underline; click to open in your browser.\nClick view tabs to switch. Drag the file/diff divider to resize (wide terminals).\nScroll over the file/guide list or diff to move that pane. Use your terminal selection modifier to copy text.\nPanel width lasts for this run only."
+	body += "\n\nDiff display\nL: toggle line numbers in Files, Guides, and Commits for this review tab.\n\nFiles\n/: filter by filename or path. Enter: keep filter and navigate. Escape: clear filter.\n\n\nCommits (3)\nj/k or arrows: select commit in list, scroll in diff. n/p: next/previous commit in either pane.\nEnter/l: focus diff; Escape/h: return to list. d/u: scroll 15 lines. PgUp/PgDn: page. Home/End: first/last item or diff row.\n[/]: resize commit rail at 100+ columns. Below 100 columns, focus selects the visible pane. Commit diffs are read-only.\n\nDiscussions (D)\nj/k: select thread; Enter: detail; o: view original captured commit; Escape: return. c: refresh comments and discussions.\nOutdated describes the current anchor, independently of Resolved. Missing context remains readable here.\n\nMouse\nClick: select item or diff cell; Enter: activate.\nHover URLs to underline; click to open in your browser.\nClick view tabs to switch. Drag the file/diff divider to resize (wide terminals).\nScroll over the file/guide list or diff to move that pane. Use your terminal selection modifier to copy text.\nPanel width lasts for this run only."
 	return m.helpColumns(body)
 }
 
@@ -118,9 +118,13 @@ func (m *Model) helpKey(key string) {
 		delta = 1
 	case "k", "up":
 		delta = -1
-	case "d", "pgdown":
+	case "d":
+		delta = fastScrollStep
+	case "pgdown":
 		delta = m.helpBodyHeight()
-	case "u", "pgup":
+	case "u":
+		delta = -fastScrollStep
+	case "pgup":
 		delta = -m.helpBodyHeight()
 	case "home":
 		m.helpScroll = 0

@@ -92,7 +92,7 @@ func TestDiffFillPreservesTextContrast(t *testing.T) {
 		}
 		for _, role := range []theme.Token{theme.Added, theme.Removed} {
 			fill := diffBackground(palette, role)
-			for _, token := range []theme.Token{theme.Foreground, theme.FocusedBorder, theme.Added, theme.Warning, theme.Metadata} {
+			for _, token := range []theme.Token{theme.Foreground, theme.FocusedBorder, theme.Added, theme.Warning, theme.Metadata, theme.SyntaxFunction, theme.SyntaxType, theme.SyntaxMacro, theme.SyntaxConstant, theme.SyntaxAttribute, theme.SyntaxBuiltin} {
 				if palette.Syntax(token) == "default" {
 					continue
 				}

@@ -54,5 +54,37 @@ func diffViewport(source []diffLine, offset, height, activeLine int, pinHeader b
 }
 
 func (m *Model) presentUnifiedDiffLine(line diffLine, horizontal, width int, prefix string) styledLine {
-	return styledLine{Class: sourceLineClass(line.Class), Text: m.syntaxText(line, horizontal, width, prefix)}
+	return styledLine{Class: sourceLineClass(line.Class), Text: m.syntaxText(line, horizontal, width, prefix+m.lineNumberPrefix(line))}
+}
+
+func (m *Model) lineNumbersEnabled() bool {
+	return m.reviewTabState == nil || !m.hideLineNumbers
+}
+
+func (m *Model) lineNumberPrefix(line diffLine) string {
+	if !m.lineNumbersEnabled() {
+		return ""
+	}
+	return patchLineNumberPrefix(line)
+}
+
+func (m *Model) toggleLineNumbers() {
+	if m.selectedReviewView() == viewCommits || m.commitFilter.subset {
+		m.hideLineNumbers = !m.hideLineNumbers
+		m.diffWrapCache = diffWrapCache{}
+		return
+	}
+	restoreSource := m.sourceCursorRestorer()
+	target, commentID := m.cursorAnchor()
+	keepSearch := m.searchMatchAtCursor()
+	m.hideLineNumbers = !m.hideLineNumbers
+	m.diffWrapCache = diffWrapCache{}
+	m.restoreCursorAnchor(target, commentID)
+	if restoreSource != nil {
+		restoreSource()
+	}
+	m.ensureReplyEditorVisible()
+	if keepSearch {
+		m.revealSearchMatch()
+	}
 }
