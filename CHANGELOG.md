@@ -10,6 +10,10 @@ User-visible changes are recorded here before each release. See
 - Install or update the latest release with a single README command that detects
   macOS/Linux and ARM64/x86-64, verifies the checksum, and installs to `~/.local/bin`.
 
+### Fixed
+
+- Preserve diff text contrast with softer background fills across themes, keeping GitHub Dark unchanged.
+
 ### Changed
 
 - Simplify the diff header and retain its layout when filtering commits, showing
