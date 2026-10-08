@@ -404,13 +404,12 @@ func (m *Model) commitsView() string {
 		}
 		if i < len(rows) {
 			row := rows[i]
-			numbered := numberedPatchText(row)
-			prefix := numbered[:len(numbered)-len(row.Text)]
+			prefix := ""
+			if focus == paneDiff {
+				prefix = cursorMarker(offset+i == m.commitCursor())
+			}
 			presented := m.presentUnifiedDiffLine(row, 0, right, prefix)
 			r, rc = presented.Text, presented.Class
-			if focus == paneDiff && offset+i == m.commitCursor() {
-				rc = classSelectionFocused
-			}
 		}
 		lines = append(lines, m.paneBodyRow(styledLine{Class: lc, Text: l}, styledLine{Class: rc, Text: r}, left, right, focus, borders))
 	}

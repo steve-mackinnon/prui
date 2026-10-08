@@ -322,7 +322,10 @@ func (m *Model) renderSideBySideCell(cell *diffCell, width, horizontal int) stri
 		return strings.Repeat(" ", width)
 	}
 	marker, text := splitPatchMarker(cell.line.Text)
-	gutter := fmt.Sprintf("%5d %s ", cell.number, m.patchMarker(marker, cell.line.Class))
+	gutter := m.patchMarker(marker, cell.line.Class) + " "
+	if m.lineNumbersEnabled() {
+		gutter = fmt.Sprintf("%5d %s", cell.number, gutter)
+	}
 	source := *cell.line
 	source.Text = text
 	source.sourceOffset += len(marker)
@@ -402,17 +405,21 @@ func textHunkLines(f inventory.FileChange, u inventory.ReviewUnit, patch []byte,
 	return lines
 }
 
-// numberedPatchText adds commit-view columns without changing cached source.
+// numberedPatchText adds shared old/new columns without changing cached source.
 func numberedPatchText(row diffLine) string {
+	return patchLineNumberPrefix(row) + row.Text
+}
+
+func patchLineNumberPrefix(row diffLine) string {
 	switch {
 	case row.oldLine != 0 && row.newLine != 0:
-		return fmt.Sprintf("%4d %4d %s", row.oldLine, row.newLine, row.Text)
+		return fmt.Sprintf("%4d %4d ", row.oldLine, row.newLine)
 	case row.oldLine != 0:
-		return fmt.Sprintf("%4d      %s", row.oldLine, row.Text)
+		return fmt.Sprintf("%4d      ", row.oldLine)
 	case row.newLine != 0:
-		return fmt.Sprintf("     %4d %s", row.newLine, row.Text)
+		return fmt.Sprintf("     %4d ", row.newLine)
 	default:
-		return row.Text
+		return ""
 	}
 }
 

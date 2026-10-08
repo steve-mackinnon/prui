@@ -104,3 +104,13 @@ and adds old/new line numbers. Before the first patch, commit metadata selects
 the first filename boundary. Files enables sticky headers; Commits disables
 pinning so cursor and editor rows retain their exact visible positions. Split
 header classes are copied with their projection, leaving cached source untouched.
+
+## Line numbers and cursor parity — 2026-10-07
+
+Unified Files, Guides, filtered comparisons, and Commits compose the same old/new
+line-number prefix. Numbers are shown by default; uppercase `L` toggles them for
+the current review tab, including split cells. Structural, comment, and editor
+rows receive no source numbers. Toggling does not edit raw coordinates or comment
+targets; unified wrapping reserves the number gutter and restores semantic cursor
+anchors when row counts change. Commit cursors use the same `›` gutter as Files,
+preserving each row's semantic color instead of selecting the whole row.
