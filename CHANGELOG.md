@@ -5,6 +5,11 @@ User-visible changes are recorded here before each release. See
 
 ## [Unreleased]
 
+### Added
+
+- Install or update the latest release with a single README command that detects
+  macOS/Linux and ARM64/x86-64, verifies the checksum, and installs to `~/.local/bin`.
+
 ### Changed
 
 - Richer diff syntax highlighting distinguishes functions, types, Rust macros,
