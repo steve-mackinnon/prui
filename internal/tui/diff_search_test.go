@@ -501,6 +501,33 @@ func TestDiffSearchVimNextPreviousMatches(t *testing.T) {
 	}
 }
 
+func TestDiffSearchRepeatFromDiff(t *testing.T) {
+	for _, view := range []reviewView{viewFiles, viewGuide} {
+		session := largeTextSession(2, 2)
+		session.Guides = &guide.Bundle{Status: guide.Generated, Items: []guide.Item{{Title: "Guide", Sections: []guide.Section{
+			{Title: "Matches", UnitIDs: []string{session.Inventory.Units[0].ID, session.Inventory.Units[1].ID}},
+		}}}}
+		m := largeModel(session, 120, 24)
+		m.selectReviewView(view)
+		if view == viewGuide {
+			m.Row = 1
+		}
+		searchInput(m, "new 19")
+		m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+		if m.searchOpen() || m.Focus != paneDiff {
+			t.Fatal("search activation must focus diff")
+		}
+		key(m, 'n')
+		if m.searchState().selected != 1 || m.searchOpen() || !m.searchMatchAtCursor() {
+			t.Fatalf("view %v: n did not reveal next match in diff", view)
+		}
+		key(m, 'N')
+		if m.searchState().selected != 0 || m.searchOpen() || !m.searchMatchAtCursor() {
+			t.Fatalf("view %v: N did not reveal previous match in diff", view)
+		}
+	}
+}
+
 func TestDiffSearchInsetResultClickAndQuerySlash(t *testing.T) {
 	m := largeModel(largeTextSession(2, 2), 120, 24)
 	m.selectReviewView(viewFiles)

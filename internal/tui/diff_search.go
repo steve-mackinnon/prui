@@ -480,6 +480,20 @@ func (m *Model) insertSearchText(text string) tea.Cmd {
 	return m.startSearch()
 }
 
+func (m *Model) repeatSearchMatch(previous bool) bool {
+	s := m.existingSearch()
+	if s == nil || s.session != m.Session || s.scope != m.currentSearchScope() || s.pending || s.query == "" || len(s.matches) == 0 {
+		return false
+	}
+	if previous {
+		s.selected = max(0, s.selected-1)
+	} else {
+		s.selected = min(len(s.matches)-1, s.selected+1)
+	}
+	m.activateSearchMatch()
+	return true
+}
+
 func (m *Model) activateSearchMatch() {
 	s := m.searchState()
 	if s.pending || s.selected < 0 || s.selected >= len(s.matches) {

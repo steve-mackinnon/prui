@@ -22,7 +22,7 @@ User-visible changes are recorded here before each release. See
 
 ### Added
 
-- Select the next or previous search match with `n` or `N` while results are focused.
+- Select the next or previous search match with `n` or `N` while results are focused, or jump between retained matches directly from the diff.
 
 - Copy the selected comment or discussion URL to the clipboard with `y`.
 
