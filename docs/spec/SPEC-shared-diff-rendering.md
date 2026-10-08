@@ -93,3 +93,14 @@ git diff --check
 Always preserve source provenance and isolated view state. Ask before adding
 dependencies or expanding product behavior. Never weaken tests, change storage
 schemas, post remote comments, or enable unsupported historical targets here.
+
+## Shared viewport composition — 2026-10-07
+
+Files and Commits use `diffViewport` for immutable viewport copies and active
+filename highlighting, and `presentUnifiedDiffLine` for source styling and
+clipping. Callers supply their active row and presentation prefix: Files follows
+the file picker or source cursor, while Commits follows its viewport or cursor
+and adds old/new line numbers. Before the first patch, commit metadata selects
+the first filename boundary. Files enables sticky headers; Commits disables
+pinning so cursor and editor rows retain their exact visible positions. Split
+header classes are copied with their projection, leaving cached source untouched.
