@@ -1,13 +1,13 @@
 example/review #42
   PRs [P]    Overview [1]  › F╭──────────────────────────────────────────────────────────────────────────────────────╮
 ┌ Files · ▽ Filter (F) ───────│ Find: l▏                                                                             │─┐
-│› main.go                    │ Files · saved diff text only                                                         │ │
-│  README.md                  │ 4 matches in 1 file                                                                  │ │
-│                             │ main.go   (4)                                                                        │ │
+│› main.go                    │ 4 matches in 1 file                                                                  │ │
+│  README.md                  │ main.go   (4)                                                                        │ │
 │                             │ ›  L1 - old greeting                                                                 │ │
 │                             │    R1 + hello world                                                                  │ │
 │                             │    R1 + hello world                                                                  │ │
 │                             │    R1 + hello world                                                                  │ │
+│                             │                                                                                      │ │
 │                             │                                                                                      │ │
 │                             │                                                                                      │ │
 │                             │                                                                                      │ │

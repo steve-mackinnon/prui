@@ -36,9 +36,11 @@ type searchScope struct {
 	Inventory      bool
 }
 type diffSearchState struct {
-	session                  *review.Session
-	scope                    searchScope
-	query                    string
+	session *review.Session
+	scope   searchScope
+	query   string
+	// Keep the submitted query for editor highlights while the input is fresh.
+	inputCleared             bool
 	cursor, selected, scroll int
 	open, pending, capped    bool
 	editing                  bool
@@ -384,10 +386,22 @@ func (m *Model) openSearch() tea.Cmd {
 	s.open = true
 	s.previousFocus = m.Focus
 	s.editing = true
+	blink := m.startSearchCursor()
 	if s.scope == m.currentSearchScope() && !s.pending && (s.query == "" || s.documents != nil) {
-		return nil
+		return blink
 	}
-	return m.startSearch()
+	return tea.Batch(blink, m.startSearch())
+}
+func (m *Model) startSearchCursor() tea.Cmd {
+	m.editorCursorVisible = true
+	m.editorCursorGeneration++
+	return nextEditorCursorTick(m.editorCursorGeneration)
+}
+func (s *diffSearchState) inputQuery() string {
+	if s.inputCleared {
+		return ""
+	}
+	return s.query
 }
 func (m *Model) closeSearch() { s := m.searchState(); s.open = false; m.Focus = s.previousFocus }
 func (m *Model) closeSearchPopovers() {
@@ -400,14 +414,15 @@ func (m *Model) closeSearchPopovers() {
 
 func (m *Model) searchKey(v tea.KeyPressMsg) tea.Cmd {
 	s := m.searchState()
-	runes := []rune(s.query)
+	runes := []rune(s.inputQuery())
 	s.cursor = min(s.cursor, len(runes))
+	m.editorCursorVisible = true
 	k := v.String()
 	if !s.editing {
 		switch k {
 		case "/", "tab", "shift+tab":
 			s.editing = true
-			return nil
+			return m.startSearchCursor()
 		case "j", "n":
 			k = "down"
 		case "k", "N":
@@ -426,9 +441,16 @@ func (m *Model) searchKey(v tea.KeyPressMsg) tea.Cmd {
 		return nil
 	case "tab", "shift+tab":
 		s.editing = !s.editing
+		if s.editing {
+			return m.startSearchCursor()
+		}
 		return nil
 	case "enter":
 		m.activateSearchMatch()
+		if !s.open {
+			s.inputCleared = true
+			s.cursor = 0
+		}
 		return nil
 	case "up":
 		s.selected = max(0, s.selected-1)
@@ -455,12 +477,18 @@ func (m *Model) searchKey(v tea.KeyPressMsg) tea.Cmd {
 		s.cursor = len(runes)
 		return nil
 	case "backspace":
+		if s.cursor == 0 {
+			return nil
+		}
 		if s.cursor > 0 {
 			runes = append(runes[:s.cursor-1], runes[s.cursor:]...)
 			s.cursor--
 			s.query = string(runes)
 		}
 	case "delete":
+		if s.cursor >= len(runes) {
+			return nil
+		}
 		if s.cursor < len(runes) {
 			s.query = string(append(runes[:s.cursor], runes[s.cursor+1:]...))
 		}
@@ -468,14 +496,17 @@ func (m *Model) searchKey(v tea.KeyPressMsg) tea.Cmd {
 		return m.insertSearchText(v.Text)
 	}
 	s.editing = true
+	s.inputCleared = false
 	return m.startSearch()
 }
 func (m *Model) insertSearchText(text string) tea.Cmd {
 	s := m.searchState()
-	if !s.editing || text == "" || strings.ContainsAny(text, "\r\n") || !utf8.ValidString(text) || len(s.query)+len(text) > 1024 {
+	if !s.editing || text == "" || strings.ContainsAny(text, "\r\n") || !utf8.ValidString(text) || len(s.inputQuery())+len(text) > 1024 {
 		return nil
 	}
-	s.query, s.cursor = insertEditorText(s.query, s.cursor, text)
+	s.query, s.cursor = insertEditorText(s.inputQuery(), s.cursor, text)
+	s.inputCleared = false
+	m.editorCursorVisible = true
 	s.editing = true
 	return m.startSearch()
 }
