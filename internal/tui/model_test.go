@@ -518,17 +518,27 @@ func TestFullDiffDoesNotScrollPastViewport(t *testing.T) {
 	}
 }
 
-func TestDUPageFocusedDiff(t *testing.T) {
-	m := largeModel(largeTextSession(1, 1), 120, 10)
-	m.Focus = paneDiff
+func TestDUScrollFocusedDiffBy15Lines(t *testing.T) {
+	for _, height := range []int{10, 18, 24} {
+		m := largeModel(largeTextSession(1, 1), 120, height)
+		m.Focus = paneDiff
 
-	key(m, 'd')
-	if got, want := m.offset(), m.pageStep(); got != want {
-		t.Fatalf("d page-down offset = %d, want %d", got, want)
-	}
-	key(m, 'u')
-	if got := m.offset(); got != 0 {
-		t.Fatalf("u did not restore the initial offset: %d", got)
+		key(m, 'd')
+		if got := m.offset(); got != 15 {
+			t.Fatalf("height %d: d scroll offset = %d, want 15", height, got)
+		}
+		key(m, 'u')
+		if got := m.offset(); got != 0 {
+			t.Fatalf("height %d: u did not restore the initial offset: %d", height, got)
+		}
+		namedKey(m, tea.KeyPgDown)
+		if got, want := m.offset(), m.pageStep(); got != want {
+			t.Fatalf("height %d: page-down offset = %d, want %d", height, got, want)
+		}
+		namedKey(m, tea.KeyPgUp)
+		if got := m.offset(); got != 0 {
+			t.Fatalf("height %d: page-up did not restore the initial offset: %d", height, got)
+		}
 	}
 }
 
