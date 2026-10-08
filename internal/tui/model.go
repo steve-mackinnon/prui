@@ -806,6 +806,9 @@ func (m *Model) update(msg tea.Msg) (updated tea.Model, command tea.Cmd) {
 			if v.String() == "/" {
 				return m, m.openSearch()
 			}
+			if (v.String() == "n" || v.String() == "N") && m.repeatSearchMatch(v.String() == "N") {
+				return m, nil
+			}
 		}
 		if m.top() == pageReview && m.selectedReviewView() == viewFiles && m.fileView() && m.discussions.published == nil && m.discussions.editor == nil && !m.commitFilter.open && !m.commitFilter.subset && m.Composer == nil && m.CommentMenu == nil && !m.Busy {
 			if m.fileFilterEditing && v.String() != "ctrl+c" {
