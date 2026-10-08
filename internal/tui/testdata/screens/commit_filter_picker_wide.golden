@@ -1,9 +1,9 @@
 example/review #42
   PRs [P]    Overview [1]  › Files [2]    Guide [3]    Commits [4]
-┌ Files · ▽ Filter (F)╭──────────────────────────────────────────────────────────────────────────╮e 1/2 ───────────────┐
-│› main.go            │ Commits [C] · All changes                                                │                     │
+┌ Files · ▽ Filter (F)╭──────────────────────────────────────────────────────────────────────────╮─────────────────────┐
+│› main.go            │ Commits [C] · All commits                                                │                     │
 │  README.md          │ Select commits for one net diff.                                         │                     │
-│                     │ › [x] All changes                                                        │                     │
+│                     │ › [x] All commits                                                        │                     │
 │                     │   [ ] aaaaaaaaaaaa First commit · Alice                                  │                     │
 │                     │   [ ] bbbbbbbbbbbb Second commit · Alice                                 │                     │
 │                     │ Space/Enter: toggle · j/k: move · Esc/C: close                           │                     │

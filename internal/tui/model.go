@@ -2582,7 +2582,7 @@ func (m *Model) reviewViewForLayout(preferSideBySide bool) string {
 	}
 	text := fmt.Sprintf("%s %d · %s [%s]", strings.ToUpper(label), len(s.Inventory.Files), pathLabel(s.Inventory.Files[s.UnitFiles[m.Selected]]), kind)
 	if m.fileView() {
-		text = fmt.Sprintf("FILES %d · file %d/%d", len(s.Inventory.Files), s.UnitFiles[m.Selected]+1, len(s.Inventory.Files))
+		text = fmt.Sprintf("file %d/%d", s.UnitFiles[m.Selected]+1, len(s.Inventory.Files))
 	}
 	if m.Inventory {
 		text = fmt.Sprintf("%s %d · unit %d/%d [%s]", strings.ToUpper(label), len(s.Inventory.Units), m.Selected+1, len(s.Inventory.Units), kind)
@@ -2597,20 +2597,7 @@ func (m *Model) reviewViewForLayout(preferSideBySide bool) string {
 	if preferSideBySide && !useSideBySide {
 		text += " · side-by-side needs 160 columns"
 	}
-	leftLabel, _ := m.fileFilterHeader()
-	if m.selectedReviewView() == viewGuide {
-		leftLabel = "Guide"
-	}
-	if m.Inventory {
-		leftLabel = "Full inventory (i)"
-	}
-	rightLabel := "Find (/) · Diff · " + text
-	if m.Width < 100 {
-		leftLabel += " · Commits [C] · " + m.commitFilterLabel()
-	} else {
-		rightLabel = "Commits [C] · " + m.commitFilterLabel() + " · " + rightLabel
-	}
-	header := m.paneFrameHeader(leftLabel, rightLabel)
+	header := m.reviewPaneHeader(text)
 	bodyHeight := m.bodyHeight()
 	list, selectedRow := m.reviewListPresentation()
 	var detail []diffLine
@@ -2732,11 +2719,32 @@ func paneHeaderText(label string, width int) string {
 	return label + strings.Repeat("─", max(0, width-visibleWidth(label)))
 }
 
+// Both full and filtered comparisons keep the same controls and pane styling.
+func (m *Model) reviewPaneHeader(text string) string {
+	leftLabel, _ := m.fileFilterHeader()
+	if m.selectedReviewView() == viewGuide {
+		leftLabel = "Guide"
+	}
+	if m.Inventory {
+		leftLabel = "Full inventory (i)"
+	}
+	rightLabel := "Find (/)"
+	if text != "" {
+		rightLabel += " · " + text
+	}
+	if m.Width < 100 {
+		leftLabel += " · Commits [C] · " + m.commitFilterLabel()
+	} else {
+		rightLabel = "Commits [C] · " + m.commitFilterLabel() + " · " + rightLabel
+	}
+	return m.paneFrameHeader(leftLabel, rightLabel)
+}
+
 func (m *Model) paneFrameHeader(listLabel, detailLabel string) string {
 	if m.Width < 100 {
 		label := listLabel + " · List"
 		if m.Focus == paneDiff {
-			label = listLabel + " · Find (/) · Diff"
+			label = listLabel + " · Find (/)"
 		}
 		return m.styleLine(classPaneHeaderFocused, "┌"+paneHeaderText(label, m.Width-2)+"┐")
 	}

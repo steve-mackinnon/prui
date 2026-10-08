@@ -201,7 +201,7 @@ func TestGuideNavigation(t *testing.T) {
 
 	// 2 selects the deterministic file plan; G restores the guide.
 	m.Update(tea.KeyPressMsg{Code: '2', Text: "2"})
-	if m.rows() != nil || !strings.Contains(ansi.Strip(m.View().Content), "FILES") {
+	if m.rows() != nil || !strings.Contains(ansi.Strip(m.View().Content), " · file ") {
 		t.Fatal("2 did not expose the deterministic file plan")
 	}
 	m.Update(tea.KeyPressMsg{Code: 'G', Text: "G"})
@@ -694,7 +694,7 @@ func TestGuideFallback(t *testing.T) {
 		t.Fatal("a fallback bundle produced guide rows")
 	}
 	view := ansi.Strip(m.View().Content)
-	if !strings.Contains(view, "FILES") || !strings.Contains(m.healthHelpView(), "Guide available with g") {
+	if !strings.Contains(view, " · file ") || !strings.Contains(m.healthHelpView(), "Guide available with g") {
 		t.Fatal("fallback does not render the deterministic file plan", view)
 	}
 	key(m, 'n')
@@ -704,7 +704,7 @@ func TestGuideFallback(t *testing.T) {
 
 	for _, b := range []*guide.Bundle{nil, {Status: guide.Generated}} {
 		m.Session.Guides = b
-		if m.rows() != nil || !strings.Contains(ansi.Strip(m.View().Content), "FILES") {
+		if m.rows() != nil || !strings.Contains(ansi.Strip(m.View().Content), " · file ") {
 			t.Fatalf("bundle %v did not fall back to the file plan", b)
 		}
 	}

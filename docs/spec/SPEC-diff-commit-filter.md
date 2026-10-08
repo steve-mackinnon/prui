@@ -17,7 +17,7 @@ visual reference for a filter control and checkbox list, adapted to this TUI.
   remain independent. No new top-level Diff tab is proposed.
 - Uppercase `C` opens the filter in Files/Guide. Lowercase `c` retains discussion
   refresh. Editors and existing modal input take precedence over shortcuts.
-- Default is `All changes`: the existing frozen full-PR comparison, including
+- Default is `All commits`: the existing frozen full-PR comparison, including
   the existing guide, progress, comments, and split/unified preference.
 - Selected-commit mode derives one transient comparison from immutable captured
   source. Filtering requires no network, changes to the user checkout, or guide
@@ -28,33 +28,35 @@ visual reference for a filter control and checkbox list, adapted to this TUI.
 ## Filter Interaction
 
 Render a mouse-selectable `Commits [C]` control above the diff workspace, visible
-at both wide and narrow widths. Show `All changes` or `N selected` beside it so
-filter state remains clear when the picker is closed.
+at both wide and narrow widths. Show `All commits` or `N commits` beside it so
+filter state remains clear when the picker is closed. Full and filtered comparisons
+use the same pane header layout and focus styling. The Files header keeps the
+file-position indicator and omits the redundant `Diff` and `FILES N` labels.
 
 The picker is a centered modal layered over the current Files/Guide workspace,
 with the existing review visible around it. It never replaces the review with a
 separate page. Its bounded card scrolls on short terminals; mouse choices use
 the same card coordinates as rendering, and background clicks do not navigate.
 
-The picker contains `All changes` first, then captured commits with checkboxes,
+The picker contains `All commits` first, then captured commits with checkboxes,
 escaped subject, author, and abbreviated SHA. Preserve captured order and show
 the capture limitation notice when membership is incomplete. Clip long metadata
 to terminal cell width; identity and checkbox state must not depend on color.
 
 - Opening focuses the active choice; opening alone changes nothing.
 - Up/Down or j/k moves focus; Space or Enter toggles the focused commit. Toggling
-  from All changes starts an explicit selection containing that commit.
-- Enter/Space on All changes restores the full PR comparison.
+  from All commits starts an explicit selection containing that commit.
+- Enter/Space on All commits restores the full PR comparison.
 - Selection updates the workspace immediately and leaves the picker open for
   further choices. Escape or C closes it, retaining the applied selection.
 - Deselecting the last commit shows `No commits selected` and an empty reading
-  surface, with All changes still reachable. It must not silently reset.
-- Selecting all commits in a complete captured list resolves to All changes,
+  surface, with All commits still reachable. It must not silently reset.
+- Selecting all commits in a complete captured list resolves to All commits,
   guaranteeing the existing canonical PR diff. Selecting all entries of a capped
   list remains a subset; uncaptured commits must not be silently included.
 - Mouse clicks use the same transitions; wheel navigation stays within the
   picker. The picker consumes input before workspace navigation.
-- New/resumed comparisons default to All changes. Process-local selection is
+- New/resumed comparisons default to All commits. Process-local selection is
   retained across Files/Guide and workspace PR switches, keyed by review identity
   and SHA. It is independent of the dedicated Commits tab's selected SHA.
 
@@ -85,7 +87,7 @@ ambiguous branch ordering that cannot be safely composed under this rule.
 Selection drives one atomic result: show a computing/unavailable state until both
 file list and code are ready for the current selection. Stale asynchronous results
 must not replace a newer selection. A failed combination retains the requested
-checkboxes, explains the failure, and leaves All changes readily accessible;
+checkboxes, explains the failure, and leaves All commits readily accessible;
 do not display the previous diff under the new selection label.
 
 ## Frozen Source and Composition Contract
@@ -107,7 +109,7 @@ composition too. Store an explicit unavailable status when source is insufficien
 
 Validate identities, content/object correspondence, references, and bounds on
 save/load. Keep the extension optional so legacy canonical payloads and digests
-remain valid. Legacy sessions retain All changes and the dedicated commit browser;
+remain valid. Legacy sessions retain All commits and the dedicated commit browser;
 net filtering explains missing composition data and never backfills on resume.
 No SQL table migration is assumed. Offline filtering must survive Git object
 pruning and operate only on frozen material. Any temporary object store/index
@@ -122,20 +124,20 @@ their own generated explanation. Place unmatched/ambiguous paths in an explicit
 An absent guide remains absent; generation never starts from a filter action.
 
 Derived patches are read-only in this first addition. Disable marking and line
-composition, explaining `Selected commits: reading only; use All changes to mark
+composition, explaining `Selected commits: reading only; use All commits to mark
 files or Commits to discuss a commit.` Keep pending drafts intact and the existing
 PR-level review action available. Reuse historical discussion targeting only in
 the dedicated Commits tab; do not route filtered rows through head-based targets.
 
-Keep the All changes cursor, file selection, scroll, guide expansion and progress
-separate from filtered reading state. Returning to All changes restores them.
+Keep the All commits cursor, file selection, scroll, guide expansion and progress
+separate from filtered reading state. Returning to All commits restores them.
 After selection changes, retain a still-visible derived file selection; otherwise
 choose the first available entry and clamp the scroll position.
 
 ## Safe States
 
 - Missing legacy bundle, failed capture, or empty captured list: keep the control
-  discoverable and explain why selection is unavailable; All changes still works.
+  discoverable and explain why selection is unavailable; All commits still works.
 - Capped membership: list only captured entries and disclose that more may exist.
 - Missing/partial composition material or conflict: no successful derived diff;
   show the affected commit/path and safe reason, without omitting selected input.
@@ -187,7 +189,7 @@ git diff --check
 
 Use synthetic frozen bundles and local fixtures, no live GitHub/provider calls.
 Model tests cover multi-select, empty/reset, keyboard precedence, mouse parity,
-Files/Guide shared state, PR isolation, restoring All changes, and independent
+Files/Guide shared state, PR isolation, restoring All commits, and independent
 Commits navigation. Composition tests use disposable Git fixtures with known expected old/new bytes:
 single commit, contiguous range, noncontiguous independent changes, dependent
 conflict, repeated edits to one path, cancellation/reverts, rename chains,
@@ -216,7 +218,7 @@ CONSTRAINTS.md. No new numeric coverage threshold is introduced.
 ## Success Criteria
 
 1. Files and Guide expose a visible Commits control and uppercase C picker.
-2. All changes initially reproduces the existing full comparison; the dedicated
+2. All commits initially reproduces the existing full comparison; the dedicated
    Commits tab and lowercase c retain their behavior.
 3. Selected commits produce one net diff with one entry per resulting changed
    file; cumulative edits combine, cancelling changes disappear, and excluded
@@ -224,7 +226,7 @@ CONSTRAINTS.md. No new numeric coverage threshold is introduced.
 4. Selected files remain reachable even when absent from the final net PR diff
    or the existing guide; missing material is disclosed.
 5. Changing filters cannot write, mark files, retarget drafts, or mutate snapshots.
-6. All changes restores reading state; PR switching preserves isolated filters.
+6. All commits restores reading state; PR switching preserves isolated filters.
 7. Keyboard/mouse, narrow layouts, offline/legacy cases and repository gates pass.
 
 ## Implementation Decisions (2026-10-04)

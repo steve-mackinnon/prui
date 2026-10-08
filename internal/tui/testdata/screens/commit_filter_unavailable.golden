@@ -1,6 +1,6 @@
 example/review #42
   PRs [P]    Overview [1]  › Files [2]    Guide [3]    Commits [4]
-┌ Commits [C] · 1 selected · Selected┬ Net diff · 1 selected ──────────────────────────────────────────────────────────┐
+┌ Files · ▽ Filter (F) ──────────────┬ Commits [C] · 1 commits · Find (/) ─────────────────────────────────────────────┐
 │Selected commits unavailable: confli│Selected commits unavailable: conflict in commit aaaaaa, path main.go            │
 │                                    │                                                                                 │
 │                                    │                                                                                 │
@@ -8,5 +8,5 @@ example/review #42
 │                                    │                                                                                 │
 │                                    │                                                                                 │
 └────────────────────────────────────┴─────────────────────────────────────────────────────────────────────────────────┘
-Selected commits: reading only; use All changes for source/search or marking files.
+Selected commits: reading only; use All commits for source/search or marking files.
 R: review PR · C: filter commits

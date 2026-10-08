@@ -299,7 +299,7 @@ func TestWideReviewSeparatesPanesAndIdentifiesFocus(t *testing.T) {
 		}
 		view := ansi.Strip(rendered)
 		lines := strings.Split(view, "\n")
-		if !strings.HasPrefix(lines[2], "┌ Files · ▽ Filter (F) ") || !strings.Contains(lines[2], "┬ Commits [C] · All changes · Find (/) · Diff · FILES") {
+		if !strings.HasPrefix(lines[2], "┌ Files · ▽ Filter (F) ") || !strings.Contains(lines[2], "┬ Commits [C] · All commits · Find (/) · file") {
 			t.Fatalf("missing pane headers:\n%s", view)
 		}
 		if !strings.HasPrefix(lines[3], "│› main.go") || strings.Count(lines[3], "│") != 3 || !strings.HasPrefix(lines[3+m.bodyHeight()], "└") {
@@ -1628,7 +1628,7 @@ func TestRawReviewGuideHierarchy(t *testing.T) {
 		t.Fatal("guide navigation did not reach a portion row")
 	}
 	m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
-	if m.Focus != paneDiff || !strings.Contains(ansi.Strip(m.View().Content), "· Diff") || !strings.Contains(ansi.Strip(m.View().Content), fileDivider(s.Inventory.Files[m.Session.UnitFiles[m.Selected]])) {
+	if m.Focus != paneDiff || !strings.Contains(ansi.Strip(m.View().Content), "Find (/)") || !strings.Contains(ansi.Strip(m.View().Content), fileDivider(s.Inventory.Files[m.Session.UnitFiles[m.Selected]])) {
 		t.Fatal("narrow tab did not switch to the diff pane")
 	}
 	namedKey(m, tea.KeyEscape)
