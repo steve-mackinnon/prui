@@ -2058,8 +2058,13 @@ func (m *Model) inlineEditorLinesFor(draft string, editorCursor, indent int) []d
 	}
 	for i, text := range strings.Split(draft, "\n") {
 		content := Escape(text)
-		if i == cursorLine && m.editorCursorVisible {
-			content = Escape(beforeLine) + "▏" + Escape(afterLine)
+		if i == cursorLine {
+			// Keep the caret's column reserved so blinking cannot move text or wraps.
+			caret := " "
+			if m.editorCursorVisible {
+				caret = "▏"
+			}
+			content = Escape(beforeLine) + caret + Escape(afterLine)
 		}
 		for _, part := range strings.Split(ansi.Hardwrap(content, inner, true), "\n") {
 			part += strings.Repeat(" ", max(0, inner-visibleWidth(part)))

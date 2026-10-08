@@ -37,3 +37,35 @@ func TestInlineEditorWrapsWithoutChangingDraft(t *testing.T) {
 		}
 	}
 }
+
+func TestInlineEditorBlinkKeepsTextAndWrappingStationary(t *testing.T) {
+	for _, indent := range []int{0, 2} {
+		m := New(context.Background(), nil)
+		m.Width = 50
+		inner := m.overlayInnerWidth(indent)
+		for _, draft := range []string{
+			"here is adjacent text",
+			strings.Repeat("x", inner),
+			strings.Repeat("long comment ", 12),
+			strings.Repeat("界é", 60) + "\nlast line",
+			"first\n\nlast\n",
+			"",
+		} {
+			for cursor := 0; cursor <= len([]rune(draft)); cursor++ {
+				m.editorCursorVisible = true
+				shown := m.inlineEditorLinesFor(draft, cursor, indent)
+				m.editorCursorVisible = false
+				hidden := m.inlineEditorLinesFor(draft, cursor, indent)
+				if len(shown) != len(hidden) {
+					t.Fatalf("indent=%d cursor=%d draft=%q: blink changed row count from %d to %d", indent, cursor, draft, len(shown), len(hidden))
+				}
+				for i := range shown {
+					want := strings.ReplaceAll(shown[i].Text, "▏", " ")
+					if hidden[i].Text != want {
+						t.Fatalf("indent=%d cursor=%d draft=%q row=%d: blink moved text\nshown:  %q\nhidden: %q", indent, cursor, draft, i, shown[i].Text, hidden[i].Text)
+					}
+				}
+			}
+		}
+	}
+}

@@ -16,6 +16,10 @@ User-visible changes are recorded here before each release. See
   constants, attributes, and built-ins where supported by the language lexer.
   Symbol colors can be configured independently of the rest of the interface.
 
+### Fixed
+
+- Keep comment editor text and line wrapping stationary while the cursor blinks.
+
 ## [0.3.0]
 
 ### Added
