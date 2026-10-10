@@ -6,14 +6,16 @@ import (
 	"net/url"
 	"strings"
 
+	"charm.land/fantasy"
 	"charm.land/fantasy/providers/anthropic"
 )
 
 // DefaultAnthropicModel is used when an Anthropic model is not selected.
-const DefaultAnthropicModel = "claude-sonnet-4-20250514"
+const DefaultAnthropicModel = "claude-sonnet-5-5"
 
-// NewFantasyAnthropic builds the native Anthropic guide analyzer. The SDK's
-// object mode uses one forced tool call, and its provider disables retries.
+// NewFantasyAnthropic builds the native Anthropic guide analyzer. Object mode
+// is text (schema in prompt, JSON parsed from the reply) because current
+// models reject forced tool_choice; its provider disables retries.
 func NewFantasyAnthropic(o FantasyOptions) (*Fantasy, error) {
 	key := strings.TrimSpace(o.APIKey)
 	if key == "" {
@@ -36,6 +38,7 @@ func NewFantasyAnthropic(o FantasyOptions) (*Fantasy, error) {
 		anthropic.WithAPIKey(key),
 		anthropic.WithBaseURL(strings.TrimRight(baseURL, "/")),
 		anthropic.WithHTTPClient(newSingleRequestHTTPClient(o.Client)),
+		anthropic.WithObjectMode(fantasy.ObjectModeText),
 	)
 	if err != nil {
 		return nil, errors.New("anthropic guide provider is unavailable")
@@ -44,5 +47,5 @@ func NewFantasyAnthropic(o FantasyOptions) (*Fantasy, error) {
 	if err != nil {
 		return nil, errors.New("anthropic guide model is unavailable")
 	}
-	return newFantasy(model, anthropic.Name, modelID), nil
+	return newFantasy(model, anthropic.Name, modelID, o.APIKey), nil
 }
