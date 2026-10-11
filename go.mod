@@ -12,7 +12,7 @@ require (
 	github.com/charmbracelet/x/ansi v0.11.7
 	github.com/charmbracelet/x/term v0.2.2
 	github.com/openai/openai-go/v3 v3.50.0
-	github.com/yuin/goldmark v1.7.17
+	github.com/yuin/goldmark v1.8.6
 	golang.org/x/net v0.60.0
 	modernc.org/sqlite v1.59.0
 )
