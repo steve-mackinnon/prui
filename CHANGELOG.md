@@ -5,6 +5,8 @@ User-visible changes are recorded here before each release. See
 
 ## [Unreleased]
 
+## [0.4.0]
+
 ### Added
 
 - Paste into every text field using terminal paste or Ctrl+V in terminals with
