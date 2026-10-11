@@ -85,6 +85,11 @@ func (m *Model) fileFilterKey(v tea.KeyPressMsg) {
 			m.fileFilter += v.Text
 		}
 	}
+	m.selectFilteredFile()
+}
+
+// Keep the selection visible after either a typed edit or a paste.
+func (m *Model) selectFilteredFile() {
 	files := m.filteredFiles()
 	if len(files) > 0 {
 		selected := m.Session.UnitFiles[m.Selected]

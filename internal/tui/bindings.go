@@ -18,6 +18,7 @@ type binding struct {
 }
 
 var bindings = []binding{
+	{keys: "ctrl+v", desc: "paste clipboard into the active text field (OSC 52); terminal paste also works", groups: groupHelp, section: "App"},
 	{keys: "y", desc: "copy selected comment or discussion URL to clipboard (OSC 52)", groups: groupHelp, section: "Review"},
 	{keys: "D", desc: "jump to Discussions beneath the Overview description", groups: groupHelp | groupFooter, section: "Views"},
 	{keys: "tab/shift+tab, f, o", desc: "in Overview Discussions: select activity, open exact comment in Files, or original commit; Escape returns", groups: groupHelp, section: "Navigate"},
