@@ -341,6 +341,13 @@ def main():
         os.write(terminal.master, b"\x1b")
         terminal.wait_until(lambda screen: "╭" not in screen and "0/2 read" in screen,
                             "restore review after commit modal", start)
+        terminal.key(b"F", "Filter files:")
+        terminal.key(b"\x1b[200~b.go\x1b[201~", "Filter files: b.go")
+        start = len(terminal.output)
+        os.write(terminal.master, b"\x1b")
+        terminal.wait_until(lambda screen: "Filter files:" not in screen and
+                            "› [ ] b.go" in screen,
+                            "clear pasted file filter", start)
         terminal.key(b"/", "Type to search diff text")
         terminal.key(b"needle", "2 matches in 2 files")
         terminal.key(b"q", "No matches in saved diff text")
@@ -364,6 +371,7 @@ def main():
                             "mouse divider resize", start)
         terminal.key(b"\x1b[A", "› [ ] a.go")
         terminal.key(b"P", "Switch pull requests")
+        terminal.key(b"\x1b[200~alpha\x1b[201~", "filter: alpha")
         terminal.key(b"\x1b", "0/2 read")
         terminal.key(b"\x1b[B", "› [ ] b.go")
         terminal.key(b"m", "1/2 read")

@@ -7,11 +7,14 @@ User-visible changes are recorded here before each release. See
 
 ### Added
 
+- Paste into every text field using terminal paste or Ctrl+V in terminals with
+  OSC 52 clipboard read support.
 - Install or update the latest release with a single README command that detects
   macOS/Linux and ARM64/x86-64, verifies the checksum, and installs to `~/.local/bin`.
 
 ### Fixed
 
+- Build with Go 1.26.9 and golang.org/x/net v0.60.0 to address reachable vulnerabilities.
 - Preserve diff text contrast with softer background fills across themes, keeping GitHub Dark unchanged.
 
 ### Changed

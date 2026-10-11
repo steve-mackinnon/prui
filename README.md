@@ -184,6 +184,14 @@ comment's URL in Files/Guide or its action menu. Clipboard writes use
 OSC 52 and require a terminal that allows it. The shortcut leaves text editors
 unchanged; items without a URL show an unavailable notice.
 
+All text fields accept your terminal's paste shortcut or menu action, including
+comments, replies, suggestions, review summaries, search and filters, the PR
+switcher, and the guide model field. **Ctrl+V** also requests clipboard text in
+terminals that support OSC 52 clipboard reads. In the diff with no text field
+active, Ctrl+V still starts or cancels a line range. Multiline editors paste at
+the cursor; single-line fields reject multiline text and retain their input
+limits. Pasting never submits a comment or review.
+
 Discussion bodies render Markdown with real paragraph breaks, lists, code,
 tables and clickable link labels. Embedded HTML is converted to readable text;
 images use their labels, and hidden bot metadata is omitted. Expand collapsed

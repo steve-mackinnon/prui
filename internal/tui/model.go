@@ -255,6 +255,7 @@ type Model struct {
 	Repositories         []session.Repository
 	PullRequests         []source.PullRequest
 	SwitcherQuery        string
+	clipboardTarget      *string
 	reactionEmoji        bool
 	store                *session.Store
 	reader               review.MetadataReader
@@ -438,8 +439,14 @@ func (m *Model) update(msg tea.Msg) (updated tea.Model, command tea.Cmd) {
 		m.applySearchResult(v)
 		return m, nil
 	case tea.PasteMsg:
-		if m.searchOpen() {
-			return m, m.insertSearchText(v.Content)
+		m.clipboardTarget = nil
+		return m, m.pasteText(v.Content)
+	case tea.ClipboardMsg:
+		target := m.clipboardTarget
+		m.clipboardTarget = nil
+		field, _ := m.textInput()
+		if target != nil && target == field && v.Selection == 'c' {
+			return m, m.pasteText(v.Content)
 		}
 		return m, nil
 	case tea.ColorProfileMsg:
@@ -754,6 +761,7 @@ func (m *Model) update(msg tea.Msg) (updated tea.Model, command tea.Cmd) {
 	case Notice:
 		m.notice = string(v)
 	case tea.MouseMsg:
+		m.clipboardTarget = nil
 		return m, m.mouseUpdate(v)
 	case tea.WindowSizeMsg:
 		overviewRelative, preserveOverview := m.overviewPosition()
@@ -793,6 +801,14 @@ func (m *Model) update(msg tea.Msg) (updated tea.Model, command tea.Cmd) {
 		}
 		return m, m.restartGuidePathScroll()
 	case tea.KeyPressMsg:
+		// Any intervening key invalidates a pending clipboard request.
+		m.clipboardTarget = nil
+		if v.String() == "ctrl+v" {
+			if field, _ := m.textInput(); field != nil {
+				m.clipboardTarget = field
+				return m, tea.ReadClipboard
+			}
+		}
 		m.cancelMouseDrag()
 		pendingCenter := m.pendingCenter
 		m.pendingCenter = false
