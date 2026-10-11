@@ -37,5 +37,5 @@ func NewFantasyCompatible(o FantasyOptions) (*Fantasy, error) {
 	if err != nil {
 		return nil, errors.New("compatible guide model could not be configured")
 	}
-	return newFantasy(model, "openai-compatible", o.Model), nil
+	return newFantasy(model, "openai-compatible", o.Model, o.APIKey), nil
 }

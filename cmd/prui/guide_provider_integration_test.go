@@ -170,13 +170,9 @@ func guideProviderResponse(t *testing.T, provider, model string, answer []byte) 
 			"type": "message", "id": "msg_test", "role": "assistant", "status": "completed", "content": []any{map[string]any{"type": "output_text", "text": string(answer)}},
 		}}}
 	case "anthropic":
-		var object any
-		if err := json.Unmarshal(answer, &object); err != nil {
-			t.Fatal(err)
-		}
 		payload = map[string]any{"id": "msg_test", "type": "message", "role": "assistant", "model": model, "content": []any{map[string]any{
-			"type": "tool_use", "id": "toolu_test", "name": guide.SchemaName, "input": object,
-		}}, "stop_reason": "tool_use", "usage": map[string]any{"input_tokens": 10, "output_tokens": 10}}
+			"type": "text", "text": string(answer),
+		}}, "stop_reason": "end_turn", "usage": map[string]any{"input_tokens": 10, "output_tokens": 10}}
 	case "google":
 		payload = map[string]any{"candidates": []any{map[string]any{"content": map[string]any{"role": "model", "parts": []any{map[string]any{"text": string(answer)}}}, "finishReason": "STOP"}}, "usageMetadata": map[string]any{"promptTokenCount": 1, "candidatesTokenCount": 1, "totalTokenCount": 2}}
 	case "openai-compatible":

@@ -48,17 +48,19 @@ func TestFantasyAnthropicGeneratesOneStructuredRequest(t *testing.T) {
 	if body["model"] != "claude-test" {
 		t.Fatalf("request named wrong model: %v", body["model"])
 	}
-	choice, ok := body["tool_choice"].(map[string]any)
-	if !ok || choice["type"] != "tool" || choice["name"] != SchemaName {
-		t.Fatalf("guide schema was not forced: %v", body["tool_choice"])
+	if body["max_tokens"] != float64(maxOutputTokens) {
+		t.Fatalf("request max_tokens = %v", body["max_tokens"])
 	}
-	tools, ok := body["tools"].([]any)
-	if !ok || len(tools) != 1 {
-		t.Fatalf("expected only the guide schema tool: %v", body["tools"])
+	// Current Anthropic models reject forced tool_choice, so the schema travels
+	// in the prompt and no tools are sent.
+	if _, ok := body["tool_choice"]; ok {
+		t.Fatalf("request forced a tool: %v", body["tool_choice"])
 	}
-	tool, ok := tools[0].(map[string]any)
-	if !ok || tool["name"] != SchemaName {
-		t.Fatalf("unexpected tool: %v", tools[0])
+	if _, ok := body["tools"]; ok {
+		t.Fatalf("request sent tools: %v", body["tools"])
+	}
+	if encoded, _ := json.Marshal(body["system"]); !strings.Contains(string(encoded), "unit_ids") {
+		t.Fatal("guide schema was not included in the prompt")
 	}
 	covered(t, b, inv)
 }
@@ -75,6 +77,9 @@ func TestFantasyAnthropicErrorsDoNotLeakCredentials(t *testing.T) {
 	}
 	b := run(t, a, twoUnits(t), Defaults)
 	if b.Status != Unavailable || strings.Contains(b.Reason, testKey) || b.Provider != "" || len(b.Items) != 0 {
+		t.Fatalf("provider failure leaked data or retained guides: %+v", b)
+	}
+	if b.Reason != "guide provider request failed: HTTP 401: bad [redacted]" {
 		t.Fatalf("provider failure leaked data or retained guides: %+v", b)
 	}
 }
@@ -130,14 +135,9 @@ func anthropicGuideAnswer(w http.ResponseWriter) {
 	_ = json.NewEncoder(w).Encode(map[string]any{
 		"id": "msg_test", "type": "message", "role": "assistant", "model": "claude-test",
 		"content": []any{map[string]any{
-			"type": "tool_use", "id": "toolu_test", "name": SchemaName,
-			"input": map[string]any{"guides": []any{map[string]any{
-				"title": "Authentication flow", "description": "Adds a login endpoint.",
-				"sections": []any{map[string]any{
-					"title": "Add login endpoint", "description": "Handles the request.", "unit_ids": []string{"u1", "u2"},
-				}},
-			}}},
+			"type": "text",
+			"text": `{"guides":[{"title":"Authentication flow","description":"Adds a login endpoint.","sections":[{"title":"Add login endpoint","description":"Handles the request.","unit_ids":["u1","u2"]}]}]}`,
 		}},
-		"stop_reason": "tool_use", "usage": map[string]any{"input_tokens": 10, "output_tokens": 10},
+		"stop_reason": "end_turn", "usage": map[string]any{"input_tokens": 10, "output_tokens": 10},
 	})
 }
