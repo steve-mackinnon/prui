@@ -261,7 +261,8 @@ readiness, or issue context to highlight it. Releasing copies the visible text
 through OSC 52 and shows a small `copied to clipboard` toast at the bottom for
 two seconds. Multiline selection stays within the content pane; rendered line
 numbers and diff markers are copied when selected. Plain clicks do not copy.
-URL clicks open on release; dragging over a URL copies its visible text.
+Overview card actions and URL clicks wait for release; dragging copies text
+without expanding a card or following a link.
 Keyboard input, wheel scrolling, or resizing cancels an in-progress selection.
 The terminal must support and permit OSC 52 clipboard writes.
 

@@ -8,6 +8,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
+	"prui/internal/source"
 )
 
 func clipboardText(cmd tea.Cmd) string {
@@ -150,5 +151,39 @@ func TestTextSelectionInFilteredDiff(t *testing.T) {
 	_, cmd := m.Update(tea.MouseReleaseMsg{Button: tea.MouseLeft, X: g.Min.X + 8, Y: g.Min.Y})
 	if clipboardText(cmd) == "" {
 		t.Fatal("filtered diff swallowed text selection")
+	}
+}
+
+func TestTextSelectionOverviewDoesNotToggleComment(t *testing.T) {
+	m := largeModel(screenSession(), 120, 40)
+	m.selectReviewView(viewDescription)
+	m.discussions.loaded = true
+	m.discussions.snapshot = DiscussionSnapshot{CurrentVerified: true, Snapshot: source.DiscussionSnapshot{
+		Complete: true, Timeline: true, Events: []source.ConversationEvent{{ID: "comment", Kind: "PR comment", Body: "Selectable comment text"}},
+	}}
+	m.discussions.overviewExpanded = map[string]bool{"comment": true}
+	y, x := -1, -1
+	for i, row := range strings.Split(ansi.Strip(m.View().Content), "\n") {
+		if col := strings.Index(row, "Selectable"); col >= 0 {
+			x, y = ansi.StringWidth(row[:col]), i
+			break
+		}
+	}
+	if x < 0 {
+		t.Fatal("missing comment body")
+	}
+	m.Update(tea.MouseClickMsg{Button: tea.MouseLeft, X: x, Y: y})
+	if !m.discussions.overviewExpanded["comment"] {
+		t.Fatal("selection press collapsed comment")
+	}
+	m.Update(tea.MouseMotionMsg{Button: tea.MouseLeft, X: x + 5, Y: y})
+	_, cmd := m.Update(tea.MouseReleaseMsg{Button: tea.MouseLeft, X: x + 5, Y: y})
+	if clipboardText(cmd) != "Select" || !m.discussions.overviewExpanded["comment"] || m.selectedReviewView() != viewDescription {
+		t.Fatal("drag changed comment state instead of only copying")
+	}
+	m.Update(tea.MouseClickMsg{Button: tea.MouseLeft, X: x, Y: y})
+	m.Update(tea.MouseReleaseMsg{Button: tea.MouseLeft, X: x, Y: y})
+	if m.discussions.overviewExpanded["comment"] {
+		t.Fatal("plain click no longer toggles comment")
 	}
 }

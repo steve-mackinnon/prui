@@ -74,6 +74,14 @@ func (m *Model) mouseTextSelection(msg tea.MouseMsg) (tea.Cmd, bool) {
 		bounds := m.textSelectionBounds().Intersect(image.Rect(0, 0, m.Width, m.Height))
 		if event.Button == tea.MouseLeft && p.In(bounds) {
 			m.textSelection = textSelection{active: true, start: p, end: p, bounds: bounds, content: m.View().Content}
+			// Overview rows can expand cards or navigate; a drag must not
+			// perform those actions before the gesture is known to be a click.
+			if m.top() == pageReview && m.selectedReviewView() == viewDescription {
+				if cmd, handled := m.mouseURL(msg); handled {
+					m.textSelection.click = cmd
+				}
+				return nil, true
+			}
 		}
 	case tea.MouseMotionMsg:
 		s := &m.textSelection
@@ -94,7 +102,13 @@ func (m *Model) mouseTextSelection(msg tea.MouseMsg) (tea.Cmd, bool) {
 			return nil, false
 		}
 		if !s.moved {
-			return s.click, s.click != nil
+			if s.click != nil {
+				return s.click, true
+			}
+			if m.top() == pageReview && m.selectedReviewView() == viewDescription {
+				return m.mouseReviewClick(s.start.X, s.start.Y), true
+			}
+			return nil, false
 		}
 		// Some terminals release with MouseNone; the drag's left button owns this.
 		s.end = image.Pt(max(s.bounds.Min.X, min(p.X, s.bounds.Max.X-1)), max(s.bounds.Min.Y, min(p.Y, s.bounds.Max.Y-1)))
