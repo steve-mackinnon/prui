@@ -5,6 +5,11 @@ User-visible changes are recorded here before each release. See
 
 ## [Unreleased]
 
+### Fixed
+
+- Wrap guide and subsection headers within the guide pane and distinguish them
+  from descriptions with bold title styling.
+
 ## [0.4.0]
 
 ### Added

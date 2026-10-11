@@ -144,6 +144,18 @@ func TestScreenSnapshots(t *testing.T) {
 			m.Files = false
 			m.begin()
 		}},
+		{"guides_wrapped_headers", 120, 24, func(m *Model) {
+			m.Session.Guides = &guide.Bundle{Status: guide.Generated, Items: []guide.Item{{
+				Title: "Tempo Sync timing engine handover", Description: "Move lane timing under the engine's host tempo measurement.",
+				Sections: []guide.Section{
+					{Title: "Column time as a four-quarter host tempo measurement", Description: "Four quarter notes read by the engine each block keep grid labels and timing in agreement.", UnitIDs: []string{"unit-0"}},
+					{Title: "Domain wiring and host tempo values", Description: "Pass the tempo basis into the lane domain.", UnitIDs: []string{"unit-1"}},
+				},
+			}}}
+			m.Files = false
+			m.begin()
+			key(m, 'j')
+		}},
 		{"repositories", 60, 8, func(m *Model) {
 			m.Stack = []page{pageRepositoryPicker}
 			for i := 0; i < 20; i++ {

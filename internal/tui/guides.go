@@ -232,6 +232,7 @@ func (m *Model) toggle(rows []row) {
 }
 
 type listLine struct {
+	class     lineClass
 	mutedFrom int
 	row       int
 	text      string
@@ -262,10 +263,19 @@ func guideList(s *review.Session, rows []row, selected, width int, focused bool,
 		if r.kind == portionRow {
 			prefix := line + readMarker(s, s.Inventory.Files[r.file].ID)
 			line = guidePortionText(s, r, prefix, width, i == selected && focused, pathOffset)
+			out = append(out, listLine{row: i, text: line})
 		} else {
-			line += r.label
+			// Every fragment keeps the logical row so selection and mouse
+			// navigation apply to the entire header, not just its first line.
+			indent := strings.Repeat(" ", visibleWidth(line))
+			for part, text := range strings.Split(ansi.Wrap(r.label, max(1, width-visibleWidth(line)), ""), "\n") {
+				prefix := indent
+				if part == 0 {
+					prefix = line
+				}
+				out = append(out, listLine{row: i, text: prefix + text, class: classTitle})
+			}
 		}
-		out = append(out, listLine{row: i, text: line})
 		item := s.Guides.Items[r.guide]
 		switch r.kind {
 		case guideRow:
