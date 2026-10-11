@@ -94,7 +94,7 @@ func TestFantasyCompatibleUnsupportedSchemaDoesNotRetry(t *testing.T) {
 	if requests != 1 {
 		t.Fatalf("unsupported schema caused %d requests", requests)
 	}
-	if b.Status != Unavailable || len(b.Items) != 0 || b.Provider != "" || strings.Contains(b.Reason, testKey) || strings.Contains(b.Reason, "unsupported tool schema") {
+	if b.Status != Unavailable || len(b.Items) != 0 || b.Provider != "" || strings.Contains(b.Reason, testKey) || b.Reason != "guide provider request failed: HTTP 400: unsupported tool schema with [redacted]" {
 		t.Fatalf("failure leaked provider details or retained guides: %+v", b)
 	}
 }

@@ -37,5 +37,5 @@ func NewFantasyGoogle(o FantasyOptions) (*Fantasy, error) {
 	if err != nil {
 		return nil, errors.New("guide model could not be configured")
 	}
-	return newFantasy(model, "google", o.Model), nil
+	return newFantasy(model, "google", o.Model, o.APIKey), nil
 }

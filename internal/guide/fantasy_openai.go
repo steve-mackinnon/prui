@@ -38,7 +38,7 @@ func NewFantasyOpenAI(o FantasyOptions) (*Fantasy, error) {
 	if err != nil {
 		return nil, errors.New("guide model could not be configured")
 	}
-	return newFantasy(model, "openai", o.Model), nil
+	return newFantasy(model, "openai", o.Model, o.APIKey), nil
 }
 
 // The OpenAI SDK reads optional headers from process environment. Keep the
