@@ -1590,12 +1590,18 @@ func TestRawReviewGuideHierarchy(t *testing.T) {
 	// Styling wraps whole lines, so the escaping contract is checked on the
 	// stripped render: the title must already be escaped underneath the style.
 	content := ansi.Strip(m.View().Content)
-	// The left pane is narrow, so a long hostile title is clipped; what must
-	// hold is that it is escaped first and clipped second.
-	if strings.ContainsAny(content, "\x1b\a") || !strings.Contains(content, `1. Greeting flow\x1b]52`) {
+	// Join wrapped rail fragments to check that titles remain escaped in full.
+	var rail []string
+	for _, line := range strings.Split(content, "\n") {
+		if cells := strings.Split(line, "│"); len(cells) > 1 {
+			rail = append(rail, strings.TrimSpace(cells[1]))
+		}
+	}
+	copy := strings.Join(rail, " ")
+	if strings.ContainsAny(content, "\x1b\a") || !strings.Contains(copy, `1. Greeting flow\x1b]52;c;title\a`) {
 		t.Fatal("guide titles are not escaped like patch content", content)
 	}
-	if !strings.Contains(content, "GUIDES") || !strings.Contains(content, `1.1 Add greeting\x1b]52`) {
+	if !strings.Contains(content, "GUIDES") || !strings.Contains(copy, `1.1 Add greeting\x1b]52;c;section\a`) {
 		t.Fatal("guide hierarchy missing from the left pane", content)
 	}
 	for _, w := range []int{1, 20, 60, 99, 100, 120} {

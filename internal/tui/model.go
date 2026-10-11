@@ -2681,6 +2681,7 @@ func (m *Model) reviewViewForLayout(preferSideBySide bool) string {
 		mutedFrom := 0
 		if row < len(list) {
 			left = list[row].text
+			leftClass = list[row].class
 			mutedFrom = list[row].mutedFrom
 			if list[row].row == selectedRow {
 				leftClass = selectedClass(m.Focus == paneList)

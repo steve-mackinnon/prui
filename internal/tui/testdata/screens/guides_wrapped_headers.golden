@@ -1,0 +1,24 @@
+example/review #42
+  PRs [P]    Overview [1]    Files [2]  › Guide [3]    Commits [4]
+┌ Guide ─────────────────────────────┬ Commits [C] · All commits · Find (/) · GUIDES 1 · guide 1/1 · marking: whole fil┐
+│  - 1. Tempo Sync timing engine     │── main.go                                                                       │
+│  handover                          │@@ -1 +1 @@                                                                      │
+│  01 / 01 · { previous · } next     │   1      -old greeting                                                          │
+│    Move lane timing under the      │        1 +hello world                                                           │
+│    engine's host tempo measurement.│                                                                                 │
+│›   - 1.1 Column time as a four-    │── README.md                                                                     │
+│    quarter host tempo measurement  │                                                                                 │
+│      Four quarter notes read by the│                                                                                 │
+│      engine each block keep grid   │                                                                                 │
+│      labels and timing in          │                                                                                 │
+│      agreement.                    │                                                                                 │
+│      main.go                       │                                                                                 │
+│    - 1.2 Domain wiring and host    │                                                                                 │
+│    tempo values                    │                                                                                 │
+│      Pass the tempo basis into the │                                                                                 │
+│      lane domain.                  │                                                                                 │
+│      README.md [file_metadata]     │                                                                                 │
+│                                    │                                                                                 │
+└────────────────────────────────────┴─────────────────────────────────────────────────────────────────────────────────┘
+0/2 read · R Submit review (0) · ? Freshness unknown · ?: Health & help
+j/k: guides · E: context · tab: expand · enter: diff · ?: Help
