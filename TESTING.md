@@ -304,3 +304,24 @@ Unicode changed-word source. Actual I/r/Escape open/refresh/cancel and late resu
 preserve word spans, raw patch/source text, canonical old/new targets and search
 IDs alongside prepared suggestion payload bytes, immutable review/general
 attempts, SQLite draft generations, layouts and read-only full-source cursors.
+
+## Large diffs with comment overlays
+
+`go test ./internal/tui -run 'TestDiffOverlay|TestWrappedDiffViewport' -count=1`
+checks warm scrolling allocations and compares cached output with the original
+attachment semantics in unified and split layouts. Fixtures cover range/file
+comments, replies, multiple pending comments, editor changes/caret/error,
+resizing, line numbers, removal, unanchored comments and snapshot replacement.
+
+`go test ./internal/tui -run '^$' -bench '^BenchmarkLargeJSONScroll$' -benchmem -benchtime=5x -count=3`
+measures warm keypress + render cycles for synthetic 10,000/100,000-line JSON
+patches with and without one comment. On Apple M2 Max / Go 1.26.8 (2026-10-10),
+the 100,000-line comment case improved from 318–322 ms and ~506 MB/op to
+1.13–1.14 ms and ~133 KB/op. Without comments it remained ~1 ms.
+The fix retains wrapped source and composed rows, compares only freshly rendered
+small overlay blocks, and indexes overlays by endpoint. It avoids full-stream
+wrapping and comment scans during unchanged navigation. These measurements
+exclude cold loading and terminal output; they are observations, not portable
+CI time thresholds. The allocation-budget test guards against source-sized
+work returning. The reviewer confirmed that the fix resolved scrolling lag on
+the reported large JSON PR; broader terminal/accessibility QA remains unverified.

@@ -13,11 +13,19 @@ func wrapDiffLines(lines []diffLine, width int) []diffLine {
 }
 
 func wrapDiffLinesWithNumbers(lines []diffLine, width int, numbers bool) []diffLine {
+	return wrapDiffRows(lines, width, numbers, nil)
+}
+
+// ends records the exclusive visual-row boundary for each logical source row.
+func wrapDiffRows(lines []diffLine, width int, numbers bool, ends *[]int) []diffLine {
 	var result []diffLine
 	for _, line := range lines {
 		if line.sideBySide == nil || line.sideBySide.full != nil {
 			if visibleWidth(line.Text) <= width || (line.Class != classAdded && line.Class != classRemoved && line.Class != classContext) {
 				result = append(result, line)
+				if ends != nil {
+					*ends = append(*ends, len(result))
+				}
 				continue
 			}
 			marker, text := splitPatchMarker(line.Text)
@@ -26,6 +34,9 @@ func wrapDiffLinesWithNumbers(lines []diffLine, width int, numbers bool) []diffL
 				copy := wrappedSyntax(line, part, &offset)
 				copy.Text = marker + part
 				result = append(result, copy)
+			}
+			if ends != nil {
+				*ends = append(*ends, len(result))
 			}
 			continue
 		}
@@ -65,6 +76,9 @@ func wrapDiffLinesWithNumbers(lines []diffLine, width int, numbers bool) []diffL
 			copy.target = rowTarget(wrapped)
 			result = append(result, copy)
 		}
+		if ends != nil {
+			*ends = append(*ends, len(result))
+		}
 	}
 	return result
 }
@@ -72,6 +86,7 @@ func wrapDiffLinesWithNumbers(lines []diffLine, width int, numbers bool) []diffL
 type diffWrapCache struct {
 	source []diffLine
 	rows   []diffLine
+	ends   []int
 	width  int
 }
 
@@ -88,8 +103,9 @@ func (m *Model) wrapSource(lines []diffLine) []diffLine {
 	if len(lines) > 0 && len(cache.source) == len(lines) && cache.width == width && &cache.source[0] == &lines[0] {
 		return cache.rows
 	}
-	rows := wrapDiffLinesWithNumbers(lines, width, m.lineNumbersEnabled())
-	*cache = diffWrapCache{source: lines, rows: rows, width: width}
+	ends := make([]int, 0, len(lines))
+	rows := wrapDiffRows(lines, width, m.lineNumbersEnabled(), &ends)
+	*cache = diffWrapCache{source: lines, rows: rows, ends: ends, width: width}
 	return rows
 }
 
