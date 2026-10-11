@@ -33,6 +33,10 @@ func TestGuideHeadersWrapWithoutLosingTextOrRowIdentity(t *testing.T) {
 						if visibleWidth(line.text) > width {
 							t.Fatalf("header exceeds width %d: %q", width, line.text)
 						}
+						wantMarker := index == 1 && len(parts) == 0
+						if strings.HasPrefix(line.text, "› ") != wantMarker {
+							t.Fatalf("selection marker is not on the first selected header fragment: %q", line.text)
+						}
 						parts = append(parts, strings.TrimSpace(strings.TrimPrefix(line.text, "› ")))
 					}
 					got := strings.ReplaceAll(strings.Join(parts, ""), " ", "")
