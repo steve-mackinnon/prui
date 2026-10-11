@@ -10,6 +10,11 @@ User-visible changes are recorded here before each release. See
 - Wrap guide and subsection headers within the guide pane and distinguish them
   from descriptions with bold title styling.
 
+### Changed
+
+- Copy Herdr’s exact colors for the eight matching theme palettes, including
+  selection, borders, and syntax accents.
+
 ## [0.4.0]
 
 ### Added

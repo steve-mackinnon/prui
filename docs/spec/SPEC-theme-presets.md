@@ -94,23 +94,25 @@ mutable global active theme.
 
 ### Palette mapping
 
-These are proposed application mappings, not claims of exact editor-theme
-reproduction. Use upstream colors for text/change/accent roles; selection and
-secondary chrome are app-specific choices. Record source revision and required
-license attribution when the implementation vendors palette values.
+Matching named presets copy Herdr’s RGB values verbatim, mapped to our semantic
+roles. Catppuccin Mocha, One Dark, Tokyo Night, Gruvbox Dark/Light, One Light,
+and Rose Pine/Dawn use its panel background, selection, text, and accents with
+no color adjustments. The catalog IDs remain stable. Other presets retain
+their existing sources. See `docs/THEME-ATTRIBUTION.md` for the pinned revision,
+role mapping, and license attribution.
 
 | Semantic token | Catppuccin Mocha | One Dark | Tokyo Night | Gruvbox Dark |
 | --- | --- | --- | --- | --- |
 | `foreground` | `#cdd6f4` | `#abb2bf` | `#c0caf5` | `#ebdbb2` |
-| `background` | `#1e1e2e` | `#282c34` | `#1a1b26` | `#282828` |
+| `background` | `#181825` | `#282c34` | `#1a1b26` | `#282828` |
 | `title`, `fileHeader` | `#cdd6f4` | `#abb2bf` | `#c0caf5` | `#ebdbb2` |
-| `hunk`, `metadata` | `#a6adc8` | `#abb2bf` | `#a9b1d6` | `#bdae93` |
+| `hunk`, `metadata` | `#a6adc8` | `#969ca8` | `#a9b1d6` | `#d5c4a1` |
 | `added` | `#a6e3a1` | `#98c379` | `#9ece6a` | `#b8bb26` |
 | `removed`, `unavailable` | `#f38ba8` | `#e06c75` | `#f7768e` | `#fb4934` |
 | `warning` | `#f9e2af` | `#e5c07b` | `#e0af68` | `#fabd2f` |
-| `selection` | `#313244` | `#3e4451` | `#292e42` | `#3c3836` |
-| `focusedBorder` | `#89b4fa` | `#61afef` | `#7aa2f7` | `#83a598` |
-| `border` | `#6c7086` | `#5c6370` | `#737aa2` | `#928374` |
+| `selection` | `#313244` | `#334659` | `#2d3650` | `#4b3f27` |
+| `focusedBorder` | `#89b4fa` | `#61afef` | `#7aa2f7` | `#d79921` |
+| `border` | `#6c7086` | `#5c6370` | `#565f89` | `#928374` |
 
 ### Full foreground/background theming
 
