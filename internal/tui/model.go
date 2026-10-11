@@ -88,9 +88,19 @@ type descriptionRenderCache struct {
 	valid     bool
 }
 
+// diffViewPosition keeps the shared diff workspace's navigation independent
+// for Files and Guide. Their detail cursors and scroll offsets already live in
+// separate maps; the list selection and focus must be restored with them.
+type diffViewPosition struct {
+	selected, row, horizontal int
+	focus                     pane
+	cursorActive              bool
+}
+
 // reviewTabState is the reviewer-visible state that must travel with an open
 // review. Window dimensions and services remain shared by the workspace.
 type reviewTabState struct {
+	diffPositions                                        [4]*diffViewPosition
 	sourceTokens                                         *sourceSyntaxCache
 	incremental                                          incrementalViewState
 	draft                                                draftState
@@ -547,6 +557,7 @@ func (m *Model) update(msg tea.Msg) (updated tea.Model, command tea.Cmd) {
 				m.SuggestionConfirm, m.SuggestionScroll = false, 0
 				m.Pending, m.Comments = nil, nil
 				m.ReviewSubmitted = false
+				m.diffPositions = [4]*diffViewPosition{}
 				m.Selected, m.Horizontal, m.Row = 0, 0, 0
 				m.collapsed = newExpansion()
 				m.Scroll = map[int]int{}
@@ -1330,6 +1341,13 @@ func (m *Model) selectReviewView(view reviewView) {
 	if m.Session == nil {
 		return
 	}
+	previous := m.selectedReviewView()
+	if m.diffReviewView() {
+		m.diffPositions[previous] = &diffViewPosition{
+			selected: m.Selected, row: m.Row, horizontal: m.Horizontal,
+			focus: m.Focus, cursorActive: m.cursorActive,
+		}
+	}
 	m.discussions.returnFiles = nil
 	m.discussions.returnCommit = nil
 	m.discussions.returnOverview = false
@@ -1342,11 +1360,21 @@ func (m *Model) selectReviewView(view reviewView) {
 		if m.commitFilter.subset {
 			return
 		}
+	}
+	if !m.diffReviewView() {
+		return
+	}
+	if position := m.diffPositions[view]; position != nil {
+		m.Selected, m.Row, m.Horizontal = position.selected, position.row, position.horizontal
+		m.Focus, m.cursorActive = position.focus, position.cursorActive
+	} else if view == viewGuide {
 		m.begin()
 		if _, ok := m.activeGuide(); ok {
 			m.setOffset(0)
 			m.setCursor(0)
 		}
+	} else {
+		m.Selected, m.Row = 0, 0
 	}
 }
 

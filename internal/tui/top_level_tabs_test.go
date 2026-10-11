@@ -77,7 +77,7 @@ func TestTopLevelReviewTabsMouseSelection(t *testing.T) {
 	}
 }
 
-func TestOpeningGuideStartsAtFirstSection(t *testing.T) {
+func TestOpeningGuideStartsAtFirstSectionAndPreservesPosition(t *testing.T) {
 	for _, shortcut := range []rune{'3', 'G'} {
 		t.Run(string(shortcut), func(t *testing.T) {
 			m := New(context.Background(), nil)
@@ -93,18 +93,21 @@ func TestOpeningGuideStartsAtFirstSection(t *testing.T) {
 			m.openReviewTab(s)
 			m.Width, m.Height = 120, 12
 			m.Selected = 1
-			for range 2 {
-				key(m, shortcut)
-				if m.Row != 0 || m.Selected != 0 || m.offset() != 0 {
-					t.Fatalf("Guide opened at row/unit/offset %d/%d/%d; want 0/0/0", m.Row, m.Selected, m.offset())
-				}
-				key(m, 'j')
-				key(m, 'j')
-				key(m, 'j')
-				if m.rows()[m.Row].section != 1 || m.offset() == 0 {
-					t.Fatal("could not navigate to last section")
-				}
-				key(m, '2')
+			key(m, shortcut)
+			if m.Row != 0 || m.Selected != 0 || m.offset() != 0 {
+				t.Fatalf("Guide opened at row/unit/offset %d/%d/%d; want 0/0/0", m.Row, m.Selected, m.offset())
+			}
+			key(m, 'j')
+			key(m, 'j')
+			key(m, 'j')
+			if m.rows()[m.Row].section != 1 || m.offset() == 0 {
+				t.Fatal("could not navigate to last section")
+			}
+			row, selected, offset, cursor := m.Row, m.Selected, m.offset(), m.cursor()
+			key(m, '2')
+			key(m, shortcut)
+			if m.Row != row || m.Selected != selected || m.offset() != offset || m.cursor() != cursor {
+				t.Fatalf("Guide position = %d/%d/%d/%d, want %d/%d/%d/%d", m.Row, m.Selected, m.offset(), m.cursor(), row, selected, offset, cursor)
 			}
 		})
 	}
@@ -168,5 +171,83 @@ func TestPRsTabOpensListWithMouseAndKeyboard(t *testing.T) {
 			t.Fatal("returning from PR list lost review view")
 		}
 		m.Close()
+	}
+}
+
+func TestReviewTabsPreserveIndependentReadingPositions(t *testing.T) {
+	m := New(context.Background(), nil)
+	t.Cleanup(m.Close)
+	s := largeTextSession(3, 3)
+	s.Guides = &guide.Bundle{Status: guide.Generated, Items: []guide.Item{
+		{Title: "First", Sections: []guide.Section{{Title: "First changes", UnitIDs: []string{s.Inventory.Units[0].ID}}}},
+		{Title: "Second", Sections: []guide.Section{{Title: "Second changes", UnitIDs: []string{s.Inventory.Units[1].ID}}}},
+	}}
+	m.openReviewTab(s)
+	m.Width, m.Height = 120, 12
+	key(m, '2')
+	key(m, 'j')
+	namedKey(m, tea.KeyEnter)
+	for range 12 {
+		key(m, 'j')
+	}
+	m.Horizontal = 8
+	type position struct {
+		selected, row, cursor, offset, horizontal int
+		focus                                     pane
+		active                                    bool
+	}
+	capture := func() position {
+		return position{m.Selected, m.Row, m.cursor(), m.offset(), m.Horizontal, m.Focus, m.cursorActive}
+	}
+	files := capture()
+	key(m, '3')
+	m.Focus = paneList
+	m.file(1)
+	namedKey(m, tea.KeyEnter)
+	for range 8 {
+		key(m, 'j')
+	}
+	m.Horizontal = 16
+	guides := capture()
+	key(m, 'v')
+	key(m, 'V')
+	if got := capture(); got != guides {
+		t.Fatalf("Guide position after cycling = %+v, want %+v", got, guides)
+	}
+	x := visibleWidth("  PRs [P]") + 2 + visibleWidth("Overview [1]") + 4
+	m.Update(tea.MouseClickMsg{Button: tea.MouseLeft, X: x + 3, Y: 1})
+	if got := capture(); got != files {
+		t.Fatalf("Files position after mouse selection = %+v, want %+v", got, files)
+	}
+	x += visibleWidth("Files [2]") + 4
+	m.Update(tea.MouseClickMsg{Button: tea.MouseLeft, X: x + 3, Y: 1})
+	if got := capture(); got != guides {
+		t.Fatalf("Guide position after mouse selection = %+v, want %+v", got, guides)
+	}
+	for _, destination := range []rune{'1', '4', '2', '3'} {
+		key(m, destination)
+		key(m, '2')
+		m.View()
+		if got := capture(); got != files {
+			t.Fatalf("Files position after %c = %+v, want %+v", destination, got, files)
+		}
+		key(m, '3')
+		m.View()
+		if got := capture(); got != guides {
+			t.Fatalf("Guide position after %c = %+v, want %+v", destination, got, guides)
+		}
+	}
+}
+
+func TestReselectingFilesLeavesInventoryWithoutLosingSelection(t *testing.T) {
+	m := New(context.Background(), nil)
+	t.Cleanup(m.Close)
+	m.openReviewTab(largeTextSession(2, 2))
+	key(m, '2')
+	key(m, 'i')
+	m.Selected = 1
+	key(m, '2')
+	if m.Inventory || !m.Files || m.Selected != 1 {
+		t.Fatalf("Files selection = inventory:%v files:%v selected:%d", m.Inventory, m.Files, m.Selected)
 	}
 }
