@@ -24,11 +24,27 @@ tests, scripts/verify.sh, and git diff --check.
 ## Implemented limits and palette
 
 Full-file lexing accepts up to 256 KiB and 16,000 spans per side, checks a
-100 ms cooperative deadline between tokens, and respects cancellation. Chroma
+1 second cooperative deadline between tokens, and respects cancellation. Chroma
 regexp matches have their own timeout; the cooperative deadline is not a hard
 preemption guarantee. Each inventory admits 4 MiB of input, 32,000 retained spans,
-and a 500 ms cumulative lexing budget. Empty capture results are explicit so the
-renderer does not retry budget-exhausted files as legacy fragments.
+and a 5 second cumulative lexing budget. Empty capture results are explicit so the
+renderer does not retry budget-exhausted files as legacy fragments. Capture also
+persists per-file OLD/NEW statuses in optional `syntax_status` metadata. Ready
+captures (including token-free text), unsupported languages, size/token limits,
+per-side timeouts, comparison budget exhaustion, invalid UTF-8, lexer/offset
+failures, and storage omission remain distinguishable after offline resume.
+
+Capture failures show a warning beside affected source hunks in Files and Guide,
+and below affected file headers in Commits. The review footer signals unavailable
+syntax; Health & help lists per-file reasons and explains that a new comparison
+is needed to retry capture. Unsupported file types receive an informational label,
+not a failure warning. Source completeness, patches, targets and review progress
+are independent of optional syntax availability. Older explicit-empty captures
+with no tokens anywhere in a supported file are labeled with an unknown reason;
+missing legacy metadata still uses the existing fragment fallback. Persisted
+statuses contain finite reason codes, never raw lexer errors or additional source.
+When storage pruning discards spans, copied statuses retain the omission reason
+without modifying the original snapshot.
 
 Keywords use the theme's focused accent, strings its added color, numbers its
 warning color, comments its metadata color, names its title color, and operators

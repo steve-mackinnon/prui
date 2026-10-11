@@ -46,30 +46,60 @@ const MaxSpans = 16000
 
 // Tokenize is deliberately best effort. Limits apply before and during lexing;
 // Chroma's own regexp timeout bounds individual regexp matches.
-func Tokenize(ctx context.Context, path string, source []byte) (lines Lines) {
-	if ctx.Err() != nil || len(source) > MaxBytes || !utf8.Valid(source) {
-		return nil
+func Tokenize(ctx context.Context, path string, source []byte) Lines {
+	lines, _ := TokenizeWithStatus(ctx, path, source)
+	return lines
+}
+
+const MaxDuration = time.Second
+
+func Supported(path string) bool { return lexers.Match(path) != nil }
+
+// TokenizeWithStatus retains the reason a best-effort capture was unavailable.
+func TokenizeWithStatus(ctx context.Context, path string, source []byte) (Lines, Status) {
+	return tokenize(ctx, path, source, MaxDuration)
+}
+
+func contextStatus(ctx context.Context) Status {
+	if ctx.Err() == context.DeadlineExceeded {
+		return Timeout
+	}
+	return Canceled
+}
+
+func tokenize(ctx context.Context, path string, source []byte, duration time.Duration) (lines Lines, status Status) {
+	if ctx.Err() != nil {
+		return nil, contextStatus(ctx)
+	}
+	if len(source) > MaxBytes {
+		return nil, ByteLimit
+	}
+	if !utf8.Valid(source) {
+		return nil, InvalidText
 	}
 	lexer := lexers.Match(path)
 	if lexer == nil {
-		return nil
+		return nil, Unsupported
 	}
 	defer func() {
 		if recover() != nil {
-			lines = nil
+			lines, status = nil, LexerError
 		}
 	}()
+	deadline := time.Now().Add(duration)
 	it, err := lexer.Tokenise(&chroma.TokeniseOptions{State: "root", EnsureLF: false}, string(source))
 	if err != nil {
-		return nil
+		return nil, LexerError
 	}
 	lines = Lines{}
 	rust := lexer.Config().Name == "Rust"
 	line, column, offset, count := 1, 0, 0, 0
-	deadline := time.Now().Add(100 * time.Millisecond)
 	for {
-		if ctx.Err() != nil || time.Now().After(deadline) {
-			return nil
+		if ctx.Err() != nil {
+			return nil, contextStatus(ctx)
+		}
+		if time.Now().After(deadline) {
+			return nil, Timeout
 		}
 		token := it()
 		if token == chroma.EOF {
@@ -77,7 +107,7 @@ func Tokenize(ctx context.Context, path string, source []byte) (lines Lines) {
 		}
 		// Reject lexers that normalize or invent text: offsets must match the blob.
 		if offset+len(token.Value) > len(source) || string(source[offset:offset+len(token.Value)]) != token.Value {
-			return nil
+			return nil, InvalidOffsets
 		}
 		offset += len(token.Value)
 		kind := category(token.Type)
@@ -96,16 +126,16 @@ func Tokenize(ctx context.Context, path string, source []byte) (lines Lines) {
 				lines[line] = append(lines[line], Span{column, column + len(part), kind})
 				count++
 				if count > MaxSpans {
-					return nil
+					return nil, SpanLimit
 				}
 			}
 			column += len(part)
 		}
 	}
 	if offset != len(source) {
-		return nil
+		return nil, InvalidOffsets
 	}
-	return lines
+	return lines, Ready
 }
 
 func category(t chroma.TokenType) Kind {

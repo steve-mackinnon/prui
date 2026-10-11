@@ -106,7 +106,7 @@ func capture(parent context.Context, v *source.View, p source.PinnedComparison, 
 			}
 			continue
 		}
-		diff := &Diff{Files: inv.Files, Units: inv.Units, Patches: inv.Patches, Syntax: inv.Syntax, Complete: inv.Complete, Problems: inv.Problems}
+		diff := &Diff{Files: inv.Files, Units: inv.Units, Patches: inv.Patches, Syntax: inv.Syntax, SyntaxStatus: inv.SyntaxStatus, Complete: inv.Complete, Problems: inv.Problems}
 		// Include structural metadata as well as the bounded source read above.
 		structural := *diff
 		structural.Patches = nil

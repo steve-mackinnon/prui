@@ -18,6 +18,7 @@ import (
 	"prui/internal/review"
 	"prui/internal/session"
 	"prui/internal/source"
+	"prui/internal/syntax"
 )
 
 var updateScreens = flag.Bool("update-golden", false, "explicitly replace TUI screen baselines")
@@ -55,6 +56,16 @@ func TestScreenSnapshots(t *testing.T) {
 				key(m, r)
 			}
 			namedKey(m, tea.KeyEnter)
+		}},
+		{"syntax_unavailable_wide", 120, 16, func(m *Model) {
+			f := m.Session.Inventory.Files[0]
+			m.Session.Inventory.SyntaxStatus = map[string]syntax.FileStatus{f.ID: {Old: syntax.Ready, New: syntax.InventoryTimeLimit}}
+			m.Focus = paneDiff
+		}},
+		{"syntax_unavailable_narrow", 60, 12, func(m *Model) {
+			f := m.Session.Inventory.Files[0]
+			m.Session.Inventory.SyntaxStatus = map[string]syntax.FileStatus{f.ID: {Old: syntax.Ready, New: syntax.Timeout}}
+			m.Focus = paneDiff
 		}},
 		{"review_wide", 120, 12, func(m *Model) { m.Focus = paneDiff }},
 		{"review_narrow", 60, 10, func(m *Model) { m.Focus = paneDiff }},

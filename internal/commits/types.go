@@ -31,12 +31,13 @@ type Entry struct {
 }
 
 type Diff struct {
-	Files    []inventory.FileChange
-	Units    []inventory.ReviewUnit
-	Patches  map[string][]byte
-	Syntax   map[string]syntax.Patch `json:"syntax,omitempty"`
-	Complete bool
-	Problems []string
+	Files        []inventory.FileChange
+	Units        []inventory.ReviewUnit
+	Patches      map[string][]byte
+	Syntax       map[string]syntax.Patch      `json:"syntax,omitempty"`
+	SyntaxStatus map[string]syntax.FileStatus `json:"syntax_status,omitempty"`
+	Complete     bool
+	Problems     []string
 }
 
 // Composition freezes sparse trees projected onto all captured changed paths.

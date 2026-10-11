@@ -234,6 +234,13 @@ In Files or Guide, select **Commits [C]** to choose commits for one net diff.
 use All changes to mark files or the Commits tab to discuss an individual commit.
 Diff syntax highlighting is captured from the complete pinned old/new files and
 saved as token spans for offline review; no extra full-file source is retained.
+Syntax capture has a 5-second comparison budget and a 1-second limit per file side.
+Capture failures are labeled beside the affected diff and in the review footer;
+`?` Health & help shows the file and reason. These diagnostics survive offline
+resume. Unsupported file types receive an informational label. Existing empty
+captures with no recorded reason are labeled as such. Open a new comparison to
+retry capture; reopening a saved review preserves its metadata.
+
 Older sessions use best-effort hunk highlighting. Unsupported languages and files
 beyond highlighting limits use the normal source foreground. Colors follow the
 active theme; colored `+`/`-` markers and full-row green/red backgrounds keep
