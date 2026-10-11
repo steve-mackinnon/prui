@@ -139,6 +139,7 @@ type reviewTabState struct {
 	hideLineNumbers                                      bool
 	layout                                               diffLayout
 	diffWrapCache                                        diffWrapCache
+	diffOverlayCache                                     diffOverlayCache
 	guidePathOffset, guidePathPause, guidePathGeneration int
 	Inventory                                            bool
 	Focus                                                pane
@@ -1860,32 +1861,7 @@ func (m *Model) baseDetail() []diffLine {
 // accidentally select remote text or the draft editor.
 func (m *Model) detail() []diffLine {
 	base := m.baseDetail()
-	// Source rows are immutable; the renderer copies just the visible viewport.
-	// Avoid rebuilding the whole review on every navigation call without overlays.
-	if m.Composer != nil && m.Composer.Target.SubjectType == "file" {
-		return append(m.inlineEditorLines(), m.wrapSource(base)...)
-	}
-	if len(m.Comments) == 0 && len(m.Pending) == 0 && m.Composer == nil && (m.CommentMenu == nil || m.CommentMenu.mode != commentActionReply) {
-		return m.wrapSource(base)
-	}
-	lines := make([]diffLine, 0, len(base)+len(m.Comments)+2)
-	for _, line := range base {
-		lines = append(lines, m.wrapSource([]diffLine{line})...)
-		lines = append(lines, m.fileDiscussionLines(line)...)
-		for _, target := range sourceLineTargets(line) {
-			for _, comment := range m.Comments {
-				if targetEndsAt(comment.Target, target) && comment.ParentID == 0 {
-					lines = append(lines, m.reviewCommentThread(comment, 0)...)
-				}
-			}
-			lines = append(lines, m.recoveredReplyLines(target)...)
-			lines = append(lines, m.pendingLines(target)...)
-			if m.Composer != nil && targetEndsAt(m.Composer.Target, target) {
-				lines = append(lines, m.inlineEditorLines()...)
-			}
-		}
-	}
-	return lines
+	return m.withDiffOverlays(base, false)
 }
 
 // displayDetail is the single source of truth for rendered-row navigation.
@@ -1913,36 +1889,7 @@ func (m *Model) sideBySideDetail() []diffLine {
 	} else {
 		base = projectSideBySideDetail(m.baseDetail())
 	}
-	if m.Composer != nil && m.Composer.Target.SubjectType == "file" {
-		return append(m.inlineEditorLines(), m.wrapSource(base)...)
-	}
-	if len(m.Comments) == 0 && len(m.Pending) == 0 && m.Composer == nil && (m.CommentMenu == nil || m.CommentMenu.mode != commentActionReply) {
-		return m.wrapSource(base)
-	}
-	lines := make([]diffLine, 0, len(base)+len(m.Comments)+2)
-	for _, line := range base {
-		lines = append(lines, m.wrapSource([]diffLine{line})...)
-		lines = append(lines, m.fileDiscussionLines(line)...)
-		if line.sideBySide == nil {
-			continue
-		}
-		row := *line.sideBySide
-		// A paired row can have comments on both sides. Keep their overlay
-		// order stable: old/LEFT before new/RIGHT.
-		for _, target := range rowTargets(row) {
-			for _, comment := range m.Comments {
-				if targetEndsAt(comment.Target, target) && comment.ParentID == 0 {
-					lines = append(lines, m.reviewCommentThread(comment, 0)...)
-				}
-			}
-			lines = append(lines, m.recoveredReplyLines(target)...)
-			lines = append(lines, m.pendingLines(target)...)
-			if m.Composer != nil && targetEndsAt(m.Composer.Target, target) {
-				lines = append(lines, m.inlineEditorLines()...)
-			}
-		}
-	}
-	return lines
+	return m.withDiffOverlays(base, true)
 }
 
 func rowTargets(row diffRow) []source.ReviewCommentTarget {
