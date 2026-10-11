@@ -62,7 +62,7 @@ archive remains in the temporary directory for inspection.
 
 ### Build from source
 
-Install Go **1.26.8+**, then:
+Install Go **1.26.9+**, then:
 
 ```sh
 git clone https://github.com/steve-mackinnon/prui.git
