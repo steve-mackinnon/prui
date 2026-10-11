@@ -1,5 +1,15 @@
 # Automated verification
 
+## Text selection and clipboard feedback
+
+`go test ./internal/tui -run 'TextSelection|ClipboardToast|Copy|URL' -count=1`
+checks release-only copying, reverse multiline selection, pane clipping, wide
+and combining graphemes, gesture cancellation, URL click/drag routing, and
+generation-safe toast dismissal. `TestPTYSmoke` also drives a drag through real
+SGR mouse input, checks the emitted OSC 52 payload, and waits for the toast to
+disappear. These checks verify terminal output; actual clipboard acceptance and
+subjective selection visibility still require human terminal verification.
+
 ## Conversation Markdown and HTML
 
 `go test ./internal/tui -run 'ConversationMarkdown|OverviewRenders|OverviewConversationMarkdown' -count=1`

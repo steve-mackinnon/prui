@@ -89,7 +89,8 @@ func TestDescriptionURLMouseRouting(t *testing.T) {
 	if hovered.CellAt(x, y).Style.Underline == 0 {
 		t.Fatal("mouse motion did not underline")
 	}
-	_, cmd := m.Update(tea.MouseClickMsg{Button: tea.MouseLeft, X: x, Y: y})
+	m.Update(tea.MouseClickMsg{Button: tea.MouseLeft, X: x, Y: y})
+	_, cmd := m.Update(tea.MouseReleaseMsg{Button: tea.MouseLeft, X: x, Y: y})
 	if cmd == nil {
 		t.Fatal("URL click did not return browser command")
 	}
@@ -165,7 +166,8 @@ func TestCodeURLMouseRouting(t *testing.T) {
 		if hovered.CellAt(x, y).Style.Underline == 0 {
 			t.Fatal("code hover missing")
 		}
-		_, cmd := m.Update(tea.MouseClickMsg{Button: tea.MouseLeft, X: x, Y: y})
+		m.Update(tea.MouseClickMsg{Button: tea.MouseLeft, X: x, Y: y})
+		_, cmd := m.Update(tea.MouseReleaseMsg{Button: tea.MouseLeft, X: x, Y: y})
 		if cmd == nil || m.Composer != nil {
 			t.Fatal("code URL click did not open browser exclusively")
 		}

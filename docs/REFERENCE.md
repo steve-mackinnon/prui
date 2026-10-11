@@ -235,7 +235,7 @@ columns. Plain output is always unified.
 | Escape during a cancellable action | Cancel the operation and retain the current review |
 | `?`, `q`, Ctrl+C | Help, quit, cancel loading |
 
-Selection, expansion, and diff scroll offsets survive resizing; navigation positions and expansion state are not persisted across processes, and they are rebuilt from the immutable bundle so navigation cannot drift from the stored guides. Mouse capture supports selection and divider dragging; use your terminal selection modifier for native text copying. Textual markers and labels are primary: the selected row is marked `› ` whether or not its pane is focused; a muted background reinforces it when unfocused and reverse video reinforces the focused row. The interactive view additionally colors diff structure — file headers, hunk locations, additions, removals — and unit states such as metadata, binary, gitlink, unavailable, and warning chrome. Color is presentation only: no wording, label, or ordering depends on it, and terminals without color show the same text. Extremely small terminals clip controls; enlarge or use plain output. Broad terminal/platform/accessibility coverage is not established.
+Selection, expansion, and diff scroll offsets survive resizing; navigation positions and expansion state are not persisted across processes, and they are rebuilt from the immutable bundle so navigation cannot drift from the stored guides. Mouse capture supports text selection, item selection, and divider dragging. Drag text in a readable content pane to copy it on release. Textual markers and labels are primary: the selected row is marked `› ` whether or not its pane is focused; a muted background reinforces it when unfocused and reverse video reinforces the focused row. The interactive view additionally colors diff structure — file headers, hunk locations, additions, removals — and unit states such as metadata, binary, gitlink, unavailable, and warning chrome. Color is presentation only: no wording, label, or ordering depends on it, and terminals without color show the same text. Extremely small terminals clip controls; enlarge or use plain output. Broad terminal/platform/accessibility coverage is not established.
 
 Every interactive PR has `Description` (`1`), `Files` (`2`), `Guide` (`3`), and `Commits` (`4`) context views, in that order. Reviews open on Files; `F` opens the Files filename filter; `G` selects Guide. Guide has its own top-level tab and requires explicit generation with `g` when no guide is available. Description is display-only GitHub-flavored Markdown frozen from GitHub when the session opened; it is available after an offline resume and does not refresh when selected. Raw HTML remains literal text, links are not activated, and images never load. Empty captured descriptions and older sessions that did not capture one are labeled explicitly. Context views are not included in `--plain` output.
 
@@ -255,6 +255,15 @@ navigation list and diff horizontally. The navigation list stays at least
 18 columns wide, with at least 40 columns for detail. Mouse dragging and the
 `[` / `]` keys share the same per-review width, remembered for this run and restored after
 returning from a narrow terminal. The inner old/new diff divider stays equal.
+
+Drag across text in the diff, Overview, commit detail, PR preview, discussions,
+readiness, or issue context to highlight it. Releasing copies the visible text
+through OSC 52 and shows a small `copied to clipboard` toast at the bottom for
+two seconds. Multiline selection stays within the content pane; rendered line
+numbers and diff markers are copied when selected. Plain clicks do not copy.
+URL clicks open on release; dragging over a URL copies its visible text.
+Keyboard input, wheel scrolling, or resizing cancels an in-progress selection.
+The terminal must support and permit OSC 52 clipboard writes.
 
 Mouse input is disabled during loading, editors, and confirmation forms.
 Wheel input scrolls diff and description panes, moves selection in navigation
