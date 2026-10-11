@@ -159,6 +159,7 @@ func boundCommitPayload(snapshot *Snapshot, limit int) error {
 		return err
 	}
 	if len(full) > limit {
+		snapshot.Inventory.SyntaxStatus = inventory.SyntaxStorageStatuses(snapshot.Inventory.Units, snapshot.Inventory.Syntax, snapshot.Inventory.SyntaxStatus)
 		snapshot.Inventory.Syntax = nil
 		if snapshot.Commits != nil {
 			bundle := *snapshot.Commits
@@ -166,6 +167,7 @@ func boundCommitPayload(snapshot *Snapshot, limit int) error {
 			for i := range bundle.Entries {
 				if bundle.Entries[i].Diff != nil {
 					diff := *bundle.Entries[i].Diff
+					diff.SyntaxStatus = inventory.SyntaxStorageStatuses(diff.Units, diff.Syntax, diff.SyntaxStatus)
 					diff.Syntax = nil
 					bundle.Entries[i].Diff = &diff
 				}

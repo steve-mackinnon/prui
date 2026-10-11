@@ -1,0 +1,16 @@
+example/review #42
+  PRs [P]    Overview [1]  › Files [2]    Guide [3]    Commits [4]
+┌ Files · ▽ Filter (F) ──────────────┬ Commits [C] · All commits · Find (/) · file 1/2 ────────────────────────────────┐
+│› main.go                           │── main.go                                                                       │
+│  README.md                         │! Syntax highlighting unavailable: NEW: comparison syntax time budget exhausted. │
+│                                    │@@ -1 +1 @@                                                                      │
+│                                    │   1      -old greeting                                                          │
+│                                    │        1 +hello world                                                           │
+│                                    │                                                                                 │
+│                                    │── README.md                                                                     │
+│                                    │                                                                                 │
+│                                    │                                                                                 │
+│                                    │                                                                                 │
+└────────────────────────────────────┴─────────────────────────────────────────────────────────────────────────────────┘
+0/2 read · R Submit review (0) · ! Syntax unavailable (1 file) · ?: Health & help
+↑/↓: scroll · E: expand · enter: comment/menu · m: mark file · esc: list · ?: Help

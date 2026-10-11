@@ -238,12 +238,16 @@ func (m *Model) commitRows() []diffLine {
 func commitDiffRows(d *commits.Diff) []diffLine { return commitDiffRowsFor(d, source.Identity{}, "") }
 func commitDiffRowsFor(d *commits.Diff, identity source.Identity, sha string) []diffLine {
 	var rows []diffLine
+	diagnostics := inventory.SyntaxDiagnostics(d.Files, d.Units, d.Syntax, d.SyntaxStatus)
 	unitsByFile := make(map[string][]inventory.ReviewUnit, len(d.Files))
 	for _, unit := range d.Units {
 		unitsByFile[unit.FileChangeID] = append(unitsByFile[unit.FileChangeID], unit)
 	}
 	for _, f := range d.Files {
 		rows = append(rows, body(classFileHeader, fileDivider(f))...)
+		if status, ok := diagnostics[f.ID]; ok {
+			rows = append(rows, syntaxDiagnosticRows(status)...)
+		}
 		if f.OldMode != f.NewMode {
 			rows = append(rows, body(classMetadata, fmt.Sprintf("Mode: %s -> %s", Escape(f.OldMode), Escape(f.NewMode)))...)
 		}

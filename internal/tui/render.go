@@ -115,7 +115,8 @@ func unitLines(s *review.Session, i int) []diffLine {
 	switch u.Kind {
 	case inventory.TextHunk:
 		metadata := s.Inventory.Comparison.Metadata
-		return textHunkLines(f, u, s.Inventory.Patches[u.PatchReference], metadata.Identity, metadata.HeadSHA, s.Inventory.Syntax[u.ID])
+		rows := fileSyntaxDiagnostic(s.Inventory, f)
+		return append(rows, textHunkLines(f, u, s.Inventory.Patches[u.PatchReference], metadata.Identity, metadata.HeadSHA, s.Inventory.Syntax[u.ID])...)
 	case inventory.FileMetadata:
 		return []diffLine{{styledLine: styledLine{classFileHeader, fileDivider(f)}}}
 	case inventory.Binary:
