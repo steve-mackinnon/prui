@@ -4,6 +4,38 @@ The semantic mappings in `internal/theme/presets.go` adapt these palette values.
 Selection, borders, and grouping of roles are application-specific mappings;
 no editor syntax theme implementation is copied.
 
+## Herdr exact palette values
+
+Matching presets now copy RGB values verbatim from Herdr's `Palette` constructors:
+Catppuccin Mocha (`catppuccin`), One Dark, Tokyo Night, Gruvbox Dark (`gruvbox`),
+Gruvbox Light, One Light, Rose Pine, and Rose Pine Dawn. Other presets retain
+their sources and mappings below. This supersedes their earlier mappings,
+including the darkened Rose Pine Dawn warning.
+
+Pinned revision: `75f46fe812dbc2946f7e4104c7c89b70f5a84f0a`.
+
+Source: https://github.com/herdrdev/herdr/blob/75f46fe812dbc2946f7e4104c7c89b70f5a84f0a/src/app/state.rs
+
+| Application role | Herdr token |
+| --- | --- |
+| Foreground, title, file header | `text` |
+| Background | `panel_bg` |
+| Hunk, metadata | `subtext0` |
+| Added | `green` |
+| Removed, unavailable | `red` |
+| Warning, syntax function | `yellow` |
+| Selection | `selection_bg` |
+| Focused border | `accent` |
+| Border | `overlay0` |
+| Syntax type, builtin | `teal` |
+| Syntax macro, attribute | `mauve` |
+| Syntax constant | `peach` |
+
+RGB-to-hex conversion preserves all channels exactly; no color adjustments are
+applied. `internal/theme/testdata/herdr-palettes.json` records the source tokens
+and regression tests verify every resolved role against them. Herdr is licensed
+under Apache-2.0; its license is retained in `docs/licenses/HERDR-LICENSE.txt`.
+
 ## catppuccin/go
 
 Source: https://github.com/catppuccin/go/blob/d5c5462d34b5781d426ce6558135df886b382a7b/mocha.go
@@ -297,11 +329,10 @@ chosen from the source palette rather than an editor alpha overlay. Border and
 metadata mappings favor readable palette neutrals. These are adaptations, not
 editor syntax themes or copied theme implementations.
 
-Three light-theme text accents are darkened within the source hue to remain
+Two Ayu light-theme text accents are darkened within the source hue to remain
 readable against the selected base surface: Ayu added `#86b300` becomes
 `#5d7c00` (contrast about 4.63:1), Ayu warning `#f29718` becomes `#a46309`
-(about 4.61:1), and Rose Pine Dawn warning `#ea9d34` becomes `#9d6110`
-(about 4.63:1). These are intentional application adaptations; they do not
+(about 4.61:1). These are intentional application adaptations; they do not
 claim to reproduce the original editor values exactly.
 
 `ayu` selects the light palette; `ayu-dark`, `melange`, and `rose-pine` select

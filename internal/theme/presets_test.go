@@ -1,7 +1,9 @@
 package theme
 
 import (
+	"encoding/json"
 	"math"
+	"os"
 	"reflect"
 	"testing"
 )
@@ -29,10 +31,10 @@ func TestBuiltInCatalogOrderAndIsolation(t *testing.T) {
 func TestFullPresetPalettes(t *testing.T) {
 	roles := []Token{Foreground, Background, Title, FileHeader, Hunk, Metadata, Added, Removed, Unavailable, Warning, Selection, FocusedBorder, Border}
 	cases := map[string][]string{
-		"catppuccin-mocha": {"#cdd6f4", "#1e1e2e", "#cdd6f4", "#cdd6f4", "#a6adc8", "#a6adc8", "#a6e3a1", "#f38ba8", "#f38ba8", "#f9e2af", "#313244", "#89b4fa", "#6c7086"},
-		"one-dark":         {"#abb2bf", "#282c34", "#abb2bf", "#abb2bf", "#abb2bf", "#abb2bf", "#98c379", "#e06c75", "#e06c75", "#e5c07b", "#3e4451", "#61afef", "#5c6370"},
-		"tokyo-night":      {"#c0caf5", "#1a1b26", "#c0caf5", "#c0caf5", "#a9b1d6", "#a9b1d6", "#9ece6a", "#f7768e", "#f7768e", "#e0af68", "#292e42", "#7aa2f7", "#737aa2"},
-		"gruvbox-dark":     {"#ebdbb2", "#282828", "#ebdbb2", "#ebdbb2", "#bdae93", "#bdae93", "#b8bb26", "#fb4934", "#fb4934", "#fabd2f", "#3c3836", "#83a598", "#928374"},
+		"catppuccin-mocha": {"#cdd6f4", "#181825", "#cdd6f4", "#cdd6f4", "#a6adc8", "#a6adc8", "#a6e3a1", "#f38ba8", "#f38ba8", "#f9e2af", "#313244", "#89b4fa", "#6c7086"},
+		"one-dark":         {"#abb2bf", "#282c34", "#abb2bf", "#abb2bf", "#969ca8", "#969ca8", "#98c379", "#e06c75", "#e06c75", "#e5c07b", "#334659", "#61afef", "#5c6370"},
+		"tokyo-night":      {"#c0caf5", "#1a1b26", "#c0caf5", "#c0caf5", "#a9b1d6", "#a9b1d6", "#9ece6a", "#f7768e", "#f7768e", "#e0af68", "#2d3650", "#7aa2f7", "#565f89"},
+		"gruvbox-dark":     {"#ebdbb2", "#282828", "#ebdbb2", "#ebdbb2", "#d5c4a1", "#d5c4a1", "#b8bb26", "#fb4934", "#fb4934", "#fabd2f", "#4b3f27", "#d79921", "#928374"},
 	}
 	for name, colors := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -141,17 +143,17 @@ func TestAdditionalPresetPaletteValues(t *testing.T) {
 		"ayu-dark":            {"#e6e1cf", "#0f1419", "#e6e1cf", "#e6e1cf", "#828e9f", "#828e9f", "#b8cc51", "#ff3333", "#ff3333", "#e7c547", "#243340", "#36a3d9", "#828e9f"},
 		"gh-dark":             {"#e6edf3", "#0d1117", "#e6edf3", "#e6edf3", "#7d8590", "#7d8590", "#3fb950", "#f85149", "#f85149", "#d29922", "#30363d", "#2f81f7", "#8b949e"},
 		"gh-light":            {"#1f2328", "#ffffff", "#1f2328", "#1f2328", "#656d76", "#656d76", "#1f883d", "#cf222e", "#cf222e", "#9a6700", "#ddf4ff", "#0969da", "#6e7781"},
-		"gruvbox-light":       {"#3c3836", "#fbf1c7", "#3c3836", "#3c3836", "#7c6f64", "#7c6f64", "#79740e", "#9d0006", "#9d0006", "#b57614", "#d5c4a1", "#076678", "#7c6f64"},
+		"gruvbox-light":       {"#3c3836", "#fbf1c7", "#3c3836", "#3c3836", "#504945", "#504945", "#79740e", "#9d0006", "#9d0006", "#b57614", "#ebdbb2", "#076678", "#928374"},
 		"horizon":             {"#d5d8da", "#1c1e26", "#d5d8da", "#d5d8da", "#bbbbbb", "#bbbbbb", "#29d398", "#e95678", "#e95678", "#fab795", "#2e303e", "#26bbd9", "#6c6f93"},
 		"material-dark":       {"#eeffff", "#263238", "#eeffff", "#eeffff", "#b2ccd6", "#b2ccd6", "#c3e88d", "#ff5370", "#ff5370", "#ffcb6b", "#2c3b41", "#82aaff", "#65738e"},
 		"material-deep-ocean": {"#8f93a2", "#0f111a", "#8f93a2", "#8f93a2", "#80869e", "#80869e", "#c3e88d", "#ff5370", "#ff5370", "#ffcb6b", "#1f2233", "#82aaff", "#80869e"},
 		"melange":             {"#ece1d7", "#292522", "#ece1d7", "#ece1d7", "#c1a78e", "#c1a78e", "#85b695", "#d47766", "#d47766", "#ebc06d", "#403a36", "#a3a9ce", "#867462"},
 		"monokai":             {"#f8f8f2", "#272822", "#f8f8f2", "#f8f8f2", "#99947c", "#99947c", "#a6e22e", "#f92672", "#f92672", "#e2e22e", "#414339", "#66d9ef", "#99947c"},
 		"night-owl":           {"#d6deeb", "#011627", "#d6deeb", "#d6deeb", "#7e97ac", "#7e97ac", "#22da6e", "#ef5350", "#ef5350", "#ffeb95", "#1d3b53", "#82aaff", "#7e97ac"},
-		"one-light":           {"#383a42", "#fafafa", "#383a42", "#383a42", "#696c77", "#696c77", "#50a14f", "#e45649", "#e45649", "#986801", "#e5e5e6", "#4078f2", "#a0a1a7"},
+		"one-light":           {"#383a42", "#fafafa", "#383a42", "#383a42", "#686b77", "#686b77", "#50a14f", "#e45649", "#e45649", "#c18401", "#cddbf8", "#4078f2", "#a0a1a7"},
 		"poimandres":          {"#a6accd", "#1b1e28", "#a6accd", "#a6accd", "#91b4d5", "#91b4d5", "#5fb3a1", "#d0679d", "#d0679d", "#fffac2", "#303340", "#89ddff", "#767c9d"},
-		"rose-pine":           {"#e0def4", "#191724", "#e0def4", "#e0def4", "#908caa", "#908caa", "#9ccfd8", "#eb6f92", "#eb6f92", "#f6c177", "#403d52", "#c4a7e7", "#6e6a86"},
-		"rose-pine-dawn":      {"#464261", "#faf4ed", "#464261", "#464261", "#797593", "#797593", "#286983", "#b4637a", "#b4637a", "#9d6110", "#dfdad9", "#907aa9", "#797593"},
+		"rose-pine":           {"#e0def4", "#191724", "#e0def4", "#e0def4", "#c8c5dc", "#c8c5dc", "#31748f", "#eb6f92", "#eb6f92", "#f6c177", "#3b344b", "#c4a7e7", "#6e6a86"},
+		"rose-pine-dawn":      {"#464261", "#faf4ed", "#464261", "#464261", "#797593", "#797593", "#286983", "#b4637a", "#b4637a", "#ea9d34", "#f2e9e1", "#907aa9", "#9893a5"},
 		"vscode-dark":         {"#d4d4d4", "#1e1e1e", "#d4d4d4", "#d4d4d4", "#a6a6a6", "#a6a6a6", "#6a9955", "#f44747", "#f44747", "#dcdcaa", "#3a3d41", "#007acc", "#6b6b6b"},
 		"vscode-light":        {"#000000", "#ffffff", "#000000", "#000000", "#6f6f6f", "#6f6f6f", "#008000", "#cd3131", "#cd3131", "#795e26", "#e5ebf1", "#007acc", "#919191"},
 		"wombat":              {"#dedacf", "#171717", "#dedacf", "#dedacf", "#99968b", "#99968b", "#b1e969", "#ff6159", "#ff6159", "#ebd99c", "#453b38", "#5da9f6", "#99968b"},
@@ -208,7 +210,7 @@ func TestAdaptedLightTextAccentsRemainReadable(t *testing.T) {
 	for _, tc := range []struct {
 		name  string
 		token Token
-	}{{Ayu, Added}, {Ayu, Warning}, {RosePineDawn, Warning}} {
+	}{{Ayu, Added}, {Ayu, Warning}} {
 		palette, err := Resolve(tc.name, nil)
 		if err != nil {
 			t.Fatal(err)
@@ -218,5 +220,42 @@ func TestAdaptedLightTextAccentsRemainReadable(t *testing.T) {
 		if contrast < 4.5 {
 			t.Errorf("%s %s contrast = %.2f, want >= 4.5", tc.name, tc.token, contrast)
 		}
+	}
+}
+
+// The fixture records RGB values from Herdr's pinned Palette constructors.
+// Keep the source-token mapping here independent of the preset definitions.
+func TestPresetsMatchHerdrVerbatim(t *testing.T) {
+	data, err := os.ReadFile("testdata/herdr-palettes.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var palettes map[string]map[string]string
+	if err := json.Unmarshal(data, &palettes); err != nil {
+		t.Fatal(err)
+	}
+	if len(palettes) != 8 {
+		t.Fatalf("Herdr fixture has %d palettes, want 8", len(palettes))
+	}
+	roles := map[Token]string{
+		Foreground: "text", Background: "panel_bg", Title: "text", FileHeader: "text",
+		Hunk: "subtext0", Metadata: "subtext0", Added: "green", Removed: "red", Unavailable: "red",
+		Warning: "yellow", Selection: "selection_bg", FocusedBorder: "accent", Border: "overlay0",
+		SyntaxFunction: "yellow", SyntaxType: "teal", SyntaxMacro: "mauve", SyntaxConstant: "peach",
+		SyntaxAttribute: "mauve", SyntaxBuiltin: "teal",
+	}
+	for name, source := range palettes {
+		t.Run(name, func(t *testing.T) {
+			palette, err := Resolve(name, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for token, upstream := range roles {
+				want := source[upstream]
+				if want == "" || palette.Syntax(token) != want {
+					t.Errorf("%s = %s, want Herdr %s = %s", token, palette.Syntax(token), upstream, want)
+				}
+			}
+		})
 	}
 }
