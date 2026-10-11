@@ -24,7 +24,7 @@ func TestCopyDiscussionURL(t *testing.T) {
 			if cmd == nil {
 				t.Fatal("no clipboard command")
 			}
-			if got := fmt.Sprint(cmd()); got != target {
+			if got := clipboardText(cmd); got != target {
 				t.Fatalf("clipboard = %q", got)
 			}
 		})
@@ -39,7 +39,7 @@ func TestCopyCommentURLUsesExactReply(t *testing.T) {
 	if cmd == nil {
 		t.Fatal("no clipboard command")
 	}
-	if got := fmt.Sprint(cmd()); got != m.Comments[1].URL {
+	if got := clipboardText(cmd); got != m.Comments[1].URL {
 		t.Fatalf("clipboard = %q", got)
 	}
 }
@@ -63,7 +63,7 @@ func TestCopyOverviewInlineReplyDispatch(t *testing.T) {
 	if cmd == nil {
 		t.Fatal("no clipboard command")
 	}
-	if got := fmt.Sprint(cmd()); got != target {
+	if got := clipboardText(cmd); got != target {
 		t.Fatalf("clipboard = %q", got)
 	}
 	m.discussions.editor = &generalCommentEditor{}
@@ -81,7 +81,7 @@ func TestCopyDiscussionMissingSelectionAndFallback(t *testing.T) {
 	target := "https://github.com/a/b/pull/1#discussion_r1"
 	m.discussions.snapshot.Snapshot.Threads = []source.Discussion{{URL: target}}
 	cmd := m.copyDiscussionURL()
-	if cmd == nil || fmt.Sprint(cmd()) != target {
+	if cmd == nil || clipboardText(cmd) != target {
 		t.Fatal("thread URL lost")
 	}
 	m.discussions.selected = 4
@@ -109,7 +109,7 @@ func TestCopyInlineCommentDispatch(t *testing.T) {
 		t.Fatal("comment not rendered")
 	}
 	_, cmd := m.Update(tea.KeyPressMsg{Code: 'y', Text: "y"})
-	if cmd == nil || fmt.Sprint(cmd()) != url {
+	if cmd == nil || clipboardText(cmd) != url {
 		t.Fatal("selected diff comment URL not copied")
 	}
 }

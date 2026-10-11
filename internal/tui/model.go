@@ -242,6 +242,10 @@ type Model struct {
 	linkMouseX, linkMouseY int
 	linkMouseValid         bool
 
+	textSelection            textSelection
+	clipboardToast           bool
+	clipboardToastGeneration uint64
+
 	drag                 dividerDrag
 	pendingCenter        bool
 	helpScroll           int
@@ -758,12 +762,17 @@ func (m *Model) update(msg tea.Msg) (updated tea.Model, command tea.Cmd) {
 			m.Repositories = v.Repositories
 			m.RepositoryPicker.clamp(len(m.Repositories))
 		}
+	case clipboardToastExpired:
+		if uint64(v) == m.clipboardToastGeneration {
+			m.clipboardToast = false
+		}
 	case Notice:
 		m.notice = string(v)
 	case tea.MouseMsg:
 		m.clipboardTarget = nil
 		return m, m.mouseUpdate(v)
 	case tea.WindowSizeMsg:
+		m.textSelection = textSelection{}
 		overviewRelative, preserveOverview := m.overviewPosition()
 		m.cancelMouseDrag()
 		if m.commitFilter.subset && m.diffReviewView() {
@@ -801,6 +810,7 @@ func (m *Model) update(msg tea.Msg) (updated tea.Model, command tea.Cmd) {
 		}
 		return m, m.restartGuidePathScroll()
 	case tea.KeyPressMsg:
+		m.textSelection = textSelection{}
 		// Any intervening key invalidates a pending clipboard request.
 		m.clipboardTarget = nil
 		if v.String() == "ctrl+v" {
@@ -2574,7 +2584,7 @@ func (m *Model) View() tea.View {
 			content = hoverURL(content, m.Width, len(lines), m.linkMouseX, m.linkMouseY)
 		}
 	}
-	v := tea.NewView(content)
+	v := tea.NewView(m.clipboardPresentation(content))
 	v.AltScreen = true
 	if m.mouseAvailable() {
 		v.MouseMode = tea.MouseModeCellMotion

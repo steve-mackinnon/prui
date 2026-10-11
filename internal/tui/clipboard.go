@@ -12,8 +12,7 @@ func (m *Model) copyItemURL(target string) tea.Cmd {
 		m.notice = "No URL available for this item"
 		return nil
 	}
-	m.notice = "URL sent to clipboard"
-	return tea.SetClipboard(target)
+	return m.copyText(target)
 }
 
 func (m *Model) copyDiscussionURL() tea.Cmd {

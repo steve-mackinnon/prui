@@ -29,23 +29,40 @@ func (m *Model) mouseUpdate(msg tea.MouseMsg) tea.Cmd {
 	m.linkMouseValid = false
 	if !m.mouseAvailable() {
 		m.cancelMouseDrag()
+		m.textSelection = textSelection{}
 		return nil
 	}
 	if m.searchOpen() {
+		m.textSelection = textSelection{}
 		return m.searchMouse(msg)
 	}
 	event := msg.Mouse()
 	if event.Mod != 0 {
 		m.cancelMouseDrag()
+		m.textSelection = textSelection{}
 		return nil
+	}
+	if m.commitFilter.open {
+		m.textSelection = textSelection{}
+		if cmd, handled := m.commitFilterMouse(msg); handled {
+			return cmd
+		}
+	}
+	if cmd, handled := m.mouseResize(msg); handled {
+		m.textSelection = textSelection{}
+		return cmd
+	}
+	if cmd, handled := m.mouseTextSelection(msg); handled {
+		return cmd
 	}
 	if cmd, handled := m.commitFilterMouse(msg); handled {
 		return cmd
 	}
-	if cmd, handled := m.mouseResize(msg); handled {
-		return cmd
-	}
 	if cmd, handled := m.mouseURL(msg); handled {
+		if m.textSelection.active {
+			m.textSelection.click = cmd
+			return nil
+		}
 		return cmd
 	}
 	if wheel, ok := msg.(tea.MouseWheelMsg); ok {

@@ -1,5 +1,6 @@
 """Compiled-binary smoke journeys; invoked by TestPTYSmoke, no pip dependencies."""
 
+import base64
 import errno
 import codecs
 import fcntl
@@ -369,6 +370,23 @@ def main():
         terminal.wait_until(lambda screen: len(screen.splitlines()) > 3 and
                             [i for i, char in enumerate(screen.splitlines()[3]) if char == "│"] == [0, 49, 119],
                             "mouse divider resize", start)
+        # Copy rendered pane text through real SGR input and OSC 52 output.
+        token = "search-needle-b.go"
+        rows = terminal.screen.text().splitlines()
+        row = next(i for i, line in enumerate(rows) if token in line)
+        col = rows[row].index(token)
+        start = len(terminal.output)
+        gesture = (f"\x1b[<0;{col+1};{row+1}M"
+                   f"\x1b[<32;{col+len(token)};{row+1}M"
+                   f"\x1b[<0;{col+len(token)};{row+1}m")
+        os.write(terminal.master, gesture.encode())
+        terminal.wait_for("copied to clipboard", start)
+        payload = base64.b64encode(token.encode())
+        terminal.wait_until(lambda screen: b"\x1b]52;c;" + payload in terminal.output[start:],
+                            "selected text clipboard write", start)
+        terminal.wait_until(lambda screen: "copied to clipboard" not in screen,
+                            "clipboard toast dismissal", start)
+        terminal.key(b"h", "› [ ] b.go")
         terminal.key(b"\x1b[A", "› [ ] a.go")
         terminal.key(b"P", "Switch pull requests")
         terminal.key(b"\x1b[200~alpha\x1b[201~", "filter: alpha")
@@ -390,6 +408,7 @@ def main():
         terminal.quit(b"\x03")
     print("PASS resume, keyboard marking, resize, help/back, Ctrl+C, restoration")
     print("PASS offline commit picker, legacy source state, and All commits restoration")
+    print("PASS drag selection, OSC 52 clipboard payload, and transient copy toast")
 
     with Terminal(binary, resume, environment) as terminal:
         terminal.wait_for("1/2 read")

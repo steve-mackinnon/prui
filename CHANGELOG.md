@@ -9,6 +9,9 @@ User-visible changes are recorded here before each release. See
 
 - Paste into every text field using terminal paste or Ctrl+V in terminals with
   OSC 52 clipboard read support.
+- Drag-select visible pane text to copy it automatically, with a brief
+  `copied to clipboard` toast at the bottom.
+
 - Install or update the latest release with a single README command that detects
   macOS/Linux and ARM64/x86-64, verifies the checksum, and installs to `~/.local/bin`.
 
