@@ -14,6 +14,7 @@ User-visible changes are recorded here before each release. See
 
 ### Fixed
 
+- Build with Go 1.26.9 and golang.org/x/net v0.60.0 to address reachable vulnerabilities.
 - Preserve diff text contrast with softer background fills across themes, keeping GitHub Dark unchanged.
 
 ### Changed
