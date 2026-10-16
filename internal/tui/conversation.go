@@ -43,34 +43,6 @@ func (m *Model) generalCommentKey(key tea.KeyPressMsg) tea.Cmd {
 	case "esc":
 		m.discussions.editor = nil
 		return nil
-	case "left":
-		e.cursor = max(0, e.cursor-1)
-		return nil
-	case "right":
-		e.cursor = min(len([]rune(e.draft)), e.cursor+1)
-		return nil
-	case "home":
-		e.cursor = 0
-		return nil
-	case "end":
-		e.cursor = len([]rune(e.draft))
-		return nil
-	case "backspace":
-		r := []rune(e.draft)
-		if e.cursor > 0 {
-			e.draft = string(append(r[:e.cursor-1], r[e.cursor:]...))
-			e.cursor--
-		}
-		return nil
-	case "delete":
-		r := []rune(e.draft)
-		if e.cursor < len(r) {
-			e.draft = string(append(r[:e.cursor], r[e.cursor+1:]...))
-		}
-		return nil
-	case "shift+enter":
-		m.insertGeneralCommentText("\n")
-		return nil
 	case "ctrl+r":
 		return m.refreshDiscussions()
 	case "enter":
@@ -120,8 +92,8 @@ func (m *Model) generalCommentKey(key tea.KeyPressMsg) tea.Cmd {
 			return GeneralCommentResult{Target: target, Session: s, Editor: e, Event: event, Err: err}
 		}
 	}
-	if key.Text != "" && !key.Mod.Contains(tea.ModCtrl) && !key.Mod.Contains(tea.ModAlt) {
-		m.insertGeneralCommentText(key.Text)
+	if (draftEditor{&e.draft, &e.cursor, generalDraft}).key(key) == draftRejected {
+		m.discussions.notice = "PR comment requires 1–65536 bytes"
 	}
 	return nil
 }
@@ -129,11 +101,9 @@ func (m *Model) generalCommentKey(key tea.KeyPressMsg) tea.Cmd {
 // Reject over-limit edits before mutating a payload that must remain savable.
 func (m *Model) insertGeneralCommentText(text string) {
 	e := m.discussions.editor
-	if len(e.draft)+len(text) > 65536 {
+	if !(draftEditor{&e.draft, &e.cursor, generalDraft}).insert(text) {
 		m.discussions.notice = "PR comment requires 1–65536 bytes"
-		return
 	}
-	e.draft, e.cursor = insertEditorText(e.draft, e.cursor, text)
 }
 
 func (m *Model) applyGeneralCommentResult(v GeneralCommentResult) {
