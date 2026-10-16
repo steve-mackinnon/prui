@@ -95,6 +95,9 @@ func (m *Model) openSuggestionComposer() tea.Cmd {
 }
 func (m *Model) suggestionComposerKey(key tea.KeyPressMsg) tea.Cmd {
 	c := m.Composer
+	if (draftEditor{&c.Draft, &c.Cursor, suggestionDraft}).key(key) != draftUnhandled {
+		return nil
+	}
 	switch key.String() {
 	case "enter", "ctrl+p":
 		body, err := source.SuggestionBody(c.Draft)
