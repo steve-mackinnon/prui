@@ -73,24 +73,18 @@ func TestActionsInputOwnership(t *testing.T) {
 	}
 }
 
-func TestActionsMenuOwnsPasteAndShortcutCharacters(t *testing.T) {
-	m := New(context.Background(), nil)
-	t.Cleanup(m.Close)
-	m.openReviewTab(screenSession())
-	m.selectReviewView(viewFiles)
+func TestActionsMenuOwnsPasteAndUnknownKeys(t *testing.T) {
+	m := actionsModel(t)
 	ctrlKey(m, 'k')
 	if m.top() != pageActions {
 		t.Fatal("Ctrl+K did not open Actions")
 	}
-	for _, r := range "q/R?F" {
+	for _, r := range "qé" {
 		key(m, r)
 	}
-	if m.top() != pageActions || m.actions.query != "q/R?F" || m.fileFilterEditing || m.Composer != nil {
-		t.Fatal("menu query reached a review shortcut")
-	}
-	m.Update(tea.PasteMsg{Content: "é"})
-	if !strings.HasSuffix(m.actions.query, "é") {
-		t.Fatal("paste missed menu query")
+	m.Update(tea.PasteMsg{Content: "R/F?"})
+	if m.top() != pageActions || m.fileFilterEditing || m.Composer != nil {
+		t.Fatal("unknown key or paste reached a review shortcut")
 	}
 	namedKey(m, tea.KeyEscape)
 	if m.top() != pageReview || m.fileFilterEditing || m.searchOpen() || m.Composer != nil {

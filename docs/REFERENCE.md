@@ -201,11 +201,11 @@ Start with arrows to move within the focused pane, Tab/Shift+Tab to switch
 between list and diff, Enter to activate, and Escape to return. Click the labeled
 tabs to choose Overview, Files, Guide, or Commits.
 
-**Space** or **Ctrl+K** opens **Actions** from an idle review. Type a tool name,
-use arrows to select, then Enter to activate. Escape closes it without moving your
+**Space** or **Ctrl+K** opens **Actions** from an idle review. Press a displayed
+hotkey, or use arrows to select and Enter to activate. Escape closes it without moving your
 reading position. The menu exposes review submission, discussions, readiness,
 linked issues, saved reviews, guide generation, display settings, evidence, and
-comparison tools. Unavailable actions explain why. Opening or searching the menu
+comparison tools. Unavailable actions explain why. Opening or browsing the menu
 does not fetch, upload source, post to GitHub, or mark progress. Editors, searches,
 filters, other modals, and busy operations keep ownership of their input.
 Guide generation still requires provider/model and source-upload confirmation;
@@ -217,7 +217,7 @@ Shift+Enter adds a newline.
 
 | Key | Action |
 | --- | --- |
-| Space / Ctrl+K | Open Actions; type to search, arrows select, Enter activates, Escape closes |
+| Space / Ctrl+K | Open Actions; hotkeys activate, arrows select, Enter activates, Escape closes |
 | `P` | Open the PR switcher; type to filter, Enter switches/opens, Escape cancels |
 | `n` / `p` | Move between comment targets in a focused Files diff; move through files, guide rows, or inventory units in the list |
 | `}` / `{` | Next / previous guide, or file slice without guides |

@@ -4,12 +4,12 @@ Health & help
 ├─────────────────────────────────────────────────────────┤  ├─────────────────────────────────────────────────────────┤
 │ 1. Choose Files above to read the changes.              │  │ Click Overview, Files, Guide, or Commits above to       │
 │ 2. Use arrows in the focused pane; Tab switches list    │  │ switch views.                                           │
-│ and diff. Enter activates; Escape goes back.            │  │ Space or Ctrl+K: Actions from the review; type to find  │
-│ 3. Press Space for Actions. Type a name to find tools,  │  │ discussions, saved reviews, display options, or guide   │
-│ then Enter to choose.                                   │  │ expansion.                                              │
-│ 4. In the diff, Enter opens a comment. Enter in the     │  │ ?: open this help. s: all shortcuts. Escape: return to  │
-│ editor posts now; Ctrl+P queues a local pending         │  │ your place.                                             │
-│ comment.                                                │  └─────────────────────────────────────────────────────────┘
+│ and diff. Enter activates; Escape goes back.            │  │ Space or Ctrl+K: Actions from the review; browse tools  │
+│ 3. Press Space for Actions. Use the displayed hotkey,   │  │ and use their hotkeys, or arrows and Enter.             │
+│ or select with arrows and Enter.                        │  │ ?: open this help. s: all shortcuts. Escape: return to  │
+│ 4. In the diff, Enter opens a comment. Enter in the     │  │ your place.                                             │
+│ editor posts now; Ctrl+P queues a local pending         │  └─────────────────────────────────────────────────────────┘
+│ comment.                                                │
 │ 5. Choose Submit review to send your decision and       │
 │ pending comments after confirmation.                    │
 └─────────────────────────────────────────────────────────┘

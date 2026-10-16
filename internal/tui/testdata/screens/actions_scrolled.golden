@@ -1,0 +1,12 @@
+ex╭──────────────────────────────────────────────────────╮R]
+PR│ Actions                                              │
+┌ │   [c] Refresh discussions and comments (unavailable) │─┐
+│›│   [E] Expand or collapse file context                │ │
+│ │   [Ctrl+D] Restore compact diff                      │ │
+│ │   [Alt+O] Show full OLD file                         │ │
+│ │   [Alt+N] Show full NEW file                         │ │
+│ │   [Ctrl+W] Toggle whitespace presentation            │ │
+│ │ › [i] Toggle full inventory                          │ │
+└─│ 39 of 39 actions                                     │─┘
+0/│ Hotkey or ↑/↓ · Enter open · Esc close               │
+↑/╰──────────────────────────────────────────────────────╯

@@ -18,7 +18,7 @@ type binding struct {
 }
 
 var bindings = []binding{
-	{keys: "Space/ctrl+k", desc: "open Actions; type a tool name, arrows select, Enter activates, Escape closes", groups: groupHelp, section: "Navigate"},
+	{keys: "Space/ctrl+k", desc: "open Actions; use a displayed hotkey, or arrows and Enter; Escape closes", groups: groupHelp, section: "Navigate"},
 	{keys: "ctrl+v", desc: "paste clipboard into the active text field (OSC 52); terminal paste also works", groups: groupHelp, section: "App"},
 	{keys: "y", desc: "copy selected comment or discussion URL to clipboard (OSC 52)", groups: groupHelp, section: "Review"},
 	{keys: "D", desc: "jump to Discussions beneath the Overview description", groups: groupHelp | groupFooter, section: "Views"},

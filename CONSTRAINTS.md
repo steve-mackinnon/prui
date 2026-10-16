@@ -3,8 +3,8 @@
 - Review navigation uses focused-pane arrows, Tab/Shift+Tab to switch panes,
   Enter to activate, and Escape to return. Editor and modal input ownership
   takes precedence. Existing expert shortcuts remain accelerators.
-- Space/Ctrl+K and the visible Actions control open a local searchable menu of
-  named tools. Opening, filtering, and cancelling it never fetch, upload, post,
+- Space/Ctrl+K and the visible Actions control open a local menu of
+  named tools and their hotkeys. Opening, browsing, and cancelling it never fetch, upload, post,
   or change review progress. Selecting an action invokes the existing guarded
   handler; consent, immutable anchors, read-only views, draft recovery, and
   final write confirmations retain their existing authority.

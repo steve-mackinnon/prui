@@ -324,20 +324,16 @@ def main():
         terminal.wait_for("› Overview [1]")
         # The beginner path uses named actions and familiar pane navigation.
         terminal.wait_for("Actions [Space]")
-        terminal.key(b" ", "Find:")
-        terminal.key(b"q", "Find: q")
-        terminal.key(b"\x7f", "Find:")
-        terminal.key(b"view files", "View Files")
+        terminal.key(b" ", "Hotkey or")
         start = len(terminal.output)
-        os.write(terminal.master, b"\r")
-        terminal.wait_until(lambda screen: "Find:" not in screen and
+        os.write(terminal.master, b"2")
+        terminal.wait_until(lambda screen: "Hotkey or" not in screen and
                             "› Files [2]" in screen,
-                            "open Files through named action", start)
+                            "open Files through displayed hotkey", start)
         terminal.key(b"\t", "enter: comment/menu")
         terminal.key(b"\x1b[Z", "enter: diff")
-        terminal.key(b"\x0b", "Find:")
-        terminal.key(b"submit review", "Submit review")
-        terminal.key(b"\r", "Review decision")
+        terminal.key(b"\x0b", "Hotkey or")
+        terminal.key(b"R", "Review decision")
         start = len(terminal.output)
         os.write(terminal.master, b"\x1b")
         terminal.wait_until(lambda screen: "Review decision" not in screen and
@@ -429,7 +425,7 @@ def main():
         terminal.quit(b"\x03")
     print("PASS resume, keyboard marking, resize, help/back, Ctrl+C, restoration")
     print("PASS offline commit picker, legacy source state, and All commits restoration")
-    print("PASS Actions search, literal q, Tab/Shift+Tab panes, review form and cancel")
+    print("PASS Actions hotkeys, Tab/Shift+Tab panes, review form and cancel")
     print("PASS drag selection, OSC 52 clipboard payload, and transient copy toast")
 
     with Terminal(binary, resume, environment) as terminal:

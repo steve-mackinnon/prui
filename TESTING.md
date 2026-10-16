@@ -3,12 +3,13 @@
 ## Approachable review workflow
 
 `go test ./internal/tui -run 'Actions|ReviewHeader|ReviewArrow|GuideArrow|TabSwitch|NavigationTabs|GettingStarted|HelpStarts|RoutineReviewHints' -count=1`
-covers named action discovery, bounded Unicode queries and paste, exclusive
+covers named action hotkeys, ignored paste, exclusive
 editor/modal input, guarded dispatch, comment provenance, guide consent, pane
 navigation, preserved reading positions, and responsive help and controls.
 Actions and help have narrow/wide screen baselines. The compiled-binary
-`TestPTYSmoke` journey opens Actions with Space and Ctrl+K, types literal q,
-finds Files by name, switches panes with Tab/Shift+Tab, and opens/cancels review
+`TestPTYSmoke` journey opens Actions with Space and Ctrl+K, chooses Files
+and review submission with displayed hotkeys, switches panes with Tab/Shift+Tab,
+and opens/cancels review
 submission. Offline journeys still assert no GitHub invocation.
 
 These checks establish rendered behavior and input routing. They do not establish

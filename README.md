@@ -93,8 +93,8 @@ prui open https://github.com/owner/repo/pull/42
 2. Use **Up/Down** to move within the focused pane and **Tab** to switch between
    the file list and diff. **Enter** activates the selection; **Escape** goes back.
    You can also click items and scroll over either pane.
-3. Press **Space** or **Ctrl+K** to open **Actions**. Type a tool name, use the
-   arrows to select it, and press Enter. This is where you find marking files as
+3. Press **Space** or **Ctrl+K** to open **Actions**. Press the displayed
+   hotkey to choose a tool, or select with arrows and Enter. This is where you find marking files as
    read, discussions, saved reviews, display options, and optional AI guides.
 4. In the focused diff, press **Enter** on a commentable line to compose a comment.
    **Enter in the editor posts immediately. Ctrl+P queues a local pending comment**
@@ -144,7 +144,7 @@ For offline reading, list session IDs with `prui sessions`, then run
 | Up / Down | Move in the focused list or diff |
 | Tab / Shift+Tab | Switch list and diff panes |
 | Enter | Activate a selection; in the diff, compose a comment or open comment actions |
-| Space / Ctrl+K | Open Actions; type to find a tool |
+| Space / Ctrl+K | Open Actions; use its hotkeys, or arrows and Enter |
 | Escape | Go back or close the current menu |
 | ? | Getting started and health; s inside help shows all shortcuts |
 

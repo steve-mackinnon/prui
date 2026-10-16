@@ -7,8 +7,8 @@ import (
 )
 
 func (m *Model) helpLines() []string {
-	body := "Your first review\n1. Choose Files above to read the changes.\n2. Use arrows in the focused pane; Tab switches list and diff. Enter activates; Escape goes back.\n3. Press Space for Actions. Type a name to find tools, then Enter to choose.\n4. In the diff, Enter opens a comment. Enter in the editor posts now; Ctrl+P queues a local pending comment.\n5. Choose Submit review to send your decision and pending comments after confirmation."
-	body += "\n\nFind your way\nClick Overview, Files, Guide, or Commits above to switch views.\nSpace or Ctrl+K: Actions from the review; type to find discussions, saved reviews, display options, or guide expansion.\n?: open this help. s: all shortcuts. Escape: return to your place."
+	body := "Your first review\n1. Choose Files above to read the changes.\n2. Use arrows in the focused pane; Tab switches list and diff. Enter activates; Escape goes back.\n3. Press Space for Actions. Use the displayed hotkey, or select with arrows and Enter.\n4. In the diff, Enter opens a comment. Enter in the editor posts now; Ctrl+P queues a local pending comment.\n5. Choose Submit review to send your decision and pending comments after confirmation."
+	body += "\n\nFind your way\nClick Overview, Files, Guide, or Commits above to switch views.\nSpace or Ctrl+K: Actions from the review; browse tools and use their hotkeys, or arrows and Enter.\n?: open this help. s: all shortcuts. Escape: return to your place."
 	_, health, _ := strings.Cut(m.healthHelpView(), "\n")
 	if m.helpExpanded {
 		status, reference, _ := strings.Cut(health, "\n\n")

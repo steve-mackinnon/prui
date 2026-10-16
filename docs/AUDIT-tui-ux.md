@@ -31,7 +31,7 @@ and remote-write guarantees. No dependencies or persistence changes are needed.
 
 | Module | Responsibility | Dependencies |
 | --- | --- | --- |
-| actions | One searchable menu of named existing review actions | Existing handlers |
+| actions | One menu of named existing review actions and hotkeys | Existing handlers |
 | navigation | Arrows operate focus; Tab switches panes | Existing pane state |
 | guidance | Short contextual hints and beginner-first help/docs | Actions and navigation contracts |
 
@@ -46,12 +46,13 @@ to a separate implementation subagent before integration.
 
 ## Actions acceptance criteria
 
-Space or Ctrl+K opens a searchable Actions overlay from an idle review. Type to
-filter; arrows select; Enter activates; Escape closes without changing reading
-position. Include view selection, submit review, discussions, readiness, linked
+Space or Ctrl+K opens an Actions overlay from an idle review. Displayed hotkeys
+activate tools; arrows select; Enter activates; Escape closes without changing
+reading position. The follow-up user request removes the Find field and search
+input; pasted text never activates actions. Include view selection, submit review, discussions, readiness, linked
 issues, saved reviews, new comparison, guide generation, display options, and
 evidence. Context-only actions are omitted or labeled unavailable with a reason.
-Existing consent and final confirmation remain authoritative. Opening, filtering,
+Existing consent and final confirmation remain authoritative. Opening, browsing,
 and cancelling never fetch, upload, post, or change progress. Editors, search,
 filters, other modals, and busy state keep input ownership.
 
