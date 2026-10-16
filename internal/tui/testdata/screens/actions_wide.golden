@@ -1,0 +1,18 @@
+example/re╭──────────────────────────────────────────────────────────────────────────────────────────────────╮Review [R]
+  PRs [P] │ Actions                                                                                          │
+┌ Files · │ › [R] Submit review                                                                              │─────────┐
+│› main.go│   [D] Discussions                                                                                │         │
+│  README.│   [n] Add PR comment (unavailable)                                                               │         │
+│         │   [m] Mark selected file read or unread (unavailable)                                            │         │
+│         │   [Ctrl+F] Add file comment                                                                      │         │
+│         │   Add line comment (unavailable)                                                                 │         │
+│         │   [Ctrl+V] Start or cancel comment range (unavailable)                                           │         │
+│         │   [Ctrl+S] Compose suggestion (unavailable)                                                      │         │
+│         │   [1] View Overview                                                                              │         │
+│         │   [2] View Files                                                                                 │         │
+│         │   [3] View Guide                                                                                 │         │
+│         │   [4] View Commits                                                                               │         │
+│         │   [Alt+R] PR readiness and checks                                                                │         │
+└─────────│ 1 of 39 actions                                                                                  │─────────┘
+0/2 read ·│ Hotkey or ↑/↓ · Enter open · Esc close                                                           │
+Space: Act╰──────────────────────────────────────────────────────────────────────────────────────────────────╯

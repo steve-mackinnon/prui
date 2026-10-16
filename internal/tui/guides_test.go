@@ -143,7 +143,7 @@ func TestGuideNavigation(t *testing.T) {
 	for m.Row > 0 {
 		key(m, 'p')
 	}
-	m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	selectAction(t, m, "selected guide section")
 	collapsed := m.rows()
 	if len(collapsed) >= before {
 		t.Fatal("collapse did not hide the guide subtree")
@@ -154,7 +154,7 @@ func TestGuideNavigation(t *testing.T) {
 	if !contains(collapsed[m.Row].units, m.Selected) {
 		t.Fatal("collapsed cursor no longer describes the selected unit")
 	}
-	m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	selectAction(t, m, "selected guide section")
 	if len(m.rows()) != before || m.Selected != unit {
 		t.Fatal("expansion did not restore the hierarchy and selection")
 	}
@@ -173,11 +173,11 @@ func TestGuideNavigation(t *testing.T) {
 	for m.Row < sectionAt {
 		key(m, 'n')
 	}
-	m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	selectAction(t, m, "selected guide section")
 	if len(m.rows()) >= before || m.rows()[m.Row].kind != sectionRow {
 		t.Fatal("section collapse did not hide its portions")
 	}
-	m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	selectAction(t, m, "selected guide section")
 
 	// i remains the complete raw source view, and returning from it keeps the
 	// cursor on a row that contains the unit the reviewer was reading.
@@ -410,8 +410,8 @@ func TestGuideDetailFileJumps(t *testing.T) {
 	m.Focus = paneList
 	m.Row, m.Selected = bRow, b.units[0]
 	m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
-	if m.Focus != paneDiff || m.GuideScroll[b.guide] != want {
-		t.Fatal("tab on a file row did not jump and focus the diff")
+	if m.Focus != paneDiff || m.GuideScroll[b.guide] != 1 {
+		t.Fatal("tab on a file row did not focus the saved diff position")
 	}
 }
 

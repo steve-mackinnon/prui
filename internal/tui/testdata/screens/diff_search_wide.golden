@@ -1,4 +1,4 @@
-example/review #42
+example/review #42                                                                           Actions [Space]  Review [R]
   PRs [P]    Overview [1]  › F╭──────────────────────────────────────────────────────────────────────────────────────╮
 ┌ Files · ▽ Filter (F) ───────│ Find: l▏                                                                             │─┐
 │› main.go                    │ 4 matches in 1 file                                                                  │ │
@@ -15,4 +15,4 @@ example/review #42
 │                             │                                                                                      │ │
 └─────────────────────────────│ Esc: select results · Enter: jump                                                    │─┘
 0/2 read · R Submit review (0)╰──────────────────────────────────────────────────────────────────────────────────────╯
-j/k: files · E: expand · enter: diff · m: mark file · ?: Help
+Space: Actions · ↑/↓: files · Tab: panes · enter: diff · esc: back

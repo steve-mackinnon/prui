@@ -1,3 +1,17 @@
+# TUI approachability contract (issues #102–104)
+
+- Review navigation uses focused-pane arrows, Tab/Shift+Tab to switch panes,
+  Enter to activate, and Escape to return. Editor and modal input ownership
+  takes precedence. Existing expert shortcuts remain accelerators.
+- Space/Ctrl+K and the visible Actions control open a local menu of
+  named tools and their hotkeys. Opening, browsing, and cancelling it never fetch, upload, post,
+  or change review progress. Selecting an action invokes the existing guarded
+  handler; consent, immutable anchors, read-only views, draft recovery, and
+  final write confirmations retain their existing authority.
+- Help starts with the first-review path; a separate explicit toggle reveals
+  the full reference. Severe health warnings and review submission remain
+  visible. Header controls and mouse hit testing share responsive bounds.
+
 # Phases 1 To 3 Contract
 
 - Raw source comes only from pinned committed objects, never working files or model output.

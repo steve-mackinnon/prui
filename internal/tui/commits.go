@@ -322,6 +322,12 @@ func (m *Model) commitKey(key string) {
 		if len(m.commitEntries()) > 0 {
 			m.commit.focus = paneDiff
 		}
+	case "tab", "shift+tab":
+		if m.commit.focus == paneDiff {
+			m.commit.focus = paneList
+		} else if len(m.commitEntries()) > 0 {
+			m.commit.focus = paneDiff
+		}
 	case "[", "]":
 		if m.Width >= 100 {
 			delta := -2

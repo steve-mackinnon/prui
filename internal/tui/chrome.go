@@ -132,7 +132,13 @@ func (m *Model) healthHelpView() string {
 			text += "\n! Action failed: " + Escape(m.ActionError.Error())
 		}
 	}
-	text += "\n\n" + renderHealth() + "\n\nControls and invalid bytes escaped. Mouse selects; Enter activates.\nReading progress is local, not GitHub approval.\nGuides interpret the diff; the raw inventory remains the complete source view.\nMarking any portion of a file marks its whole slice, under every guide.\nEvidence is pinned, bounded, and omissions are reported. Analysis is optional and consent-bound."
+	if m.helpExpanded {
+		text += "\n\n" + renderHealth()
+		text += "\n\nCommits (4)\nArrows: select in the list or scroll the focused diff. Tab/Shift+Tab: switch panes.\nn/p: next/previous commit. Enter/l: focus diff; Escape/h: return to list.\n[/]: resize the commit rail at 100+ columns. Below 100 columns, focus selects the visible pane."
+		text += "\n\nFiles\nF: filter by filename or path. Enter: keep filter and navigate. Escape: clear filter.\n/: find code text in Files or the selected Guide section.\nL: toggle line numbers in Files, Guide, and Commits."
+		text += "\n\nMouse\nClick: select an item or diff cell; Enter: activate.\nClick view tabs to switch. Drag the file/diff divider to resize.\nScroll over a pane to move it. Drag readable text to copy; terminal selection modifiers also work."
+	}
+	text += "\n\nControls and invalid bytes escaped. Mouse selects; Enter activates.\nReading progress is local, not GitHub approval.\nGuides interpret the diff; the raw inventory remains the complete source view.\nMarking any portion of a file marks its whole slice, under every guide.\nEvidence is pinned, bounded, and omissions are reported. Guide generation is optional: choose Generate guide in Actions, then confirm the provider, model, and source upload."
 	if m.store != nil && m.Session != nil {
 		text += "\nStorage: " + Escape(m.store.Path()) + "\nSession: " + Escape(m.Session.ID)
 	}
@@ -204,56 +210,36 @@ func (m *Model) reviewHints() string {
 	if m.ReviewSubmitted {
 		return m.styleLine(classTitle, clip("✓ Review submitted on GitHub · ?: Health & help", m.Width))
 	}
-	hints := "j/k: files · E: expand · enter: diff · m: mark file · ?: Help"
+	hints := "↑/↓: files · Tab: panes · enter: diff · esc: back"
 	switch {
 	case m.selectedReviewView() == viewCommits:
 		if m.Session.Commits != nil && !m.Session.Commits.Complete && m.Session.Commits.Status == "captured" {
-			return m.styleLine(classWarning, clip(fmt.Sprintf("Showing first %d commits; more may exist. · ?: Help", len(m.Session.Commits.Entries)), m.Width))
+			return m.styleLine(classWarning, clip(fmt.Sprintf("Space: Actions · Showing first %d commits; more may exist.", len(m.Session.Commits.Entries)), m.Width))
 		}
-		hints = "j/k: commits · n/p: commit · enter/l: diff · esc/h: list · ?: Help"
+		hints = "↑/↓: commits · Tab: panes · enter: diff · esc: back"
 		if m.commit.focus == paneDiff {
-			hints = "j/k: scroll · n/p: commit · PgUp/PgDn: page · esc/h: list · ?: Help"
+			hints = "↑/↓: scroll · Tab: panes · enter: comment/menu · esc: list"
 		}
 	case m.selectedReviewView() == viewDescription:
-		hints = "↑/↓: scroll · n: comment · D: discussions · enter: expand · ?: Help"
-		if m.discussions.overviewFocus {
-			hints = "↑/↓: scroll · enter: expand · n: comment · c: refresh · esc: back"
-			entries := m.discussionEntries()
-			if len(entries) > 0 {
-				t := entries[m.discussions.selected]
-				if t.Kind == "PR comment" {
-					hints = "↑/↓: scroll · enter: expand · r: reply · n: comment · c: refresh · esc: back"
-				} else if t.Kind != "Review" {
-					hints = "↑/↓: scroll · enter: expand"
-					if m.submitCommentAction != nil && m.discussionFilesReason(t) == "" {
-						hints += " · r: reply"
-					}
-					if m.discussionFilesReason(t) == "" {
-						hints += " · f: Files"
-					}
-					if m.overviewOriginalAvailable(t) {
-						hints += " · o: original"
-					}
-					hints += " · c: refresh · esc: back"
-				}
-			}
-		}
+		hints = "↑/↓: scroll · enter: expand · esc: back"
 		if m.discussions.overviewFocus && m.discussions.overviewExpanded[m.discussions.selectedID] {
-			hints = "enter: collapse · esc: collapse · ↑/↓: scroll · tab: activity · c: refresh"
-			entries := m.discussionEntries()
-			if m.discussions.overviewFocus && len(entries) > 0 {
-				actions := m.overviewDiscussionActions(entries[max(0, min(m.discussions.selected, len(entries)-1))])
-				if len(actions) > 0 {
-					hints = strings.Join(actions, " · ") + " · " + hints
-				}
-			}
+			hints = "↑/↓: scroll · enter: collapse · esc: collapse"
 		}
 	case m.Focus == paneDiff:
-		hints = "↑/↓: scroll · E: expand · enter: comment/menu · m: mark file · esc: list · ?: Help"
+		hints = "↑/↓: scroll · Tab: panes · enter: comment/menu · esc: list"
 	case !m.Files && !m.Inventory:
-		hints = "j/k: guides · E: context · tab: expand · enter: diff · ?: Help"
+		hints = "↑/↓: guides · Tab: panes · enter: diff · esc: back"
 	case m.Inventory:
-		hints = "j/k: units · enter: diff · m: mark file · ?: Help"
+		hints = "↑/↓: units · Tab: panes · enter: diff · esc: back"
+	}
+	// The header keeps Actions visible; reserve narrower footers for navigation.
+	if m.Width < 48 {
+		hints = "↑↓ · Tab · enter · esc: back"
+	} else if m.Width < 90 {
+		hints = strings.ReplaceAll(hints, "comment/menu", "comment")
+	}
+	if m.Width >= 90 {
+		hints = "Space: Actions · " + hints
 	}
 	return m.styleLine(classMetadata, clip(hints, m.Width))
 }

@@ -1,5 +1,5 @@
-example/review #42
-  PRs [P]    Overview [1]  › Files [2]    Guide [3]    Commi
+example/review #42               Actions [Space]  Review [R]
+PRs  Overview  › Files  Guide  Commits
 ┌ Files · ▽ Filter (F) · Commits [C] · All commits · Find (┐
 │── main.go                                                │
 │! Syntax highlighting unavailable: NEW: capture timed out.│
@@ -9,4 +9,4 @@ example/review #42
 │                                                          │
 └──────────────────────────────────────────────────────────┘
 0/2 read · R Review (0) · ! Syntax unavailable (1 file)
-↑/↓: scroll · E: expand · enter: comment/menu · m: mark file
+↑/↓: scroll · Tab: panes · enter: comment · esc: list

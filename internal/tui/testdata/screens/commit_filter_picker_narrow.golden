@@ -1,5 +1,5 @@
-example/review #42
-  ╭──────────────────────────────────────────────────────╮mi
+example/review #42               Actions [Space]  Review [R]
+PR╭──────────────────────────────────────────────────────╮
 ┌ │ Commits [C] · All commits                            │─┐
 │›│ Select commits for one net diff.                     │ │
 │ │ › [x] All commits                                    │ │
@@ -7,4 +7,4 @@ example/review #42
 │ │   [ ] bbbbbbbbbbbb Second commit · Alice             │ │
 └─│ Space/Enter: toggle · j/k: move · Esc/C: close       │─┘
 0/╰──────────────────────────────────────────────────────╯
-j/k: files · E: expand · enter: diff · m: mark file · ?: Hel
+↑/↓: files · Tab: panes · enter: diff · esc: back

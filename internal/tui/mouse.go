@@ -14,7 +14,7 @@ func (m *Model) mouseAvailable() bool {
 		return false
 	}
 	switch m.top() {
-	case pageReadiness, pageIssueContext, pageDiscussions:
+	case pageReadiness, pageIssueContext, pageDiscussions, pageActions:
 		return m.Session != nil
 	case pageReview:
 		return m.Session != nil
@@ -40,6 +40,13 @@ func (m *Model) mouseUpdate(msg tea.MouseMsg) tea.Cmd {
 	if event.Mod != 0 {
 		m.cancelMouseDrag()
 		m.textSelection = textSelection{}
+		return nil
+	}
+	if m.top() == pageActions {
+		m.textSelection = textSelection{}
+		if click, ok := msg.(tea.MouseClickMsg); ok && click.Button == tea.MouseLeft {
+			return m.actionsMouseClick(click.X, click.Y)
+		}
 		return nil
 	}
 	if m.commitFilter.open {

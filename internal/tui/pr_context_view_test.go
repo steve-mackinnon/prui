@@ -96,6 +96,9 @@ func TestPRContextViewRendersTextualTabStripAndContextPlaceholder(t *testing.T) 
 			m.Update(tea.KeyPressMsg{Code: '1', Text: "1"})
 			view := ansi.Strip(m.View().Content)
 			wantTab := "› Overview [1]"
+			if width < 90 {
+				wantTab = "› Overview"
+			}
 			if !strings.Contains(view, wantTab) {
 				t.Fatalf("context tab strip does not identify active Description:\n%s", view)
 			}

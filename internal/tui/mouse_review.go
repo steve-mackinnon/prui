@@ -14,6 +14,9 @@ func (m *Model) mouseReviewClick(x, y int) tea.Cmd {
 	if x < 0 || y < 0 || x >= m.Width || y >= m.Height || m.Session == nil {
 		return nil
 	}
+	if cmd, handled := m.reviewHeaderClick(x, y); handled {
+		return cmd
+	}
 	if y == 1 {
 		start := 0
 		for i, label := range m.contextTabLabels() {
@@ -229,12 +232,20 @@ func (m *Model) clearSelectedDiffTarget() { m.setSelectedDiffTarget(nil) }
 // Plain labels are shared by rendering and hit testing, before styling or clipping.
 func (m *Model) contextTabLabels() []string {
 	labels := []string{"Overview [1]", "Files [2]", "Guide [3]", "Commits [4]"}
+	prs := "  PRs [P]"
+	if m.Width < 90 {
+		labels = []string{"Overview", "Files", "Guide", "Commits"}
+		prs = "PRs"
+	}
 	for i, label := range labels {
 		prefix := "  "
+		if m.Width < 90 {
+			prefix = ""
+		}
 		if reviewViews[i] == m.selectedReviewView() {
 			prefix = "› "
 		}
 		labels[i] = prefix + label
 	}
-	return append([]string{"  PRs [P]"}, labels...)
+	return append([]string{prs}, labels...)
 }

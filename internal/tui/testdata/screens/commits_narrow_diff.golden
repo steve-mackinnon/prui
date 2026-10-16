@@ -1,5 +1,5 @@
-example/review #42
-  PRs [P]    Overview [1]    Files [2]    Guide [3]  › Commi
+example/review #42               Actions [Space]  Review [R]
+PRs  Overview  Files  Guide  › Commits
 ┌ Commit diff · 1/2 · aaaaaaaaaaaa · esc/h: list ──────────┐
 │› First commit                                            │
 │  Alice · aaaaaaaaaaaa                                    │
@@ -9,4 +9,4 @@ example/review #42
 │  @@ -1,1 +1,30 @@                                        │
 └──────────────────────────────────────────────────────────┘
 0/2 read · R Review (0) · ? Freshness unknown · ?: Help
-j/k: scroll · n/p: commit · PgUp/PgDn: page · esc/h: list ·
+↑/↓: scroll · Tab: panes · enter: comment · esc: list

@@ -162,7 +162,7 @@ for automatic reuse only under the unchanged default OpenAI selection.
 
 Failure is cheap and explicit. A transport error, non-2xx status, refusal, deadline, oversize payload, or unusable structured output produces an `analysis_unavailable` bundle with a stated reason, a durable session, and the unchanged deterministic file plan. Only a structurally valid generated bundle is persisted as a reusable local cache entry; unavailable bundles never suppress a later retry. Retrying cannot modify a stored snapshot; a later successful attempt is a new session. Generated text is model interpretation of the bounded input, not source truth, approval, security findings, or complete architectural documentation, and it can be wrong about anything it was not shown.
 
-Reviews open on the Files tab. The right pane shows every changed file in order, with all of each file's hunks together. Scroll through the whole PR or press `j`/`k` to jump between file boundaries. Press `F` for Files or `G` for Guide. When a session has generated guides, Guide shows each guide, section, and covered file portion, with the selected guide's combined diff in the right pane. Selecting a section or file with `j`/`k` scrolls to its position in that diff; Enter also focuses the diff. Selecting a guide restores its saved scroll position. A file appears under every section that owns part of it. `n` walks guide rows, `}`/`{` jump between guides, and `tab` expands or collapses the selected guide or section. `]`/`[` widen or narrow the left pane by two columns. `i` lists every raw unit. `m` marks the whole file slice of the selected unit. A fallback, absent, or empty bundle leaves Files available.
+New reviews open on Overview; choose Files to read the diff. The right pane shows every changed file in order, with all of each file's hunks together. Scroll through the whole PR or press `j`/`k` to jump between file boundaries. Click the Files or Guide tabs; `F` filters Files by name and `G` selects Guide. When a session has generated guides, Guide shows each guide, section, and covered file portion, with the selected guide's combined diff in the right pane. Selecting a section or file with `j`/`k` scrolls to its position in that diff; Enter also focuses the diff. Selecting a guide restores its saved scroll position. A file appears under every section that owns part of it. `n` walks guide rows, `}`/`{` jump between guides, and **Actions → Expand or collapse selected guide section** expands or collapses the selected guide or section. Tab/Shift+Tab switches between list and diff panes. `]`/`[` widen or narrow the left pane by two columns. `i` lists every raw unit. `m` marks the whole file slice of the selected unit. A fallback, absent, or empty bundle leaves Files available.
 
 Reviews opened in one process keep independent in-memory reading positions, hierarchy expansion, pane focus, scroll offsets, notices, and errors. The first tab, `PRs [P]`, opens the PR list by click or uppercase `P`. It opens a PR switcher over the current review. It lists already-open reviews first, then open PRs for the active repository; typing filters, Enter switches or starts a new read-only pinned review, and Escape leaves the current review unchanged. The overlay never takes a permanent column or changes plain output.
 
@@ -175,9 +175,11 @@ Below 100 columns, the focused pane uses the full width.
 The status line keeps `R Submit review` and the pending count visible alongside
 local reading progress and freshness. Warnings take priority over routine
 health information. At heights of 10 rows or more, a second footer line shows
-shortcuts for the current pane, context view, or comment editor; shorter
-terminals use one footer row. `?` opens **Health & help**, with complete review
-health and shortcuts grouped under Navigate, Review, Views, Diagnostics, and App.
+guidance for the focused pane, context view, or comment editor; shorter
+terminals use one footer row. **Space: Actions** stays visible as the discovery
+path. `?` opens **Health & help**, starting with a short first-review journey
+and then review health. Press `s` inside help to reveal or hide the full shortcut
+reference, grouped under Navigate, Review, Views, Diagnostics, and App.
 Use arrows or j/k to scroll help, Page Up/Down to page, and Escape to return.
 The editor explicitly labels Enter as **post now** and Ctrl+P as **save pending**;
 these actions keep their existing behavior.
@@ -195,8 +197,27 @@ columns. Plain output is always unified.
 
 ## Keyboard
 
+Start with arrows to move within the focused pane, Tab/Shift+Tab to switch
+between list and diff, Enter to activate, and Escape to return. Click the labeled
+tabs to choose Overview, Files, Guide, or Commits.
+
+**Space** or **Ctrl+K** opens **Actions** from an idle review. Press a displayed
+hotkey, or use arrows to select and Enter to activate. Escape closes it without moving your
+reading position. The menu exposes review submission, discussions, readiness,
+linked issues, saved reviews, guide generation, display settings, evidence, and
+comparison tools. Unavailable actions explain why. Opening or browsing the menu
+does not fetch, upload source, post to GitHub, or mark progress. Editors, searches,
+filters, other modals, and busy operations keep ownership of their input.
+Guide generation still requires provider/model and source-upload confirmation;
+review submission still has a separate final confirmation.
+
+Optional accelerators are listed below. In comment editors, Enter posts
+immediately, Ctrl+P queues a local pending comment where supported, and
+Shift+Enter adds a newline.
+
 | Key | Action |
 | --- | --- |
+| Space / Ctrl+K | Open Actions; hotkeys activate, arrows select, Enter activates, Escape closes |
 | `P` | Open the PR switcher; type to filter, Enter switches/opens, Escape cancels |
 | `n` / `p` | Move between comment targets in a focused Files diff; move through files, guide rows, or inventory units in the list |
 | `}` / `{` | Next / previous guide, or file slice without guides |
@@ -206,9 +227,9 @@ columns. Plain output is always unified.
 | `S` | Toggle side-by-side detail; unified is the default and narrow terminals fall back below 160 columns |
 | `/` | Find code text in Files or the current Guide section |
 | `F` | Filter Files by filename or path; Enter keeps the filter, Escape clears it |
-| `1` / `2` / `3` / `4` | Select Description / Files / Guide / Commits |
-| `v` / `V` | Next / previous PR context view: Description, Files, Guide, or Commits |
-| `tab` | Expand / collapse the selected guide or section |
+| `1` / `2` / `3` / `4` | Select Overview / Files / Guide / Commits |
+| `v` / `V` | Next / previous PR context view: Overview, Files, Guide, or Commits |
+| Tab / Shift+Tab | Switch list/diff panes in Files, Guide, and Commits; use Actions for guide expansion |
 | `h` / `l`, `ctrl+h` / `ctrl+l` | Focus list / diff |
 | `enter` / `esc` | In the list, focus the selected diff / go back; in a focused diff, open a composer for a target or an action menu for a selected comment / discard local drafts and menus |
 | `enter` in a line editor | Post the line comment immediately; `shift+enter` inserts a newline |
@@ -237,7 +258,7 @@ columns. Plain output is always unified.
 
 Selection, expansion, and diff scroll offsets survive resizing; navigation positions and expansion state are not persisted across processes, and they are rebuilt from the immutable bundle so navigation cannot drift from the stored guides. Mouse capture supports text selection, item selection, and divider dragging. Drag text in a readable content pane to copy it on release. Textual markers and labels are primary: the selected row is marked `› ` whether or not its pane is focused; a muted background reinforces it when unfocused and reverse video reinforces the focused row. The interactive view additionally colors diff structure — file headers, hunk locations, additions, removals — and unit states such as metadata, binary, gitlink, unavailable, and warning chrome. Color is presentation only: no wording, label, or ordering depends on it, and terminals without color show the same text. Extremely small terminals clip controls; enlarge or use plain output. Broad terminal/platform/accessibility coverage is not established.
 
-Every interactive PR has `Description` (`1`), `Files` (`2`), `Guide` (`3`), and `Commits` (`4`) context views, in that order. Reviews open on Files; `F` opens the Files filename filter; `G` selects Guide. Guide has its own top-level tab and requires explicit generation with `g` when no guide is available. Description is display-only GitHub-flavored Markdown frozen from GitHub when the session opened; it is available after an offline resume and does not refresh when selected. Raw HTML remains literal text, links are not activated, and images never load. Empty captured descriptions and older sessions that did not capture one are labeled explicitly. Context views are not included in `--plain` output.
+Every interactive PR has `Overview` (`1`), `Files` (`2`), `Guide` (`3`), and `Commits` (`4`) context views, in that order. New reviews open on Overview; `F` opens the Files filename filter; `G` selects Guide. Guide has its own top-level tab and requires explicit generation with `g` when no guide is available. Description is display-only GitHub-flavored Markdown frozen from GitHub when the session opened; it is available after an offline resume and does not refresh when selected. Raw HTML remains literal text, links are not activated, and images never load. Empty captured descriptions and older sessions that did not capture one are labeled explicitly. Context views are not included in `--plain` output.
 
 ### Mouse selection and panel resizing
 

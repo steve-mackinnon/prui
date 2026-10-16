@@ -1,4 +1,4 @@
-example/review #42
+example/review #42                                                       Actions [Space]  Review [R]
   PRs [P]  › Overview [1]    Files [2]    Guide [3]    Commits [4]
 Overview · Discussions [D]
 ▸─ Selected ───────────────────────────────────────────────────────────────────────────────────────┐
@@ -9,4 +9,4 @@ Overview · Discussions [D]
 │ > @alice                                                                                         │
 │   Historical concern                                                                             │
 0/2 read · R Review (0) · ? Freshness unknown · ?: Help
-↑/↓: scroll · enter: expand · c: refresh · esc: back
+Space: Actions · ↑/↓: scroll · enter: expand · esc: back

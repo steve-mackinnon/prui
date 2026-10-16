@@ -322,7 +322,24 @@ def main():
     with Terminal(binary, resume, environment) as terminal:
         terminal.wait_for("0/2 read")
         terminal.wait_for("› Overview [1]")
-        terminal.key(b"2", "› Files [2]")
+        # The beginner path uses named actions and familiar pane navigation.
+        terminal.wait_for("Actions [Space]")
+        terminal.key(b" ", "Hotkey or")
+        start = len(terminal.output)
+        os.write(terminal.master, b"2")
+        terminal.wait_until(lambda screen: "Hotkey or" not in screen and
+                            "› Files [2]" in screen,
+                            "open Files through displayed hotkey", start)
+        terminal.key(b"\t", "enter: comment/menu")
+        terminal.key(b"\x1b[Z", "enter: diff")
+        terminal.key(b"\x0b", "Hotkey or")
+        terminal.key(b"R", "Review decision")
+        start = len(terminal.output)
+        os.write(terminal.master, b"\x1b")
+        terminal.wait_until(lambda screen: "Review decision" not in screen and
+                            "0/2 read" in screen,
+                            "cancel named review action", start)
+        terminal.wait_for("› Files [2]")
         terminal.key(b"C", "Select commits for one net diff.")
         terminal.wait_for("╭")
         terminal.wait_for("› Files [2]")
@@ -408,6 +425,7 @@ def main():
         terminal.quit(b"\x03")
     print("PASS resume, keyboard marking, resize, help/back, Ctrl+C, restoration")
     print("PASS offline commit picker, legacy source state, and All commits restoration")
+    print("PASS Actions hotkeys, Tab/Shift+Tab panes, review form and cancel")
     print("PASS drag selection, OSC 52 clipboard payload, and transient copy toast")
 
     with Terminal(binary, resume, environment) as terminal:

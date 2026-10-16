@@ -88,35 +88,32 @@ prui                                  # browse this checkout's open PRs
 prui open https://github.com/owner/repo/pull/42
 ```
 
-The PR picker shows the list beside a description and metadata preview on wide
-terminals, and stacks them on narrower terminals. Target branches appear in list rows
-when space allows, in the selected PR preview, and in the opened Overview tab. Use Tab to focus the preview,
-then `j` / `k` or Page Up / Page Down to scroll; Tab returns to the list.
-Shift+J / Shift+K scroll the preview from either panel without changing focus. Mouse
-clicks focus either panel and the wheel scrolls the panel under the pointer.
-Overflowing selected PR titles scroll horizontally, keeping the PR number and
-metadata fixed. Usernames and check states use distinct theme accents.
-The footer stays at the bottom. Descriptions are captured with the list; `r`
-reloads it. Opening a review captures its own frozen description.
+1. Select a PR with the arrows and press Enter. The Overview shows its description
+   and discussion. Click **Files** to read the changes.
+2. Use **Up/Down** to move within the focused pane and **Tab** to switch between
+   the file list and diff. **Enter** activates the selection; **Escape** goes back.
+   You can also click items and scroll over either pane.
+3. Press **Space** or **Ctrl+K** to open **Actions**. Press the displayed
+   hotkey to choose a tool, or select with arrows and Enter. This is where you find marking files as
+   read, discussions, saved reviews, display options, and optional AI guides.
+4. In the focused diff, press **Enter** on a commentable line to compose a comment.
+   **Enter in the editor posts immediately. Ctrl+P queues a local pending comment**
+   for your review. Shift+Enter adds a newline; Escape discards the editor. The
+   editor's Tab/Shift+Tab selects Comment, Suggestion, or File comment where supported.
+5. Choose **Submit review** above or from Actions. Choose Comment, Approve, or
+   Request changes, add a summary, and confirm to send it with queued comments.
+   For Comment, the summary is optional when you have queued comments.
 
-1. Select a PR and press Enter. prui captures a fixed comparison and opens Files.
-2. Use `j` / `k` to select files and `l` to focus the diff. Scroll with up / down;
-   press `m` to mark a file as read. Progress saves immediately.
-3. Press `q` to leave and reopen the PR later, or press `s` to select a saved
-   session. Reading progress is retained. Use `r` to check freshness and `N` to
-   start a new comparison if the PR changed; the old session remains available.
-   Only files proved entirely unchanged retain read marks. Press `5` for captured
-   changes since the previous review, `n/p` to navigate files, `d` for draft anchor
-   outcomes, and `o` to inspect the original snapshot and drafts.
-4. In the focused diff, press Enter on a commentable line to compose a comment.
-   The type selector offers Comment, Suggestion on supported right-side lines,
-   and File comment. Press Tab (or Shift+Tab) in the editor to cycle types;
-   each type retains its draft, including after reopening a saved session.
-   **Enter in the editor posts immediately.** Ctrl+P queues it for a review,
-   Shift+Enter adds a newline, and Escape discards the editor.
-5. Press `R` to choose Comment, Approve, or Request changes, add a summary, and
-   submit it with your queued comments after a separate confirmation. For Comment,
-   the summary is optional when you have queued comments.
+Press **?** for a short getting-started guide and review health. Press **s** inside
+help to reveal the full shortcut reference. Advanced shortcuts remain available;
+you can learn them as you need them.
+
+Reading progress saves immediately. **Actions → Saved reviews** reopens a saved
+comparison. If the PR changes, use **Refresh GitHub metadata** and **New comparison** in
+Actions; the old comparison and its drafts remain available, and only files
+proved entirely unchanged retain read marks. **Changes since previous review**
+shows captured changes and draft outcomes. AI guide generation opens a provider
+and model chooser and requires confirmation before uploading eligible source.
 
 Use `ctrl+v` on a raw diff line to set a range start, `j/k` to select its end,
 and Enter to compose. Both endpoints must be on the same side and in one captured
@@ -140,32 +137,22 @@ without a supported origin can still use `prui open <PR-URL>`.
 For offline reading, list session IDs with `prui sessions`, then run
 `prui resume <id> --offline`.
 
-### Essential controls
+### Everyday controls
 
 | Key | Action |
 | --- | --- |
-| `j` / `k` | Select files or guide rows |
-| `h` / `l` | Focus list / diff |
-| Up / down | Scroll the focused diff |
-| `L` | Toggle line numbers across Files, Guide, and Commits in this review tab |
-| `m` | Mark or unmark a file as read |
-| `/` | Find code text across Files or within the current Guide section |
-| `F` | Filter Files by filename or path; Enter keeps the filter, Escape clears it |
-| `1` / `2` / `3` / `4` | Show Overview / Files / Guide / Commits |
-| `v` / `V` | Cycle forward / backward through Overview, Files, Guide, and Commits |
-| `P` | Switch PRs |
-| `ctrl+p` | Inside a line/range editor, queue the comment |
-| `ctrl+v` | Start/cancel a range; j/k selects the end |
-| `ctrl+o` | Choose old/new side of split or context rows |
-| `ctrl+f` | Compose an immediate file comment |
-| `D` / `c` | Browse discussions / refresh discussions |
-| `C` | Filter the Files/Guide diff by selected commits |
-| `R` | Open review submission |
-| `g` | Choose an AI guide provider and model, then confirm upload |
-| `r` / `N` | Check freshness / start a new comparison with proven unchanged progress |
-| `5` | Captured changes since previous review and private draft anchor outcomes |
-| `s` | Browse saved sessions |
-| `?` / `q` | Health & help / quit |
+| Up / Down | Move in the focused list or diff |
+| Tab / Shift+Tab | Switch list and diff panes |
+| Enter | Activate a selection; in the diff, compose a comment or open comment actions |
+| Space / Ctrl+K | Open Actions; use its hotkeys, or arrows and Enter |
+| Escape | Go back or close the current menu |
+| ? | Getting started and health; s inside help shows all shortcuts |
+
+Choose views with the labeled tabs above the review. The Actions menu includes
+secondary views, display settings, guide expansion, progress tools, and saved
+reviews. It opens from an idle review; editors, searches, filters, and other
+modals keep their own keyboard controls. See the [full keyboard reference](docs/REFERENCE.md#keyboard)
+for optional accelerators.
 
 Overview shows the captured PR description followed by live Discussions. Press
 `D` (or click **Discussions [D]**) to jump past a long description. In Discussions,
@@ -214,7 +201,7 @@ Changed or ambiguous code and unavailable source remain in historical context.
 Discussion refresh and posting retain the existing freshness and delivery checks;
 view switching does not fetch or post.
 
-Newly opened pull requests start on the Overview tab. Use `2` to switch to Files. The file list shows filenames beside muted directories. Click **Filter (F)** in the file header or press `F` to filter filenames and paths (case-insensitive, including previous names for renamed files). Enter returns to navigation with the filter applied; Escape in the list clears it.
+Newly opened pull requests start on the Overview tab. Click **Files** (or press `2`) to read the diff. The file list shows filenames beside muted directories. Click **Filter (F)** in the file header or press `F` to filter filenames and paths (case-insensitive, including previous names for renamed files). Enter returns to navigation with the filter applied; Escape in the list clears it.
 
 Press **/** or click **Find** in the diff header to search saved diff text.
 Results are grouped by file; Up/Down selects a match and Enter jumps to it.

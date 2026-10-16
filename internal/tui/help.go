@@ -7,9 +7,16 @@ import (
 )
 
 func (m *Model) helpLines() []string {
-	_, body, _ := strings.Cut(m.healthHelpView(), "\n")
-	body += "\n\nDiff display\nL: toggle line numbers in Files, Guides, and Commits for this review tab.\n\nFiles\n/: filter by filename or path. Enter: keep filter and navigate. Escape: clear filter.\n\n\nCommits (3)\nj/k or arrows: select commit in list, scroll in diff. n/p: next/previous commit in either pane.\nEnter/l: focus diff; Escape/h: return to list. d/u: scroll 15 lines. PgUp/PgDn: page. Home/End: first/last item or diff row.\n[/]: resize commit rail at 100+ columns. Below 100 columns, focus selects the visible pane. Commit diffs are read-only.\n\nDiscussions (D)\nj/k: select thread; Enter: detail; o: view original captured commit; Escape: return. c: refresh comments and discussions.\nOutdated describes the current anchor, independently of Resolved. Missing context remains readable here.\n\nMouse\nClick: select item or diff cell; Enter: activate.\nHover URLs to underline; click to open in your browser.\nClick view tabs to switch. Drag the file/diff divider to resize (wide terminals).\nScroll over the file/guide list or diff to move that pane. Use your terminal selection modifier to copy text.\nPanel width lasts for this run only."
-	return m.helpColumns(body)
+	body := "Your first review\n1. Choose Files above to read the changes.\n2. Use arrows in the focused pane; Tab switches list and diff. Enter activates; Escape goes back.\n3. Press Space for Actions. Use the displayed hotkey, or select with arrows and Enter.\n4. In the diff, Enter opens a comment. Enter in the editor posts now; Ctrl+P queues a local pending comment.\n5. Choose Submit review to send your decision and pending comments after confirmation."
+	body += "\n\nFind your way\nClick Overview, Files, Guide, or Commits above to switch views.\nSpace or Ctrl+K: Actions from the review; browse tools and use their hotkeys, or arrows and Enter.\n?: open this help. s: all shortcuts. Escape: return to your place."
+	_, health, _ := strings.Cut(m.healthHelpView(), "\n")
+	if m.helpExpanded {
+		status, reference, _ := strings.Cut(health, "\n\n")
+		return m.helpColumns(reference + "\n\nHealth\n" + status)
+	}
+	lines := m.helpColumns(body)
+	lines = append(lines, "")
+	return append(lines, m.helpColumns("Health\n"+health)...)
 }
 
 // helpColumns keeps sections intact and balances their heights across the screen.
@@ -21,13 +28,12 @@ func (m *Model) helpColumns(body string) []string {
 	} else if m.Width >= 100 {
 		columns = 2
 	}
+	columns = min(columns, len(strings.Split(body, "\n\n")))
 	width := max(1, (m.Width-(columns-1)*2)/columns)
 	stacks := make([][]string, columns)
-	for i, paragraph := range strings.Split(body, "\n\n") {
+	for _, paragraph := range strings.Split(body, "\n\n") {
 		title, content, _ := strings.Cut(paragraph, "\n")
-		if i == 0 {
-			title, content = "Health", paragraph
-		} else if strings.HasPrefix(paragraph, "Controls and invalid") {
+		if strings.HasPrefix(paragraph, "Controls and invalid") {
 			title, content = "Notes", paragraph
 		}
 		card := m.helpCard(title, content, width)
@@ -95,9 +101,12 @@ func (m *Model) helpViewport() string {
 	height := m.helpBodyHeight()
 	m.helpScroll = min(max(0, m.helpScroll), max(0, len(lines)-height))
 	visible := lines[m.helpScroll:min(len(lines), m.helpScroll+height)]
-	footer := "↑/↓: scroll · PgUp/PgDn: page · esc: back"
+	footer := "↑/↓: scroll · s: all shortcuts · esc: back"
+	if m.helpExpanded {
+		footer = "↑/↓: scroll · s: getting started · esc: back"
+	}
 	if m.Width < 40 {
-		footer = "↑↓ PgUp/PgDn · esc: back"
+		footer = "↑↓ scroll · s: keys · esc: back"
 	}
 	if m.Height == 1 {
 		return clip(footer, m.Width)
@@ -111,6 +120,10 @@ func (m *Model) helpViewport() string {
 func (m *Model) helpKey(key string) {
 	var delta int
 	switch key {
+	case "s":
+		m.helpExpanded = !m.helpExpanded
+		m.helpScroll = 0
+		return
 	case "esc":
 		m.pop()
 		return

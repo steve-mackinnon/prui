@@ -18,6 +18,7 @@ type binding struct {
 }
 
 var bindings = []binding{
+	{keys: "Space/ctrl+k", desc: "open Actions; use a displayed hotkey, or arrows and Enter; Escape closes", groups: groupHelp, section: "Navigate"},
 	{keys: "ctrl+v", desc: "paste clipboard into the active text field (OSC 52); terminal paste also works", groups: groupHelp, section: "App"},
 	{keys: "y", desc: "copy selected comment or discussion URL to clipboard (OSC 52)", groups: groupHelp, section: "Review"},
 	{keys: "D", desc: "jump to Discussions beneath the Overview description", groups: groupHelp | groupFooter, section: "Views"},
@@ -40,7 +41,7 @@ var bindings = []binding{
 	{keys: "zz", desc: "center the focused diff on its line cursor", groups: groupNav | groupHelp, section: "Navigate"},
 	{keys: "h/l, ctrl+h/ctrl+l", desc: "focus list/diff", groups: groupNav | groupFooter | groupHelp, section: "Navigate"},
 	{keys: "enter", desc: "focus the diff; open a line editor or selected-comment action menu", groups: groupNav | groupHelp, section: "Navigate"},
-	{keys: "tab", desc: "expand/collapse the selected guide or section", groups: groupNav | groupHelp, section: "Navigate"},
+	{keys: "tab/shift+tab", desc: "switch list/diff panes in Files, Guide, and Commits; use Actions to expand guides", groups: groupNav | groupHelp, section: "Navigate"},
 	{keys: "esc", desc: "back", groups: groupNav | groupFooter | groupHelp, section: "Navigate"},
 	{keys: "n/p", desc: "move comment target in File diff; move files, guide rows, or inventory units in list", groups: groupNav | groupFooter | groupHelp, section: "Navigate"},
 	{keys: "{/}", desc: "previous/next guide, or file", groups: groupNav | groupHelp, section: "Navigate"},

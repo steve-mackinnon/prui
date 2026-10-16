@@ -1,5 +1,20 @@
 # Automated verification
 
+## Approachable review workflow
+
+`go test ./internal/tui -run 'Actions|ReviewHeader|ReviewArrow|GuideArrow|TabSwitch|NavigationTabs|GettingStarted|HelpStarts|RoutineReviewHints' -count=1`
+covers named action hotkeys, ignored paste, exclusive
+editor/modal input, guarded dispatch, comment provenance, guide consent, pane
+navigation, preserved reading positions, and responsive help and controls.
+Actions and help have narrow/wide screen baselines. The compiled-binary
+`TestPTYSmoke` journey opens Actions with Space and Ctrl+K, chooses Files
+and review submission with displayed hotkeys, switches panes with Tab/Shift+Tab,
+and opens/cancels review
+submission. Offline journeys still assert no GitHub invocation.
+
+These checks establish rendered behavior and input routing. They do not establish
+human accessibility or subjective terminal usability.
+
 ## Text selection and clipboard feedback
 
 `go test ./internal/tui -run 'TextSelection|ClipboardToast|Copy|URL' -count=1`
