@@ -1,0 +1,12 @@
+ex╭──────────────────────────────────────────────────────╮R]
+PR│ Actions                                              │
+┌ │ Find: display                                        │─┐
+│›│ › Choose theme  [t]                                  │ │
+│ │   Toggle side-by-side diff  [S]                      │ │
+│ │   Toggle line numbers  [L]                           │ │
+│ │   Toggle file grouping  [B]                          │ │
+│ │   Collapse or reveal generated files  [Alt+C]        │ │
+│ │   Expand or collapse file context  [E]               │ │
+└─│ 1 of 10 actions                                      │─┘
+0/│ ↑/↓ select · Enter open · Esc close                  │
+↑/╰──────────────────────────────────────────────────────╯

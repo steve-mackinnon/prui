@@ -23,7 +23,7 @@ func TestDescriptionViewRendersFrozenEscapedTextAndProvenance(t *testing.T) {
 	m.Update(tea.KeyPressMsg{Code: '1', Text: "1"})
 
 	view := ansi.Strip(m.View().Content)
-	for _, want := range []string{"› Overview [1]", "Description · captured when review opened", "Summary", `\x1b]52;c;unsafe\x07`} {
+	for _, want := range []string{"› Overview", "Description · captured when review opened", "Summary", `\x1b]52;c;unsafe\x07`} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("description view missing %q:\n%s", want, view)
 		}

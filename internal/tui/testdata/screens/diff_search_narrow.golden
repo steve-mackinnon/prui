@@ -1,5 +1,5 @@
-example/review #42
-  ╭──────────────────────────────────────────────────────╮mi
+example/review #42               Actions [Space]  Review [R]
+PR╭──────────────────────────────────────────────────────╮
 ┌ │ Find: l▏                                             │─┐
 │›│ 4 matches in 1 file                                  │ │
 │ │ main.go   (4)                                        │ │
@@ -9,4 +9,4 @@ example/review #42
 │ │    R1 + hello world                                  │ │
 └─│ Esc: select results · Enter: jump                    │─┘
 0/╰──────────────────────────────────────────────────────╯
-j/k: files · E: expand · enter: diff · m: mark file · ?: Hel
+↑/↓: files · Tab: panes · enter: diff · esc: back

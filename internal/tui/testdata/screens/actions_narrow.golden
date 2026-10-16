@@ -1,0 +1,12 @@
+ex╭──────────────────────────────────────────────────────╮R]
+PR│ Actions                                              │
+┌ │ Find:                                                │─┐
+│›│ › Submit review  [R]                                 │ │
+│ │   Discussions  [D]                                   │ │
+│ │   Add PR comment (unavailable)                       │ │
+│ │   Mark selected file read or unread  [m] (unavailab… │ │
+│ │   Add file comment  [Ctrl+F]                         │ │
+│ │   Add line comment  [Enter] (unavailable)            │ │
+└─│ 1 of 39 actions                                      │─┘
+0/│ ↑/↓ select · Enter open · Esc close                  │
+↑/╰──────────────────────────────────────────────────────╯

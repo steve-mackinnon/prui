@@ -1,0 +1,24 @@
+Health & help
+┌─────────────────────────────────────────────────────────┐  ┌─────────────────────────────────────────────────────────┐
+│ Your first review                                       │  │ Find your way                                           │
+├─────────────────────────────────────────────────────────┤  ├─────────────────────────────────────────────────────────┤
+│ 1. Choose Files above to read the changes.              │  │ Click Overview, Files, Guide, or Commits above to       │
+│ 2. Use arrows in the focused pane; Tab switches list    │  │ switch views.                                           │
+│ and diff. Enter activates; Escape goes back.            │  │ Space or Ctrl+K: Actions from the review; type to find  │
+│ 3. Press Space for Actions. Type a name to find tools,  │  │ discussions, saved reviews, display options, or guide   │
+│ then Enter to choose.                                   │  │ expansion.                                              │
+│ 4. In the diff, Enter opens a comment. Enter in the     │  │ ?: open this help. s: all shortcuts. Escape: return to  │
+│ editor posts now; Ctrl+P queues a local pending         │  │ your place.                                             │
+│ comment.                                                │  └─────────────────────────────────────────────────────────┘
+│ 5. Choose Submit review to send your decision and       │
+│ pending comments after confirmation.                    │
+└─────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────┐  ┌─────────────────────────────────────────────────────────┐
+│ Health                                                  │  │ Notes                                                   │
+├─────────────────────────────────────────────────────────┤  ├─────────────────────────────────────────────────────────┤
+│ 0/2 read · 0 pending comments                           │  │ Controls and invalid bytes escaped. Mouse selects;      │
+│ ✓ Inventory complete                                    │  │ Enter activates.                                        │
+│ ? Freshness unknown                                     │  │ Reading progress is local, not GitHub approval.         │
+│ Guide available with g                                  │  │ Guides interpret the diff; the raw inventory remains    │
+↑/↓: scroll · s: all shortcuts · esc: back

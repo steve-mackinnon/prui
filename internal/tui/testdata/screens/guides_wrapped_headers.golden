@@ -1,4 +1,4 @@
-example/review #42
+example/review #42                                                                           Actions [Space]  Review [R]
   PRs [P]    Overview [1]    Files [2]  › Guide [3]    Commits [4]
 ┌ Guide ─────────────────────────────┬ Commits [C] · All commits · Find (/) · GUIDES 1 · guide 1/1 · marking: whole fil┐
 │  - 1. Tempo Sync timing engine     │── main.go                                                                       │
@@ -21,4 +21,4 @@ example/review #42
 │                                    │                                                                                 │
 └────────────────────────────────────┴─────────────────────────────────────────────────────────────────────────────────┘
 0/2 read · R Submit review (0) · ? Freshness unknown · ?: Health & help
-j/k: guides · E: context · tab: expand · enter: diff · ?: Help
+Space: Actions · ↑/↓: guides · Tab: panes · enter: diff · esc: back

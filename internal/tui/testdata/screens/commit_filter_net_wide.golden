@@ -1,4 +1,4 @@
-example/review #42
+example/review #42                                                                           Actions [Space]  Review [R]
   PRs [P]    Overview [1]  › Files [2]    Guide [3]    Commits [4]
 ┌ Files · ▽ Filter (F) ──────────────┬ Commits [C] · 1 commits · Find (/) · file 1/2 ──────────────────────────────────┐
 │› main.go                           │── main.go                                                                       │

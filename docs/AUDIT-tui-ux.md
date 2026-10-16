@@ -91,3 +91,22 @@ Never weaken checks, alter immutable source/session schemas, bypass posting
 guards, or generate guides without existing consent. The baseline verify run
 initially encountered sandbox denial of the shared Go build cache; use a private
 temporary cache or run the gate with the required sandbox access.
+
+## Implementation and verification result
+
+Implemented all three issues with separate subagents, then integrated and
+reviewed the complete workflow. The everyday controls table now has six rows.
+Primary tabs fit at 40 columns; Actions and review submission have shared
+render/click bounds. Guide expansion and advanced tools are named menu actions.
+Independent review found and resolved three selected-commit integration bugs:
+header clicks, reopening the commit picker to restore All commits, and invisible
+canonical display changes. Each was reproduced with a failing regression test.
+
+On macOS, the final `./scripts/verify.sh` passed: formatting, installer checks,
+vet, all race tests including compiled-binary PTY journeys, and build. Pinned
+GolangCI-Lint v2.13.2 reported zero issues; govulncheck v1.8.0 reported zero
+reachable vulnerabilities. Narrow/wide Actions, help, review, and discussion
+screen baselines were regenerated intentionally and inspected. Source/session
+schemas, dependencies, posting preflights, draft persistence, and consent flows
+remain unchanged. Human terminal accessibility and subjective usability have
+not been assessed.

@@ -1,0 +1,24 @@
+Health & help
+┌─────────────────────────────────────────────────────────┐  ┌─────────────────────────────────────────────────────────┐
+│ Navigate                                                │  │ Review                                                  │
+├─────────────────────────────────────────────────────────┤  ├─────────────────────────────────────────────────────────┤
+│ Space/ctrl+k: open Actions; type a tool name, arrows    │  │ y: copy selected comment or discussion URL to clipboard │
+│ select, Enter activates, Escape closes                  │  │ (OSC 52)                                                │
+│ tab/shift+tab, f, o: in Overview Discussions: select    │  │ alt+r: inspect live checks, required reviews, and merge │
+│ activity, open exact comment in Files, or original      │  │ blockers; r refreshes readiness, l opens lifecycle      │
+│ commit; Escape returns                                  │  │ controls                                                │
+│ f3/shift+f3: next/previous code search match            │  │ g: choose provider and model, then generate a guide     │
+│ E: expand/collapse context (loads selected file source  │  │ U: show GitHub URL                                      │
+│ on demand)                                              │  │ m: mark/unmark the whole file slice, including its      │
+│ ctrl+d: restore compact diff (Files and Guide)          │  │ units under other guides                                │
+│ alt+o/n, ctrl+w: full OLD/NEW, whitespace presentation  │  │ R: submit a PR review with pending line comments        │
+│ (Files)                                                 │  │ enter: submit inline comment editor                     │
+│ alt+up/down: previous/next loaded unresolved thread     │  │ ctrl+o: choose old/new side of split or context rows    │
+│ /: find code text in Files or the current Guide section │  │ ctrl+v: start/cancel range; j/k chooses end, enter      │
+│ j/k: move the focused list or diff cursor               │  │ composes                                                │
+│ up/down: move list selection or scroll continuous diff  │  │ ctrl+s: compose a suggestion from selected right-side   │
+│ J/K: scroll diff by 5                                   │  │ lines                                                   │
+│ zz: center the focused diff on its line cursor          │  │ ctrl+a: in comment actions, preview and confirm         │
+│ h/l, ctrl+h/ctrl+l: focus list/diff                     │  │ suggestion application                                  │
+│ enter: focus the diff; open a line editor or selected-  │  │ ctrl+f: compose a file comment (enter posts; queuing    │
+↑/↓: scroll · s: getting started · esc: back

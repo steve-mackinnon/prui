@@ -1,0 +1,16 @@
+Health & help
+┌──────────────────────────────────────────────────────────┐
+│ Your first review                                        │
+├──────────────────────────────────────────────────────────┤
+│ 1. Choose Files above to read the changes.               │
+│ 2. Use arrows in the focused pane; Tab switches list and │
+│ diff. Enter activates; Escape goes back.                 │
+│ 3. Press Space for Actions. Type a name to find tools,   │
+│ then Enter to choose.                                    │
+│ 4. In the diff, Enter opens a comment. Enter in the      │
+│ editor posts now; Ctrl+P queues a local pending comment. │
+│ 5. Choose Submit review to send your decision and        │
+│ pending comments after confirmation.                     │
+└──────────────────────────────────────────────────────────┘
+
+↑/↓: scroll · s: all shortcuts · esc: back

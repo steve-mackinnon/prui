@@ -75,6 +75,8 @@ func (m *Model) textInput() (*string, func(string) tea.Cmd) {
 		}
 	}
 	switch m.top() {
+	case pageActions:
+		return &m.actions.query, m.actionsInput
 	case pagePullRequestPicker:
 		if m.Session != nil {
 			return singleLine(&m.SwitcherQuery, 1024, printableASCII, func() { m.PullRequestPicker.Index = 0; m.PullRequestPicker.previewScroll = 0 })

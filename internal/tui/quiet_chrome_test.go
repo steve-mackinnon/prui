@@ -40,7 +40,7 @@ func TestQuietFooterHintsFollowContext(t *testing.T) {
 	m.Width, m.Height = 120, 24
 	m.Focus = paneList
 	got := ansi.Strip(m.reviewStatus())
-	if !strings.Contains(got, "enter: diff") || !strings.Contains(got, "m: mark file") || strings.Count(got, "\n") != 1 {
+	if !strings.Contains(got, "enter: diff") || !strings.Contains(got, "Space: Actions") || strings.Count(got, "\n") != 1 {
 		t.Fatalf("list hints missing: %q", got)
 	}
 	m.Focus = paneDiff

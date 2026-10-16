@@ -44,6 +44,12 @@ func TestScreenSnapshots(t *testing.T) {
 		width, height int
 		setup         func(*Model)
 	}{
+		{"actions_wide", 120, 18, func(m *Model) { m.openActions() }},
+		{"actions_narrow", 60, 12, func(m *Model) { m.openActions() }},
+		{"actions_filtered", 60, 12, func(m *Model) { m.openActions(); m.actionsInput("display") }},
+		{"help_getting_started", 120, 24, func(m *Model) { key(m, '?') }},
+		{"help_getting_started_narrow", 60, 16, func(m *Model) { key(m, '?') }},
+		{"help_shortcuts", 120, 24, func(m *Model) { key(m, '?'); key(m, 's') }},
 		{"diff_search_results", 120, 18, func(m *Model) { searchInput(m, "l"); namedKey(m, tea.KeyEscape) }},
 		{"diff_search_wide", 120, 18, func(m *Model) { searchInput(m, "l") }},
 		{"diff_search_narrow", 60, 12, func(m *Model) { searchInput(m, "l") }},

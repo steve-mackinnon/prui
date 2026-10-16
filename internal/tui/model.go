@@ -189,6 +189,7 @@ const (
 	pageSuggestionApply
 	pageIssueContext
 	pageLifecycle
+	pageActions
 )
 
 // commentComposer is deliberately tab-owned. Its target is copied from the
@@ -251,6 +252,8 @@ type Model struct {
 	drag                 dividerDrag
 	pendingCenter        bool
 	helpScroll           int
+	helpExpanded         bool
+	actions              actionMenuState
 	Width, Height        int
 	SessionPicker        pickerState
 	RepositoryPicker     pickerState
@@ -824,6 +827,13 @@ func (m *Model) update(msg tea.Msg) (updated tea.Model, command tea.Cmd) {
 		m.cancelMouseDrag()
 		pendingCenter := m.pendingCenter
 		m.pendingCenter = false
+		if m.top() == pageActions && v.String() != "ctrl+c" {
+			return m, m.actionsKey(v)
+		}
+		if m.actionsAvailable() && (v.String() == "space" || v.String() == " " || v.String() == "ctrl+k") {
+			m.openActions()
+			return m, nil
+		}
 		if m.top() == pageInbox && v.String() != "ctrl+c" && v.String() != "q" {
 			return m, m.inboxKey(v.String())
 		}
@@ -1085,33 +1095,11 @@ func (m *Model) update(msg tea.Msg) (updated tea.Model, command tea.Cmd) {
 			}
 		case "alt+c":
 			if m.fileView() {
-				keepSearchMatch := m.searchMatchAtCursor()
-				sourceRestore := m.sourceCursorRestorer()
-				target, commentID := m.cursorAnchor()
-				m.collapseGenerated = !m.collapseGenerated
-				m.restoreCursorAnchor(target, commentID)
-				if sourceRestore != nil {
-					sourceRestore()
-				}
-				if keepSearchMatch {
-					m.revealSearchMatch()
-				}
-				m.saveLayout()
+				m.toggleGeneratedFiles()
 			}
 		case "S":
 			if m.diffReviewView() {
-				keepSearchMatch := m.searchMatchAtCursor()
-				sourceRestore := m.sourceCursorRestorer()
-				target, commentID := m.cursorAnchor()
-				m.layout = m.layout.toggled()
-				m.saveLayout()
-				m.restoreCursorAnchor(target, commentID)
-				if sourceRestore != nil {
-					sourceRestore()
-				}
-				if keepSearchMatch {
-					m.revealSearchMatch()
-				}
+				m.toggleDiffLayout()
 			}
 		case "e":
 			m.push(pageEvidence)
@@ -1137,11 +1125,13 @@ func (m *Model) update(msg tea.Msg) (updated tea.Model, command tea.Cmd) {
 			} else {
 				m.focusDetail(m.navigable())
 			}
-		case "tab":
-			// enter keeps main's meaning (focus the diff), so expansion gets
-			// its own key rather than overloading one the reviewer already uses.
-			if rows := m.navigable(); rows != nil {
-				m.toggle(rows)
+		case "tab", "shift+tab":
+			if m.diffReviewView() {
+				if m.Focus == paneDiff {
+					m.Focus = paneList
+				} else {
+					m.focusSavedDetail()
+				}
 			}
 		case "n":
 			if m.fileView() && m.Focus == paneDiff {
@@ -1411,6 +1401,7 @@ func (m *Model) push(p page) {
 	if m.top() != p {
 		if p == pageHelp {
 			m.helpScroll = 0
+			m.helpExpanded = false
 		}
 		m.Stack = append(m.Stack, p)
 	}
@@ -1757,7 +1748,7 @@ func (m *Model) focusDetail(rows []row) {
 
 // focusSavedDetail changes panes without changing the current reading position.
 // Enter uses focusDetail because section and file rows deliberately jump to
-// their corresponding guide-detail occurrence; l only reveals the diff.
+// their corresponding guide-detail occurrence; Tab and l only reveal the diff.
 func (m *Model) focusSavedDetail() {
 	m.Focus = paneDiff
 	cursor := m.cursor()
@@ -2482,6 +2473,8 @@ func (m *Model) View() tea.View {
 			text = m.pullRequestPickerView()
 		case pageHelp:
 			text = m.helpViewport()
+		case pageActions:
+			text = m.actionsView()
 		case pageURL:
 			text = m.Session.Inventory.Comparison.Metadata.Identity.URL() + "\nOpen this URL in your browser.\nesc: back | q: quit"
 		case pageGuideConsent:
@@ -2792,7 +2785,7 @@ func (m *Model) workspaceIdentity() string {
 			}
 		}
 	}
-	return m.styleLine(classTitle, clip(text, m.Width))
+	return m.reviewHeader(text)
 }
 
 func (m *Model) knownPRTitle(identity source.Identity) string {

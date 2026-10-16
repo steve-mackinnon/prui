@@ -1,5 +1,5 @@
-example/review #42
-  PRs [P]  › Overview [1]    Files [2]    Guide [3]    Commi
+example/review #42               Actions [Space]  Review [R]
+PRs  › Overview  Files  Guide  Commits
 Overview · Discussions [D]
 ┌──────────────────────────────────────────────────────────┐
 │ Description · captured when review opened                │
@@ -15,4 +15,4 @@ Overview · Discussions [D]
 │   Reference https://example.com                          │
 │                                                          │
 0/2 read · R Review (0) · ? Freshness unknown · ?: Help
-↑/↓: scroll · n: comment · D: discussions · enter: expand ·
+↑/↓: scroll · enter: expand · esc: back

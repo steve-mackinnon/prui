@@ -1,5 +1,5 @@
-ex╭──────────────────────────────────────────────────────╮
-  │ Submit review · example/review#42 · head aaaaaaaaaaa │mi
+ex╭──────────────────────────────────────────────────────╮R]
+PR│ Submit review · example/review#42 · head aaaaaaaaaaa │
 ┌ │ Review decision (j/k or ↑/↓)                         │─┐
 │›│   ○ Comment                                          │ │
 │ │   ◉ Approve                                          │ │
@@ -7,4 +7,4 @@ ex╭─────────────────────────
 │ │ Comment: ▏                                           │ │
 └─│ enter: confirm · esc: back                           │─┘
 0/╰──────────────────────────────────────────────────────╯
-j/k: files · E: expand · enter: diff · m: mark file · ?: Hel
+↑/↓: files · Tab: panes · enter: diff · esc: back

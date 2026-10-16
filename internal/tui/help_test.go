@@ -20,6 +20,7 @@ func TestHelpViewportMakesAllControlsReachableAndReturnsToReview(t *testing.T) {
 			m.Width, m.Height = 120, height
 			m.Focus, m.Selected = paneDiff, 1
 			key(m, '?')
+			key(m, 's')
 			seen := ""
 			for i := 0; i < 100; i++ {
 				view := ansi.Strip(m.View().Content)
@@ -49,7 +50,7 @@ func TestHelpViewportMakesAllControlsReachableAndReturnsToReview(t *testing.T) {
 				t.Fatal("help changed review state")
 			}
 			key(m, '?')
-			if !strings.Contains(ansi.Strip(m.View().Content), "Inventory complete") {
+			if !strings.Contains(ansi.Strip(m.View().Content), "Your first review") {
 				t.Fatal("reopening help retained old scroll")
 			}
 		})
@@ -105,7 +106,7 @@ func TestHelpPanelsFitResponsiveWidths(t *testing.T) {
 			}
 			want := 1
 			if width >= 160 {
-				want = 3
+				want = 2
 			} else if width >= 100 {
 				want = 2
 			}

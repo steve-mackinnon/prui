@@ -1,4 +1,4 @@
-example/review #42
+example/review #42                                                      Actions [Space]  Review [R]
   PRs [P]    Overview [1]    Files [2]    Guide [3]  › Commits [4]
 ┌ Commits · 2/2 · enter/l: diff ──────────────────────────────────────────────────────────────────┐
 │  First commit                                                                                   │
@@ -9,4 +9,4 @@ example/review #42
 │                                                                                                 │
 └─────────────────────────────────────────────────────────────────────────────────────────────────┘
 0/2 read · R Review (0) · ? Freshness unknown · ?: Help
-j/k: commits · n/p: commit · enter/l: diff · esc/h: list · ?: Help
+Space: Actions · ↑/↓: commits · Tab: panes · enter: diff · esc: back

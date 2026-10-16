@@ -257,6 +257,12 @@ func (m *Model) filteredReadingKey(k string) bool {
 		f.readingFocus = paneList
 	case "l", "ctrl+l", "enter":
 		f.readingFocus = paneDiff
+	case "tab", "shift+tab":
+		if f.readingFocus == paneDiff {
+			f.readingFocus = paneList
+		} else {
+			f.readingFocus = paneDiff
+		}
 	case "]":
 		m.resizeList(2)
 	case "[":
@@ -290,7 +296,7 @@ func (m *Model) filteredReadingKey(k string) bool {
 		f.horizontal += 8
 	case "left":
 		f.horizontal = max(0, f.horizontal-8)
-	case "m", "e", "i", "tab", "{", "}", "z", "J", "K": // Read-only: no canonical mark, evidence or composition targets.
+	case "m", "e", "i", "{", "}", "z", "J", "K": // Read-only: no canonical mark, evidence or composition targets.
 	default:
 		return false
 	}
@@ -432,7 +438,7 @@ func (m *Model) commitFilterMouse(msg tea.MouseMsg) (tea.Cmd, bool) {
 	if !f.subset {
 		return nil, false
 	}
-	if c, ok := msg.(tea.MouseClickMsg); ok && c.Y == 1 {
+	if c, ok := msg.(tea.MouseClickMsg); ok && (c.Y == 0 || c.Y == 1) {
 		return nil, false
 	}
 	if cmd, handled := m.mouseResize(msg); handled {

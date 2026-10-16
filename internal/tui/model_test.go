@@ -153,8 +153,8 @@ func TestCommandSwitcherDoesNotTakeOverGuideTab(t *testing.T) {
 	}
 	before := len(rows)
 	m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
-	if m.activeTab != 0 || len(m.rows()) >= before {
-		t.Fatal("guide tab key was repurposed for workspace navigation")
+	if m.activeTab != 0 || len(m.rows()) != before || m.Focus != paneDiff {
+		t.Fatal("guide tab key did not focus the diff within the active review")
 	}
 }
 
@@ -372,6 +372,7 @@ func TestHealthHelpGroupsEveryBinding(t *testing.T) {
 	m.Session = screenSession()
 	m.Width, m.Height = 160, 90
 	key(m, '?')
+	key(m, 's')
 
 	view := ansi.Strip(m.healthHelpView())
 	for _, heading := range []string{"Navigate", "Review", "Views", "Diagnostics", "App"} {
@@ -1623,9 +1624,8 @@ func TestRawReviewGuideHierarchy(t *testing.T) {
 			}
 		}
 	}
-	// Below 100 columns one pane is visible at a time; tab on a file portion
-	// hands it to the diff, while tab on a guide or section expands it. esc is
-	// the way back, exactly as it is for the file plan.
+	// Below 100 columns one pane is visible at a time. Tab switches panes,
+	// Escape returns to the list, and a named action expands guide sections.
 	m.Update(tea.WindowSizeMsg{Width: 60, Height: 24})
 	for steps := 0; steps < len(m.rows()) && m.rows()[m.Row].kind != portionRow; steps++ {
 		key(m, 'n')
@@ -1648,8 +1648,8 @@ func TestRawReviewGuideHierarchy(t *testing.T) {
 		t.Fatal("guide navigation did not return to the first row")
 	}
 	before := len(m.rows())
-	m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	selectAction(t, m, "selected guide section")
 	if m.Focus != paneList || len(m.rows()) >= before {
-		t.Fatal("tab on a guide row did not collapse it")
+		t.Fatal("guide action did not collapse its subtree")
 	}
 }
