@@ -23,13 +23,6 @@ func appHeader(title, action string) string {
 	return title + " · " + action
 }
 
-func sectionHeader(section, detail string) string {
-	if detail == "" {
-		return section
-	}
-	return section + " · " + detail
-}
-
 func (m *Model) reviewHealth(s *review.Session) (string, []healthItem) {
 	progress := fmt.Sprintf("%d/%d read", len(s.ReviewedSliceIDs), len(s.Slices))
 	items := []healthItem{{text: "✓ Inventory complete"}}
