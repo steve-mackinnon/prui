@@ -49,6 +49,12 @@ hooks, filters, or worktree. The frozen inventory and description are what a
 review session displays; later changes in the checkout cannot silently alter
 that session. A new comparison is an explicit operation.
 
+Within one isolated view, successful blob reads reuse immutable object bytes
+under an 8 MiB / 2,048-entry memory cap. Every read retains its own size limit
+and cancellation check. Evidence retrieval indexes changed directories and
+deleted paths once before ranking the pinned trees. See the
+[performance ledger](PERFORMANCE.md) for startup/open baselines and remaining work.
+
 ## Sessions and progress
 
 `internal/session` separates immutable `Snapshot` data from mutable `State`.
