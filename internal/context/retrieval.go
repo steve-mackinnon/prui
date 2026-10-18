@@ -81,6 +81,17 @@ func Retrieve(parent context.Context, objects Objects, comparison source.PinnedC
 	usedFiles, usedBytes := 0, 0
 	seen := map[string]bool{}
 	changed := indexChangedPaths(inv)
+	reads := newEvidenceReads(objects, limits.ExcerptBytes)
+	eligible := func(c candidate) bool {
+		if c.skipReason != "" || seen[c.commit+"\x00"+string(c.path)] {
+			return false
+		}
+		if c.commit == comparison.MergeBaseSHA && !changed.deleted[string(c.path)] || c.commit == comparison.Metadata.HeadSHA && changed.deleted[string(c.path)] {
+			return false
+		}
+		excluded, _ := policy.ExcludedPath(c.path)
+		return !excluded
+	}
 	for _, f := range inv.Files {
 		for _, p := range [][]byte{f.OldPath, f.NewPath} {
 			if len(p) > 0 {
@@ -99,7 +110,8 @@ func Retrieve(parent context.Context, objects Objects, comparison source.PinnedC
 			cs[i].rank = changed.rank(cs[i].path)
 		}
 		sort.SliceStable(cs, func(i, j int) bool { return cs[i].rank < cs[j].rank })
-		for _, c := range cs {
+		reads.beginTree()
+		for i, c := range cs {
 			if usedFiles >= limits.Files {
 				result.OmittedPaths = append(result.OmittedPaths, Omitted{Path: c.path, Reason: "file budget exhausted"})
 				continue
@@ -128,7 +140,7 @@ func Retrieve(parent context.Context, objects Objects, comparison source.PinnedC
 				result.OmittedPaths = append(result.OmittedPaths, Omitted{Path: c.path, Reason: "excerpt byte budget exhausted"})
 				continue
 			}
-			b, err := objects.Blob(ctx, c.oid, limits.ExcerptBytes)
+			b, err := reads.read(ctx, i, cs, limits.Files-usedFiles, remaining, eligible)
 			if err != nil {
 				result.OmittedPaths = append(result.OmittedPaths, Omitted{Path: c.path, Reason: "blob unavailable"})
 				continue
