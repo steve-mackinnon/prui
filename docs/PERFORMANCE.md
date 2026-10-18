@@ -257,12 +257,58 @@ repository also contains many loose objects duplicated in its pack, but safely
 avoiding redundant links needs independent object validation and lifetime
 guarantees; pointing the view at checkout alternates would violate isolation.
 
+### Fifth iteration: bounded object-file linking
+
+The mirror now creates object-file hard links with at most four workers, capped
+by `GOMAXPROCS`; a single worker uses the original serial walk. Directory
+validation/creation stays in walk order. The existing entry validator still
+rejects symlinks and unsupported files and excludes metadata/alternates. The
+queue contains at most four entries. The first failure stops further useful
+work, and every worker joins before `NewView` returns or removes private data.
+There are no retries and no changes to the reviewed object store.
+
+A disposable filesystem microbenchmark compared serial linking with one,
+two, four and eight workers, including removal of the borrowed view. Payloads
+are synthetic object files; complete PR benchmarks separately use real Git
+objects. Medians of three one-operation trials:
+
+| Object entries | Serial | Four workers | Eight-worker experiment |
+| --- | ---: | ---: | ---: |
+| 2,000 | 585.31 ms | 350.11 ms | 484.95 ms |
+| 20,000 | 6,095.48 ms | 3,752.96 ms | 4,751.22 ms |
+
+Four workers won at both sizes. Eight workers were slower and were discarded;
+the permanent benchmark compares the supported one/two/four-worker variants.
+The serial checkpoint (`0dcf962`) and current implementation were then measured
+sequentially, without verification running, on the identical complete-open
+fixtures. These medians include pinning, inventories, commit/composition capture,
+evidence, durable storage and cleanup, with synthetic GitHub responses:
+
+| Cold-open fixture | Serial checkpoint | Four workers | Original → current |
+| --- | ---: | ---: | ---: |
+| Loose objects, one commit, 100 distinct files | 1,365.04 ms | 1,094.50 ms | 11.7x |
+| Loose objects, ten commits, 100 distinct files | 2,323.91 ms | 2,048.29 ms | 6.73x |
+| Packed objects, one commit, 100 distinct files | 427.52 ms | 424.05 ms | 29.5x |
+| Packed objects, ten commits, 100 distinct files | 1,158.09 ms | 1,142.42 ms | 11.6x |
+
+The isolated change improves loose-object opens by approximately 20% and 12%.
+Packed objects and cached opens are essentially unchanged; their small deltas
+are inside host noise. This does not establish a startup gain or a 10x gain for
+the loose ten-commit case. Regression tests check identical borrowed paths,
+hard-link identity and survival after removal of the original files, excluded
+metadata, directory/file symlinks, cancellation and complete private-directory
+cleanup after a failed concurrent borrow. Real Git inventory equivalence and
+checkout-immutability coverage remain in the complete verification suite.
+Full verification passed, including race tests, terminal journeys and build;
+configured lint reported zero issues.
+
 ## Reproduction and validation
 
 ```sh
 go test ./internal/context -run '^$' -bench BenchmarkRetrieveLargeTree -benchtime=1x -count=3
 go test ./cmd/prui -run '^$' -bench BenchmarkPullRequestOpen -benchtime=1x -count=3
 go test ./internal/source -run '^$' -bench BenchmarkBlobRead -benchtime=1s -count=3
+go test ./internal/source -run '^$' -bench BenchmarkBorrowObjects -benchtime=1x -count=3
 go test ./internal/syntax -run '^$' -bench BenchmarkLexerSelection -benchtime=100x -count=3
 ./scripts/verify.sh
 ```
@@ -290,10 +336,10 @@ including vet, race tests, PTY tests and build; configured lint reported zero is
    local startup, remote calls, commit capture, persistence and first usable frame.
    Current synthetic startup is already under 50 ms; no-argument PR browsing
    can have different network costs.
-2. Profile isolated object-view setup on loose, packed and mixed stores. Test
-   bounded parallel linking against the current serial mirror, retaining
-   symlink rejection, hard-link lifetime, cancellation and cleanup. Do not adopt
-   checkout alternates or remove object validation to reduce setup time.
+2. Extend object-view measurements to mixed stores and large real histories.
+   Bounded linking improves loose stores; it still mirrors every stored object.
+   Do not adopt checkout alternates or remove object validation to reduce setup
+   time. Any redundant-object avoidance needs its own validation/lifetime proof.
 3. Expand full-source sizes/change shapes and measure fresh-process first-time
    selection. The new distinct-basename and ten-commit fixtures show that the
    result is not yet universally 10x. Investigate the per-commit overhead while

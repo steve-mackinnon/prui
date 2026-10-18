@@ -9,6 +9,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -94,9 +95,7 @@ func NewView(ctx context.Context, checkout string, r Runner, l Limits) (v *View,
 		}
 	}
 	// Mirror only object data, never the checkout's alternates, config, hooks or promisor markers.
-	err = filepath.WalkDir(objects, func(path string, d fs.DirEntry, e error) error {
-		return borrowObjectEntry(ctx, objects, filepath.Join(dir, "borrowed"), path, d, e)
-	})
+	err = borrowObjects(ctx, objects, filepath.Join(dir, "borrowed"), min(4, runtime.GOMAXPROCS(0)))
 	if err != nil {
 		return nil, err
 	}
