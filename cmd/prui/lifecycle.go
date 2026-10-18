@@ -372,6 +372,14 @@ func (a *application) openWithPrevious(ctx context.Context, checkout string, id 
 	if os.Getenv(verify.OpenTimingEnvironment) == "1" {
 		timing = &timedGitHub{GitHub: a.gh}
 		gh = timing
+		// Interface embedding would otherwise hide optional commit capture and
+		// make measured opens cheaper by silently dropping frozen PR history.
+		if reader, ok := a.gh.(source.PullRequestCommitReader); ok {
+			gh = struct {
+				*timedGitHub
+				source.PullRequestCommitReader
+			}{timing, reader}
+		}
 	}
 	var profile review.Timing
 	started := time.Now()
