@@ -323,6 +323,10 @@ func (m *Model) reviewFormKey(key tea.KeyPressMsg) tea.Cmd {
 		}
 		return nil
 	}
+	if f.Focus == 1 && (draftEditor{&f.Body, &f.Cursor, summaryDraft}).key(key) != draftUnhandled {
+		return nil
+	}
+
 	switch k {
 	case "esc":
 		m.pop()
@@ -334,8 +338,6 @@ func (m *Model) reviewFormKey(key tea.KeyPressMsg) tea.Cmd {
 			f.Event = (f.Event + len(reviewEvents) - 1) % len(reviewEvents)
 		case f.Focus == 2 && len(m.Pending) > 0:
 			f.Selected = (f.Selected + len(m.Pending) - 1) % len(m.Pending)
-		case f.Focus == 1:
-			m.insertReviewSummary(key.Text)
 		}
 	case "down", "j":
 		switch {
@@ -343,8 +345,6 @@ func (m *Model) reviewFormKey(key tea.KeyPressMsg) tea.Cmd {
 			f.Event = (f.Event + 1) % len(reviewEvents)
 		case f.Focus == 2 && len(m.Pending) > 0:
 			f.Selected = (f.Selected + 1) % len(m.Pending)
-		case f.Focus == 1:
-			m.insertReviewSummary(key.Text)
 		}
 	case "enter":
 		switch f.Focus {
@@ -380,37 +380,6 @@ func (m *Model) reviewFormKey(key tea.KeyPressMsg) tea.Cmd {
 		if f.Focus == 2 && f.Selected < len(m.Pending) {
 			m.Pending = append(m.Pending[:f.Selected], m.Pending[f.Selected+1:]...)
 			f.Selected = max(0, min(f.Selected, len(m.Pending)-1))
-		} else if f.Focus == 1 {
-			m.insertReviewSummary(key.Text)
-		}
-	case "shift+enter":
-		if f.Focus == 1 {
-			m.insertReviewSummary("\n")
-		}
-	case "backspace":
-		if f.Focus == 1 && f.Cursor > 0 {
-			r := []rune(f.Body)
-			f.Body = string(append(r[:f.Cursor-1], r[f.Cursor:]...))
-			f.Cursor--
-		}
-	case "delete":
-		if f.Focus == 1 {
-			r := []rune(f.Body)
-			if f.Cursor < len(r) {
-				f.Body = string(append(r[:f.Cursor], r[f.Cursor+1:]...))
-			}
-		}
-	case "left":
-		if f.Focus == 1 {
-			f.Cursor = max(0, f.Cursor-1)
-		}
-	case "right":
-		if f.Focus == 1 {
-			f.Cursor = min(len([]rune(f.Body)), f.Cursor+1)
-		}
-	default:
-		if f.Focus == 1 && key.Text != "" && !key.Mod.Contains(tea.ModCtrl) && !key.Mod.Contains(tea.ModAlt) {
-			m.insertReviewSummary(key.Text)
 		}
 	}
 	return nil
@@ -468,11 +437,6 @@ func (m *Model) focusPendingTarget(target source.ReviewCommentTarget) bool {
 		}
 	}
 	return false
-}
-
-func (m *Model) insertReviewSummary(text string) {
-	f := m.ReviewForm
-	f.Body, f.Cursor = insertEditorText(f.Body, f.Cursor, text)
 }
 
 func (m *Model) pendingLines(target source.ReviewCommentTarget) []diffLine {

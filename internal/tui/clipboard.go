@@ -51,10 +51,9 @@ func (m *Model) textInput() (*string, func(string) tea.Cmd) {
 	if m.Loading || m.Busy && (m.top() != pagePullRequestPicker || m.Session == nil) {
 		return nil, nil
 	}
-	editor := func(body *string, cursor *int) (*string, func(string) tea.Cmd) {
+	editor := func(body *string, cursor *int, policy draftPolicy) (*string, func(string) tea.Cmd) {
 		return body, func(text string) tea.Cmd {
-			if len(*body)+len(text) <= 65536 {
-				*body, *cursor = insertEditorText(*body, *cursor, text)
+			if (draftEditor{body, cursor, policy}).insert(text) {
 				m.editorCursorVisible = true
 				if m.Composer != nil && m.Composer.CommitSHA != "" {
 					m.ensureCommitEditorVisible()
@@ -92,24 +91,24 @@ func (m *Model) textInput() (*string, func(string) tea.Cmd) {
 		}
 	case pageReviewSubmit:
 		if f := m.ReviewForm; f != nil && f.Focus == 1 && !f.Confirm && m.draft.attempt == "" {
-			return editor(&f.Body, &f.Cursor)
+			return editor(&f.Body, &f.Cursor, summaryDraft)
 		}
 	case pageReview, pageDiscussions:
 		if e := m.discussions.published; e != nil {
 			if !e.posting && e.action.Resolve == nil {
-				return editor(&e.draft, &e.cursor)
+				return editor(&e.draft, &e.cursor, publishedDraft)
 			}
 			return nil, nil
 		}
 		if c := m.Composer; c != nil {
 			if m.draft.attempt == "" {
-				return editor(&c.Draft, &c.Cursor)
+				return editor(&c.Draft, &c.Cursor, composerDraftPolicy(c))
 			}
 			return nil, nil
 		}
 		if c := m.CommentMenu; c != nil {
 			if c.mode == commentActionReply && m.draft.attempt == "" {
-				return editor(&c.Draft, &c.Cursor)
+				return editor(&c.Draft, &c.Cursor, replyDraft)
 			}
 			return nil, nil
 		}

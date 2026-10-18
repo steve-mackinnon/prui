@@ -132,33 +132,7 @@ func (m *Model) publishedKey(k tea.KeyPressMsg) tea.Cmd {
 	if e.action.Resolve != nil {
 		return nil
 	}
-	switch k.String() {
-	case "left":
-		e.cursor = max(0, e.cursor-1)
-	case "right":
-		e.cursor = min(len([]rune(e.draft)), e.cursor+1)
-	case "home":
-		e.cursor = 0
-	case "end":
-		e.cursor = len([]rune(e.draft))
-	case "shift+enter":
-		e.draft, e.cursor = insertEditorText(e.draft, e.cursor, "\n")
-	case "backspace":
-		r := []rune(e.draft)
-		if e.cursor > 0 {
-			e.draft = string(append(r[:e.cursor-1], r[e.cursor:]...))
-			e.cursor--
-		}
-	case "delete":
-		r := []rune(e.draft)
-		if e.cursor < len(r) {
-			e.draft = string(append(r[:e.cursor], r[e.cursor+1:]...))
-		}
-	default:
-		if k.Text != "" && !k.Mod.Contains(tea.ModCtrl) && !k.Mod.Contains(tea.ModAlt) {
-			e.draft, e.cursor = insertEditorText(e.draft, e.cursor, k.Text)
-		}
-	}
+	(draftEditor{&e.draft, &e.cursor, publishedDraft}).key(k)
 	return nil
 }
 func (m *Model) applyPublishedResult(v PublishedResult) {

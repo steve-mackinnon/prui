@@ -302,6 +302,9 @@ func (m *Model) commentComposerKey(key tea.KeyPressMsg) tea.Cmd {
 	if composer.Suggestion {
 		return m.suggestionComposerKey(key)
 	}
+	if (draftEditor{&composer.Draft, &composer.Cursor, commentDraft}).key(key) != draftUnhandled {
+		return nil
+	}
 	switch key.String() {
 	case "esc":
 		if m.draft.attempt == "comment" && composer.PendingIndex >= 0 && composer.PendingIndex < len(m.Pending) {
@@ -313,34 +316,6 @@ func (m *Model) commentComposerKey(key tea.KeyPressMsg) tea.Cmd {
 			m.draft.attempt = ""
 			m.draft.attempted = nil
 		}
-		return nil
-	case "left":
-		composer.Cursor = max(0, composer.Cursor-1)
-		return nil
-	case "right":
-		composer.Cursor = min(len([]rune(composer.Draft)), composer.Cursor+1)
-		return nil
-	case "home":
-		composer.Cursor = 0
-		return nil
-	case "end":
-		composer.Cursor = len([]rune(composer.Draft))
-		return nil
-	case "backspace":
-		if composer.Cursor > 0 {
-			r := []rune(composer.Draft)
-			composer.Draft = string(append(r[:composer.Cursor-1], r[composer.Cursor:]...))
-			composer.Cursor--
-		}
-		return nil
-	case "delete":
-		r := []rune(composer.Draft)
-		if composer.Cursor < len(r) {
-			composer.Draft = string(append(r[:composer.Cursor], r[composer.Cursor+1:]...))
-		}
-		return nil
-	case "shift+enter":
-		composer.Draft, composer.Cursor = insertEditorText(composer.Draft, composer.Cursor, "\n")
 		return nil
 	case "ctrl+r":
 		if m.draft.attempt != "" {
@@ -413,9 +388,6 @@ func (m *Model) commentComposerKey(key tea.KeyPressMsg) tea.Cmd {
 			comment, err := submit(ctx, submission)
 			return CommentResult{Target: target, Generation: generation, Comment: comment, Err: err}
 		})
-	}
-	if key.Text != "" && !key.Mod.Contains(tea.ModCtrl) && !key.Mod.Contains(tea.ModAlt) {
-		composer.Draft, composer.Cursor = insertEditorText(composer.Draft, composer.Cursor, key.Text)
 	}
 	return nil
 }
@@ -495,38 +467,8 @@ func (m *Model) commentActionKey(key tea.KeyPressMsg) tea.Cmd {
 				m.ActionError = errors.New("review comment reply body is required")
 				return nil
 			}
-		case "left":
-			menu.Cursor = max(0, menu.Cursor-1)
-			return nil
-		case "right":
-			menu.Cursor = min(len([]rune(menu.Draft)), menu.Cursor+1)
-			return nil
-		case "home":
-			menu.Cursor = 0
-			return nil
-		case "end":
-			menu.Cursor = len([]rune(menu.Draft))
-			return nil
-		case "backspace":
-			r := []rune(menu.Draft)
-			if menu.Cursor > 0 {
-				menu.Draft = string(append(r[:menu.Cursor-1], r[menu.Cursor:]...))
-				menu.Cursor--
-			}
-			return nil
-		case "shift+enter":
-			menu.Draft, menu.Cursor = insertEditorText(menu.Draft, menu.Cursor, "\n")
-			return nil
-		case "delete":
-			r := []rune(menu.Draft)
-			if menu.Cursor < len(r) {
-				menu.Draft = string(append(r[:menu.Cursor], r[menu.Cursor+1:]...))
-			}
-			return nil
 		default:
-			if key.Text != "" && !key.Mod.Contains(tea.ModCtrl) && !key.Mod.Contains(tea.ModAlt) {
-				menu.Draft, menu.Cursor = insertEditorText(menu.Draft, menu.Cursor, key.Text)
-			}
+			(draftEditor{&menu.Draft, &menu.Cursor, replyDraft}).key(key)
 			return nil
 		}
 	}

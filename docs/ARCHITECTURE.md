@@ -136,3 +136,22 @@ record or draft enters session storage or guide input.
 
 See [TESTING.md](../TESTING.md) for verification commands and
 [CONSTRAINTS.md](../CONSTRAINTS.md) for the project invariants.
+
+## Multiline draft editing
+
+`internal/tui/draft_editor.go` owns rune cursor clamping, movement, deletion,
+newlines, and literal insertion for inline comments, suggestion replacements,
+replies, published edits, general PR comments, and review summaries. Keyboard
+and clipboard adapters use that same editing interface. Comment, reply,
+published, and general text have a 65,536-byte input budget; suggestion
+replacement source has its own 65,536-byte budget, before Markdown fences are
+generated. Review summaries retain their existing uncapped individual-body
+policy; private draft storage still enforces its aggregate payload limit.
+All multiline surfaces support Left/Right rune movement and Home/End movement
+to the beginning/end of the whole draft, including review summaries.
+Insertion rejects invalid UTF-8 or an entire edit exceeding the surface budget
+without truncating text. Deletion remains available for oversized recovered text.
+Editing accepts empty and literal multiline text; submission validation stays
+with each workflow, including suggestion syntax and nonblank body requirements.
+Focus, tab ownership, targets, persistence, confirmation, and uncertain delivery
+protection remain in their workflow owners and gate access to the editor.
