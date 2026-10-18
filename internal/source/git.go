@@ -365,18 +365,32 @@ func PinWithTiming(ctx context.Context, checkout string, id Identity, gh GitHub,
 	if notify == nil {
 		notify = func(string) {}
 	}
-	m, e := gh.Metadata(ctx, id)
+	parallel := false
+	if capable, ok := r.(interface{ MaxParallelism() int }); ok {
+		parallel = capable.MaxParallelism() > 1
+	}
+	m, initial, elapsed, e := pinInputs(ctx, parallel, func(c context.Context) (Metadata, error) {
+		return gh.Metadata(c, id)
+	}, func(c context.Context) (*View, error) {
+		return NewView(c, checkout, r, l)
+	})
+	if timing != nil {
+		timing.ViewSetup += elapsed
+	}
 	if e != nil {
 		return nil, PinnedComparison{}, e
 	}
 	for attempt := 0; attempt < 2; attempt++ {
 		started := time.Now()
-		v, e := NewView(ctx, checkout, r, l)
-		if timing != nil {
-			timing.ViewSetup += time.Since(started)
-		}
-		if e != nil {
-			return nil, PinnedComparison{}, e
+		v := initial
+		if attempt > 0 {
+			v, e = NewView(ctx, checkout, r, l)
+			if timing != nil {
+				timing.ViewSetup += time.Since(started)
+			}
+			if e != nil {
+				return nil, PinnedComparison{}, e
+			}
 		}
 		started = time.Now()
 		base, pinErr := v.mergeBase(ctx, m)

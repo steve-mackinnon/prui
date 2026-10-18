@@ -49,6 +49,12 @@ hooks, filters, or worktree. The frozen inventory and description are what a
 review session displays; later changes in the checkout cannot silently alter
 that session. A new comparison is an explicit operation.
 
+For parallel-capable runners, the initial metadata read and isolated object-view
+preparation overlap. Pinning waits for both; metadata failure cancels and joins
+preparation and closes any resulting view. Custom serial runners keep the
+original ordering. Retry/fetch and every subsequent freshness boundary retain
+their original order. Individual phase timings can overlap and are not additive.
+
 PR metadata and commit capture reuse a bounded HTTPS connection to GitHub's API.
 Each request resolves the current CLI account again; tokens and responses are
 never cached. The original metadata checks before/after capture and after saving

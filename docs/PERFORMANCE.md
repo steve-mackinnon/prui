@@ -20,6 +20,19 @@ part of the original goal.
   drafts, freshness checks, offline operation and explicit write/upload consent.
   No validation or required source capture is skipped to improve a number.
 
+## Latest verified interactive selection
+
+| Real PR | Original | Latest candidate | Overall improvement |
+| --- | ---: | ---: | ---: |
+| #19: 1 file, 3 commits | 5.80 s | 2.27 s | 2.56x |
+| #11: 26 files, 3 commits | 8.93 s | 2.58 s | 3.46x |
+
+These are Enter-to-readable-overview medians in fresh private stores, with real
+GitHub/Git access and identical complete snapshots. See the tenth-iteration
+ledger for both paired series and their limits. Populated PR-list startup still
+typically takes about 0.6 seconds; offline review startup is about 45 ms. Neither
+startup scenario has reached 10x.
+
 ## Design findings
 
 The CLI opens SQLite before constructing the terminal workspace. Interactive
@@ -689,6 +702,75 @@ Full verification passed (installer fixtures, vet, race tests, terminal journeys
 and build). Configured lint reported zero issues; the final focused race checks
 also passed. This change retains every pinning/freshness read and source check.
 
+## Tenth iteration: measure actual selection and overlap pin inputs
+
+The earlier live checks used complete plain-command opens. The actual PR browser
+was then exercised through a PTY: launch with no arguments from the checkout,
+wait for the populated PR list, select a PR, then measure Enter to the first
+readable review frame with its `N/M read` indicator. Each trial uses a fresh
+private home/store, real authenticated read-only GitHub requests and real Git.
+No guide generation, review write, source upload or old snapshot is involved.
+The captured initial frame is the overview, not a selected file's expanded diff.
+
+Three pairs alternated their order per PR. Original `78cb664` versus `ff8282f`:
+
+| PR | Changes / commits | Original selection | Prior optimized selection |
+| --- | --- | ---: | ---: |
+| #19 | 1 file / 3 commits | 5,799.98 ms | 2,716.55 ms |
+| #11 | 26 files / 3 commits | 8,934.10 ms | 2,999.65 ms |
+
+Every pair had identical decoded snapshots, complete inventory, complete commit
+membership/diffs and captured composition. PR #19 pins: base
+`b39e451b3ef96e3bfda250a489ebe10da559984e`, head
+`bddf8d8912fa419fcb75f4aca89fb535cb483c76`. PR #11 shares that base, with head
+`49239c1f4c528b8b0713ccb033b3b65081250902`. Screens and per-trial data:
+`/tmp/prui-selection-compare-32a8oo7t`. An initial current-only probe also captured
+a complete PR #19 review in 2,934 ms; it was not part of the paired medians.
+
+Initial metadata and private view setup were sequential, despite having no
+shared input or checkout writes. They now overlap for runners that advertise
+parallel use. The metadata result retains error precedence. Both tasks must
+complete successfully before ancestry/pinning, fetch or capture can proceed.
+Metadata failure cancels and joins setup; every successful speculative view is
+closed before returning an error. Parent cancellation, view resource failures,
+serial-runner ordering, retry/fetch and all freshness reads remain enforced.
+No partial view is reused. Retry attempts still build their new view after the
+updated metadata, in their original order.
+
+Another three pairs per PR compare `ff8282f` against overlap, alternating order:
+
+| PR / trial | Prior | Overlapped inputs |
+| --- | ---: | ---: |
+| #19 / 1 | 2,817.36 ms | 2,267.63 ms |
+| #19 / 2 | 2,731.06 ms | 2,233.35 ms |
+| #19 / 3 | 2,748.60 ms | 2,331.78 ms |
+| #19 median | 2,748.60 ms | 2,267.63 ms |
+| #11 / 1 | 3,015.74 ms | 2,566.46 ms |
+| #11 / 2 | 3,117.22 ms | 2,601.33 ms |
+| #11 / 3 | 2,966.51 ms | 2,584.01 ms |
+| #11 median | 3,015.74 ms | 2,584.01 ms |
+
+This saves about 17.5% / 14.3% of actual first selection, respectively.
+All six pairs had identical complete snapshots. A separate cross-series check
+also matched each of the six latest snapshots against its PR's original
+reference. Original-to-current ratios are about 2.56x / 3.46x, still below 10x;
+these original timings come from the immediately preceding paired series.
+Artifacts: `/tmp/prui-pin-overlap-selection-o2e6xw75`.
+
+Populated PR-list launch time is measured separately from selection. Typical
+trials remained around 0.6 seconds, with a 1.35-second first candidate launch
+outlier. This change runs after selection and does not accelerate that startup
+path. Individual view-setup and metadata durations now overlap; do not add them
+or treat their sum as complete-open time.
+
+Barrier-based tests cover actual overlap without timing-speed assertions,
+serial ordering, metadata/view failure precedence, resource failure, parent
+cancellation, joining setup and removing completed/failed speculative views.
+The complete verification script passed, including installer fixtures, vet,
+race tests, terminal journeys and build. Final focused race checks passed and
+configured lint reported zero issues. Offline startup has not been remeasured
+for this candidate; overlap is entered only after a PR source-open request.
+
 ## Reproduction and validation
 
 ```sh
@@ -720,11 +802,10 @@ including vet, race tests, PTY tests and build; configured lint reported zero is
 
 ## Next iterations
 
-1. Extend live first-selection measurements beyond PR 109, including a larger
-   PR and the interactive first readable frame. The authenticated nine-file PR
-   is about 2.53x faster in the latest five-pair syntax-cache comparison. Median
-   synthetic offline startup is under 50 ms; no-argument PR browsing can have
-   different network costs.
+1. Broaden the interactive first-selection fixtures beyond PRs #19 and #11,
+   including more commits and missing-object fetches. These two real PRs now
+   open about 2.56x / 3.46x faster, still below 10x. Typical populated PR-list
+   startup remains around 0.6 seconds; median offline startup is about 45 ms.
 2. Profile the remaining GitHub request/process/connection overhead and per-commit
    work. Preserve every pinning, freshness and completeness check; investigate
    further transport work before changing consistency boundaries. Connection
