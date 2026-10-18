@@ -8,7 +8,6 @@ import (
 	"unicode/utf8"
 
 	"github.com/alecthomas/chroma/v2"
-	"github.com/alecthomas/chroma/v2/lexers"
 )
 
 type Kind uint8
@@ -53,7 +52,7 @@ func Tokenize(ctx context.Context, path string, source []byte) Lines {
 
 const MaxDuration = time.Second
 
-func Supported(path string) bool { return lexers.Match(path) != nil }
+func Supported(path string) bool { return matchLexer(path) != nil }
 
 // TokenizeWithStatus retains the reason a best-effort capture was unavailable.
 func TokenizeWithStatus(ctx context.Context, path string, source []byte) (Lines, Status) {
@@ -77,7 +76,7 @@ func tokenize(ctx context.Context, path string, source []byte, duration time.Dur
 	if !utf8.Valid(source) {
 		return nil, InvalidText
 	}
-	lexer := lexers.Match(path)
+	lexer := matchLexer(path)
 	if lexer == nil {
 		return nil, Unsupported
 	}
