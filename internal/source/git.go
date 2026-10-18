@@ -19,9 +19,11 @@ type View struct {
 	dir, git string
 	runner   Runner
 	limits   Limits
-	blobMu   sync.Mutex
+	blobMu   sync.Mutex // Guards both immutable read caches and closed state.
 	blobs    map[string][]byte
 	blobSize int
+	diffs    map[string][]byte
+	diffSize int
 	closed   bool
 }
 
@@ -41,6 +43,7 @@ type PinTiming struct {
 func (v *View) Close() error {
 	v.blobMu.Lock()
 	v.blobs, v.blobSize = nil, 0
+	v.diffs, v.diffSize = nil, 0
 	v.closed = true
 	v.blobMu.Unlock()
 	return os.RemoveAll(v.dir)
@@ -192,7 +195,14 @@ func readSmall(path string) ([]byte, error) {
 }
 
 func (v *View) Git(ctx context.Context, limit int, args ...string) ([]byte, error) {
-	return v.runner.Run(ctx, Request{Program: v.git, Args: append([]string{"--no-pager", "--git-dir=" + v.dir}, args...), Dir: v.dir, Env: gitEnvironment(v.dir, ""), Limit: limit, Timeout: v.limits.Operation})
+	if key := blobDiffKey(args); key != "" {
+		return v.blobDiff(ctx, limit, key, args)
+	}
+	return v.gitInput(ctx, limit, nil, args...)
+}
+
+func (v *View) gitInput(ctx context.Context, limit int, input []byte, args ...string) ([]byte, error) {
+	return v.runner.Run(ctx, Request{Program: v.git, Args: append([]string{"--no-pager", "--git-dir=" + v.dir}, args...), Dir: v.dir, Env: gitEnvironment(v.dir, ""), Stdin: input, Limit: limit, Timeout: v.limits.Operation})
 }
 func (v *View) Blob(ctx context.Context, oid string, limit int) ([]byte, error) {
 	if !shaPattern.MatchString(oid) {
@@ -226,17 +236,21 @@ func (v *View) Blob(ctx context.Context, oid string, limit int) ([]byte, error) 
 	// Oversized reads return ErrLimit without exposing partial blob contents.
 	data, err := v.Git(ctx, limit, "cat-file", "blob", oid)
 	if err == nil {
-		v.blobMu.Lock()
-		if _, exists := v.blobs[oid]; !v.closed && !exists && len(v.blobs) < blobCacheEntries && len(data) <= blobCacheBytes-v.blobSize {
-			if v.blobs == nil {
-				v.blobs = map[string][]byte{}
-			}
-			v.blobs[oid] = bytes.Clone(data)
-			v.blobSize += len(data)
-		}
-		v.blobMu.Unlock()
+		v.cacheBlob(oid, data)
 	}
 	return data, err
+}
+
+func (v *View) cacheBlob(oid string, data []byte) {
+	v.blobMu.Lock()
+	defer v.blobMu.Unlock()
+	if _, exists := v.blobs[oid]; !v.closed && !exists && len(v.blobs) < blobCacheEntries && len(data) <= blobCacheBytes-v.blobSize {
+		if v.blobs == nil {
+			v.blobs = map[string][]byte{}
+		}
+		v.blobs[oid] = bytes.Clone(data)
+		v.blobSize += len(data)
+	}
 }
 func (v *View) mergeBase(ctx context.Context, m Metadata) (string, error) {
 	for _, s := range []string{m.BaseSHA, m.HeadSHA} {

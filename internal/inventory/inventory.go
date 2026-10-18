@@ -152,6 +152,13 @@ func build(ctx context.Context, objects Objects, oldSHA, newSHA string, p *sourc
 		return inv, e
 	}
 	emptyOID := strings.TrimSpace(string(empty))
+	blobs := batchBlobs(ctx, objects, inv.Files, emptyOID, l.BlobBytes)
+	readBlob := func(oid string) ([]byte, error) {
+		if result, ok := blobs[oid]; ok {
+			return result.Data, result.Err
+		}
+		return objects.Blob(ctx, oid, l.BlobBytes)
+	}
 	used, lines := 0, 0
 	syntaxBudget := syntaxBudget{remaining: SyntaxDuration}
 	add := func(f FileChange, k Kind, old, newRange Range, patch []byte, reason string) {
@@ -191,8 +198,8 @@ func build(ctx context.Context, objects Objects, oldSHA, newSHA string, p *sourc
 		if f.NewMode == "000000" || f.NewMode == "160000" {
 			newOID = emptyOID
 		}
-		a, ea := objects.Blob(ctx, oldOID, l.BlobBytes)
-		b, eb := objects.Blob(ctx, newOID, l.BlobBytes)
+		a, ea := readBlob(oldOID)
+		b, eb := readBlob(newOID)
 		if ctx.Err() != nil {
 			return inv, ctx.Err()
 		}
