@@ -63,8 +63,11 @@ an independent 8 MiB / 2,048-entry reuse cap; other Git operations are not cache
 Known blob pairs can use up to eight local diff workers after reserving
 conservative patch-byte and line budgets. Results enter the inventory in the
 original order; custom runners remain serial unless they advertise parallel use.
-Evidence retrieval indexes changed directories and
-deleted paths once before ranking the pinned trees. See the
+Evidence retrieval indexes changed directories and deleted paths once before
+ranking the pinned trees. Eligible evidence reads use bounded eight-candidate
+windows after reserving file/excerpt allowances; privacy filtering and output
+order remain unchanged. Failed batch IDs are not retried, and unread IDs retain
+the serial path. See the
 [performance ledger](PERFORMANCE.md) for startup/open baselines and remaining work.
 
 ## Sessions and progress

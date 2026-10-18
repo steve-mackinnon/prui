@@ -468,6 +468,74 @@ run with minimization disabled completed another 32,688 executions. Full
 repository verification passed, including vet, race tests, terminal journeys,
 installation checks and build. Configured lint reported zero issues.
 
+### Seventh iteration: bounded evidence acquisition
+
+Supporting evidence still used one Git process per uncached blob. A local
+complete open of the recorded real PR used 40 `cat-file` calls; the synthetic
+changed-file fixtures hid this cost because their first-ranked evidence was
+already in the main inventory's blob cache.
+
+The new reader uses the existing validated `BlobBatch` capability in windows
+of at most eight potential excerpts. Every candidate reserves one possible
+file and its maximum excerpt bytes, including repeated OIDs. Path/privacy,
+symlink/gitlink, seen-path and OLD/NEW-side checks run before lookahead selects
+an ID. The ordinary loop still emits results and omissions in the original
+order, applies content privacy and truncation, and updates the same budgets.
+A final partial excerpt or a single distinct ID stays serial. Only the current
+window retains blob contents (at most 256 KiB of blob data under default excerpt
+limits, plus the existing bounded protocol framing). At most
+2,048 failed batch IDs are retained locally to prevent automatic retries;
+batching stops before that set fills. Omitted/unread IDs alone may fall back
+to `Blob`. No file, excerpt, time, cache or source-capture limit was increased.
+
+Tests compare full evidence bundles and logical read scope against serial
+retrieval, including tight file/byte limits, repeated OIDs, deleted-side source,
+path/content exclusions, unavailable blobs, partial backend selection, bounded
+failure retention and cancellation. Real Git tests compare pinned source and
+verify that checkout bytes/modes remain unchanged.
+
+A new complete-open fixture contains 1,000 original tree files, 100 changes,
+and 100 additional distinct, unchanged supporting test files near the changes.
+The benchmark requires all 100 supporting excerpts, complete inventory and
+complete commit/composition capture, with no exhausted evidence budget. Setup
+is outside the child timer. Median of three one-operation trials:
+
+| Complete open, network excluded | Prior `d11ea1f` | Batched evidence |
+| --- | ---: | ---: |
+| Distinct unchanged supporting files | 2,233.31 ms | 1,432.52 ms |
+| `cat-file` processes | 106 | 35 |
+| Recorded real PR, full ordinary open/store path | 1,597.49 ms | 1,446.64 ms |
+| Recorded real PR `cat-file` processes | 40 | 25 |
+
+These are about 36% and 9.4% reductions in local complete-open work. The recorded
+benchmark uses the real checkout and frozen PR metadata in fresh private stores;
+it checks identical inventory, context and commits against the saved reference.
+It makes no network request. Its disposable diagnostic source is in
+`/tmp/prui-perf-sixth` / `/tmp/prui-perf-seventh`; it is not a CI fixture.
+An initial optimized supporting-file run overlapped a build and was excluded;
+the reported three-trial timings ran alone. Separate one-operation runs with
+the stricter all-excerpts assertions also passed for both implementations.
+
+Three authenticated real first opens then ran interleaved, with new private
+homes and existing credentials passed only in process memory:
+
+| Trial | Prior | Batched evidence |
+| --- | ---: | ---: |
+| 1 | 3,338.63 ms | 3,822.11 ms |
+| 2 | 3,122.30 ms | 2,936.88 ms |
+| 3 | 3,122.11 ms | 2,938.14 ms |
+| Median | 3,122.30 ms | 2,938.14 ms |
+
+The median improved about 5.9%, with one slower optimized outlier. Every run
+captured nine changed files, complete commit membership/composition and all
+33 reference excerpts; decoded snapshots were identical within every pair.
+Pins were unchanged from the prior real-PR comparison. Artifacts:
+`/tmp/prui-seventh-live-kb_i59e9`. The current median is approximately 2.2x
+faster than the earlier authenticated original baseline, still short of 10x.
+This change does not address startup or remove any network/freshness check.
+Full verification passed, including race tests, terminal journeys, installation
+checks, vet and build. Configured lint reported zero issues.
+
 ## Reproduction and validation
 
 ```sh
@@ -500,12 +568,13 @@ including vet, race tests, PTY tests and build; configured lint reported zero is
 
 1. Extend live first-selection measurements beyond PR 109, including a larger
    PR and the interactive first readable frame. The authenticated nine-file PR
-   remains only 2.08x faster. Current synthetic offline startup is under 50 ms;
+   remains only about 2.2x faster. Current synthetic offline startup is under 50 ms;
    no-argument PR browsing can have different network costs.
-2. Profile evidence retrieval, per-commit work and network sequencing after the
-   object-view improvement. Preserve pinning, freshness and completeness checks;
-   identify duplicate acquisition and process/connection overhead before editing.
-   Reuse authenticated benchmark setup without saving credentials.
+2. Profile the remaining GitHub request/process/connection overhead and per-commit
+   work. Preserve every pinning, freshness and completeness check; investigate
+   connection reuse before changing consistency boundaries. Reuse authenticated
+   benchmark setup without saving credentials. Evidence reservations remain
+   conservative; inspect remaining serial/oversized reads before extending APIs.
 3. Expand full-source sizes/change shapes and measure fresh-process first-time
    selection. The new distinct-basename and ten-commit fixtures show that the
    result is not yet universally 10x. Investigate the per-commit overhead while

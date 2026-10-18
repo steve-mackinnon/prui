@@ -66,8 +66,11 @@ func (g performanceGitHub) ListPullRequestCommits(context.Context, source.Identi
 // Includes pinning, inventory, commit capture, evidence, durable storage and
 // freshness checks. GitHub responses are synthetic; network time is excluded.
 func BenchmarkPullRequestOpen(b *testing.B) {
-	for _, scenario := range []string{"text-100", "unique-text-100", "distinct-names-text-100", "ten-commits-text-100", "packed-distinct-names-text-100", "packed-ten-commits-text-100", "mixed-distinct-names-text-100", "mixed-ten-commits-text-100", "mode-1000-tree-10000"} {
-		shape := strings.TrimPrefix(strings.TrimPrefix(scenario, "packed-"), "mixed-")
+	for _, scenario := range []string{"text-100", "unique-text-100", "distinct-names-text-100", "ten-commits-text-100", "packed-distinct-names-text-100", "packed-ten-commits-text-100", "mixed-distinct-names-text-100", "mixed-ten-commits-text-100", "evidence-distinct-names-text-100", "mode-1000-tree-10000"} {
+		shape := scenario
+		for _, prefix := range []string{"packed-", "mixed-", "evidence-"} {
+			shape = strings.TrimPrefix(shape, prefix)
+		}
 		modeOnly := shape == "mode-1000-tree-10000"
 		uniqueText := shape != "text-100" && !modeOnly
 		distinctNames := shape == "distinct-names-text-100" || shape == "ten-commits-text-100"
@@ -89,6 +92,9 @@ func BenchmarkPullRequestOpen(b *testing.B) {
 					content = fmt.Sprintf("package fixture\nconst Value%d = 1\n", i)
 				}
 				repo.Write(filePath(i), content)
+				if strings.HasPrefix(scenario, "evidence-") && i < changed {
+					repo.Write(filepath.Join(filepath.Dir(filePath(i)), "context_test.go"), fmt.Sprintf("package fixture\n// independent supporting context %d\n", i))
+				}
 			}
 			base := repo.Commit()
 			var entries []source.PullRequestCommit
@@ -137,6 +143,16 @@ func BenchmarkPullRequestOpen(b *testing.B) {
 					}
 					if s.Commits == nil || s.Commits.Status != commits.Captured || !s.Commits.Complete || len(s.Commits.Entries) != max(1, len(entries)) || s.Commits.Composition == nil || s.Commits.Composition.Status != commits.Captured {
 						b.Fatal("open omitted complete commit capture or composition")
+					}
+					if strings.HasPrefix(scenario, "evidence-") {
+						if len(s.Context.Evidence) != changed || len(s.Context.ExhaustedBudgets) != 0 {
+							b.Fatal("open omitted complete supporting evidence")
+						}
+						for _, evidence := range s.Context.Evidence {
+							if !strings.HasSuffix(string(evidence.Path), "/context_test.go") {
+								b.Fatal("fixture did not read the distinct unchanged supporting files")
+							}
+						}
 					}
 				}
 				after := runner.counts()
