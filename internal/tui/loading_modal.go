@@ -132,9 +132,3 @@ func viewportLines(background string, width, height int) []string {
 	}
 	return lines
 }
-
-func center(text string, width int) string {
-	text = clip(text, width)
-	padding := max(0, width-visibleWidth(text))
-	return strings.Repeat(" ", padding/2) + text + strings.Repeat(" ", padding-padding/2)
-}
