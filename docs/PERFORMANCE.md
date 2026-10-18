@@ -302,6 +302,50 @@ checkout-immutability coverage remain in the complete verification suite.
 Full verification passed, including race tests, terminal journeys and build;
 configured lint reported zero issues.
 
+### Live first-open check: repository PR 109
+
+The real [PR #109](https://github.com/steve-mackinnon/prui/pull/109) provides a
+less favorable, important counterexample to the synthetic results. It has nine
+changed files and one captured PR commit. Three original/current CLI opens were
+interleaved with a fresh private session store per run, actual GitHub responses,
+the same checkout/object store, and unchanged base/head pins:
+`46e5f056cf5f28aef146e9fdd3c12f9917c40505` /
+`95eb482523a9a864c8978ff0e48f1df2bc4c1508`.
+
+| Process-to-complete plain open | Original `78cb664` | Current `f6cc14a` |
+| --- | ---: | ---: |
+| Trial 1 | 6,843.97 ms | 3,805.86 ms |
+| Trial 2 | 5,696.83 ms | 3,786.07 ms |
+| Trial 3 | 5,597.58 ms | 3,711.19 ms |
+| Median | 5,696.83 ms | 3,786.07 ms |
+
+This is **1.50x**, not 10x. Every run captured a complete inventory, complete
+commit membership and captured composition. Decoded immutable snapshot payloads
+were identical across each original/current pair, including inventory/patches,
+syntax, commits/composition, context, description, slices and unit ownership.
+No prior snapshot was reused. The original binary was rebuilt from an archive
+of `78cb664`; timing instrumentation was disabled in both comparison binaries
+to avoid the original wrapper's optional-commit-reader bug.
+
+A separate current-only diagnostic took 4,094 ms overall, with 1,328 ms in view
+setup, 465 ms in metadata reads, 130 ms verifying the merge base, 298 ms in the
+main inventory and 457 ms retrieving evidence; no object fetch was required.
+These individual phase numbers are one observation, not median speedup claims.
+The real mixed object store and network costs make the favorable packed-fixture
+results insufficient evidence for the user's primary scenario. Next work should
+reduce mirroring of redundant/unneeded historical objects with independent
+integrity/lifetime proofs, and profile evidence/teardown and the remaining
+network sequencing. Preserve all source and freshness checks.
+
+For reproduction, launch `open <PR-URL> --plain` in the same checkout using each
+binary, a new `HOME` directory for every trial and the caller's existing
+`GH_CONFIG_DIR` (as `journeyEnvironment` already does). On macOS,
+`XDG_DATA_HOME` alone does **not** redirect app storage. An initial probe used
+that ineffective override; its one newly created local session was deleted
+and verified absent. It is excluded from the comparison above. All subsequent
+probes used isolated homes. Local trial artifacts are in
+`/tmp/prui-live-compare-19osfm43` for this development session.
+
 ## Reproduction and validation
 
 ```sh
@@ -332,10 +376,10 @@ including vet, race tests, PTY tests and build; configured lint reported zero is
 
 ## Next iterations
 
-1. Measure the user's slow startup entry point and representative PR, including
-   local startup, remote calls, commit capture, persistence and first usable frame.
-   Current synthetic startup is already under 50 ms; no-argument PR browsing
-   can have different network costs.
+1. Extend live first-selection measurements beyond PR 109, including a larger
+   PR and the interactive first readable frame. The real nine-file PR remains
+   only 1.50x faster. Current synthetic offline startup is already under 50 ms;
+   no-argument PR browsing can have different network costs.
 2. Extend object-view measurements to mixed stores and large real histories.
    Bounded linking improves loose stores; it still mirrors every stored object.
    Do not adopt checkout alternates or remove object validation to reduce setup
