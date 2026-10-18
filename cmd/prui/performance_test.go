@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 
@@ -34,8 +35,12 @@ func (r *performanceRunner) MaxParallelism() int {
 
 func (r *performanceRunner) Run(ctx context.Context, request source.Request) ([]byte, error) {
 	if len(request.Args) > 2 {
+		command := request.Args[2]
+		if command == "--literal-pathspecs" && len(request.Args) > 3 {
+			command = request.Args[3]
+		}
 		r.mu.Lock()
-		r.calls[request.Args[2]]++
+		r.calls[command]++
 		r.mu.Unlock()
 	}
 	return r.Runner.Run(ctx, request)
@@ -61,10 +66,11 @@ func (g performanceGitHub) ListPullRequestCommits(context.Context, source.Identi
 // Includes pinning, inventory, commit capture, evidence, durable storage and
 // freshness checks. GitHub responses are synthetic; network time is excluded.
 func BenchmarkPullRequestOpen(b *testing.B) {
-	for _, scenario := range []string{"text-100", "unique-text-100", "distinct-names-text-100", "ten-commits-text-100", "mode-1000-tree-10000"} {
-		modeOnly := scenario == "mode-1000-tree-10000"
-		uniqueText := scenario != "text-100" && !modeOnly
-		distinctNames := scenario == "distinct-names-text-100" || scenario == "ten-commits-text-100"
+	for _, scenario := range []string{"text-100", "unique-text-100", "distinct-names-text-100", "ten-commits-text-100", "packed-distinct-names-text-100", "packed-ten-commits-text-100", "mode-1000-tree-10000"} {
+		shape := strings.TrimPrefix(scenario, "packed-")
+		modeOnly := shape == "mode-1000-tree-10000"
+		uniqueText := shape != "text-100" && !modeOnly
+		distinctNames := shape == "distinct-names-text-100" || shape == "ten-commits-text-100"
 		name, changed, total := scenario, 100, 1000
 		if modeOnly {
 			name, changed, total = "mode-1000-tree-10000", 1000, 10000
@@ -100,13 +106,16 @@ func BenchmarkPullRequestOpen(b *testing.B) {
 					}
 					repo.Write(path, content)
 				}
-				if scenario == "ten-commits-text-100" && (i+1)%10 == 0 {
+				if shape == "ten-commits-text-100" && (i+1)%10 == 0 {
 					head = repo.Commit()
 					entries = append(entries, source.PullRequestCommit{SHA: head, Subject: "synthetic change", Author: "fixture"})
 				}
 			}
 			if head == "" {
 				head = repo.Commit()
+			}
+			if strings.HasPrefix(scenario, "packed-") {
+				repo.Git("gc", "--prune=now")
 			}
 			meta := source.Metadata{Identity: source.Identity{Repository: "owner/repo", Number: 1}, BaseRepository: "owner/repo", HeadRepository: "owner/repo", BaseSHA: base, HeadSHA: head}
 			store, err := session.Open(filepath.Join(b.TempDir(), "storage"))
@@ -129,7 +138,7 @@ func BenchmarkPullRequestOpen(b *testing.B) {
 					}
 				}
 				after := runner.counts()
-				for _, command := range []string{"cat-file", "diff", "ls-tree"} {
+				for _, command := range []string{"cat-file", "diff", "diff-tree", "ls-tree"} {
 					b.ReportMetric(float64(after[command]-before[command])/float64(b.N), command+"-calls/op")
 				}
 			})

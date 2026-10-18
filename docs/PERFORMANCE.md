@@ -36,6 +36,8 @@ diff subprocesses. Main inventory now batch-checks blob sizes and reads eligible
 objects in a bounded Git batch. Repeated objects occur across the main comparison,
 commit diffs, composition and evidence; these formerly launched Git each time.
 Canonical blob-pair diff output is now also reusable inside the same view.
+Eligible paths now share one bounded tree diff, with canonical blob headers
+and byte-identical Git hunk bodies; unsupported paths retain blob-pair diffs.
 
 Evidence retrieval formerly scanned all changed paths for every tree entry,
 both when ranking candidates and choosing deleted-side evidence. This makes
@@ -194,6 +196,67 @@ Concurrency reduces waiting but retains a process per distinct blob pair.
 Per-commit acquisition overhead also remains. The overall goal is still active:
 these representative cold opens and startup have not established a 10x gain.
 
+### Fourth iteration: remove per-file diff processes
+
+The distinct-name fixture now performs one additional `diff-tree` operation
+instead of 100 separate `diff` operations. Main/commit inventories reuse its
+canonical blob-pair output. The complete loose-object fixtures measured medians
+of 1,382.36 ms (one commit) and 2,295.74 ms (ten commits), compared with
+1,513.29 ms and 2,468.29 ms at the preceding checkpoint. These are about 9.25x
+and 6.00x faster than the original 12,782.32 ms and 13,780.70 ms. Removing forks
+helps, but does not make these loose-object opens universally 10x faster.
+
+`TreeDiffBatch` selects simple ASCII paths of at most 256 bytes, full pinned
+object IDs and supported addition/modification/deletion shapes. Literal
+pathspecs prevent expansion; additions/deletions that could select changed
+descendants are excluded. Reservations retain the original file order and
+aggregate content budget, with an additional 64 KiB argument cap. Unsupported
+or unreserved requests remain unread and may use the existing worker pool.
+An attempted batch failure is explicit and never falls through to a retry.
+
+The command runs inside the same private bare Git view: checkout attributes,
+hooks, filters and config remain unavailable. Frame paths, modes, old/new IDs,
+headers and complete output are validated before caching any result. Only the
+metadata header is normalized to the canonical blob-to-blob header; Git's hunk
+bytes are copied unchanged. Tests compare independent blob-diff output for
+adds/deletes, symlinks, executable mode changes, missing final newlines and
+committed language attributes. Inventory equivalence also covers renames,
+binary/empty/spaced/byte paths, file/directory replacements and tight quotas.
+Malformed/missing/duplicate frames, cancellation and output failures cannot
+seed the cache or become empty successful source. Checkout snapshots remain
+unchanged. Full verification (including race and terminal tests), build and
+configured lint passed.
+
+Object layout now matters substantially. Packed variants run `git gc` only in
+their disposable synthetic fixture, before timing; runtime code never packs,
+prunes or alters the reviewed repository. Identical benchmark code was run
+sequentially on the original revision, the preceding `511e6c8` checkpoint and
+the new implementation, with no verification workload running. Medians of
+three one-operation trials, including complete commit/composition capture:
+
+| Packed fixture (1,000 tree files, 100 changed files) | Original | Prior checkpoint | Tree batch | Original → current |
+| --- | ---: | ---: | ---: | ---: |
+| One PR commit, distinct content and basenames | 12,528.54 ms | 625.11 ms | 436.08 ms | 28.7x |
+| Ten PR commits, distinct content and basenames | 13,221.55 ms | 1,371.08 ms | 1,151.81 ms | 11.5x |
+
+The isolated batching change reduces these packed opens by approximately 30%
+and 16%. Cached medians remain approximately 13 ms and 17 ms. An earlier
+original-revision trial overlapped repository verification and was excluded
+from this comparison because of contention. These are synthetic local-work
+measurements, excluding network latency and process initialization; the source
+store is packed before every revision's measurement. They establish 10x gains
+for these two shapes, not for loose stores, all PRs, live selection or startup.
+
+A diagnostic loose-object open took
+1,325 ms overall, including 542 ms creating the isolated view, 151 ms verifying
+the merge base, 249 ms building the main inventory and 77 ms retrieving evidence.
+These one-trial phase timings identify work to investigate, not stable speedup
+claims. `NewView` walks and hard-links the complete object store, so its cost
+scales with stored history as well as the selected comparison. The development
+repository also contains many loose objects duplicated in its pack, but safely
+avoiding redundant links needs independent object validation and lifetime
+guarantees; pointing the view at checkout alternates would violate isolation.
+
 ## Reproduction and validation
 
 ```sh
@@ -227,10 +290,10 @@ including vet, race tests, PTY tests and build; configured lint reported zero is
    local startup, remote calls, commit capture, persistence and first usable frame.
    Current synthetic startup is already under 50 ms; no-argument PR browsing
    can have different network costs.
-2. Reduce process creation for the remaining distinct blob-pair diffs. A batched
-   Git strategy must preserve byte-identical patches, committed attribute
-   isolation, path handling, partial/failure states and aggregate limits. Existing
-   bounded concurrency already removes some waiting; it does not remove forks.
+2. Profile isolated object-view setup on loose, packed and mixed stores. Test
+   bounded parallel linking against the current serial mirror, retaining
+   symlink rejection, hard-link lifetime, cancellation and cleanup. Do not adopt
+   checkout alternates or remove object validation to reduce setup time.
 3. Expand full-source sizes/change shapes and measure fresh-process first-time
    selection. The new distinct-basename and ten-commit fixtures show that the
    result is not yet universally 10x. Investigate the per-commit overhead while
