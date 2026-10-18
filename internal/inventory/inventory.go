@@ -153,7 +153,7 @@ func build(ctx context.Context, objects Objects, oldSHA, newSHA string, p *sourc
 	}
 	emptyOID := strings.TrimSpace(string(empty))
 	blobs := batchBlobs(ctx, objects, inv.Files, emptyOID, l.BlobBytes)
-	diffs := batchDiffs(ctx, objects, inv.Files, blobs, emptyOID, l)
+	diffs := batchDiffs(ctx, objects, inv.Files, blobs, emptyOID, oldSHA, newSHA, l)
 	readBlob := func(oid string) ([]byte, error) {
 		if result, ok := blobs[oid]; ok {
 			return result.Data, result.Err

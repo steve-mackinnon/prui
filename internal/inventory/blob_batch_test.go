@@ -22,8 +22,21 @@ type batchInventoryObjects struct {
 	batches, reads int
 	fail           bool
 	diffBatches    int
+	treeBatches    int
 	diffFallbacks  int
 	failDiffs      bool
+}
+
+func (o *batchInventoryObjects) TreeDiffBatch(ctx context.Context, old, next string, requests []source.TreeDiffRequest) map[int]source.BlobResult {
+	o.treeBatches++
+	if !o.failDiffs {
+		return o.View.TreeDiffBatch(ctx, old, next, requests)
+	}
+	results := map[int]source.BlobResult{}
+	for i := range requests {
+		results[i] = source.BlobResult{Err: source.ErrLimit}
+	}
+	return results
 }
 
 func (o *batchInventoryObjects) Git(ctx context.Context, limit int, args ...string) ([]byte, error) {
@@ -75,8 +88,8 @@ func TestBatchInventoryMatchesSerialSource(t *testing.T) {
 	defer batched.Close()
 	objects := &batchInventoryObjects{View: batched}
 	got, err := Build(context.Background(), objects, comparison, source.Defaults())
-	if err != nil || !reflect.DeepEqual(got, want) || objects.batches != 1 || objects.diffBatches != 1 {
-		t.Fatalf("batch inventory differs from serial: err=%v batches=%d diff batches=%d", err, objects.batches, objects.diffBatches)
+	if err != nil || !reflect.DeepEqual(got, want) || objects.batches != 1 || objects.diffBatches != 1 || objects.treeBatches != 1 {
+		t.Fatalf("batch inventory differs from serial: err=%v batches=%d diff batches=%d tree batches=%d", err, objects.batches, objects.diffBatches, objects.treeBatches)
 	}
 }
 
@@ -103,7 +116,7 @@ func TestBatchInventoryDoesNotRetryResourceFailures(t *testing.T) {
 			if err != nil || got.Complete || len(got.Problems) != 3 || o.reads != 0 || o.batches != 1 || o.diffFallbacks != 0 {
 				t.Fatalf("batch failure retried or lost: err=%v complete=%t problems=%d reads=%d batches=%d fallback diffs=%d", err, got.Complete, len(got.Problems), o.reads, o.batches, o.diffFallbacks)
 			}
-			if phase == "diffs" && o.diffBatches != 1 {
+			if phase == "diffs" && o.diffBatches+o.treeBatches != 1 {
 				t.Fatal("fixture did not exercise a failed diff batch")
 			}
 		})

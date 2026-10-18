@@ -38,32 +38,40 @@ func (v *View) blobDiff(ctx context.Context, limit int, key string, args []strin
 	if limit <= 0 {
 		return nil, errors.New("invalid process limits")
 	}
-	v.blobMu.Lock()
-	if v.closed {
-		v.blobMu.Unlock()
-		return nil, ErrCommand
+	if result, ok := v.cachedDiff(key, limit); ok {
+		return result.Data, result.Err
 	}
-	if data, ok := v.diffs[key]; ok {
-		if len(data) > limit {
-			v.blobMu.Unlock()
-			return nil, ErrLimit
-		}
-		copy := bytes.Clone(data)
-		v.blobMu.Unlock()
-		return copy, nil
-	}
-	v.blobMu.Unlock()
 	data, err := v.gitInput(ctx, limit, nil, args...)
 	if err == nil {
-		v.blobMu.Lock()
-		if _, exists := v.diffs[key]; !v.closed && !exists && len(v.diffs) < diffCacheEntries && len(data) <= diffCacheBytes-v.diffSize {
-			if v.diffs == nil {
-				v.diffs = map[string][]byte{}
-			}
-			v.diffs[key] = bytes.Clone(data)
-			v.diffSize += len(data)
-		}
-		v.blobMu.Unlock()
+		v.cacheDiff(key, data)
 	}
 	return data, err
+}
+
+func (v *View) cachedDiff(key string, limit int) (BlobResult, bool) {
+	v.blobMu.Lock()
+	defer v.blobMu.Unlock()
+	if v.closed {
+		return BlobResult{Err: ErrCommand}, true
+	}
+	data, ok := v.diffs[key]
+	if !ok {
+		return BlobResult{}, false
+	}
+	if len(data) > limit {
+		return BlobResult{Err: ErrLimit}, true
+	}
+	return BlobResult{Data: bytes.Clone(data)}, true
+}
+
+func (v *View) cacheDiff(key string, data []byte) {
+	v.blobMu.Lock()
+	defer v.blobMu.Unlock()
+	if _, exists := v.diffs[key]; !v.closed && !exists && len(v.diffs) < diffCacheEntries && len(data) <= diffCacheBytes-v.diffSize {
+		if v.diffs == nil {
+			v.diffs = map[string][]byte{}
+		}
+		v.diffs[key] = bytes.Clone(data)
+		v.diffSize += len(data)
+	}
 }

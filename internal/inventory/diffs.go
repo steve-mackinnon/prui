@@ -3,6 +3,8 @@ package inventory
 import (
 	"bytes"
 	"context"
+	"sort"
+	"strings"
 
 	"prui/internal/source"
 )
@@ -24,7 +26,11 @@ type blobDiffBatchReader interface {
 	BlobDiffBatch(context.Context, []source.BlobDiffRequest) []source.BlobResult
 }
 
-func batchDiffs(ctx context.Context, objects Objects, files []FileChange, blobs map[string]source.BlobResult, empty string, limits source.Limits) map[blobPair]source.BlobResult {
+type treeDiffBatchReader interface {
+	TreeDiffBatch(context.Context, string, string, []source.TreeDiffRequest) map[int]source.BlobResult
+}
+
+func batchDiffs(ctx context.Context, objects Objects, files []FileChange, blobs map[string]source.BlobResult, empty, oldSHA, newSHA string, limits source.Limits) map[blobPair]source.BlobResult {
 	reader, ok := objects.(blobDiffBatchReader)
 	if !ok || len(blobs) == 0 {
 		return nil
@@ -32,6 +38,8 @@ func batchDiffs(ctx context.Context, objects Objects, files []FileChange, blobs 
 	remainingBytes, remainingLines := limits.ContentBytes, limits.DiffLines
 	seen := map[blobPair]bool{}
 	var requests []source.BlobDiffRequest
+	var treeRequests []source.TreeDiffRequest
+	var changedPaths []string
 	for _, f := range files {
 		if f.OldOID == f.NewOID {
 			continue
@@ -64,22 +72,70 @@ func batchDiffs(ctx context.Context, objects Objects, files []FileChange, blobs 
 		remainingLines -= reservedLines
 		if !seen[pair] {
 			seen[pair] = true
-			requests = append(requests, source.BlobDiffRequest{OldOID: pair.old, NewOID: pair.next, Limit: reservedBytes})
+			request := source.BlobDiffRequest{OldOID: pair.old, NewOID: pair.next, Limit: reservedBytes}
+			requests = append(requests, request)
+			path, status := string(f.NewPath), f.Status
+			if status == "D" {
+				path = string(f.OldPath)
+			}
+			if status == "A" || status == "D" {
+				if changedPaths == nil {
+					changedPaths = sortedChangedPaths(files)
+				}
+				prefix := path + "/"
+				next := sort.SearchStrings(changedPaths, prefix)
+				if next < len(changedPaths) && strings.HasPrefix(changedPaths[next], prefix) {
+					status = "" // A pathspec would also read changed descendants.
+				}
+			}
+			treeRequests = append(treeRequests, source.TreeDiffRequest{BlobDiffRequest: request, Path: path, Status: status})
 		}
 	}
 	if len(requests) == 0 {
 		return nil
 	}
-	results := reader.BlobDiffBatch(ctx, requests)
+	prepared := map[int]source.BlobResult{}
+	if treeReader, ok := objects.(treeDiffBatchReader); ok {
+		if results := treeReader.TreeDiffBatch(ctx, oldSHA, newSHA, treeRequests); results != nil {
+			prepared = results
+		}
+	}
+	var missing []source.BlobDiffRequest
+	var indices []int
+	for i, request := range requests {
+		if _, ok := prepared[i]; !ok {
+			indices = append(indices, i)
+			missing = append(missing, request)
+		}
+	}
+	if len(missing) > 0 {
+		results := reader.BlobDiffBatch(ctx, missing)
+		for n, i := range indices {
+			result := source.BlobResult{Err: source.ErrCommand}
+			if len(results) == len(missing) {
+				result = results[n]
+			}
+			prepared[i] = result
+		}
+	}
 	diffs := make(map[blobPair]source.BlobResult, len(requests))
 	for i, request := range requests {
-		result := source.BlobResult{Err: source.ErrCommand}
-		if len(results) == len(requests) {
-			result = results[i]
-		}
-		diffs[blobPair{request.OldOID, request.NewOID}] = result
+		diffs[blobPair{request.OldOID, request.NewOID}] = prepared[i]
 	}
 	return diffs
+}
+
+func sortedChangedPaths(files []FileChange) []string {
+	var paths []string
+	for _, f := range files {
+		for _, path := range [][]byte{f.OldPath, f.NewPath} {
+			if len(path) > 0 {
+				paths = append(paths, string(path))
+			}
+		}
+	}
+	sort.Strings(paths)
+	return paths
 }
 
 func binaryBlob(data []byte) bool {
