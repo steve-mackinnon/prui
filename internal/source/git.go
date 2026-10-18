@@ -95,7 +95,11 @@ func NewView(ctx context.Context, checkout string, r Runner, l Limits) (v *View,
 		}
 	}
 	// Mirror only object data, never the checkout's alternates, config, hooks or promisor markers.
-	err = borrowObjects(ctx, objects, filepath.Join(dir, "borrowed"), min(4, runtime.GOMAXPROCS(0)))
+	skip, err := v.preparePackedObjects(ctx, objects)
+	if err != nil {
+		return nil, err
+	}
+	err = borrowObjectsSkipping(ctx, objects, filepath.Join(dir, "borrowed"), min(4, runtime.GOMAXPROCS(0)), skip)
 	if err != nil {
 		return nil, err
 	}

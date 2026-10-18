@@ -11,10 +11,26 @@ import (
 // Only object-file hard links run concurrently, with at most four workers and
 // four queued entries. Join every worker before the caller can remove the view.
 func borrowObjects(ctx context.Context, objects, borrowed string, workers int) error {
+	return borrowObjectsSkipping(ctx, objects, borrowed, workers, nil)
+}
+
+func borrowObjectsSkipping(ctx context.Context, objects, borrowed string, workers int, skip map[string]bool) error {
+	visit := func(path string, d fs.DirEntry, err error) error {
+		if err == nil && d.Type().IsRegular() && len(skip) > 0 {
+			rel, relErr := filepath.Rel(objects, path)
+			if relErr != nil {
+				return relErr
+			}
+			if skip[filepath.ToSlash(rel)] {
+				return ctx.Err()
+			}
+		}
+		return borrowObjectEntry(ctx, objects, borrowed, path, d, err)
+	}
 	workers = max(1, min(4, workers))
 	if workers == 1 {
 		return filepath.WalkDir(objects, func(path string, d fs.DirEntry, err error) error {
-			return borrowObjectEntry(ctx, objects, borrowed, path, d, err)
+			return visit(path, d, err)
 		})
 	}
 	ctx, cancel := context.WithCancel(ctx)
@@ -35,7 +51,7 @@ func borrowObjects(ctx context.Context, objects, borrowed string, workers int) e
 	for range workers {
 		wg.Go(func() {
 			for job := range jobs {
-				fail(borrowObjectEntry(ctx, objects, borrowed, job.path, job.item, nil))
+				fail(visit(job.path, job.item, nil))
 			}
 		})
 	}
