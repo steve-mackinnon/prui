@@ -140,6 +140,60 @@ unsupported clients and requires byte-equivalent captured history with timing
 enabled or disabled. The synthetic benchmark numbers above never enabled this
 wrapper and always included commits.
 
+### Third iteration: reserved parallel diffs and broader fixtures
+
+| Cold-open workload | Original median | Current median | Speedup |
+| --- | ---: | ---: | ---: |
+| Distinct content, shared basename | 11,210 ms | 1,495.69 ms | 7.49x |
+| Distinct content and basenames | 12,782.32 ms | 1,513.29 ms | 8.45x |
+| Ten commits, distinct content and basenames | 13,780.70 ms | 2,468.29 ms | 5.58x |
+
+The last two baselines were newly measured on the original `78cb664`
+implementation using the identical expanded benchmark file. Each result is a
+median of three one-operation trials. The one-commit shared-basename workload
+fell from the previous checkpoint's 2,445.77 ms to 1,495.69 ms in this iteration.
+The benchmark now requires every expected commit and captured composition to
+be present; omitted history causes failure instead of appearing as a speedup.
+
+Known blob pairs can now use up to eight diff workers. The actual process runner
+advertises a concurrency limit capped by `GOMAXPROCS`; custom runners retain
+serial execution unless they explicitly advertise safe parallel use. The
+benchmark counter wrapper uses a mutex and forwards that capability.
+
+Planning follows original file order and stops before an unknown budget consumer
+or an unfittable reservation. Every eligible file reserves a conservative byte
+and line allowance, including repeated pairs; execution deduplicates identical
+pairs. The reservation covers payload, line markers, missing-newline notices,
+fixed OID headers, hunk headers/function context, and the per-hunk header copies
+created by inventory. It is intentionally conservative and can leave large-file
+work on the existing serial path. Bounds are checked before multiplication to
+avoid integer overflow. The pool separately rejects aggregate output reservations
+above the view's content budget.
+The fixed function-context allowance follows the 80-byte buffer in
+[Git's xdiff emitter](https://github.com/git/git/blob/master/xdiff/xemit.c).
+
+Results preserve request order. The existing inventory loop applies its ordinary
+byte and line checks and builds identical units; failed prefetched diffs are not
+retried. Cancellation stops queued work and joins all active workers before
+returning. No metadata, fetch, helper, upload or write operation is parallelized.
+The canonical Git argument builder is shared by serial and parallel paths.
+
+Regression coverage compares complete parallel and serial inventories, including
+tight byte/line budgets, binary data, renames, mode changes and byte paths. It
+checks actual Git patches with separated hunks, very long lines, absent trailing
+newlines and late NUL bytes against reservation bounds. Pool tests cover result
+order, the eight-worker cap, serial custom runners, invalid objects, aggregate
+caps and cancellation cleanup. Full verification and lint passed; the complete
+distinct-name and ten-commit benchmarks also passed under race detection (race
+timings are excluded from this table).
+
+Process counts explain the remaining work: the distinct-name fixture uses six
+`cat-file` calls, 100 `diff` calls and five `ls-tree` calls; the ten-commit fixture
+uses 24, 100 and 14 respectively. Original counts were 704/200/5 and 722/200/14.
+Concurrency reduces waiting but retains a process per distinct blob pair.
+Per-commit acquisition overhead also remains. The overall goal is still active:
+these representative cold opens and startup have not established a 10x gain.
+
 ## Reproduction and validation
 
 ```sh
@@ -173,13 +227,14 @@ including vet, race tests, PTY tests and build; configured lint reported zero is
    local startup, remote calls, commit capture, persistence and first usable frame.
    Current synthetic startup is already under 50 ms; no-argument PR browsing
    can have different network costs.
-2. Reduce the remaining 100 distinct blob-pair diff subprocesses. Investigate
-   bounded concurrency or a batched Git strategy only with deterministic
-   coverage, aggregate resource limits and byte-identical patches preserved.
-   Reuse already removes identical comparisons across the main and commit views.
-3. Expand complete-open fixtures to multiple commits and distinct basenames,
-   and measure fresh-process first-time selection to separate process startup
-   from per-view reuse. Keep live network measurements separate.
+2. Reduce process creation for the remaining distinct blob-pair diffs. A batched
+   Git strategy must preserve byte-identical patches, committed attribute
+   isolation, path handling, partial/failure states and aggregate limits. Existing
+   bounded concurrency already removes some waiting; it does not remove forks.
+3. Expand full-source sizes/change shapes and measure fresh-process first-time
+   selection. The new distinct-basename and ten-commit fixtures show that the
+   result is not yet universally 10x. Investigate the per-commit overhead while
+   retaining membership, ancestry, completeness and freshness checks.
 4. Profile large cached snapshot decoding/validation and session creation.
    Any storage optimization must keep integrity validation, isolation and stale
    writer rejection. Do not trade these checks for a faster first frame.

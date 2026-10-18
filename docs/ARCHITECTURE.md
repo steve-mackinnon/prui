@@ -54,6 +54,9 @@ under an 8 MiB / 2,048-entry memory cap. Every read retains its own size limit
 and cancellation check. Main inventory can batch-check object sizes and read
 eligible blobs through the same isolated runner. Canonical blob-pair diffs have
 an independent 8 MiB / 2,048-entry reuse cap; other Git operations are not cached.
+Known blob pairs can use up to eight local diff workers after reserving
+conservative patch-byte and line budgets. Results enter the inventory in the
+original order; custom runners remain serial unless they advertise parallel use.
 Evidence retrieval indexes changed directories and
 deleted paths once before ranking the pinned trees. See the
 [performance ledger](PERFORMANCE.md) for startup/open baselines and remaining work.

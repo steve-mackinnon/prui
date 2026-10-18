@@ -18,7 +18,7 @@ func TestOpenTimingPreservesCommitCapture(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			app, seed := wiringFixture(t)
 			if supportsCommits {
-				app.gh = performanceGitHub{app.gh.(*fixtureGH)}
+				app.gh = performanceGitHub{fixtureGH: app.gh.(*fixtureGH)}
 			}
 			metadata := seed.Inventory.Comparison.Metadata
 			t.Setenv(verify.OpenTimingEnvironment, "")
