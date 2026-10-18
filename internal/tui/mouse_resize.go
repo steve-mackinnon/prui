@@ -69,23 +69,10 @@ func (m *Model) mouseResize(msg tea.MouseMsg) (tea.Cmd, bool) {
 			m.saveLayout()
 			return nil, true
 		}
-		keepSearchMatch := m.searchMatchAtCursor()
-		sourceRestore := m.sourceCursorRestorer()
-		target, commentID := m.cursorAnchor()
-		m.listWidthPreference = width
-		m.saveLayout()
-		m.restoreCursorAnchor(target, commentID)
-		if sourceRestore != nil {
-			sourceRestore()
-		}
-		if keepSearchMatch {
-			m.revealSearchMatch()
-		}
-		m.setOffset(m.clampOffset(m.offset()))
-		if m.cursorActive {
-			m.ensureCursorVisible()
-		}
-		m.ensureReplyEditorVisible()
+		m.preserveDiffPosition(positionMouseResize, func() {
+			m.listWidthPreference = width
+			m.saveLayout()
+		})
 		return m.restartGuidePathScroll(), true
 	}
 	return nil, wasDragging

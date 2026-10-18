@@ -74,17 +74,8 @@ func (m *Model) toggleLineNumbers() {
 		m.diffWrapCache = diffWrapCache{}
 		return
 	}
-	restoreSource := m.sourceCursorRestorer()
-	target, commentID := m.cursorAnchor()
-	keepSearch := m.searchMatchAtCursor()
-	m.hideLineNumbers = !m.hideLineNumbers
-	m.diffWrapCache = diffWrapCache{}
-	m.restoreCursorAnchor(target, commentID)
-	if restoreSource != nil {
-		restoreSource()
-	}
-	m.ensureReplyEditorVisible()
-	if keepSearch {
-		m.revealSearchMatch()
-	}
+	m.preserveDiffPosition(positionGutterToggle, func() {
+		m.hideLineNumbers = !m.hideLineNumbers
+		m.diffWrapCache = diffWrapCache{}
+	})
 }

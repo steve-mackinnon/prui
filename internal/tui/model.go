@@ -778,7 +778,6 @@ func (m *Model) update(msg tea.Msg) (updated tea.Model, command tea.Cmd) {
 		return m, m.mouseUpdate(v)
 	case tea.WindowSizeMsg:
 		m.textSelection = textSelection{}
-		overviewRelative, preserveOverview := m.overviewPosition()
 		m.cancelMouseDrag()
 		if m.commitFilter.subset && m.diffReviewView() {
 			m.Width, m.Height = max(1, v.Width), max(1, v.Height)
@@ -791,28 +790,10 @@ func (m *Model) update(msg tea.Msg) (updated tea.Model, command tea.Cmd) {
 			m.ensureCommitEditorVisible()
 			return m, nil
 		}
-		keepSearchMatch := m.searchMatchAtCursor()
-		sourceRestore := m.sourceCursorRestorer()
-		cursorTarget, cursorCommentID := m.cursorAnchor()
-		m.Width = max(1, v.Width)
-		m.Height = max(1, v.Height)
-		m.restoreCursorAnchor(cursorTarget, cursorCommentID)
-		if sourceRestore != nil {
-			sourceRestore()
-		}
-		// A split-preference resize can change the number of display rows above a
-		// target. Keep its semantic cursor and saved reading offset intact across
-		// the unified fallback instead of replacing it with a nearby visible row.
-		if m.diffLayout() != diffLayoutSideBySide && cursorTarget == nil && cursorCommentID == 0 && sourceRestore == nil {
-			m.cursorInViewport(1)
-		}
-		m.ensureReplyEditorVisible()
-		if preserveOverview {
-			m.restoreOverviewPosition(overviewRelative)
-		}
-		if keepSearchMatch {
-			m.revealSearchMatch()
-		}
+		m.preserveDiffPosition(positionWindowResize, func() {
+			m.Width = max(1, v.Width)
+			m.Height = max(1, v.Height)
+		})
 		return m, m.restartGuidePathScroll()
 	case tea.KeyPressMsg:
 		m.textSelection = textSelection{}
@@ -1647,22 +1628,10 @@ func (m *Model) resizeList(delta int) {
 		m.saveLayout()
 		return
 	}
-	keepSearchMatch := m.searchMatchAtCursor()
-	sourceRestore := m.sourceCursorRestorer()
-	target, commentID := m.cursorAnchor()
-	m.listWidthPreference = m.clampListWidth(m.listWidth() + delta)
-	m.saveLayout()
-	m.restoreCursorAnchor(target, commentID)
-	if sourceRestore != nil {
-		sourceRestore()
-	}
-	if keepSearchMatch {
-		m.revealSearchMatch()
-	}
-	if m.diffLayout() != diffLayoutSideBySide && target == nil && commentID == 0 && !keepSearchMatch && sourceRestore == nil {
-		m.cursorInViewport(1)
-	}
-	m.ensureReplyEditorVisible()
+	m.preserveDiffPosition(positionKeyboardResize, func() {
+		m.listWidthPreference = m.clampListWidth(m.listWidth() + delta)
+		m.saveLayout()
+	})
 }
 func (m *Model) file(delta int) {
 	if rows := m.navigable(); rows != nil {
@@ -2187,79 +2156,6 @@ func (m *Model) cursorAnchor() (*source.ReviewCommentTarget, int64) {
 		return &target, line.commentID
 	}
 	return nil, line.commentID
-}
-
-// sourceCursorRestorer preserves a read-only captured source row across layout
-// projections without assigning it a GitHub comment target.
-func (m *Model) sourceCursorRestorer() func() {
-	if m.navigation.mode == "" && !m.guideExpanded || m.selectedDiffTarget() != nil {
-		return nil
-	}
-	cursor := m.cursor()
-	if cursor < 0 {
-		return nil
-	}
-	line := m.displayDetail()[cursor]
-	if line.commentID > 0 {
-		return nil
-	}
-	if line.sideBySide != nil {
-		if line.sideBySide.new != nil {
-			line = *line.sideBySide.new.line
-		} else if line.sideBySide.old != nil {
-			line = *line.sideBySide.old.line
-		}
-	}
-	if line.searchID.Unit == "" {
-		return nil
-	}
-	id, offset := line.searchID, line.sourceOffset
-	return func() {
-		fallback := -1
-		for i, row := range m.displayDetail() {
-			cells := []diffLine{row}
-			if row.sideBySide != nil {
-				cells = nil
-				if row.sideBySide.new != nil {
-					cells = append(cells, *row.sideBySide.new.line)
-				}
-				if row.sideBySide.old != nil {
-					cells = append(cells, *row.sideBySide.old.line)
-				}
-			}
-			for _, cell := range cells {
-				if cell.searchID == id {
-					fallback = i
-					if cell.sourceOffset >= offset {
-						m.setCursor(i)
-						return
-					}
-				}
-			}
-		}
-		if fallback >= 0 {
-			m.setCursor(fallback)
-		}
-	}
-}
-
-// restoreCursorAnchor keeps a semantic selection stable while a resize or
-// layout toggle changes the number of display rows above it.
-func (m *Model) restoreCursorAnchor(target *source.ReviewCommentTarget, commentID int64) {
-	if target == nil && commentID == 0 {
-		return
-	}
-	for i, line := range m.displayDetail() {
-		if target != nil && diffLineHasTarget(line, *target) {
-			m.setCursor(i)
-			m.setSelectedDiffTarget(target)
-			return
-		}
-		if target == nil && commentID > 0 && line.commentID == commentID {
-			m.setCursor(i)
-			return
-		}
-	}
 }
 
 // moveDisplayCursor keeps j/k movement uniform across noncommentable rows.

@@ -203,31 +203,15 @@ func (m *Model) activateAction() tea.Cmd {
 
 // These display toggles use the same cursor preservation as their shortcuts.
 func (m *Model) toggleDiffLayout() {
-	keepMatch := m.searchMatchAtCursor()
-	restore := m.sourceCursorRestorer()
-	target, id := m.cursorAnchor()
-	m.layout = m.layout.toggled()
-	m.saveLayout()
-	m.restoreCursorAnchor(target, id)
-	if restore != nil {
-		restore()
-	}
-	if keepMatch {
-		m.revealSearchMatch()
-	}
+	m.preserveDiffPosition(positionDisplayToggle, func() {
+		m.layout = m.layout.toggled()
+		m.saveLayout()
+	})
 }
 func (m *Model) toggleGeneratedFiles() {
-	keepMatch := m.searchMatchAtCursor()
-	restore := m.sourceCursorRestorer()
-	target, id := m.cursorAnchor()
-	m.collapseGenerated = !m.collapseGenerated
-	m.restoreCursorAnchor(target, id)
-	if restore != nil {
-		restore()
-	}
-	if keepMatch {
-		m.revealSearchMatch()
-	}
+	m.preserveDiffPosition(positionDisplayToggle, func() {
+		m.collapseGenerated = !m.collapseGenerated
+	})
 	m.saveLayout()
 }
 
