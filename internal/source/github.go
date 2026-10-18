@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"net/url"
 	"regexp"
 	"strconv"
@@ -183,11 +184,17 @@ type GH struct {
 	Executable string
 	Limits     Limits
 	Dir        string
+	readClient *http.Client
 }
 
 func NewGH(r Runner, l Limits, dir string) (*GH, error) {
 	p, e := trustedExecutable("gh")
-	return &GH{r, p, l, dir}, e
+	g := &GH{Runner: r, Executable: p, Limits: l, Dir: dir}
+	// Custom runners retain the existing CLI boundary, including test doubles.
+	if _, real := r.(processRunner); real && e == nil {
+		g.readClient = newGitHubReadClient()
+	}
+	return g, e
 }
 func (g *GH) call(ctx context.Context, args ...string) ([]byte, error) {
 	return g.callWithStdin(ctx, nil, args...)
@@ -489,7 +496,7 @@ func (g *GH) Metadata(ctx context.Context, id Identity) (Metadata, error) {
 	if _, err := ParseIdentity(strconv.Itoa(id.Number), id.Repository); err != nil {
 		return Metadata{}, err
 	}
-	data, err := g.call(ctx, "api", "--hostname", "github.com", "--method", "GET", fmt.Sprintf("repos/%s/pulls/%d", id.Repository, id.Number))
+	data, err := g.readGET(ctx, fmt.Sprintf("repos/%s/pulls/%d", id.Repository, id.Number))
 	if err != nil {
 		return Metadata{}, fmt.Errorf("GitHub metadata unavailable (check authentication and connectivity): %w", err)
 	}

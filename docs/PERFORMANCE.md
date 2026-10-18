@@ -536,6 +536,83 @@ This change does not address startup or remove any network/freshness check.
 Full verification passed, including race tests, terminal journeys, installation
 checks, vet and build. Configured lint reported zero issues.
 
+## Eighth iteration: reuse connections for capture reads
+
+The ordinary first-open path performs three independent metadata reads and one
+commit-list read. These are consistency boundaries: none was removed, combined
+or served from a response cache. Four sequential authenticated requests through
+separate CLI processes took a median 1,425 ms; the same endpoints through one
+reusable HTTP client took 1,074 ms (three trials, about 25% less for this stage).
+The diagnostic reused existing credentials only in memory. It excluded CLI
+credential-export cost; complete-open measurements below include that cost.
+
+Only `Metadata` and `ListPullRequestCommits` now share a bounded client. Every
+request still resolves the active account through `gh auth token --hostname
+github.com`; no token is cached. Custom runners preserve the CLI boundary.
+If token export fails before an HTTP attempt, the original CLI read remains
+available. Cancellation, deadline and resource-limit failures do not fall back;
+neither do attempted HTTP reads. Writes and all other API operations retain the
+original CLI path. Offline startup still constructs no GitHub client.
+
+The client fixes HTTPS/API origin, bounds connections, headers, decompressed
+response bytes and the total authentication-plus-request deadline. Redirects
+are bounded and confined to the same API origin. Error bodies and transport
+errors never enter diagnostics. Existing UTF-8, JSON, identity, pins and commit
+validation remain the final authority. The chosen API version retains the
+[documented default](https://docs.github.com/en/rest/about-the-rest-api/api-versions);
+credential lookup uses the CLI's
+[active-account behavior](https://cli.github.com/manual/gh_auth_token).
+
+Three real PR 109 first opens ran interleaved with new private homes, no previous
+snapshots, and existing authenticated credentials passed only in memory:
+
+| Trial | Prior `99791ff` | Reused connection |
+| --- | ---: | ---: |
+| 1 | 3,063.19 ms | 3,351.67 ms |
+| 2 | 2,933.78 ms | 2,592.97 ms |
+| 3 | 2,879.32 ms | 2,608.90 ms |
+| Median | 2,933.78 ms | 2,608.90 ms |
+
+The median improved about 11%, with a slower optimized first trial. Every pair
+had identical decoded snapshots: nine files, complete commit membership and
+composition, and 33 evidence excerpts. Pins matched the preceding live trials.
+Artifacts: `/tmp/prui-eighth-live-fiemku9o`. This is approximately 2.5x faster
+than the earlier authenticated original baseline, still short of the 10x goal.
+
+A separate five-pair confirmation alternated the order on each trial:
+
+| Trial | Prior | Reused connection |
+| --- | ---: | ---: |
+| 1 | 3,029.26 ms | 2,646.35 ms |
+| 2 | 2,878.25 ms | 2,637.95 ms |
+| 3 | 2,907.70 ms | 2,810.49 ms |
+| 4 | 2,961.33 ms | 2,770.89 ms |
+| 5 | 3,148.56 ms | 2,775.25 ms |
+| Median | 2,961.33 ms | 2,770.89 ms |
+
+This confirms a smaller 6.4% end-to-end improvement, with identical complete
+snapshots in all five pairs. Artifacts: `/tmp/prui-eighth-confirm-1q_cpkpu`.
+Use the observed 6–11% range for this incremental change rather than treating
+the first three-trial median as a universal result. The confirmation is about
+2.35x faster than the original authenticated baseline. A separate four-request
+probe using the normal macOS keychain, resolving credentials afresh on every
+request, improved from 1,559 to 1,200 ms (three trials); the benefit survives
+ordinary credential lookup without setting a benchmark-only token path.
+
+Eleven interleaved offline startup trials measured 44.33 ms originally and
+44.85 ms now. The first series included a 133 ms original and an 813 ms new
+maximum; their causes were not established. A second eleven-trial series
+measured 43.96 / 44.90 ms, with maxima 44.84 / 46.74 ms. Every second-series
+sample is recorded in `/tmp/prui-eighth-startup-confirm.json`. There is no
+startup improvement, and the first-series tail is not claimed as eliminated.
+
+Synthetic tests exercise actual TLS connection reuse, per-read credential
+changes, same-origin redirect policy, response bounds, cancellation during
+body reads, common authentication/request deadlines, malformed responses,
+no fallback after dispatched reads, and unchanged CLI writes/custom runners.
+The full verification script passed (installer fixtures, vet, race tests, terminal
+journeys and build), and configured lint reported zero issues.
+
 ## Reproduction and validation
 
 ```sh
@@ -568,11 +645,13 @@ including vet, race tests, PTY tests and build; configured lint reported zero is
 
 1. Extend live first-selection measurements beyond PR 109, including a larger
    PR and the interactive first readable frame. The authenticated nine-file PR
-   remains only about 2.2x faster. Current synthetic offline startup is under 50 ms;
-   no-argument PR browsing can have different network costs.
+   is about 2.35x faster in the latest five-pair confirmation. Median synthetic
+   offline startup is under 50 ms; no-argument PR browsing can have different
+   network costs.
 2. Profile the remaining GitHub request/process/connection overhead and per-commit
    work. Preserve every pinning, freshness and completeness check; investigate
-   connection reuse before changing consistency boundaries. Reuse authenticated
+   further transport work before changing consistency boundaries. Connection
+   reuse is now in place for capture reads. Reuse authenticated
    benchmark setup without saving credentials. Evidence reservations remain
    conservative; inspect remaining serial/oversized reads before extending APIs.
 3. Expand full-source sizes/change shapes and measure fresh-process first-time

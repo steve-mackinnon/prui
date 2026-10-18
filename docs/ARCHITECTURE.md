@@ -11,7 +11,7 @@ and boundaries for contributors.
 | Package | Responsibility |
 | --- | --- |
 | `cmd/prui` | Parse commands, assemble dependencies, control online actions and GitHub writes |
-| `internal/source` | Read GitHub metadata through `gh`; build an isolated Git object view and pin a comparison |
+| `internal/source` | Read GitHub metadata using CLI credentials; build an isolated Git object view and pin a comparison |
 | `internal/inventory` | Turn the pinned comparison into deterministic files, review units, and patches |
 | `internal/context` | Retrieve bounded repository evidence for optional guide generation |
 | `internal/privacy` | Apply path and content exclusions to material considered for upload |
@@ -48,6 +48,12 @@ The source view reads object data from the checkout without using its config,
 hooks, filters, or worktree. The frozen inventory and description are what a
 review session displays; later changes in the checkout cannot silently alter
 that session. A new comparison is an explicit operation.
+
+PR metadata and commit capture reuse a bounded HTTPS connection to GitHub's API.
+Each request resolves the current CLI account again; tokens and responses are
+never cached. The original metadata checks before/after capture and after saving
+remain separate reads. Other GitHub operations retain their CLI transport.
+Custom runners retain the CLI boundary; offline startup constructs no client.
 
 Object-file linking uses at most four workers. A bounded preflight can replace
 duplicate loose links with independently owned, Git-verified pack/index copies.
