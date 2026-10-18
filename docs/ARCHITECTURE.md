@@ -51,7 +51,10 @@ that session. A new comparison is an explicit operation.
 
 Within one isolated view, successful blob reads reuse immutable object bytes
 under an 8 MiB / 2,048-entry memory cap. Every read retains its own size limit
-and cancellation check. Evidence retrieval indexes changed directories and
+and cancellation check. Main inventory can batch-check object sizes and read
+eligible blobs through the same isolated runner. Canonical blob-pair diffs have
+an independent 8 MiB / 2,048-entry reuse cap; other Git operations are not cached.
+Evidence retrieval indexes changed directories and
 deleted paths once before ranking the pinned trees. See the
 [performance ledger](PERFORMANCE.md) for startup/open baselines and remaining work.
 

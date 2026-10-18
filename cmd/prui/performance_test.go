@@ -14,6 +14,18 @@ import (
 
 type performanceGitHub struct{ *fixtureGH }
 
+type performanceRunner struct {
+	source.Runner
+	calls map[string]int
+}
+
+func (r *performanceRunner) Run(ctx context.Context, request source.Request) ([]byte, error) {
+	if len(request.Args) > 2 {
+		r.calls[request.Args[2]]++
+	}
+	return r.Runner.Run(ctx, request)
+}
+
 func (g performanceGitHub) ListPullRequestCommits(context.Context, source.Identity) ([]source.PullRequestCommit, error) {
 	return []source.PullRequestCommit{{SHA: g.value.HeadSHA, Subject: "synthetic change", Author: "fixture"}}, nil
 }
@@ -58,14 +70,22 @@ func BenchmarkPullRequestOpen(b *testing.B) {
 				b.Fatal(err)
 			}
 			defer store.Close()
-			app := &application{store: store, gh: performanceGitHub{&fixtureGH{value: meta}}, runner: source.NewRunner(), limits: source.Defaults()}
+			runner := &performanceRunner{Runner: source.NewRunner(), calls: map[string]int{}}
+			app := &application{store: store, gh: performanceGitHub{&fixtureGH{value: meta}}, runner: runner, limits: source.Defaults()}
 			b.Run("cold", func(b *testing.B) {
+				before := map[string]int{}
+				for command, count := range runner.calls {
+					before[command] = count
+				}
 				b.ReportAllocs()
 				for i := 0; i < b.N; i++ {
 					s, err := app.openWithPrevious(context.Background(), repo.Dir, meta.Identity, nil, nil)
 					if err != nil || s == nil || !s.Inventory.Complete || len(s.Inventory.Files) != changed {
 						b.Fatalf("open: %v", err)
 					}
+				}
+				for _, command := range []string{"cat-file", "diff", "ls-tree"} {
+					b.ReportMetric(float64(runner.calls[command]-before[command])/float64(b.N), command+"-calls/op")
 				}
 			})
 			b.Run("cached", func(b *testing.B) {

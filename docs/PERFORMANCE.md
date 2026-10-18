@@ -6,6 +6,9 @@ Target: make startup and PR opening 10 times faster without changing core
 behavior. **Active; not achieved.** Compare medians on the same host, build
 configuration, fixture and cache state. A stage-level speedup does not establish
 an end-to-end speedup. Keep network latency separate from application work.
+The user clarified that **selecting a PR for the first time** is the primary
+scenario; cold opens take priority in subsequent iterations. Startup remains
+part of the original goal.
 
 - Startup: process launch to the first readable offline review frame in a PTY.
 - Cold open: Git pinning, main inventory, commit capture/composition, evidence,
@@ -29,8 +32,10 @@ Cold opening builds an isolated Git object view, verifies ancestry, captures
 the main inventory and each commit, gathers composition source and evidence,
 then stores the result. Git commands remain isolated from checkout config,
 hooks, filters and helpers. Inventory uses individual blob reads and blob-pair
-diff subprocesses. Repeated objects occur across the main comparison, commit
-diffs, composition and evidence; these formerly launched Git each time.
+diff subprocesses. Main inventory now batch-checks blob sizes and reads eligible
+objects in a bounded Git batch. Repeated objects occur across the main comparison,
+commit diffs, composition and evidence; these formerly launched Git each time.
+Canonical blob-pair diff output is now also reusable inside the same view.
 
 Evidence retrieval formerly scanned all changed paths for every tree entry,
 both when ranking candidates and choosing deleted-side evidence. This makes
@@ -79,12 +84,69 @@ One startup trial had a 794 ms outlier; further measurements should interleave
 binaries on an otherwise quiet host. A one-iteration UI CPU profile had too few
 samples to support an optimization and was not used to justify changes.
 
+### Second iteration: first-time PR selection
+
+| Experiment | Prior checkpoint | Current median | Original → current |
+| --- | ---: | ---: | ---: |
+| Cold open, repeated text | 3,968 ms | 467.74 ms | 19.6x |
+| Cold open, distinct text | 6,225 ms | 2,445.77 ms | 4.58x |
+| Cold open, large mode-only PR | 649 ms | 735.94 ms | 6.32x |
+
+The mode-only fixture has no textual blob-pair diffs and is not a target of the
+new optimizations. Its host-level variation needs a quiet interleaved comparison
+before attributing the difference to code. Cached-open measurements remain in
+roughly the same 10–52 ms range. Eleven interleaved original/current offline
+startup launches, after verification finished, measured medians of 42.73 ms and
+44.82 ms respectively. There were large first-launch outliers (148 ms original,
+813 ms current); no startup gain is established.
+
+Changes were measured separately before combination:
+
+- Bounded main-inventory batch reads reduced distinct-text opens from 6,225 ms
+  to 4,384 ms. The protocol checks sizes first, reads at most the view's available
+  8 MiB cache budget and validates every header, object identity, length, separator
+  and final framing before exposing any bytes. Objects not read because of the
+  batch cap retain the ordinary single-object path. A failed attempted read is
+  returned to inventory, never silently retried. See the
+  [Git batch protocol](https://git-scm.com/docs/git-cat-file#_batch_output).
+- Reusing canonical immutable blob-pair diffs reduced distinct-text opens
+  further to 3,818 ms, and repeated-text opens to 1,799 ms. This has a separate
+  8 MiB / 2,048-entry cap. Only the inventory's exact fixed options and two full
+  object IDs qualify; other options, paths, trees, refs and mutating commands
+  are never cached. Size limits, cancellation, ownership and close semantics
+  still apply, and every consumer charges its normal content budget.
+- A CPU profile of complete opens then attributed 64% of sampled CPU to Chroma
+  filename selection. The pinned registry tries 13 editor/package backup suffixes
+  against every glob even when the filename has none. Checking actual suffixes
+  once per filename, then testing the original basename and applicable stripped
+  variants, preserves primary-pattern precedence, registry order, one match per
+  pattern and Chroma's priority tie-breaking. Differential tests compare against
+  the actual registry across every registered language, filename aliases, backup
+  suffixes, case-sensitive names, unknown names and invalid UTF-8 paths.
+  Go selection fell from a median 2.64 ms to 79 microseconds; TypeScript from
+  2.22 ms to 77 microseconds. This optimization uses no warmed result cache.
+
+The complete-open benchmark now reports subprocess counts. Distinct-text
+opening currently launches six `cat-file` calls and 100 blob-pair `diff` calls;
+the repeated-text case needs only one `diff`. The remaining distinct diffs are
+the next measured bottleneck. The current measurements retain complete commit
+capture, composition, evidence, persistence and freshness work.
+
+Inspection also found that the verifier's existing metadata-timing wrapper hid
+the optional commit-reader interface. Measured production opens could therefore
+omit commit capture. The wrapper now retains that interface only when the
+underlying client supports it. A regression test checks both supported and
+unsupported clients and requires byte-equivalent captured history with timing
+enabled or disabled. The synthetic benchmark numbers above never enabled this
+wrapper and always included commits.
+
 ## Reproduction and validation
 
 ```sh
 go test ./internal/context -run '^$' -bench BenchmarkRetrieveLargeTree -benchtime=1x -count=3
 go test ./cmd/prui -run '^$' -bench BenchmarkPullRequestOpen -benchtime=1x -count=3
 go test ./internal/source -run '^$' -bench BenchmarkBlobRead -benchtime=1s -count=3
+go test ./internal/syntax -run '^$' -bench BenchmarkLexerSelection -benchtime=100x -count=3
 ./scripts/verify.sh
 ```
 
@@ -98,8 +160,12 @@ access instead of altering the tests.
 
 Regression tests cover directory/path ranking and deleted-side selection,
 immutable bytes, tighter limits on reuse, cancellation, closed views, cache
-caps and retry after failed reads. The repository verification script passed
-after the first two optimizations, including vet, race tests, PTY tests and build.
+caps and retry after failed reads. Additional coverage checks batch framing,
+size preflight, cap enforcement before content reads, malformed metadata,
+no automatic resource-limit retries, canonical diff reuse, complete inventory
+equivalence, registry matching equivalence and timing-enabled commit capture.
+The complete repository verification script passed after the second iteration,
+including vet, race tests, PTY tests and build; configured lint reported zero issues.
 
 ## Next iterations
 
@@ -107,12 +173,13 @@ after the first two optimizations, including vet, race tests, PTY tests and buil
    local startup, remote calls, commit capture, persistence and first usable frame.
    Current synthetic startup is already under 50 ms; no-argument PR browsing
    can have different network costs.
-2. Measure bounded Git batch blob reads for distinct-object cold misses. Keep
-   the existing runner's cancellation/output bounds and individual blob limits;
-   test malformed/missing objects and exact output framing before adopting it.
-3. Profile remaining blob-pair diff subprocesses and repeated commit comparisons.
-   Consider bounded reuse or concurrency only with deterministic coverage,
-   resource limits and byte-identical patches preserved.
+2. Reduce the remaining 100 distinct blob-pair diff subprocesses. Investigate
+   bounded concurrency or a batched Git strategy only with deterministic
+   coverage, aggregate resource limits and byte-identical patches preserved.
+   Reuse already removes identical comparisons across the main and commit views.
+3. Expand complete-open fixtures to multiple commits and distinct basenames,
+   and measure fresh-process first-time selection to separate process startup
+   from per-view reuse. Keep live network measurements separate.
 4. Profile large cached snapshot decoding/validation and session creation.
    Any storage optimization must keep integrity validation, isolation and stale
    writer rejection. Do not trade these checks for a faster first frame.
