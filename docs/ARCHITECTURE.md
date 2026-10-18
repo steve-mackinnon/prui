@@ -69,6 +69,11 @@ an independent 8 MiB / 2,048-entry reuse cap; other Git operations are not cache
 Known blob pairs can use up to eight local diff workers after reserving
 conservative patch-byte and line budgets. Results enter the inventory in the
 original order; custom runners remain serial unless they advertise parallel use.
+Successful syntax captures also reuse categories within one open attempt, keyed
+by exact path and a SHA-256 digest of the complete input bytes. This separate
+8 MiB / 128-entry cache holds copied spans, never source or failed results.
+Each comparison still applies its own byte, span and elapsed-work budgets;
+source reads, provenance checks and persisted payload validation remain intact.
 Evidence retrieval indexes changed directories and deleted paths once before
 ranking the pinned trees. Eligible evidence reads use bounded eight-candidate
 windows after reserving file/excerpt allowances; privacy filtering and output

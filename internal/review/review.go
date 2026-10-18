@@ -12,6 +12,7 @@ import (
 	"prui/internal/privacy"
 	"prui/internal/session"
 	"prui/internal/source"
+	"prui/internal/syntax"
 	"time"
 )
 
@@ -54,6 +55,7 @@ func OpenWithConfig(ctx context.Context, checkout string, id source.Identity, gh
 }
 
 func openWithConfigAttempt(ctx context.Context, checkout string, id source.Identity, gh source.GitHub, r source.Runner, l source.Limits, notify func(string), cfg Config) (*Session, error) {
+	ctx = syntax.WithCache(ctx)
 	var pinTiming *source.PinTiming
 	if cfg.Timing != nil {
 		pinTiming = &cfg.Timing.Pin

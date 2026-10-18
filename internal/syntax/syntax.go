@@ -56,6 +56,13 @@ func Supported(path string) bool { return matchLexer(path) != nil }
 
 // TokenizeWithStatus retains the reason a best-effort capture was unavailable.
 func TokenizeWithStatus(ctx context.Context, path string, source []byte) (Lines, Status) {
+	if cache, ok := ctx.Value(tokenCacheKey{}).(*tokenCache); ok {
+		return cache.capture(ctx, path, source, tokenizeDefault)
+	}
+	return tokenizeDefault(ctx, path, source)
+}
+
+func tokenizeDefault(ctx context.Context, path string, source []byte) (Lines, Status) {
 	return tokenize(ctx, path, source, MaxDuration)
 }
 

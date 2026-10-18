@@ -63,9 +63,18 @@ func TestSyntaxBudgetReportsReasons(t *testing.T) {
 		{"spans", syntaxBudget{remaining: SyntaxDuration, spans: 32000}, syntax.InventorySpanLimit},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			old, new, status := tc.budget.capture(context.Background(), f, []byte("const x=1;\n"), []byte("const x=2;\n"))
-			if old != nil || new != nil || status.Old != tc.want || status.New != tc.want {
-				t.Fatalf("silent budget omission: %#v", status)
+			cached := syntax.WithCache(context.Background())
+			for _, text := range []string{"const x=1;\n", "const x=2;\n"} {
+				if _, status := syntax.TokenizeWithStatus(cached, "x.ts", []byte(text)); status != syntax.Ready {
+					t.Fatalf("cache warmup unavailable: %v", status)
+				}
+			}
+			for _, ctx := range []context.Context{context.Background(), cached} {
+				budget := tc.budget
+				old, new, status := budget.capture(ctx, f, []byte("const x=1;\n"), []byte("const x=2;\n"))
+				if old != nil || new != nil || status.Old != tc.want || status.New != tc.want {
+					t.Fatalf("silent budget omission: %#v", status)
+				}
 			}
 		})
 	}

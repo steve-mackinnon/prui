@@ -613,6 +613,82 @@ no fallback after dispatched reads, and unchanged CLI writes/custom runners.
 The full verification script passed (installer fixtures, vet, race tests, terminal
 journeys and build), and configured lint reported zero issues.
 
+## Ninth iteration: reuse successful syntax capture within an open
+
+A CPU/allocation profile of the complete recorded PR 109 open identified syntax
+capture as about 35% of sampled CPU and 67% of allocated bytes. Main inventory
+and commit inventory repeated the same successful lexing. The profile included
+benchmark warmup/setup; its percentages identify work, not end-to-end savings.
+Profiles and disposable diagnostic module: `/tmp/prui-perf-ninth`.
+
+Each open attempt now carries a fresh bounded highlighting cache through its
+child contexts. Exact path plus SHA-256 of the complete source identifies a
+result. Only successful captures enter the 8 MiB / 128-entry cap, with conservative
+accounting for keys, maps, slices and spans. Stored values and returned hits are
+independent copies; source bytes and failure statuses are never retained.
+Cancellation is checked before hits and after copying. Independent attempts do
+not share entries. Existing source retrieval, identity/integrity validation,
+per-blob limits, inventory byte/span limits and elapsed-work budgets all remain
+active. The cache saves actual lexer work, so it may make more optional syntax
+available before the time budget expires; unavailable source is never upgraded.
+
+Complete ordinary open/store path, recorded GitHub metadata and real immutable
+Git source, new private stores, three one-operation trials without concurrent
+builds/tests or profiling overhead:
+
+| Trial | Prior `c8a0298` | Reused syntax |
+| --- | ---: | ---: |
+| 1 | 1,448.35 ms | 1,238.61 ms |
+| 2 | 1,472.78 ms | 1,231.10 ms |
+| 3 | 1,429.85 ms | 1,227.21 ms |
+| Median | 1,448.35 ms | 1,231.10 ms |
+| Median allocated bytes | 186,644,408 | 123,005,680 |
+| Median allocations | 2,341,479 | 1,263,802 |
+
+This is about 15% less local complete-open time, 34% fewer allocated bytes, and
+46% fewer allocations. It does not include network time. Every run requires
+identical inventory (including syntax/statuses), context and commit/composition
+capture against the same saved reference. Git command counts remain unchanged:
+25 `cat-file`, three `diff-tree`, five `ls-tree`, and one `index-pack` per open.
+
+Tests cover exact identity, result independence, failure non-retention, entry
+and memory caps, cancellation, independent scopes, concurrent use, language and
+invalid-text equivalence. Warm-cache inventory tests preserve the original
+time, byte and span exhaustion statuses. `BenchmarkTokenizeCaptureReuse` models
+two captures of one blob, starting a fresh scope on every iteration.
+
+Five authenticated live PR 109 first-open pairs alternated their trial order,
+using fresh private homes and in-memory credentials:
+
+| Trial | Prior | Reused syntax |
+| --- | ---: | ---: |
+| 1 | 2,924.65 ms | 3,279.09 ms |
+| 2 | 2,757.96 ms | 2,573.05 ms |
+| 3 | 2,691.79 ms | 2,591.63 ms |
+| 4 | 2,900.72 ms | 2,401.16 ms |
+| 5 | 2,678.85 ms | 2,482.35 ms |
+| Median | 2,757.96 ms | 2,573.05 ms |
+
+The measured reduction is about 6.7%, including one slower optimized first
+trial. Every decoded snapshot was identical within its pair, including all
+nine files, 33 evidence excerpts and complete commit membership/composition.
+Artifacts: `/tmp/prui-ninth-live-rv173vyt`. The current median is about 2.53x
+faster than the authenticated original baseline, still below the 10x goal.
+The PR-list opener delegates its uncached path to the same ordinary open; guide
+generation is a separate consent action and does not block that opener. Actual
+interactive selection-to-readable-frame timing still needs separate measurement.
+
+The isolated two-capture benchmark measured 7.137 ms without reuse and 3.549 ms
+with it (median of three ten-iteration trials). Allocated bytes fell from
+3,304,503 to 1,688,136. Each timed iteration creates a new scope; this is not a
+cross-open cache-hit measurement. Eleven interleaved offline launches measured
+43.84 ms originally and 45.05 ms now, with maxima 136.02 / 46.44 ms. All samples
+are in `/tmp/prui-ninth-startup.json`; there is no startup gain.
+
+Full verification passed (installer fixtures, vet, race tests, terminal journeys
+and build). Configured lint reported zero issues; the final focused race checks
+also passed. This change retains every pinning/freshness read and source check.
+
 ## Reproduction and validation
 
 ```sh
@@ -621,6 +697,7 @@ go test ./cmd/prui -run '^$' -bench BenchmarkPullRequestOpen -benchtime=1x -coun
 go test ./internal/source -run '^$' -bench BenchmarkBlobRead -benchtime=1s -count=3
 go test ./internal/source -run '^$' -bench BenchmarkBorrowObjects -benchtime=1x -count=3
 go test ./internal/syntax -run '^$' -bench BenchmarkLexerSelection -benchtime=100x -count=3
+go test ./internal/syntax -run '^$' -bench BenchmarkTokenizeCaptureReuse -benchtime=10x -count=3
 ./scripts/verify.sh
 ```
 
@@ -645,9 +722,9 @@ including vet, race tests, PTY tests and build; configured lint reported zero is
 
 1. Extend live first-selection measurements beyond PR 109, including a larger
    PR and the interactive first readable frame. The authenticated nine-file PR
-   is about 2.35x faster in the latest five-pair confirmation. Median synthetic
-   offline startup is under 50 ms; no-argument PR browsing can have different
-   network costs.
+   is about 2.53x faster in the latest five-pair syntax-cache comparison. Median
+   synthetic offline startup is under 50 ms; no-argument PR browsing can have
+   different network costs.
 2. Profile the remaining GitHub request/process/connection overhead and per-commit
    work. Preserve every pinning, freshness and completeness check; investigate
    further transport work before changing consistency boundaries. Connection
