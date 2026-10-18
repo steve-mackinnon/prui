@@ -80,6 +80,7 @@ func Retrieve(parent context.Context, objects Objects, comparison source.PinnedC
 	defer cancel()
 	usedFiles, usedBytes := 0, 0
 	seen := map[string]bool{}
+	changed := indexChangedPaths(inv)
 	for _, f := range inv.Files {
 		for _, p := range [][]byte{f.OldPath, f.NewPath} {
 			if len(p) > 0 {
@@ -95,7 +96,7 @@ func Retrieve(parent context.Context, objects Objects, comparison source.PinnedC
 		}
 		cs := parseTree(out, commit)
 		for i := range cs {
-			cs[i].rank = rank(cs[i].path, inv)
+			cs[i].rank = changed.rank(cs[i].path)
 		}
 		sort.SliceStable(cs, func(i, j int) bool { return cs[i].rank < cs[j].rank })
 		for _, c := range cs {
@@ -112,10 +113,10 @@ func Retrieve(parent context.Context, objects Objects, comparison source.PinnedC
 				seen[key] = true
 				continue
 			}
-			if c.commit == comparison.MergeBaseSHA && !isDeletedSide(c.path, inv) {
+			if c.commit == comparison.MergeBaseSHA && !changed.deleted[string(c.path)] {
 				continue
 			}
-			if c.commit == comparison.Metadata.HeadSHA && isDeletedSide(c.path, inv) {
+			if c.commit == comparison.Metadata.HeadSHA && changed.deleted[string(c.path)] {
 				continue
 			}
 			if excluded, reason := policy.ExcludedPath(c.path); excluded {
@@ -194,26 +195,37 @@ func classify(p []byte) Kind {
 	}
 	return Source
 }
-func rank(p []byte, inv inventory.Inventory) int {
+
+// Build once per retrieval: scanning every changed path for every tree entry
+// makes even bounded evidence capture quadratic in repository/PR size.
+type changedPathIndex struct {
+	directories map[string]bool
+	deleted     map[string]bool
+}
+
+func indexChangedPaths(inv inventory.Inventory) changedPathIndex {
+	index := changedPathIndex{directories: map[string]bool{}, deleted: map[string]bool{}}
+	for _, f := range inv.Files {
+		for _, p := range [][]byte{f.OldPath, f.NewPath} {
+			if len(p) > 0 {
+				index.directories[filepath.Dir(string(p))] = true
+			}
+		}
+		if len(f.NewPath) == 0 {
+			index.deleted[string(f.OldPath)] = true
+		}
+	}
+	return index
+}
+
+func (index changedPathIndex) rank(p []byte) int {
 	k := classify(p)
 	n := 1
 	if k == Manifest || k == Documentation || k == NearbyTest {
 		n = 0
 	}
-	for _, f := range inv.Files {
-		for _, q := range [][]byte{f.OldPath, f.NewPath} {
-			if len(q) > 0 && filepath.Dir(string(q)) == filepath.Dir(string(p)) {
-				return n
-			}
-		}
+	if index.directories[filepath.Dir(string(p))] {
+		return n
 	}
 	return n + 1
-}
-func isDeletedSide(p []byte, inv inventory.Inventory) bool {
-	for _, f := range inv.Files {
-		if bytes.Equal(f.OldPath, p) && len(f.NewPath) == 0 {
-			return true
-		}
-	}
-	return false
 }
