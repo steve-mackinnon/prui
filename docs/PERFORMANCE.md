@@ -346,6 +346,128 @@ and verified absent. It is excluded from the comparison above. All subsequent
 probes used isolated homes. Local trial artifacts are in
 `/tmp/prui-live-compare-19osfm43` for this development session.
 
+### Sixth iteration: verified copies replace redundant loose links
+
+The real object store contains one pack with 9,019 objects and more than 9,000
+duplicate loose entries. Mirroring every loose entry costs substantially more
+than the selected nine-file comparison. The optimized path copies a bounded
+pack/index pair into private storage and lets Git independently verify it before
+omitting the corresponding loose links. It never packs or prunes the checkout.
+
+Eligibility requires at least 2,048 duplicate loose objects, one supported index
+pair, at most 10,000 indexed objects, and at most 16 MiB of retained compressed
+pack/index input within the caller's limits. SHA-1 v2 indices without large
+offsets are supported. Safe bounded basenames include the real store's
+`loose-…` naming as well as `pack-…`; unsupported names/layouts use the ordinary
+mirror. Candidate hard links are read only. Final copies use exclusive creation
+and cannot overwrite a borrowed object. Successful verification alone authorizes
+omission; a checksum-valid but forged index cannot bypass that verification.
+
+The resource preflight verifies checksums and exact sequential zlib framing,
+including every indexed stream boundary. It bounds raw object/instruction sizes
+and delta result sizes by the caller's blob limit (at most 1 MiB), rejects thin
+references, and bounds delta depth/cycles. Cumulative discarded verification
+work has a separate 96 MiB cap; captured source retains its existing 50 MiB and
+line quotas. Input copies remain within the 16 MiB ceiling. The verifier is
+`index-pack --verify --no-rev-index --threads=1 --max-input-size=16777216` inside
+the private view. It checks object identities and the complete index. Reverse
+index handling is disabled explicitly; checkout bytes and file modes stay
+unchanged. See [Git's pack format](https://git-scm.com/docs/gitformat-pack) and
+the [verification implementation](https://github.com/git/git/blob/v2.39.5/builtin/index-pack.c).
+
+Copies live under `borrowed/pack`, keeping the existing fetch reachability
+barrier and fetch-storage accounting intact. An ordinary verification failure
+authorizes no omissions and retains ordinary mirroring; the verifier itself
+is not retried. A resource failure or cancellation stops opening and cleans up.
+Regression tests cover real REF/OFS delta packs, corrupt and forged indices,
+size/overflow/depth/cycle limits, false record boundaries, cancellation, failed
+verification, symlink rejection even for covered duplicates, survival after
+removing the original object store, exclusive-copy safety, fetch reachability,
+pure-pack bypass, and unchanged checkout contents/modes.
+
+The actual store's setup/release microbenchmark, including a pinned commit read,
+uses three one-operation trials without network or concurrent verification:
+
+| Real object-view lifecycle | Prior checkpoint | Verified copies |
+| --- | ---: | ---: |
+| Complete create/read/release median | 1,986.66 ms | 439.19 ms |
+| Setup median | 1,376.96 ms | 407.93 ms |
+| Release median | 563.52 ms | 17.96 ms |
+
+A first correct streaming implementation allocated about 404 MB cumulatively
+per lifecycle because it created a decoder per record. Reusing the decoder
+within one preflight reduced that to about 37 MB and lowered lifecycle time
+from 471.02 ms to 439.19 ms. These are allocation totals, not peak resident
+memory; the prior mirror allocated about 7.8 MB. The earlier disposable prototype
+took about 272 ms but lacked complete resource preflight and was not adopted.
+An initial guarded build declined the real pack and measured no improvement
+(3.817 s prior / 3.890 s experimental). Diagnostic inspection identified its
+noncanonical basename and 75.5 MB of cumulative verification work. Those
+declined-path trials are not counted as optimization wins.
+
+Identical complete-open benchmarks were then run sequentially against the prior
+checkpoint (`b141322`, same code as `f6cc14a`) and the final implementation.
+Mixed fixtures run `repack -a` only during disposable setup, retaining loose
+duplicates. Medians of three one-operation trials:
+
+| Cold-open fixture, 100 distinct files | Prior | Verified copies |
+| --- | ---: | ---: |
+| Loose objects, one commit | 1,075.33 ms | 1,075.16 ms |
+| Loose objects, ten commits | 2,021.89 ms | 2,029.98 ms |
+| Packed objects, one commit | 415.30 ms | 422.12 ms |
+| Packed objects, ten commits | 1,114.99 ms | 1,125.96 ms |
+| Mixed duplicate objects, one commit | 819.18 ms | 472.73 ms |
+| Mixed duplicate objects, ten commits | 1,524.06 ms | 1,194.01 ms |
+
+The isolated change reduces mixed-store opens by about 42% and 22%. Loose,
+pure-packed and cached results are essentially unchanged; their small deltas
+are inside host noise. The mixed cases perform one bounded `index-pack` check;
+all four loose/pure-packed cases perform zero. Every trial requires complete
+inventory, commit membership and composition capture.
+
+Live measurements must preserve authentication as well as isolate storage.
+On this host, changing `HOME` prevents GitHub CLI from finding its normal macOS
+keychain token even with `GH_CONFIG_DIR` preserved. Earlier isolated-home
+measurements used public unauthenticated requests and eventually hit that
+quota. Subsequent comparisons obtain the existing token through `gh auth token`
+in the normal environment and pass it only in subprocess memory via `GH_TOKEN`.
+No credential is logged or saved. Do not mix authenticated and unauthenticated
+samples when computing speedups. The first authenticated three-way comparison
+measured medians of 6,534.38 ms original, 4,636.34 ms prior, and 3,082.18 ms for
+the verified-copy implementation before decoder reuse. All nine opens captured
+complete source and produced identical decoded snapshots within each group.
+Artifacts for that comparison are `/tmp/prui-sixth-verified-50hp7rhi`.
+
+The final decoder-reuse build was rechecked in another three-way authenticated
+comparison, with fresh private homes and no overlapping benchmark/verification
+work. Complete process-to-plain-open times:
+
+| Trial | Original `78cb664` | Prior `b141322` | Final verified copies |
+| --- | ---: | ---: | ---: |
+| 1 | 6,504.40 ms | 4,620.71 ms | 3,838.81 ms |
+| 2 | 6,584.52 ms | 4,614.75 ms | 3,122.87 ms |
+| 3 | 6,401.43 ms | 4,477.98 ms | 3,054.43 ms |
+| Median | 6,504.40 ms | 4,614.75 ms | 3,122.87 ms |
+
+The isolated change reduces this real open by about 32%; the full branch is
+about 2.08x faster than the authenticated original baseline. Every open captured
+all nine files, complete commit membership and composition. All three groups
+produced identical decoded snapshot payloads across the original, prior and
+final implementations, with the same base/head pins recorded above. The first
+optimized trial is an outlier; all three remain below every prior
+trial. Artifacts: `/tmp/prui-sixth-verified-mo26r0k7`. This still does not prove
+the requested 10x real-selection gain or any startup improvement.
+
+Eleven interleaved original/final offline PTY launches measured first readable
+review-frame medians of 43.91 ms and 44.66 ms (ranges 42.07–100.76 ms and
+42.39–46.12 ms). No startup improvement is established. Parser fuzzing also
+checks mutations with repaired outer checksums so framing/resource checks remain
+reachable; its result supplements the explicit adversarial fixtures.
+The 30-second fuzz run completed 6,296 executions with no crash; a five-second
+run with minimization disabled completed another 32,688 executions. Full
+repository verification passed, including vet, race tests, terminal journeys,
+installation checks and build. Configured lint reported zero issues.
+
 ## Reproduction and validation
 
 ```sh
@@ -377,13 +499,13 @@ including vet, race tests, PTY tests and build; configured lint reported zero is
 ## Next iterations
 
 1. Extend live first-selection measurements beyond PR 109, including a larger
-   PR and the interactive first readable frame. The real nine-file PR remains
-   only 1.50x faster. Current synthetic offline startup is already under 50 ms;
+   PR and the interactive first readable frame. The authenticated nine-file PR
+   remains only 2.08x faster. Current synthetic offline startup is under 50 ms;
    no-argument PR browsing can have different network costs.
-2. Extend object-view measurements to mixed stores and large real histories.
-   Bounded linking improves loose stores; it still mirrors every stored object.
-   Do not adopt checkout alternates or remove object validation to reduce setup
-   time. Any redundant-object avoidance needs its own validation/lifetime proof.
+2. Profile evidence retrieval, per-commit work and network sequencing after the
+   object-view improvement. Preserve pinning, freshness and completeness checks;
+   identify duplicate acquisition and process/connection overhead before editing.
+   Reuse authenticated benchmark setup without saving credentials.
 3. Expand full-source sizes/change shapes and measure fresh-process first-time
    selection. The new distinct-basename and ten-commit fixtures show that the
    result is not yet universally 10x. Investigate the per-commit overhead while
@@ -393,6 +515,9 @@ including vet, race tests, PTY tests and build; configured lint reported zero is
    writer rejection. Do not trade these checks for a faster first frame.
 5. Measure eager package initialization separately before considering dependency
    isolation. A startup rewrite needs evidence of a user-visible benefit.
+6. Broaden verified-copy eligibility only with evidence from larger/multiple-pack
+   stores. Current unsupported layouts retain ordinary mirroring. Retain all
+   integrity, work, cancellation, fetch-barrier and cleanup guarantees.
 
 Continue comparing complete opens after each change. Do not mark the goal
 complete based on a favorable fixture, cache hit or isolated stage.

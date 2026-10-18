@@ -49,6 +49,12 @@ hooks, filters, or worktree. The frozen inventory and description are what a
 review session displays; later changes in the checkout cannot silently alter
 that session. A new comparison is an explicit operation.
 
+Object-file linking uses at most four workers. A bounded preflight can replace
+duplicate loose links with independently owned, Git-verified pack/index copies.
+Unsupported layouts retain ordinary mirroring. Copies stay under borrowed
+reachability so fetching can unhook them without changing its storage budget;
+all temporary data remains owned by the view and is removed on close.
+
 Within one isolated view, successful blob reads reuse immutable object bytes
 under an 8 MiB / 2,048-entry memory cap. Every read retains its own size limit
 and cancellation check. Main inventory can batch-check object sizes and read

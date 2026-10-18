@@ -66,8 +66,8 @@ func (g performanceGitHub) ListPullRequestCommits(context.Context, source.Identi
 // Includes pinning, inventory, commit capture, evidence, durable storage and
 // freshness checks. GitHub responses are synthetic; network time is excluded.
 func BenchmarkPullRequestOpen(b *testing.B) {
-	for _, scenario := range []string{"text-100", "unique-text-100", "distinct-names-text-100", "ten-commits-text-100", "packed-distinct-names-text-100", "packed-ten-commits-text-100", "mode-1000-tree-10000"} {
-		shape := strings.TrimPrefix(scenario, "packed-")
+	for _, scenario := range []string{"text-100", "unique-text-100", "distinct-names-text-100", "ten-commits-text-100", "packed-distinct-names-text-100", "packed-ten-commits-text-100", "mixed-distinct-names-text-100", "mixed-ten-commits-text-100", "mode-1000-tree-10000"} {
+		shape := strings.TrimPrefix(strings.TrimPrefix(scenario, "packed-"), "mixed-")
 		modeOnly := shape == "mode-1000-tree-10000"
 		uniqueText := shape != "text-100" && !modeOnly
 		distinctNames := shape == "distinct-names-text-100" || shape == "ten-commits-text-100"
@@ -116,6 +116,8 @@ func BenchmarkPullRequestOpen(b *testing.B) {
 			}
 			if strings.HasPrefix(scenario, "packed-") {
 				repo.Git("gc", "--prune=now")
+			} else if strings.HasPrefix(scenario, "mixed-") {
+				repo.Git("repack", "-a") // Fixture only: retain duplicate loose objects.
 			}
 			meta := source.Metadata{Identity: source.Identity{Repository: "owner/repo", Number: 1}, BaseRepository: "owner/repo", HeadRepository: "owner/repo", BaseSHA: base, HeadSHA: head}
 			store, err := session.Open(filepath.Join(b.TempDir(), "storage"))
@@ -138,7 +140,7 @@ func BenchmarkPullRequestOpen(b *testing.B) {
 					}
 				}
 				after := runner.counts()
-				for _, command := range []string{"cat-file", "diff", "diff-tree", "ls-tree"} {
+				for _, command := range []string{"cat-file", "diff", "diff-tree", "ls-tree", "index-pack"} {
 					b.ReportMetric(float64(after[command]-before[command])/float64(b.N), command+"-calls/op")
 				}
 			})
