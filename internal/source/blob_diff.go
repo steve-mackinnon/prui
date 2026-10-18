@@ -10,12 +10,22 @@ import (
 const diffCacheBytes = 8 << 20
 const diffCacheEntries = 2048
 
+var blobDiffPrefix = []string{"diff", "--no-ext-diff", "--no-textconv", "--no-color", "--no-renames", "--text", "--diff-algorithm=myers", "--no-indent-heuristic", "--unified=3", "--inter-hunk-context=0", "--full-index"}
+
+// BlobDiffArgs is the canonical committed-blob comparison used by inventory.
+// Each caller owns its argument slice; the shared prefix remains immutable.
+func BlobDiffArgs(old, next string) []string {
+	args := make([]string, len(blobDiffPrefix)+3)
+	copy(args, blobDiffPrefix)
+	copy(args[len(blobDiffPrefix):], []string{old, next, "--"})
+	return args
+}
+
 // Only the inventory's fixed blob-to-blob command is reusable. Paths, trees,
 // refs, arbitrary diff options and commands with side effects never enter it.
 func blobDiffKey(args []string) string {
-	prefix := []string{"diff", "--no-ext-diff", "--no-textconv", "--no-color", "--no-renames", "--text", "--diff-algorithm=myers", "--no-indent-heuristic", "--unified=3", "--inter-hunk-context=0", "--full-index"}
-	n := len(prefix)
-	if len(args) != n+3 || !slices.Equal(args[:n], prefix) || args[n+2] != "--" || !shaPattern.MatchString(args[n]) || !shaPattern.MatchString(args[n+1]) {
+	n := len(blobDiffPrefix)
+	if len(args) != n+3 || !slices.Equal(args[:n], blobDiffPrefix) || args[n+2] != "--" || !shaPattern.MatchString(args[n]) || !shaPattern.MatchString(args[n+1]) {
 		return ""
 	}
 	return args[n] + args[n+1]

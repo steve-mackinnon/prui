@@ -153,11 +153,21 @@ func build(ctx context.Context, objects Objects, oldSHA, newSHA string, p *sourc
 	}
 	emptyOID := strings.TrimSpace(string(empty))
 	blobs := batchBlobs(ctx, objects, inv.Files, emptyOID, l.BlobBytes)
+	diffs := batchDiffs(ctx, objects, inv.Files, blobs, emptyOID, l)
 	readBlob := func(oid string) ([]byte, error) {
 		if result, ok := blobs[oid]; ok {
 			return result.Data, result.Err
 		}
 		return objects.Blob(ctx, oid, l.BlobBytes)
+	}
+	readDiff := func(pair blobPair, limit int) ([]byte, error) {
+		if result, ok := diffs[pair]; ok {
+			if result.Err == nil && len(result.Data) > limit {
+				return nil, source.ErrLimit
+			}
+			return result.Data, result.Err
+		}
+		return objects.Git(ctx, limit, source.BlobDiffArgs(pair.old, pair.next)...)
 	}
 	used, lines := 0, 0
 	syntaxBudget := syntaxBudget{remaining: SyntaxDuration}
@@ -191,15 +201,9 @@ func build(ctx context.Context, objects Objects, oldSHA, newSHA string, p *sourc
 		if f.OldOID == f.NewOID {
 			continue
 		}
-		oldOID, newOID := f.OldOID, f.NewOID
-		if f.OldMode == "000000" || f.OldMode == "160000" {
-			oldOID = emptyOID
-		}
-		if f.NewMode == "000000" || f.NewMode == "160000" {
-			newOID = emptyOID
-		}
-		a, ea := readBlob(oldOID)
-		b, eb := readBlob(newOID)
+		pair := fileBlobPair(f, emptyOID)
+		a, ea := readBlob(pair.old)
+		b, eb := readBlob(pair.next)
 		if ctx.Err() != nil {
 			return inv, ctx.Err()
 		}
@@ -211,7 +215,7 @@ func build(ctx context.Context, objects Objects, oldSHA, newSHA string, p *sourc
 			add(f, Unavailable, Range{}, Range{}, nil, reason)
 			continue
 		}
-		if bytes.IndexByte(a[:min(len(a), 8192)], 0) >= 0 || bytes.IndexByte(b[:min(len(b), 8192)], 0) >= 0 {
+		if binaryBlob(a) || binaryBlob(b) {
 			add(f, Binary, Range{}, Range{}, nil, "")
 			continue
 		}
@@ -220,7 +224,7 @@ func build(ctx context.Context, objects Objects, oldSHA, newSHA string, p *sourc
 			add(f, Unavailable, Range{}, Range{}, nil, "materialized content or diff-line limit exceeded")
 			continue
 		}
-		patch, e := objects.Git(ctx, remaining, "diff", "--no-ext-diff", "--no-textconv", "--no-color", "--no-renames", "--text", "--diff-algorithm=myers", "--no-indent-heuristic", "--unified=3", "--inter-hunk-context=0", "--full-index", oldOID, newOID, "--")
+		patch, e := readDiff(pair, remaining)
 		if ctx.Err() != nil {
 			return inv, ctx.Err()
 		}

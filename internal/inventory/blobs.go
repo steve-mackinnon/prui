@@ -21,14 +21,8 @@ func batchBlobs(ctx context.Context, objects Objects, files []FileChange, empty 
 		if f.OldOID == f.NewOID || f.OldMode == "160000" || f.NewMode == "160000" {
 			continue
 		}
-		old, next := f.OldOID, f.NewOID
-		if f.OldMode == "000000" {
-			old = empty
-		}
-		if f.NewMode == "000000" {
-			next = empty
-		}
-		ids = append(ids, old, next)
+		pair := fileBlobPair(f, empty)
+		ids = append(ids, pair.old, pair.next)
 	}
 	return reader.BlobBatch(ctx, ids, limit)
 }

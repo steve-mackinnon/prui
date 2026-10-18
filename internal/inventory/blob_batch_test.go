@@ -21,6 +21,28 @@ type batchInventoryObjects struct {
 	*source.View
 	batches, reads int
 	fail           bool
+	diffBatches    int
+	diffFallbacks  int
+	failDiffs      bool
+}
+
+func (o *batchInventoryObjects) Git(ctx context.Context, limit int, args ...string) ([]byte, error) {
+	if len(args) > 0 && args[0] == "diff" {
+		o.diffFallbacks++
+	}
+	return o.View.Git(ctx, limit, args...)
+}
+
+func (o *batchInventoryObjects) BlobDiffBatch(ctx context.Context, requests []source.BlobDiffRequest) []source.BlobResult {
+	o.diffBatches++
+	if !o.failDiffs {
+		return o.View.BlobDiffBatch(ctx, requests)
+	}
+	results := make([]source.BlobResult, len(requests))
+	for i := range results {
+		results[i].Err = source.ErrLimit
+	}
+	return results
 }
 
 func (o *batchInventoryObjects) Blob(ctx context.Context, oid string, limit int) ([]byte, error) {
@@ -53,8 +75,8 @@ func TestBatchInventoryMatchesSerialSource(t *testing.T) {
 	defer batched.Close()
 	objects := &batchInventoryObjects{View: batched}
 	got, err := Build(context.Background(), objects, comparison, source.Defaults())
-	if err != nil || !reflect.DeepEqual(got, want) || objects.batches != 1 {
-		t.Fatalf("batch inventory differs from serial: err=%v batches=%d", err, objects.batches)
+	if err != nil || !reflect.DeepEqual(got, want) || objects.batches != 1 || objects.diffBatches != 1 {
+		t.Fatalf("batch inventory differs from serial: err=%v batches=%d diff batches=%d", err, objects.batches, objects.diffBatches)
 	}
 }
 
@@ -68,15 +90,22 @@ func TestBatchInventoryDoesNotRetryResourceFailures(t *testing.T) {
 		repo.Write(fmt.Sprintf("file%d.txt", i), fmt.Sprintf("new %d\n", i))
 	}
 	head := repo.Commit()
-	v, err := source.NewView(context.Background(), repo.Dir, source.NewRunner(), source.Defaults())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer v.Close()
-	o := &batchInventoryObjects{View: v, fail: true}
 	comparison := source.PinnedComparison{MergeBaseSHA: base, Metadata: source.Metadata{BaseSHA: base, HeadSHA: head}}
-	got, err := Build(context.Background(), o, comparison, source.Defaults())
-	if err != nil || got.Complete || len(got.Problems) != 3 || o.reads != 0 || o.batches != 1 {
-		t.Fatalf("batch failure retried or lost: err=%v complete=%t problems=%d reads=%d batches=%d", err, got.Complete, len(got.Problems), o.reads, o.batches)
+	for _, phase := range []string{"blobs", "diffs"} {
+		t.Run(phase, func(t *testing.T) {
+			v, err := source.NewView(context.Background(), repo.Dir, source.NewRunner(), source.Defaults())
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer v.Close()
+			o := &batchInventoryObjects{View: v, fail: phase == "blobs", failDiffs: phase == "diffs"}
+			got, err := Build(context.Background(), o, comparison, source.Defaults())
+			if err != nil || got.Complete || len(got.Problems) != 3 || o.reads != 0 || o.batches != 1 || o.diffFallbacks != 0 {
+				t.Fatalf("batch failure retried or lost: err=%v complete=%t problems=%d reads=%d batches=%d fallback diffs=%d", err, got.Complete, len(got.Problems), o.reads, o.batches, o.diffFallbacks)
+			}
+			if phase == "diffs" && o.diffBatches != 1 {
+				t.Fatal("fixture did not exercise a failed diff batch")
+			}
+		})
 	}
 }
