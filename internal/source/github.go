@@ -496,10 +496,17 @@ func (g *GH) Metadata(ctx context.Context, id Identity) (Metadata, error) {
 	if _, err := ParseIdentity(strconv.Itoa(id.Number), id.Repository); err != nil {
 		return Metadata{}, err
 	}
+	if g.readClient != nil {
+		return g.graphqlMetadata(ctx, id)
+	}
 	data, err := g.readGET(ctx, fmt.Sprintf("repos/%s/pulls/%d", id.Repository, id.Number))
 	if err != nil {
 		return Metadata{}, fmt.Errorf("GitHub metadata unavailable (check authentication and connectivity): %w", err)
 	}
+	return decodeRESTMetadata(id, data)
+}
+
+func decodeRESTMetadata(id Identity, data []byte) (Metadata, error) {
 	type side struct {
 		SHA  string `json:"sha"`
 		Ref  string `json:"ref"`
@@ -519,11 +526,15 @@ func (g *GH) Metadata(ctx context.Context, id Identity) (Metadata, error) {
 	if raw.Body != nil {
 		description = *raw.Body
 	}
-	if !utf8.ValidString(description) || len(description) > descriptionMaxBytes {
+	m := Metadata{TargetBranch: raw.Base.Ref, Identity: id, BaseRepository: raw.Base.Repo.FullName, HeadRepository: raw.Head.Repo.FullName, BaseSHA: raw.Base.SHA, HeadSHA: raw.Head.SHA, Description: description}
+	return validateMetadata(m)
+}
+
+func validateMetadata(m Metadata) (Metadata, error) {
+	if !utf8.ValidString(m.Description) || len(m.Description) > descriptionMaxBytes {
 		return Metadata{}, errors.New("invalid pull request description")
 	}
-	m := Metadata{TargetBranch: raw.Base.Ref, Identity: id, BaseRepository: raw.Base.Repo.FullName, HeadRepository: raw.Head.Repo.FullName, BaseSHA: raw.Base.SHA, HeadSHA: raw.Head.SHA, Description: description}
-	if !validListText(m.TargetBranch) || !repositoryPattern.MatchString(m.BaseRepository) || !repositoryPattern.MatchString(m.HeadRepository) || !strings.EqualFold(m.BaseRepository, id.Repository) || !shaPattern.MatchString(m.BaseSHA) || !shaPattern.MatchString(m.HeadSHA) {
+	if !validListText(m.TargetBranch) || !repositoryPattern.MatchString(m.BaseRepository) || !repositoryPattern.MatchString(m.HeadRepository) || !strings.EqualFold(m.BaseRepository, m.Identity.Repository) || !shaPattern.MatchString(m.BaseSHA) || !shaPattern.MatchString(m.HeadSHA) {
 		return Metadata{}, errors.New("unsupported repository or revision metadata")
 	}
 	return m, nil

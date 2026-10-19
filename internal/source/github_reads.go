@@ -1,6 +1,7 @@
 package source
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"io"
@@ -36,6 +37,12 @@ func (g *GH) readGET(parent context.Context, endpoint string) ([]byte, error) {
 	legacy := func(ctx context.Context) ([]byte, error) {
 		return g.call(ctx, "api", "--hostname", "github.com", "--method", "GET", endpoint)
 	}
+	return g.readCapture(parent, http.MethodGet, endpoint, nil, legacy)
+}
+
+// readCapture serves fixed read-only capture requests. The compatibility path
+// runs only before HTTP dispatch, when exporting the CLI credential is unavailable.
+func (g *GH) readCapture(parent context.Context, method, endpoint string, body []byte, legacy func(context.Context) ([]byte, error)) ([]byte, error) {
 	if g.readClient == nil {
 		return legacy(parent)
 	}
@@ -61,9 +68,12 @@ func (g *GH) readGET(parent context.Context, endpoint string) ([]byte, error) {
 		// No HTTP request has been attempted; never fall back after dispatch.
 		return legacy(ctx)
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://api.github.com/"+endpoint, nil)
+	req, err := http.NewRequestWithContext(ctx, method, "https://api.github.com/"+endpoint, bytes.NewReader(body))
 	if err != nil {
 		return nil, ErrCommand
+	}
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
 	}
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("Accept", "application/vnd.github+json")

@@ -125,6 +125,7 @@ func TestGitHubReadDeadlineIncludesAuthentication(t *testing.T) {
 func TestGitHubReadConnectionReuseAndValidation(t *testing.T) {
 	base, head := strings.Repeat("a", 40), strings.Repeat("b", 40)
 	metadata := `{"number":1,"body":"description","base":{"sha":"` + base + `","repo":{"full_name":"owner/repo"}},"head":{"sha":"` + head + `","repo":{"full_name":"owner/repo"}}}`
+	graphqlMetadata := `{"data":{"repository":{"pullRequest":{"number":1,"body":"description","baseRefName":"","baseRefOid":"` + base + `","headRefOid":"` + head + `","baseRepository":{"nameWithOwner":"owner/repo"},"headRepository":{"nameWithOwner":"owner/repo"}}}}}`
 	commits := `[{"sha":"` + head + `","commit":{"message":"subject\nbody","author":{"name":"author"}}}]`
 	var connections []string
 	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
@@ -132,7 +133,10 @@ func TestGitHubReadConnectionReuseAndValidation(t *testing.T) {
 		if req.URL.RawQuery != "" {
 			_, _ = io.WriteString(w, commits)
 		} else {
-			_, _ = io.WriteString(w, metadata)
+			if req.Method != "POST" || req.URL.Path != "/graphql" {
+				t.Error("incorrect metadata request")
+			}
+			_, _ = io.WriteString(w, graphqlMetadata)
 		}
 	}))
 	defer server.Close()

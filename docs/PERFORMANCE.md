@@ -1550,6 +1550,82 @@ authentication/permission compatibility, deleted forks, field validation,
 bounded errors and unchanged revision checks. No freshness request may simply
 be removed. Timings only: `/tmp/prui-metadata-query-probe.json`.
 
+## Twenty-third iteration: narrow metadata reads with retained revision checks
+
+The production HTTP capture client now queries the fixed canonical PR metadata
+fields through GraphQL instead of retrieving the full REST PR representation.
+Repository and PR identity are typed JSON variables; the query contains no
+reviewed content or mutation. GitHub documents ref OIDs and names as available
+even for deleted refs, while repository fields are nullable and remain required
+by this application ([PullRequest schema](https://docs.github.com/en/graphql/reference/pulls#pullrequest)).
+Every initial pin, capture-end check, post-save check and independent write
+preflight still invokes fresh metadata retrieval. No request/check was removed,
+cached or combined with commit membership.
+
+Both response formats use the same metadata validator. GraphQL errors, partial
+or missing fields, deleted forks, unexpected identities, invalid pins and invalid
+text fail closed. Fresh CLI credentials are still resolved for each HTTP read.
+Custom runners and unavailable token-export compatibility retain their existing
+REST CLI request and decoder; this compatibility branch runs before HTTP
+dispatch. An attempted HTTP/GraphQL request never retries through REST. The
+existing shared operation deadline, response/header/connection limits, redirect
+policy and CLI-only writes remain in effect.
+
+First tested a separate release-equivalent prototype against runtime `442553d`,
+then tested the final implementation independently with the same driver. Each
+series had three interleaved pairs per PR, fresh private stores, credentials only
+in memory and no concurrent builds, tests or profiling. The driver waits for
+confirmed-current status before quitting and compares complete decoded source.
+Prototype medians:
+
+| PR | Prior readable | GraphQL readable | Prior confirmed | GraphQL confirmed |
+| --- | ---: | ---: | ---: | ---: |
+| #19 | 1,463.75 ms | 1,333.06 ms | 1,881.41 ms | 1,598.28 ms |
+| #11 | 1,432.21 ms | 1,449.77 ms | 1,784.07 ms | 1,731.54 ms |
+
+Final implementation, including every trial:
+
+| PR / trial | Prior readable | GraphQL readable | Prior confirmed | GraphQL confirmed |
+| --- | ---: | ---: | ---: | ---: |
+| #19 / 1 | 1,680.40 ms | 1,431.82 ms | 2,048.55 ms | 1,747.37 ms |
+| #19 / 2 | 1,533.76 ms | 1,397.79 ms | 1,868.68 ms | 1,714.43 ms |
+| #19 / 3 | 1,764.62 ms | 1,266.30 ms | 2,180.77 ms | 1,578.81 ms |
+| #19 median | 1,680.40 ms | 1,397.79 ms | 2,048.55 ms | 1,714.43 ms |
+| #11 / 1 | 1,432.62 ms | 1,333.54 ms | 1,699.95 ms | 1,576.91 ms |
+| #11 / 2 | 1,366.39 ms | 1,516.38 ms | 1,650.65 ms | 1,960.07 ms |
+| #11 / 3 | 1,402.54 ms | 1,916.14 ms | 1,684.06 ms | 2,117.76 ms |
+| #11 median | 1,402.54 ms | 1,516.38 ms | 1,684.06 ms | 1,960.07 ms |
+
+PR #19 improved in every pair across both series: the final readable median was
+16.8% earlier and confirmed-current median 16.3% earlier. PR #11 was mixed: its
+prototype was essentially neutral, while the final series regressed about 8.1%
+readable / 16.4% confirmed. Those slower observations remain included. All twelve
+paired snapshots across both series were identical, with complete inventory,
+three commits and captured composition. First candidate list startups were
+1,243 / 1,174 ms and remain recorded; list startup work was unchanged.
+Artifacts: `/tmp/prui-metadata-graphql-selection-flfjqsls` and
+`/tmp/prui-metadata-graphql-final-selection-r9ddqp03`.
+
+Investigated the PR #11 regression with three interleaved plain-open pairs and
+stage timings, retaining all observations. Median raw-capture metadata time fell
+702.68 to 620.98 ms; view setup was 389.39 / 392.92 ms and inventory 384.23 /
+382.03 ms. Total plain-open times were 1,771.78 / 1,763.91 ms (effectively
+neutral), with one slower GraphQL pair. These diagnostic runs indicate lower
+metadata cost with otherwise similar local work, but do not overturn the mixed
+interactive result or establish a PR #11 improvement. Artifacts:
+`/tmp/prui-graphql-confirm-profile-oe9cqdj0`.
+
+Retain the smaller fixed read for its repeatable PR #19 benefit while treating
+PR #11 and broader network performance as unresolved. The overall 10x
+startup/first-selection goal remains active and unproven. New focused race tests
+cover fixed request identity, credential changes, required fields, partial
+errors, response limits, authentication compatibility, cancellation/deadlines,
+interrupted-body cleanup and no retry after dispatch. The existing local TLS
+test compares GraphQL/REST metadata and verifies connection reuse with commit
+membership reads. The complete verification script passed, including installer
+fixtures, vet, race tests, terminal journeys and build. Configured lint reported
+zero issues. No human terminal usability claim is made by these automated checks.
+
 ## Reproduction and validation
 
 ```sh
