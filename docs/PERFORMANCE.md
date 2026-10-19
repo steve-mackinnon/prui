@@ -1434,6 +1434,55 @@ The full verification script and lint passed; the additional write-guard test
 also passed independently with the race detector. The overall 10x startup/open
 goal remains active and unproven, including time to finish required checks.
 
+## Twenty-first iteration: isolate current startup costs
+
+Rechecked startup independently at runtime revision `442553d`, with no concurrent
+builds, tests or other timing jobs. Seven ordinary fresh-process `--version`
+launches of the existing release-equivalent binary took 22.28, 19.71, 20.79,
+19.79, 19.73, 19.90 and 20.46 ms (median 19.90 ms). These are warm-filesystem
+process launches, **not** offline review frames or populated-list startup, and
+do not establish a startup improvement against older measurements.
+
+Seven separate `GODEBUG=inittrace=1` launches ended package initialization at
+approximately 14 ms. Median reported initializer times:
+
+| Package | Initializer time |
+| --- | ---: |
+| `modernc.org/libc/honnef.co/go/netdb` | 2.7 ms |
+| `github.com/alecthomas/chroma/v2/styles` | 2.7 ms |
+| `github.com/alecthomas/chroma/v2/lexers` | 2.6 ms |
+
+Trace timestamps are rounded and tracing itself adds output overhead. The three
+initializers account for about 8 ms combined in these samples. Inspection of the
+pinned dependency sources confirms Chroma eagerly constructs the exported lexer
+registry and parses all embedded styles. Glamour also imports Chroma styles, so
+changing only the application's syntax matcher would not isolate that work.
+Deferring these dependency initializers would require a broader dependency or
+process-boundary change; there is no measured user-visible benefit here large
+enough to justify such a change for the first-selection target. No dependency
+fork, reduced lexer/style support or runtime change was retained.
+
+The existing `BenchmarkOfflineStartupComponents`, three trials of three
+iterations each, separated application work from process initialization and PTY
+I/O. Setup, source capture and schema creation remain outside each timer:
+
+| Component | One-file median | 1,000-file median |
+| --- | ---: | ---: |
+| Open and close writable store | 0.54 ms | 0.53 ms |
+| Open and close read-only store | 0.27 ms | 0.28 ms |
+| Load and validate saved snapshot | 0.23 ms | 24.16 ms |
+| Load, construct model and render first frame | 1.45 ms | 27.49 ms |
+
+The rows are separate measurements, not additive stages. The last row includes
+snapshot loading and retains the fixture's complete source/history/composition
+assertions and saved read marks. Large saved snapshots merit profiling before
+any storage optimization, but they do not explain first-time selection without
+a predecessor snapshot. All benchmark trials passed. This evidence-only
+iteration changes no application behavior and makes no speedup claim. The 10x
+startup/first-selection goal remains active, including fully checked open time.
+Diagnostic artifacts: `/tmp/prui-startup-init-summary.json` and
+`/tmp/prui-startup-components-current.txt`.
+
 ## Reproduction and validation
 
 ```sh
@@ -1488,8 +1537,10 @@ including vet, race tests, PTY tests and build; configured lint reported zero is
 4. Profile large cached snapshot decoding/validation and session creation.
    Any storage optimization must keep integrity validation, isolation and stale
    writer rejection. Do not trade these checks for a faster first frame.
-5. Measure eager package initialization separately before considering dependency
-   isolation. A startup rewrite needs evidence of a user-visible benefit.
+5. Current eager package initialization has now been measured separately (see
+   the twenty-first iteration). Its largest three initializers total about 8 ms
+   under those conditions. Prioritize the first-selection critical path before
+   dependency isolation; a startup rewrite needs a measured user-visible benefit.
 6. Broaden verified-copy eligibility only with evidence from larger/multiple-pack
    stores. Current unsupported layouts retain ordinary mirroring. Retain all
    integrity, work, cancellation, fetch-barrier and cleanup guarantees.
