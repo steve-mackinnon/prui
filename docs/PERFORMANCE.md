@@ -1070,6 +1070,88 @@ terminal journeys and build); configured lint reported zero issues. Startup
 was not remeasured because the changed stage runs only during new comparison
 capture. The overall 10x goal remains active.
 
+## Fifteenth experiment: share the PR-list HTTPS transport (reverted)
+
+The PR list already uses a bounded, fixed GraphQL query. A disposable candidate
+sent that identical query through the capture client's bounded HTTPS transport,
+instead of a separate `gh api graphql` process, to reuse the list connection
+during first selection. Query text, variables and parsed results stayed identical;
+synthetic tests verified list-to-capture TLS connection reuse, malformed-result
+rejection and the existing authentication/limit/write boundaries. Focused race
+tests and lint passed before measurement.
+
+Three interleaved release-equivalent first-selection pairs per PR compared
+`b509361` against the candidate, using fresh private homes:
+
+| Metric | Prior median | Candidate median |
+| --- | ---: | ---: |
+| #19 first selection | 2,118.63 ms | 2,015.88 ms |
+| #11 first selection | 2,299.71 ms | 2,250.38 ms |
+| Populated-list startup, all six trials | 620.55 ms | 673.14 ms |
+| Launch + selection, all six trials | 2,817.23 ms | 2,857.65 ms |
+
+Every paired snapshot was identical and complete. First execution of the new
+candidate had a 1,172 ms list startup; every trial remains recorded rather than
+silently excluding that observation. Subsequent candidate startup ranged
+596–722 ms. The small first-selection differences and mixed total timings do
+not establish a benefit beyond variability. The production change and its
+experiment-only tests were reverted; no transport expansion was retained.
+Artifacts: `/tmp/prui-list-http-selection-hibfszsr`.
+
+## Sixteenth experiment: early local view preparation (prototype only)
+
+A disposable `b509361` archive started the existing isolated local object-view
+preparation while the PR list loaded. It transferred ownership once, joined
+cancelled preparation and cleaned unused views on exit. It did not fetch before
+selection, reuse a view across comparisons, change pin validation or retry failed
+preparation. The experiment used a context-carried value as a temporary seam;
+that interface was not proposed for production.
+
+Three interleaved release-equivalent pairs per PR, fresh private homes:
+
+| First-selection metric | Prior median | Early preparation median |
+| --- | ---: | ---: |
+| #19 | 2,218.16 ms | 2,116.22 ms |
+| #11 | 2,333.01 ms | 2,236.22 ms |
+
+All six paired snapshots were identical and complete. Two individual trials
+were slower with the prototype. The candidate's first-execution list startup
+was 1,311 ms and is retained in the raw observations. Artifacts:
+`/tmp/prui-prewarm-selection-w63nqgcf`. No production preparation API or
+application-lifetime ownership state was added on the strength of these small,
+variable first-selection differences.
+
+Pinning already overlaps metadata and view preparation, so its critical wait is
+roughly the slower of those independent inputs, not their sum. Moving just one
+earlier can leave the other dominating. A combined disposable prototype then
+tested early view preparation together with the shared list transport, again
+with three interleaved fresh-home pairs per PR:
+
+| Metric | Prior median | Combined prototype median |
+| --- | ---: | ---: |
+| #19 first selection | 2,034.07 ms | 1,933.94 ms |
+| #11 first selection | 2,233.57 ms | 2,150.37 ms |
+| Populated-list startup, all six trials | 657.50 ms | 660.28 ms |
+| Launch + selection, all six trials | 2,830.79 ms | 2,735.81 ms |
+
+Every snapshot was again identical and complete. First execution of this new
+prototype had a 1,195 ms list startup and remains in the observations. Artifacts:
+`/tmp/prui-combined-selection-wqr_b_06`. The roughly 4–5% selection differences
+and 3.4% combined median difference are small relative to trial variability;
+startup is essentially unchanged. This does not justify adding application-
+lifetime view ownership, cleanup, cross-checkout transfer and cancellation
+machinery. Both early-preparation prototypes remain disposable; production
+behavior stays at `b509361`. Only this evidence record is retained. Restoring
+the verified Go files and `git diff --check` confirmed a documentation-only
+worktree change; the rejected candidates are not claimed as fully verified
+production implementations.
+
+The next candidate is the selected PR's membership request, which currently
+waits for main inventory construction. It can potentially overlap mandatory
+local work without speculative preparation before selection. Any experiment
+must keep the capture deadline, final freshness read, cancellation/joining,
+membership validation and no-retry behavior intact.
+
 ## Reproduction and validation
 
 ```sh
