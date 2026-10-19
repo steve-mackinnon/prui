@@ -1375,6 +1375,65 @@ The complete verification script passed, including installer fixtures, vet, race
 tests, terminal journeys and build. Configured lint reported zero issues. The
 overall 10x startup/first-selection goal remains active and unproven.
 
+## Twentieth iteration: readable captured source while post-save freshness runs
+
+Inspection showed that new browser captures waited for post-save `review.Refresh`
+before returning. The TUI refresh already handles unchecked frozen snapshots,
+but skips sessions already marked current, so this was not a duplicated check.
+Cached browser opens already displayed source with truthful unknown freshness
+and checked it in the background.
+
+New interactive PR-list/new-tab captures can now use that same pending flow.
+All pinned source, commit membership/history/composition, evidence, predecessor
+generation checks and durable snapshot creation finish before the readable
+frame. The final commit-capture revision guard is unchanged. The post-save check
+is then owned by the existing TUI refresher, and the first frame explicitly says
+`Freshness unknown`. Only a successful matching check can persist current;
+failure/cancellation stays failed/unknown. Existing identity/generation guards,
+changed-revision handling and write preflights remain. Fresh captures in direct/
+CLI opening and Inbox keep synchronous post-save freshness, and no periodic
+polling is added.
+
+Tests require a complete captured inventory/history/composition to return before
+a deliberately blocked post-save check, verify actual current-browser wiring,
+visible unknown status, successful/failed status persistence without losing an
+intervening read mark, cancellation remaining unknown and unchanged synchronous
+direct/Inbox behavior. Additional synthetic writer tests reject unavailable or
+moved-head metadata while the initial readable session is unchecked.
+
+The live driver now records both first-readable time and time until the stored
+session confirms `current`. It waits for that confirmation before quitting every
+trial, preventing a cancelled/skipped background check from masquerading as less
+work. Confirmation is observed through brief read-only SQLite queries, with up
+to approximately 20 ms polling granularity plus connection overhead. Source
+snapshot equality is checked after confirmation. Three interleaved release-
+equivalent pairs per PR, fresh private homes and credentials held only in memory:
+
+| PR / trial | Prior readable | Candidate readable | Prior confirmed | Candidate confirmed |
+| --- | ---: | ---: | ---: | ---: |
+| #19 / 1 | 1,850.05 ms | 1,582.15 ms | 1,877.04 ms | 1,970.63 ms |
+| #19 / 2 | 2,066.11 ms | 1,715.36 ms | 2,067.18 ms | 2,081.74 ms |
+| #19 / 3 | 2,033.56 ms | 1,481.60 ms | 2,034.81 ms | 1,865.09 ms |
+| #19 median | 2,033.56 ms | 1,582.15 ms | 2,034.81 ms | 1,970.63 ms |
+| #11 / 1 | 1,984.45 ms | 1,417.99 ms | 1,985.86 ms | 1,733.64 ms |
+| #11 / 2 | 1,767.87 ms | 1,382.74 ms | 1,768.92 ms | 1,649.30 ms |
+| #11 / 3 | 1,768.80 ms | 1,500.84 ms | 1,769.90 ms | 1,801.66 ms |
+| #11 median | 1,768.80 ms | 1,417.99 ms | 1,769.90 ms | 1,733.64 ms |
+
+Readable complete source appears about 22.2% / 19.8% earlier, improving every
+pair. Confirmed-current time remains effectively neutral within network
+variability; this is an earlier readable surface, not a claim that all checking
+finishes that much faster. Every paired decoded frozen snapshot was identical,
+with complete inventory, three commits and captured composition. The sampled
+first candidate frames explicitly show unknown freshness, and every trial
+eventually confirmed current before exit. Timing is Enter on the selected PR to
+overview/confirmed status; it does not measure expanded-source rendering.
+Artifacts: `/tmp/prui-browser-freshness-selection-c0ferqp1`. The candidate's first
+list startup was 1,289 ms and remains recorded; startup work was not changed.
+The full verification script and lint passed; the additional write-guard test
+also passed independently with the race detector. The overall 10x startup/open
+goal remains active and unproven, including time to finish required checks.
+
 ## Reproduction and validation
 
 ```sh

@@ -44,6 +44,16 @@ For a new comparison, `internal/review.OpenWithConfig` runs these stages:
 4. `internal/review` assembles file slices from the inventory. The command layer
    saves the resulting snapshot through `internal/session`.
 
+Interactive PR-list/new-tab opens can show that complete, durably saved capture
+with freshness explicitly unchecked. The existing TUI refresh then performs the
+post-save metadata check; only its event-loop owner merges status with current
+progress. Source pinning, commit membership/capture and its final revision guard
+still finish before display. Failure or cancellation cannot imply current
+freshness, and every explicit write retains its independent exact-head preflight.
+This uses the same pending/changed-revision flow as cached browser opens; stored
+comparisons remain immutable. Fresh captures in direct/CLI opening and Inbox
+keep their synchronous post-save checks. No periodic polling is introduced.
+
 The source view reads object data from the checkout without using its config,
 hooks, filters, or worktree. The frozen inventory and description are what a
 review session displays; later changes in the checkout cannot silently alter

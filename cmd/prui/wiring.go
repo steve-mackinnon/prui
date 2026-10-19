@@ -30,14 +30,19 @@ func (a *application) online(ctx context.Context) error {
 // differs, so arriving through the browser cannot silently lose capabilities.
 func (a *application) model(ctx context.Context, o options) *tui.Model {
 	a.resolveGuideSelection()
+	backgroundFreshness := o.Command == "prs" || o.Command == "current" || o.Command == "open"
+	openList := a.openFromPullRequestList
+	if backgroundFreshness {
+		openList = a.openForBrowser
+	}
 	var m *tui.Model
 	switch o.Command {
 	case "inbox":
-		m = tui.NewPullRequestBrowser(ctx, a.store, a.listPullRequests, a.openFromPullRequestList)
+		m = tui.NewPullRequestBrowser(ctx, a.store, a.listPullRequests, openList)
 	case "prs":
-		m = tui.NewPullRequestBrowser(ctx, a.store, a.listPullRequests, a.openFromPullRequestList)
+		m = tui.NewPullRequestBrowser(ctx, a.store, a.listPullRequests, openList)
 	case "current":
-		m = tui.NewCurrentRepositoryBrowser(ctx, a.store, o.Repository, o.Checkout, a.listPullRequests, a.openFromPullRequestList)
+		m = tui.NewCurrentRepositoryBrowser(ctx, a.store, o.Repository, o.Checkout, a.listPullRequests, openList)
 	default:
 		m = tui.New(ctx, func(c context.Context, notify func(string)) (*review.Session, error) {
 			return a.load(c, o, notify)
@@ -54,9 +59,9 @@ func (a *application) model(ctx context.Context, o options) *tui.Model {
 		}
 		return a.fresh(c, old, override, notify)
 	})
-	m.SetPullRequestLifecycle(a.listPullRequests, a.openFromPullRequestList)
+	m.SetPullRequestLifecycle(a.listPullRequests, openList)
 	m.SetInbox(a.inbox, a.markInboxRead, a.openInbox, o.Inbox, o.Command == "inbox", o.InboxRefresh)
-	if o.Command == "prs" || o.Command == "current" || o.Command == "open" {
+	if backgroundFreshness {
 		m.SetPullRequestRefresh(a.refreshOpenedPullRequest)
 	}
 	guideApp := *a
