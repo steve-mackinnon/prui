@@ -65,6 +65,15 @@ func openWithConfigAttempt(ctx context.Context, checkout string, id source.Ident
 		return nil, e
 	}
 	defer func() { _ = v.Close() }()
+	parallel := false
+	if capable, ok := r.(interface{ MaxParallelism() int }); ok {
+		parallel = capable.MaxParallelism() > 1
+	}
+	var pending *commits.PendingCapture
+	if parallel {
+		pending = commits.PrepareCapture(ctx, p, gh)
+		defer pending.Close()
+	}
 	started := time.Now()
 	inv, e := inventory.Build(ctx, v, p, l)
 	if cfg.Timing != nil {
@@ -79,11 +88,10 @@ func openWithConfigAttempt(ctx context.Context, checkout string, id source.Ident
 		}
 		inv.FullSource = inventory.CaptureFullSource(ctx, v, inv, l)
 	}
-	parallel := false
-	if capable, ok := r.(interface{ MaxParallelism() int }); ok {
-		parallel = capable.MaxParallelism() > 1
-	}
 	commitBundle, contextBundle, e := captureDetails(ctx, parallel, func(c context.Context) (*commits.Bundle, error) {
+		if pending != nil {
+			return pending.Capture(v, l, notify)
+		}
 		return commits.Capture(c, v, p, gh, l, notify)
 	}, func(c context.Context) reviewcontext.ContextBundle {
 		started := time.Now()

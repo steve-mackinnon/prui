@@ -27,6 +27,13 @@ func capture(parent context.Context, v *source.View, p source.PinnedComparison, 
 	defer cancel()
 	ctx, stopWork := context.WithTimeout(totalCtx, workDuration)
 	defer stopWork()
+	return captureWithContexts(parent, ctx, totalCtx, v, p, gh, l, notify)
+}
+
+func captureWithContexts(parent, ctx, totalCtx context.Context, v *source.View, p source.PinnedComparison, gh source.GitHub, l source.Limits, notify func(string)) (bundle *Bundle, err error) {
+	if parent.Err() != nil {
+		return nil, parent.Err()
+	}
 	bundle = &Bundle{BaseSHA: p.Metadata.BaseSHA, HeadSHA: p.Metadata.HeadSHA, Status: Unavailable, Reason: "Commit capture unavailable."}
 	defer func() {
 		if parent.Err() != nil {

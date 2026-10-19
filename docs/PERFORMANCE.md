@@ -1152,6 +1152,65 @@ local work without speculative preparation before selection. Any experiment
 must keep the capture deadline, final freshness read, cancellation/joining,
 membership validation and no-retry behavior intact.
 
+## Seventeenth iteration: overlap selected-PR membership with main inventory
+
+The prior profile put main inventory at about 82–86 ms for #19 and 572–600 ms
+for #11. Commit membership was requested only after this local work completed.
+For parallel-capable runners and clients supporting commit membership, a
+single-use preparation now starts that same request immediately after pinning.
+Local commit capture and its final freshness read still start after main
+inventory and any explicitly requested full-source capture. Supporting evidence
+retains the previous overlap with local commit capture.
+
+The preparation owns one request and the original shared 55-second work /
+60-second total deadlines, starting at preparation. Consumption never extends
+the deadlines, and overlapping local work consumes wall time in that window.
+An expired window retains explicit incomplete/unavailable outcomes. In
+particular, valid membership arriving at the work deadline stays available while
+per-commit work reports exhaustion, preserving the existing deadline behavior.
+No failed request is retried. Main-inventory errors cancel and join preparation
+before the owned view closes; final freshness waits for the membership reader
+to finish even during cancellation. Unsupported clients and unadvertised serial
+runners retain ordinary capture. There is no preparation before PR selection.
+
+Tests use barriers to require membership to start during the main tree-diff
+operation (the integration test fails with the old ordering), and check
+inventory-failure cancellation/view cleanup, single consumption, repeated close,
+no freshness on unused preparation, no failure retries, parent cancellation,
+unsupported clients and both deadline boundaries. Existing serial/parallel
+frozen-snapshot equivalence and moved-revision retry tests also pass.
+
+Three interleaved release-equivalent first-selection pairs per real PR, with
+fresh private homes, existing credentials held only in memory and complete
+capture assertions (prior runtime `b509361`, unchanged by documentation-only
+`20fa99f`, versus prepared membership):
+
+| PR / trial | Prior | Prepared membership |
+| --- | ---: | ---: |
+| #19 / 1 | 2,133.87 ms | 2,118.78 ms |
+| #19 / 2 | 2,215.78 ms | 2,168.18 ms |
+| #19 / 3 | 2,217.47 ms | 1,799.89 ms |
+| #19 median | 2,215.78 ms | 2,118.78 ms |
+| #11 / 1 | 2,117.35 ms | 2,083.73 ms |
+| #11 / 2 | 2,350.62 ms | 1,834.64 ms |
+| #11 / 3 | 2,268.20 ms | 1,935.00 ms |
+| #11 median | 2,268.20 ms | 1,935.00 ms |
+
+Observed median reductions are about 4.4% / 14.7%, with every pair improving.
+The smaller #19 result remains variable; #11 has more mandatory local inventory
+work available to overlap. Every paired decoded snapshot was identical, with
+complete main inventory, all three commits and captured composition. Pins match
+the earlier studies. Measurement starts at Enter in the populated picker and
+ends at the first readable overview, not an expanded-source view. Artifacts:
+`/tmp/prui-membership-selection-ea_xdlfz`.
+
+The candidate's first-execution populated-list startup was 1,253 ms and remains
+in the observations; subsequent list observations were 532–669 ms. Startup work
+was not changed, and these observations do not establish a startup improvement.
+The complete verification script passed (installer fixtures, vet, race tests,
+terminal journeys and build); configured lint reported zero issues. The overall
+10x startup/first-selection goal remains active and unproven.
+
 ## Reproduction and validation
 
 ```sh

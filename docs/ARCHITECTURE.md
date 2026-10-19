@@ -79,6 +79,14 @@ Once the main inventory is complete, parallel-capable runners can capture commit
 details and supporting evidence together. Both use the same pinned view and
 their existing independent budgets. Errors cancel and join evidence retrieval
 before retrying or closing the view; guide analysis waits for both results.
+For clients with commit membership support, those runners can start the selected
+PR's membership request immediately after pinning, while main inventory and any
+requested full-source capture run. A single-use preparation owns the request and
+the existing 55/60-second work/freshness deadlines; consuming it never resets
+the clock. Time spent in the overlapping local stages counts toward that window.
+Failures cancel and join preparation before view cleanup. Local commit capture
+and the final freshness read still wait for the main inventory, and unsupported
+clients or serial runners keep the original path.
 Composition capture can limit tree listings to declared changed paths using
 literal Git pathspecs. Empty, unsafe, over-256-path or over-64-KiB argument scopes
 retain the full-tree listing. Both paths keep exact-path filtering, charge actual
