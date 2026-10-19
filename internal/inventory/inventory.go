@@ -250,7 +250,7 @@ func build(ctx context.Context, objects Objects, oldSHA, newSHA string, p *sourc
 			add(f, Unavailable, Range{}, Range{}, nil, "materialized content or diff-line limit exceeded")
 			continue
 		}
-		oldTokens, newTokens, status := syntaxBudget.capture(ctx, f, a, b)
+		oldTokens, newTokens, status := syntaxBudget.capture(ctx, f, a, b, hunks...)
 		if inv.SyntaxStatus == nil {
 			inv.SyntaxStatus = map[string]syntax.FileStatus{}
 		}

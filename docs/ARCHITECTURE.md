@@ -98,10 +98,18 @@ do not hold ready earlier entries. Capture cancels and joins read-ahead before
 its final freshness read and before the isolated view closes. Serial runners
 remain lazy; failed validations are not retried.
 Successful syntax captures also reuse categories within one open attempt, keyed
-by exact path and a SHA-256 digest of the complete input bytes. This separate
+by exact path, a SHA-256 digest of the complete input bytes and requested line
+extent. A cached prefix cannot satisfy a full capture. This separate
 8 MiB / 128-entry cache holds copied spans, never source or failed results.
 Each comparison still applies its own byte, span and elapsed-work budgets;
 source reads, provenance checks and persisted payload validation remain intact.
+Patch highlighting can stop the lexer iterator after the last selected hunk line
+on each side. The lexer still receives the entire pinned blob for state and
+lookahead; whole-input byte/UTF-8 checks and validation of every consumed token's
+raw offsets still apply. All displayed spans are retained. Unused tail spans
+are not materialized, and the ordinary full-source tokenization API remains
+unchanged. Patch readiness describes the requested projection, not the unused
+tail; full-source navigation performs its own full capture.
 Evidence retrieval indexes changed directories and deleted paths once before
 ranking the pinned trees. Eligible evidence reads use bounded eight-candidate
 windows after reserving file/excerpt allowances; privacy filtering and output

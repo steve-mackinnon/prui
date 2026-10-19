@@ -12,6 +12,7 @@ import (
 	"prui/internal/commits"
 	"prui/internal/session"
 	"prui/internal/source"
+	"prui/internal/syntax"
 	"prui/internal/testutil"
 )
 
@@ -66,15 +67,19 @@ func (g performanceGitHub) ListPullRequestCommits(context.Context, source.Identi
 // Includes pinning, inventory, commit capture, evidence, durable storage and
 // freshness checks. GitHub responses are synthetic; network time is excluded.
 func BenchmarkPullRequestOpen(b *testing.B) {
-	for _, scenario := range []string{"text-100", "unique-text-100", "distinct-names-text-100", "ten-commits-text-100", "packed-distinct-names-text-100", "packed-ten-commits-text-100", "mixed-distinct-names-text-100", "mixed-ten-commits-text-100", "evidence-distinct-names-text-100", "mode-1000-tree-10000"} {
+	for _, scenario := range []string{"text-100", "unique-text-100", "distinct-names-text-100", "ten-commits-text-100", "packed-distinct-names-text-100", "packed-ten-commits-text-100", "mixed-distinct-names-text-100", "mixed-ten-commits-text-100", "evidence-distinct-names-text-100", "early-hunks-large-text-50", "mode-1000-tree-10000"} {
 		shape := scenario
 		for _, prefix := range []string{"packed-", "mixed-", "evidence-"} {
 			shape = strings.TrimPrefix(shape, prefix)
 		}
 		modeOnly := shape == "mode-1000-tree-10000"
+		earlyHunks := shape == "early-hunks-large-text-50"
 		uniqueText := shape != "text-100" && !modeOnly
-		distinctNames := shape == "distinct-names-text-100" || shape == "ten-commits-text-100"
+		distinctNames := shape == "distinct-names-text-100" || shape == "ten-commits-text-100" || earlyHunks
 		name, changed, total := scenario, 100, 1000
+		if earlyHunks {
+			changed = 50
+		}
 		if modeOnly {
 			name, changed, total = "mode-1000-tree-10000", 1000, 10000
 		}
@@ -90,6 +95,9 @@ func BenchmarkPullRequestOpen(b *testing.B) {
 				content := "package fixture\nconst Value = 1\n"
 				if uniqueText {
 					content = fmt.Sprintf("package fixture\nconst Value%d = 1\n", i)
+				}
+				if earlyHunks && i < changed {
+					content += strings.Repeat("func value() string { return \"example\" }\n", 1000)
 				}
 				repo.Write(filePath(i), content)
 				if strings.HasPrefix(scenario, "evidence-") && i < changed {
@@ -109,6 +117,9 @@ func BenchmarkPullRequestOpen(b *testing.B) {
 					content := "package fixture\nconst Value = 2\n"
 					if uniqueText {
 						content = fmt.Sprintf("package fixture\nconst Value%d = 2\n", i)
+					}
+					if earlyHunks {
+						content += strings.Repeat("func value() string { return \"example\" }\n", 1000)
 					}
 					repo.Write(path, content)
 				}
@@ -143,6 +154,25 @@ func BenchmarkPullRequestOpen(b *testing.B) {
 					}
 					if s.Commits == nil || s.Commits.Status != commits.Captured || !s.Commits.Complete || len(s.Commits.Entries) != max(1, len(entries)) || s.Commits.Composition == nil || s.Commits.Composition.Status != commits.Captured {
 						b.Fatal("open omitted complete commit capture or composition")
+					}
+					if earlyHunks {
+						for _, statuses := range []map[string]syntax.FileStatus{s.Inventory.SyntaxStatus, s.Commits.Entries[0].Diff.SyntaxStatus} {
+							if len(statuses) != changed {
+								b.Fatal("open omitted syntax statuses")
+							}
+							for _, status := range statuses {
+								if status.Old != syntax.Ready || status.New != syntax.Ready {
+									b.Fatal("open omitted complete selected-hunk syntax")
+								}
+							}
+						}
+						spans := 0
+						for _, patch := range s.Inventory.Syntax {
+							for _, row := range patch {
+								spans += len(row.Old) + len(row.New)
+							}
+						}
+						b.ReportMetric(float64(spans), "syntax-spans/op")
 					}
 					if strings.HasPrefix(scenario, "evidence-") {
 						if len(s.Context.Evidence) != changed || len(s.Context.ExhaustedBudgets) != 0 {

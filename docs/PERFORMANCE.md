@@ -1211,6 +1211,92 @@ The complete verification script passed (installer fixtures, vet, race tests,
 terminal journeys and build); configured lint reported zero issues. The overall
 10x startup/first-selection goal remains active and unproven.
 
+## Eighteenth iteration: tokenize only through displayed hunks
+
+Current-stage profiling after `10ab5b6` still put #11 main inventory at roughly
+563–569 ms. Three disposable, private-home CPU-profiled opens captured all 26
+files, three commits and composition. Of 3.21 seconds of sampled in-process CPU
+across those opens, 1.05 seconds was attributed to syntax tokenization, largely
+Chroma/regexp execution. This excludes package initialization and child-process
+CPU; it is not one third of elapsed network-inclusive opening. Artifacts:
+`/tmp/prui-current-critical-profile-o2b_mhiy` and
+`/tmp/prui-cpu-capture-txzqbmuk`.
+
+Inventory previously tokenized each complete file before projecting categories
+onto displayed patch hunks. It now supplies the same full pinned input to the
+same lexer and stops iterating after the last needed line on each side. This
+preserves multiline state and lookahead rather than truncating the input.
+Whole-input UTF-8/byte checks, consumed-token raw-offset validation, per-prefix
+span/time bounds and full source-byte charging remain. A valid requested prefix
+can now be highlighted even when unused tail spans would exhaust the full
+capture limit. Readiness describes captured patch highlighting; it does not
+claim that the unused tail was tokenized. Full-source navigation keeps its
+ordinary full capture, including EOF/offset validation.
+
+Cache identities now include the requested line extent. A prefix cannot satisfy
+a full request; a full result can supply a copied prefix. Retention remains
+8 MiB / 128 entries, with no raw source or failures retained. Every comparison
+still applies its own byte/span/time budgets before lookup. Tests compare
+requested lines with full captures across Go, TypeScript, Python, Rust, HTML
+embedding and YAML; cover multiline comments/strings, every displayed hunk,
+last-line boundaries, full-byte charging, prefix/full cache isolation and
+concurrency, cancellation, oversized/invalid input, span/time limits, unsafe
+range fallback and the original YAML normalized-token offset rejection.
+
+Three ten-operation lexer trials on a 1,001-line Go file, no cross-call cache:
+
+| Requested extent | Median | Allocated bytes/op |
+| --- | ---: | ---: |
+| Full | 31.920 ms | 16,538,224 |
+| Through line 10 | 0.381 ms | 371,577 |
+| Through line 100 | 3.186 ms | 1,833,678 |
+
+These are approximately 84x / 10x stage improvements, not whole-open claims.
+Log: `/tmp/prui-syntax-prefix-bench.txt`.
+
+An added complete cold-open fixture changes a constant near the start of 50
+distinct approximately 40 KiB Go files in a 1,000-file tree. Both revisions
+require complete main inventory, history and composition, and ready old/new
+highlighting for every changed file in both main and commit inventories. The
+identical benchmark file ran against an exact `10ab5b6` archive and the candidate,
+three one-operation trials each, without concurrent builds/tests:
+
+| Complete cold open | Prior | Prefix capture |
+| --- | ---: | ---: |
+| Median | 7,157.965 ms | 1,487.490 ms |
+| Median allocated bytes/op | 3,233,383,488 | 155,337,328 |
+| Displayed main-inventory syntax spans | 1,800 | 1,800 |
+
+This is about 4.8x faster, with roughly 21x fewer allocated bytes. Counts stay at
+36 `cat-file`, 44 `diff`, 3 `diff-tree` and 5 `ls-tree` calls per operation; this
+change removes unnecessary lexical work. Logs:
+`/tmp/prui-prefix-cold-before.txt` and `/tmp/prui-prefix-cold-after.txt`.
+
+Three interleaved release-equivalent live first-selection pairs per PR used
+fresh private homes, in-memory credentials and complete capture assertions:
+
+| PR / trial | Prior `10ab5b6` | Prefix capture |
+| --- | ---: | ---: |
+| #19 / 1 | 2,016.76 ms | 1,982.39 ms |
+| #19 / 2 | 2,100.65 ms | 1,932.41 ms |
+| #19 / 3 | 1,865.37 ms | 2,035.06 ms |
+| #19 median | 2,016.76 ms | 1,982.39 ms |
+| #11 / 1 | 1,967.88 ms | 1,766.69 ms |
+| #11 / 2 | 1,851.32 ms | 1,732.65 ms |
+| #11 / 3 | 1,852.04 ms | 1,866.88 ms |
+| #11 median | 1,852.04 ms | 1,766.69 ms |
+
+Observed reductions are about 1.7% / 4.6%, small relative to network variability;
+#19 is effectively neutral. Every paired decoded snapshot was identical,
+including displayed syntax, with complete inventories, three commits and
+composition. Timing is Enter in the populated picker to readable overview,
+not expanded-source rendering. The larger synthetic win is not generalized to
+these real PRs. Artifacts: `/tmp/prui-prefix-selection-d6buprf2`. The new binary's
+first list startup was 1,205 ms and remains recorded; no startup win is claimed.
+The complete verification script passed (installer fixtures, vet, race tests,
+terminal journeys and build), and configured lint reported zero issues.
+The overall 10x startup/first-selection goal remains active and unproven.
+
 ## Reproduction and validation
 
 ```sh
@@ -1220,6 +1306,7 @@ go test ./internal/source -run '^$' -bench BenchmarkBlobRead -benchtime=1s -coun
 go test ./internal/source -run '^$' -bench BenchmarkBorrowObjects -benchtime=1x -count=3
 go test ./internal/syntax -run '^$' -bench BenchmarkLexerSelection -benchtime=100x -count=3
 go test ./internal/syntax -run '^$' -bench BenchmarkTokenizeCaptureReuse -benchtime=10x -count=3
+go test ./internal/syntax -run '^$' -bench BenchmarkTokenizeThrough -benchtime=10x -count=3
 go test ./internal/session -run '^$' -bench BenchmarkSQLiteFreshnessProgress -benchtime=1x -count=3
 go test ./internal/commits -run '^$' -bench BenchmarkCompositionTreeListing -benchtime=3x -count=3
 go test ./cmd/prui -run '^$' -bench BenchmarkOfflineStartupComponents -benchtime=3x -count=3
