@@ -1483,6 +1483,73 @@ startup/first-selection goal remains active, including fully checked open time.
 Diagnostic artifacts: `/tmp/prui-startup-init-summary.json` and
 `/tmp/prui-startup-components-current.txt`.
 
+## Twenty-second iteration: locate remaining first-open work
+
+Profiled three fresh private-store, authenticated plain opens each of PRs #19
+and #11 using runtime `442553d`. These exercise complete cold capture, storage
+and synchronous final freshness, not the browser's earlier readable frame.
+Current median recorded stages:
+
+| Stage | PR #19 | PR #11 |
+| --- | ---: | ---: |
+| Isolated view setup | 397.98 ms | 405.39 ms |
+| Main inventory | 79.79 ms | 394.64 ms |
+| Evidence capture | 276.89 ms | 297.87 ms |
+| Sum of metadata reads within raw capture | 825.21 ms | 674.97 ms |
+
+These durations overlap and must not be added to derive total latency. Metadata
+includes initial pinning and capture-end verification; the additional post-save
+freshness read is outside the raw-capture timing record. All six complete plain
+opens succeeded, with overall times between 1.72 and 1.93 seconds. Artifacts:
+`/tmp/prui-head-critical-profile-6kjm92dd`.
+
+A temporary local-only test rebuilt PR #11's main inventory from that captured
+fixture and compared the complete result with `reflect.DeepEqual`. It retained
+the normal runner's parallel capability and recorded only command names and
+durations. Nine Git subprocesses consumed about 90 ms in a 380 ms inventory;
+CPU samples attributed 630 of the 640 ms sampled under inventory building to
+syntax capture across three runs. Those CPU samples exclude child-process CPU
+and are not a wall-time percentage. Isolated view setup separately measured
+408.76 ms across five operations; its CPU samples included substantial object
+linking and pack preflight work. Optimizing setup alone can be hidden behind the
+concurrent initial metadata request.
+
+Prototyped concurrent OLD/NEW syntax capture for two nonempty inputs at least
+4 KiB, on multiple processors with over two seconds of syntax budget left.
+Both tasks were joined and the budget charged their summed durations, retaining
+the existing serial path near exhaustion. Five prototype trials and five
+unchanged control trials all reproduced the complete saved inventory exactly:
+
+| Local inventory trial | Control | Prototype |
+| --- | ---: | ---: |
+| 1 | 384.77 ms | 347.04 ms |
+| 2 | 377.61 ms | 341.06 ms |
+| 3 | 382.50 ms | 346.12 ms |
+| 4 | 378.63 ms | 343.04 ms |
+| 5 | 379.81 ms | 349.25 ms |
+| Median | 379.81 ms | 346.12 ms |
+
+This saves 33.69 ms in the local stage (8.9%), before considering overlap or
+whole-open latency. It does not justify additional concurrent syntax-budget
+semantics at present. Reverted the prototype and removed the temporary profiling
+tests; no runtime change was retained. Logs: `/tmp/prui-inventory-pair-control.txt`
+and `/tmp/prui-inventory-pair-prototype.txt`.
+
+Separately probed the next transport hypothesis: the fixed GraphQL PR metadata
+fields `number`, `body`, `baseRefName`, `baseRefOid`, `headRefOid`,
+`baseRepository.nameWithOwner` and `headRepository.nameWithOwner` against the
+current REST response. Five interleaved pairs used fresh HTTPS connections and
+the same in-memory credential. All normalized metadata fields were identical.
+REST times were 390.20, 363.83, 422.19, 428.82 and 324.80 ms; GraphQL times were
+253.30, 331.80, 337.22, 277.60 and 353.37 ms. Medians were 390.20 / 331.80 ms,
+about 15% lower for GraphQL; response sizes were 18,071 / 1,912 bytes.
+This diagnostic omits per-request CLI token resolution and connection reuse, so
+it does not establish an application speedup. Next, evaluate an ordinary-open
+prototype before deciding whether a transport change is worthwhile, including
+authentication/permission compatibility, deleted forks, field validation,
+bounded errors and unchanged revision checks. No freshness request may simply
+be removed. Timings only: `/tmp/prui-metadata-query-probe.json`.
+
 ## Reproduction and validation
 
 ```sh
