@@ -75,6 +75,12 @@ an independent 8 MiB / 2,048-entry reuse cap; other Git operations are not cache
 Known blob pairs can use up to eight local diff workers after reserving
 conservative patch-byte and line budgets. Results enter the inventory in the
 original order; custom runners remain serial unless they advertise parallel use.
+Diff preparation can refill after the earlier window has been consumed, using
+the actual remaining byte/line budget and the same worst-case reservations.
+Prepared successes and failures remain reusable without reattempting failed
+reads; owned copies of their raw data have an independent retention cap equal
+to the comparison content limit. Unknown earlier consumers keep the serial
+path. File/directory collision checks use all changed paths across windows.
 Once the main inventory is complete, parallel-capable runners can capture commit
 details and supporting evidence together. Both use the same pinned view and
 their existing independent budgets. Errors cancel and join evidence retrieval

@@ -1297,6 +1297,84 @@ The complete verification script passed (installer fixtures, vet, race tests,
 terminal journeys and build), and configured lint reported zero issues.
 The overall 10x startup/first-selection goal remains active and unproven.
 
+## Nineteenth iteration: refill diff reservations after consumption
+
+The early-hunk large-file fixture still used 44 individual diff processes.
+`diffReservation` deliberately budgets eight output lines per source record,
+plus fixed overhead, to cover hunk headers and duplicated materialized file
+headers. Two approximately 1,002-line inputs reserve about 16,000 lines per
+file, so the initial 100,000-line budget admitted only six of 50 files. The old
+preparation ran once, leaving all later files on the individual path even after
+the first six had consumed very little actual output.
+
+Diff preparation now refills only once the preceding window has been consumed
+in original file order. Each new window uses the actual remaining materialized
+bytes/lines and the unchanged worst-case reservation function. It never reads
+past an earlier unknown budget consumer. Prepared results, including errors,
+remain keyed by blob pair across windows, preventing failed prepared jobs from
+being reissued or falling back. Retained raw results use owned, exact-capacity
+copies and a separate cap equal to the configured comparison content limit;
+malformed patches cannot grow retention indefinitely by consuming no final
+inventory budget. Oversized prepared results become explicit limit failures.
+Whole-comparison changed-path collision checks are cached once and include
+already-consumed paths, preserving safe file/directory replacement handling.
+
+Tests compare multi-window real-Git capture byte-for-byte with serial inventory,
+require refilling without individual fallbacks, and check tight byte/line limits,
+checkout immutability, retained-data bounds, reused backend buffers, oversized
+results, failure reuse, cancellation, unknown consumers and path collisions
+across window boundaries. Existing mixed-change and source-budget tests pass.
+
+Three one-operation complete cold opens per fixture, identical commands against
+an exact `eae6c02` archive and candidate, without concurrent builds/tests:
+
+| Fixture | Prior median | Refilled median |
+| --- | ---: | ---: |
+| Early hunks in 50 large files | 1,507.218 ms | 1,163.560 ms |
+| Packed ten commits / 100 files | 611.260 ms | 603.357 ms |
+
+The large-file reduction is about 22.8%; the packed control is essentially
+neutral. Large-file Git counts changed from 44 `diff` + 3 `diff-tree` to zero
+`diff` + 11 `diff-tree`, saving 36 processes. The other counts stay at 36
+`cat-file` and 5 `ls-tree`. Both revisions retain complete source, commits and
+composition, ready old/new highlighting for all 50 files in main and commit
+inventories, and 1,800 displayed main-inventory spans. Packed-control call counts
+are unchanged. Logs: `/tmp/prui-refill-before.txt` and
+`/tmp/prui-refill-after.txt`.
+
+The first live driver attempt stopped before selecting any PR: a newly opened
+Dependabot #111 moved #19 away from the first row, invalidating the old fixed
+title/index assumption. The saved frame showed a correctly loaded list, not an
+application startup failure. No timings from that stopped attempt were accepted.
+The corrected driver waits for the requested PR number, derives its row from
+the rendered list and still verifies the selected snapshot identity. Three
+interleaved release-equivalent pairs per PR, with fresh private homes:
+
+| PR / trial | Prior `eae6c02` | Refilled |
+| --- | ---: | ---: |
+| #19 / 1 | 2,065.73 ms | 2,083.02 ms |
+| #19 / 2 | 1,983.14 ms | 2,002.04 ms |
+| #19 / 3 | 2,083.44 ms | 1,899.77 ms |
+| #19 median | 2,065.73 ms | 2,002.04 ms |
+| #11 / 1 | 1,733.97 ms | 1,700.01 ms |
+| #11 / 2 | 1,767.14 ms | 1,751.55 ms |
+| #11 / 3 | 1,700.55 ms | 1,834.86 ms |
+| #11 median | 1,733.97 ms | 1,751.55 ms |
+
+The roughly 3.1% improvement / 1.0% slowdown are effectively neutral within
+network variability. Every paired decoded snapshot was identical, with complete
+main inventory, three commits and captured composition. Pins match the preceding
+studies. Timing remains Enter on the target PR to readable overview, not expanded
+source. The larger local-fixture benefit is not generalized to these PRs.
+Artifacts: `/tmp/prui-refill-number-selection-lwlceowz`; the stopped driver frame
+is under `/tmp/prui-refill-selection-e34mntwd`. Credentials stayed in memory.
+The candidate's first list startup was 1,321 ms and remains recorded; no startup
+improvement is claimed.
+
+The complete verification script passed, including installer fixtures, vet, race
+tests, terminal journeys and build. Configured lint reported zero issues. The
+overall 10x startup/first-selection goal remains active and unproven.
+
 ## Reproduction and validation
 
 ```sh

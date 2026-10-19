@@ -153,21 +153,12 @@ func build(ctx context.Context, objects Objects, oldSHA, newSHA string, p *sourc
 	}
 	emptyOID := strings.TrimSpace(string(empty))
 	blobs := batchBlobs(ctx, objects, inv.Files, emptyOID, l.BlobBytes)
-	diffs := batchDiffs(ctx, objects, inv.Files, blobs, emptyOID, oldSHA, newSHA, l)
+	diffs := newDiffReads(objects, inv.Files, blobs, emptyOID, oldSHA, newSHA, l)
 	readBlob := func(oid string) ([]byte, error) {
 		if result, ok := blobs[oid]; ok {
 			return result.Data, result.Err
 		}
 		return objects.Blob(ctx, oid, l.BlobBytes)
-	}
-	readDiff := func(pair blobPair, limit int) ([]byte, error) {
-		if result, ok := diffs[pair]; ok {
-			if result.Err == nil && len(result.Data) > limit {
-				return nil, source.ErrLimit
-			}
-			return result.Data, result.Err
-		}
-		return objects.Git(ctx, limit, source.BlobDiffArgs(pair.old, pair.next)...)
 	}
 	used, lines := 0, 0
 	syntaxBudget := syntaxBudget{remaining: SyntaxDuration}
@@ -187,7 +178,7 @@ func build(ctx context.Context, objects Objects, oldSHA, newSHA string, p *sourc
 			inv.Problems = append(inv.Problems, fmt.Sprintf("file %s: %s", f.ID[:12], reason))
 		}
 	}
-	for _, f := range inv.Files {
+	for index, f := range inv.Files {
 		if ctx.Err() != nil {
 			return inv, ctx.Err()
 		}
@@ -224,7 +215,7 @@ func build(ctx context.Context, objects Objects, oldSHA, newSHA string, p *sourc
 			add(f, Unavailable, Range{}, Range{}, nil, "materialized content or diff-line limit exceeded")
 			continue
 		}
-		patch, e := readDiff(pair, remaining)
+		patch, e := diffs.read(ctx, index, pair, remaining, l.DiffLines-lines)
 		if ctx.Err() != nil {
 			return inv, ctx.Err()
 		}
