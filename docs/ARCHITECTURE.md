@@ -75,6 +75,10 @@ an independent 8 MiB / 2,048-entry reuse cap; other Git operations are not cache
 Known blob pairs can use up to eight local diff workers after reserving
 conservative patch-byte and line budgets. Results enter the inventory in the
 original order; custom runners remain serial unless they advertise parallel use.
+Composition capture can limit tree listings to declared changed paths using
+literal Git pathspecs. Empty, unsafe, over-256-path or over-64-KiB argument scopes
+retain the full-tree listing. Both paths keep exact-path filtering, charge actual
+returned metadata and validate the same frozen projection and blob identities.
 Commit capture can validate parents up to four entries ahead using the existing
 commit-type, ancestry and first-parent checks. Results are consumed in API order;
 one runner slot stays available for foreground capture. Slow later validations

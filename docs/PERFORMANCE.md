@@ -929,6 +929,81 @@ terminal journeys and build); configured lint reported zero issues. Startup was
 not remeasured: this reader is created only during new commit capture. The overall
 10x startup/first-selection goal remains active.
 
+## Thirteenth iteration: scoped composition tree queries
+
+Frozen composition needs only paths declared by captured commit inventories.
+It previously listed each complete tree and discarded unrelated records. For
+safe nonempty scopes of at most 256 paths / 64 KiB path arguments, capture now
+uses `--literal-pathspecs ls-tree ... -- <sorted paths>`. The original exact-path
+filter still runs, including when a selected old file became a directory with
+unselected descendants. Byte-only names, tabs, spaces, option-like names and
+pathspec metacharacters retain their literal meaning. Empty/unsafe/large scopes
+keep the original full listing. Attempted errors/limits are never retried.
+
+Both paths charge actual returned metadata to the existing shared capture budget;
+all final composition/source validation remains intact. Reading fewer irrelevant
+records can make a valid bounded projection available where the old broad query
+exhausted its budget. No selected source or required validation is skipped.
+
+Three three-iteration listing trials on 10,000 synthetic tree files:
+
+| Selected paths | Full listing | Scoped-policy listing | Returned bytes before/after |
+| --- | ---: | ---: | ---: |
+| 100 | 12.620 ms | 9.443 ms | 740,000 / 7,400 |
+| 256 | 13.141 ms | 9.510 ms | 740,000 / 18,944 |
+| 1,000 | 12.963 ms | 13.067 ms | 740,000 / 740,000 |
+
+The last row uses the full-list fallback. An earlier unrestricted 1,000-path
+probe took 13.826 ms versus 13.184 ms for a full listing despite returning fewer
+bytes; it motivated the conservative matcher-count cap. Do not equate fewer
+bytes with faster total execution. Logs: `/tmp/prui-composition-scopes.txt` and
+`/tmp/prui-composition-policy.txt`. Scope tests compare byte-exact retained
+records in both trees of a file/directory replacement. Invalid UTF-8 names are
+constructed directly with synthetic Git objects because the host filesystem
+refuses to create those names.
+
+Three one-operation complete ten-commit cold opens, with the same existing
+complete inventory/commit/composition assertions and no concurrent builds/tests:
+
+| Object layout | Prior `eb10e00` | Scoped composition |
+| --- | ---: | ---: |
+| Loose | 1,416.886 ms | 1,203.174 ms |
+| Packed | 644.256 ms | 633.712 ms |
+| Mixed | 689.545 ms | 694.147 ms |
+
+Loose-object opening improved about 15%; packed/mixed results are essentially
+neutral at this sample size. Counts of Git calls stay unchanged; scoped listing
+reduces their output and traversal. Logs: `/tmp/prui-composition-before.txt` and
+`/tmp/prui-composition-after.txt`. This result is not a universal PR-open or 10x
+speedup claim; real first selection is checked separately.
+
+Live first selection used release-equivalent binaries, fresh private homes,
+existing credentials held only in memory and alternating order. Timing starts
+at Enter in the populated picker and ends at the first readable overview frame.
+The first three-pair batch suggested a regression for PR #19, so a separate
+five-pair confirmation batch followed without concurrent tests/builds:
+
+| Batch / PR | Prior median | Scoped median |
+| --- | ---: | ---: |
+| Initial / #19 | 2,283.85 ms | 2,518.39 ms |
+| Initial / #11 | 2,569.46 ms | 2,566.40 ms |
+| Confirmation / #19 | 2,367.30 ms | 2,417.27 ms |
+| Confirmation / #11 | 2,584.55 ms | 2,583.26 ms |
+
+The confirmation #19 difference is about 2.1% slower; #11 is neutral. These
+variable network-inclusive samples do not demonstrate a live-selection win or
+a consistent regression. Both batches are retained rather than selecting only
+the favorable one. The measured benefit is limited to bounded tree work and
+the loose-object synthetic cold open above. All 16 paired decoded snapshots
+were identical, with complete inventories, all three commits and captured
+composition. Artifacts: `/tmp/prui-composition-selection-ppn4oyt3` and
+`/tmp/prui-composition-confirmation-yvz9i9ow`.
+
+The complete verification script passed, including race tests and terminal
+journeys; configured lint reported zero issues. Startup was not remeasured
+because this query runs only during new composition capture. The overall 10x
+startup/first-selection goal remains active.
+
 ## Reproduction and validation
 
 ```sh
@@ -939,6 +1014,7 @@ go test ./internal/source -run '^$' -bench BenchmarkBorrowObjects -benchtime=1x 
 go test ./internal/syntax -run '^$' -bench BenchmarkLexerSelection -benchtime=100x -count=3
 go test ./internal/syntax -run '^$' -bench BenchmarkTokenizeCaptureReuse -benchtime=10x -count=3
 go test ./internal/session -run '^$' -bench BenchmarkSQLiteFreshnessProgress -benchtime=1x -count=3
+go test ./internal/commits -run '^$' -bench BenchmarkCompositionTreeListing -benchtime=3x -count=3
 go test ./cmd/prui -run '^$' -bench BenchmarkOfflineStartupComponents -benchtime=3x -count=3
 ./scripts/verify.sh
 ```
