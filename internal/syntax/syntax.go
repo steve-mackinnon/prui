@@ -114,7 +114,7 @@ func tokenizeThrough(ctx context.Context, path string, source []byte, duration t
 		}
 	}()
 	deadline := time.Now().Add(duration)
-	it, err := lexer.Tokenise(&chroma.TokeniseOptions{State: "root", EnsureLF: false}, string(source))
+	it, err := tokenLexer(lexer).Tokenise(&chroma.TokeniseOptions{State: "root", EnsureLF: false}, string(source))
 	if err != nil {
 		return nil, LexerError
 	}

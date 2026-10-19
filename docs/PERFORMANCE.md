@@ -1626,6 +1626,112 @@ membership reads. The complete verification script passed, including installer
 fixtures, vet, race tests, terminal journeys and build. Configured lint reported
 zero issues. No human terminal usability claim is made by these automated checks.
 
+## Twenty-fourth iteration: recheck early view preparation after GraphQL
+
+Revisited the discarded early-view prototype with runtime `efff754`, because
+smaller metadata reads might expose more local setup latency. The disposable
+prototype starts one isolated local object view while the current-repository PR
+list loads, consumes it once and joins/cleans it on exit. It makes no additional
+GitHub request. Three interleaved release-equivalent pairs per PR, fresh stores,
+full source capture and confirmed freshness:
+
+| PR | Prior readable | Prepared view readable | Prior confirmed | Prepared view confirmed |
+| --- | ---: | ---: | ---: | ---: |
+| #19 | 1,264.79 ms | 1,215.81 ms | 1,465.53 ms | 1,399.04 ms |
+| #11 | 1,367.19 ms | 1,284.79 ms | 1,549.70 ms | 1,467.84 ms |
+
+All six paired snapshots were identical and complete. The approximately 4–6%
+selection gain remains small relative to speculative filesystem work and the
+ownership/lifetime machinery a production version would require. Do not retain
+the context-value prototype or introduce a prepared-view API for this result.
+First candidate list startup was 1,233 ms and remains recorded; no startup win is
+claimed. Artifacts: `/tmp/prui-graphql-prewarm-selection-7jsnpckw`.
+
+## Twenty-fifth iteration: prune impossible Go lexer rules
+
+Chroma's pinned Go lexer has one stateless rule sequence and tries many
+impossible regexes before ordinary identifiers/functions. Build a private
+character dispatcher from that exact sequence. For ASCII leading characters,
+conservative regex first sets select a subsequence in the original order;
+the original regexes, groups and emitters still decide every actual match.
+Unicode and vertical tab use the complete original sequence, accounting for
+the Go/.NET whitespace-class difference. Assertions only over-include candidates.
+The complete input and existing offset, byte, span, cancellation and time checks
+are unchanged. Initialization is lazy and inside the existing token deadline.
+
+Enable this only for the canonical Go lexer with the reviewed pattern checksum,
+single stateless root and matching flags. Other languages, custom lexers and
+unreviewed dependency changes retain the original implementation. Do not modify
+the global registry, original rules or configuration. Construct and initialize
+the private compiled table before publication, then share each root compiled
+rule across its candidate lists. The optimized lexer compiles 32 regexes instead
+of one pool per character class; the original Chroma lexer remains available
+independently for fallback and Markdown rendering. This is a bounded additional
+lexer, not a claim that total process retained memory was measured unchanged.
+
+The first prototype dispatched through an extra zero-width regex on every token
+and raised allocated bytes in the full microbenchmark from 16.54 to 27.93 MB.
+Replaced that with next-state selection after each match and shared compiled
+rules. Final medians of three ten-operation `BenchmarkTokenizeThrough` trials,
+compared with an unchanged `efff754` archive, without concurrent timing work:
+
+| Go capture extent, 1,001-line fixture | Prior | Final | Prior allocated bytes | Final allocated bytes |
+| --- | ---: | ---: | ---: | ---: |
+| Full file | 31.677 ms | 14.031 ms | 16,537,745 | 16,538,624 |
+| First 10 lines | 0.380 ms | 0.235 ms | 371,577 | 372,332 |
+| First 100 lines | 3.247 ms | 1.426 ms | 1,833,691 | 1,834,436 |
+
+The full/100-line stages are about 2.26x / 2.28x faster, with essentially
+unchanged allocation volume. This is a lexer-stage result. Logs:
+`/tmp/prui-go-dispatch-micro-before.txt`,
+`/tmp/prui-go-dispatch-micro-after.txt` (rejected allocation-heavy version), and
+`/tmp/prui-go-dispatch-micro-final.txt`.
+
+Replayed the same saved PR #11 main-inventory fixture in the unchanged archive
+and final code, with no network or concurrent timing work. Three control times
+were 393.19, 390.16 and 390.95 ms; final times were 262.78, 254.30 and 255.33 ms.
+The median fell from 390.95 to 255.33 ms (34.7%). Each replay compared the entire
+inventory with the saved reference using `reflect.DeepEqual`, including syntax,
+statuses and classification. View setup was outside this timer; this is not a
+complete-open result. The temporary diagnostic test stayed in disposable
+archives. Logs: `/tmp/prui-go-dispatch-inventory-before.txt` and
+`/tmp/prui-go-dispatch-inventory-after.txt`.
+
+An initial separate prototype improved PR #11's readable median from 1,399.69
+to 1,283.48 ms and confirmed-current from 1,633.20 to 1,517.40 ms; PR #19 was
+essentially neutral. Then tested the final shared-regex/state-transition version
+independently. Same fresh private-store, complete-source, interleaved driver:
+
+| PR / trial | Prior readable | Final readable | Prior confirmed | Final confirmed |
+| --- | ---: | ---: | ---: | ---: |
+| #19 / 1 | 1,399.17 ms | 1,365.10 ms | 1,628.02 ms | 1,578.68 ms |
+| #19 / 2 | 1,217.13 ms | 1,348.93 ms | 1,449.55 ms | 1,539.98 ms |
+| #19 / 3 | 1,350.33 ms | 1,398.25 ms | 1,564.58 ms | 1,678.91 ms |
+| #19 median | 1,350.33 ms | 1,365.10 ms | 1,564.58 ms | 1,578.68 ms |
+| #11 / 1 | 1,433.80 ms | 1,233.42 ms | 1,647.37 ms | 1,516.07 ms |
+| #11 / 2 | 1,349.74 ms | 1,216.73 ms | 1,583.90 ms | 1,579.96 ms |
+| #11 / 3 | 1,549.68 ms | 1,233.49 ms | 1,806.71 ms | 1,444.09 ms |
+| #11 median | 1,433.80 ms | 1,233.42 ms | 1,647.37 ms | 1,516.07 ms |
+
+Final PR #11 medians improved about 14.0% readable and 8.0% confirmed, with every
+pair improving; PR #19 remained essentially neutral within network variation.
+All twelve paired decoded snapshots across both series were identical, with
+complete inventory, three commits and captured composition. First candidate list
+startups were 1,132 / 2,112 ms and remain included. Startup work was not changed,
+and there is no startup improvement claim. Artifacts:
+`/tmp/prui-go-dispatch-selection-qnaj9efp` and
+`/tmp/prui-go-dispatch-final-selection-buyjso62`.
+
+New differential tests compare complete token types and values, including all
+ASCII leading characters, Unicode, VT, malformed source, templates, numeric
+forms, nested lexing and randomized inputs. Tests also cover conservative first
+sets, dependency/configuration fallback, original-registry isolation, compiled
+rule sharing and concurrent capture. The final differential fuzz run completed
+507,351 executions without a mismatch (`/tmp/prui-go-dispatch-fuzz-final.txt`).
+The complete verification script passed, including installer fixtures, vet,
+race tests, terminal journeys and build. Configured lint reported zero issues.
+The overall 10x startup/first-selection goal remains active and unproven.
+
 ## Reproduction and validation
 
 ```sh
@@ -1636,6 +1742,7 @@ go test ./internal/source -run '^$' -bench BenchmarkBorrowObjects -benchtime=1x 
 go test ./internal/syntax -run '^$' -bench BenchmarkLexerSelection -benchtime=100x -count=3
 go test ./internal/syntax -run '^$' -bench BenchmarkTokenizeCaptureReuse -benchtime=10x -count=3
 go test ./internal/syntax -run '^$' -bench BenchmarkTokenizeThrough -benchtime=10x -count=3
+go test ./internal/syntax -run '^$' -fuzz '^FuzzGoDispatchTokens$' -fuzztime=20s -parallel=4
 go test ./internal/session -run '^$' -bench BenchmarkSQLiteFreshnessProgress -benchtime=1x -count=3
 go test ./internal/commits -run '^$' -bench BenchmarkCompositionTreeListing -benchtime=3x -count=3
 go test ./cmd/prui -run '^$' -bench BenchmarkOfflineStartupComponents -benchtime=3x -count=3
