@@ -30,8 +30,10 @@ part of the original goal.
 These are Enter-to-readable-overview medians in fresh private stores, with real
 GitHub/Git access and identical complete snapshots. See the tenth-iteration
 ledger for both paired series and their limits. Populated PR-list startup still
-typically takes about 0.6 seconds; offline review startup is about 45 ms. Neither
-startup scenario has reached 10x.
+typically takes about 0.6 seconds. A separate release-build comparison with
+1,000 saved read marks improved offline startup from 96.6 to 63.5 ms; this is
+an incremental 1.52x gain against `5752542`. Neither startup scenario has reached
+10x. Absolute offline times vary by fixture, build and host conditions.
 
 ## Design findings
 
@@ -771,6 +773,95 @@ race tests, terminal journeys and build. Final focused race checks passed and
 configured lint reported zero issues. Offline startup has not been remeasured
 for this candidate; overlap is entered only after a PR source-open request.
 
+## Eleventh iteration (2026-10-19): startup profiling and progress-row reuse
+
+Release-equivalent builds use `CGO_ENABLED=0`, `-trimpath`, and `-ldflags='-s -w'`.
+Original/current offline PTY startup medians were 141.17 / 146.34 ms in eleven
+interleaved trials under the host conditions of this run. Version-only launch
+medians were 207.51 / 124.44 ms, with first-execution maxima of 2.83 / 2.18 s;
+these do **not** demonstrate an application startup improvement. Three separate
+initialization traces per build put the largest median package costs around
+14–16 ms each for Chroma lexers, Chroma styles and libc's service database.
+Samples/traces: `/tmp/prui-release-startup-results`. Do not compare these absolute
+timings with the earlier approximately 45 ms development-build launches across
+different host/cache conditions.
+
+A disposable 120-FPS renderer experiment did not establish an improvement:
+eleven interleaved offline trials measured 184.31 ms at the normal cadence and
+255.69 ms at 120 FPS, with broad ranges/outliers. No renderer change was kept.
+Samples: `/tmp/prui-startup-fps-samples.json`. Eager dependency initialization
+would require a separate compatibility-preserving design; no fork, lazy-loading
+shortcut, integrity-check removal or durability reduction was introduced.
+
+`BenchmarkOfflineStartupComponents` now separates connection opening, snapshot
+load/validation, and model loading through the first rendered frame. Fixtures
+use synthetic committed Git objects, private storage and captured Markdown;
+there is no online client or credential use in timed offline model loading.
+One shape has an unread single-file comparison; another has 1,000 mode changes
+and all 1,000 saved read marks. Source/schema setup is outside child timers.
+Package/process initialization and actual terminal I/O are not included.
+
+The profile exposed per-mark SQL validation plus deletion/reinsertion on every
+freshness reset. `UpdateState` now checks unchanged nonempty progress in one
+transactional joined query. It requires exact IDs/order, contiguous ordinals and
+membership in the session's current snapshot. Only a completely equivalent valid
+set skips rewriting rows. Changed/corrupt sets retain the old validation/rewrite
+path. Empty requested progress retains the original single-DELETE path, avoiding
+extra work for first-time opens and ordinary unread sessions.
+
+The generation/reference CAS, status/timestamp update and durable commit still
+run on **every** update. An unchanged row set cannot bypass stale-writer checks,
+parent cancellation, snapshot membership or error rollback. Tests deterministically
+count progress writes, verify durable generation/freshness advancement and stale
+rejection, reject unknown existing IDs, repair noncontiguous ordinals and preserve
+reordered/cleared marks. The optimizer bounds returned IDs to 256 bytes and
+retains the original path for longer requested legacy IDs. Oversized malformed
+stored IDs are rejected or repaired without materializing them in Go.
+
+Median of three three-operation synthetic state-update trials:
+
+| Saved read marks | Prior `5752542` | Reused rows |
+| --- | ---: | ---: |
+| 0 | 0.432 ms | 0.407 ms |
+| 1 | 0.588 ms | 0.491 ms |
+| 1,000 | 20.382 ms | 1.947 ms |
+| 10,000 | 228.332 ms | 20.846 ms |
+| 10,000 allocated bytes | 15,331,704 | 1,325,512 |
+
+The 1,000-/10,000-mark **state update** is about 10.5x / 11.0x faster. This is
+not a 10x startup or first-PR-selection result. At zero/one mark the sub-millisecond
+difference is not treated as a material win. Baseline/final logs:
+`/tmp/prui-progress-before-final.txt`, `/tmp/prui-progress-final.txt`.
+
+Complete offline model loading through a readable frame (median of three
+three-iteration trials; connection open/package initialization/PTY excluded):
+
+| Fixture | Prior | Reused rows |
+| --- | ---: | ---: |
+| 1,000 files, all read | 49.557 ms | 28.164 ms |
+
+This is about 43% less model-load time. The comparison uses the same benchmark
+source in an isolated prior archive, retains complete inventory and validates
+the expected read-count indicator. Logs: `/tmp/prui-startup-model-before.txt`
+and `/tmp/prui-startup-model-final.txt`. The one-file unread control remained
+about 1.5 ms for this component; its empty progress path is unchanged.
+
+Final release-equivalent whole-process PTY startup with the retained synthetic
+1,000-file/all-read snapshot measured **96.62 ms before / 63.51 ms after**
+(eleven interleaved trials, one untimed warmup per executable). Ranges were
+94.98–98.08 / 60.44–64.74 ms. Every trial reached the expected `1000/1000 read`
+frame; source-payload hashes and the 1,000 stored marks were unchanged afterward.
+Samples: `/tmp/prui-progress-startup-samples.json`. This is about 34% less full
+startup time, or 1.52x faster, against the prior optimized revision `5752542`;
+it is not the overall 10x goal. The retained fixture is private, synthetic and
+works with its generating checkout removed.
+
+The final complete verification script passed: installer fixtures, vet, race
+tests, terminal journeys and build. Configured lint reported zero issues. The
+final benchmark also requires complete commit capture/composition in both source
+fixtures. All original freshness writes, durability settings and source validation
+remain enforced. The overall goal remains active.
+
 ## Reproduction and validation
 
 ```sh
@@ -780,6 +871,8 @@ go test ./internal/source -run '^$' -bench BenchmarkBlobRead -benchtime=1s -coun
 go test ./internal/source -run '^$' -bench BenchmarkBorrowObjects -benchtime=1x -count=3
 go test ./internal/syntax -run '^$' -bench BenchmarkLexerSelection -benchtime=100x -count=3
 go test ./internal/syntax -run '^$' -bench BenchmarkTokenizeCaptureReuse -benchtime=10x -count=3
+go test ./internal/session -run '^$' -bench BenchmarkSQLiteFreshnessProgress -benchtime=1x -count=3
+go test ./cmd/prui -run '^$' -bench BenchmarkOfflineStartupComponents -benchtime=3x -count=3
 ./scripts/verify.sh
 ```
 

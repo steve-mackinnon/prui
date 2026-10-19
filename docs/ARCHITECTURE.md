@@ -94,7 +94,11 @@ The snapshot contains the inventory, file slices, captured PR description,
 supporting evidence, and any guide bundle. The state contains reviewed slice
 IDs, freshness status, and a generation number. SQLite stores reusable source
 snapshots and guides separately from session state; state updates use the
-generation and snapshot reference to reject stale writes.
+generation and snapshot reference to reject stale writes. Freshness-only updates
+can retain unchanged progress rows after validating their exact order, contiguous
+ordinals and current-snapshot membership in the same transaction. Generation,
+timestamp/status and the durable commit still advance; changed progress keeps
+its existing validation and rewrite path.
 
 `internal/review.Mark`, `Refresh`, and `Resume` handle reading progress and
 freshness. Resume loads the saved snapshot, then checks GitHub metadata unless
