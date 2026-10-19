@@ -1004,6 +1004,72 @@ journeys; configured lint reported zero issues. Startup was not remeasured
 because this query runs only during new composition capture. The overall 10x
 startup/first-selection goal remains active.
 
+## Fourteenth iteration: overlap commit capture and supporting evidence
+
+Six fresh-home direct opens on the current release-equivalent binary profiled
+the remaining serial stages. Evidence retrieval took 293–322 ms on PRs #19/#11,
+after commit capture had already finished. Main inventory took about 82–86 ms
+for #19 and 572–600 ms for #11. Saving took about 3–11 ms; the subsequent
+freshness read still cost hundreds of milliseconds. These observations identify
+independent pinned-object work worth overlapping without removing freshness
+reads. Artifacts: `/tmp/prui-critical-profile-jwfmfxy3/results.json`.
+
+After the main inventory (and any explicitly requested full-source capture),
+parallel-capable runners now capture commits and supporting evidence together.
+Both retain their existing independent byte/file/time budgets, pinned source,
+privacy filtering and completeness labels. Commit errors cancel and join the
+evidence reader before retrying/closing the view. Success joins both before
+guide input, payload bounding or persistence. Unadvertised runners retain the
+original ordering, and no additional GitHub requests or retries are introduced.
+Stage wall durations can overlap and must not be summed as elapsed time.
+
+Tests exercise overlap with barriers, joining on success, cancellation/error
+cleanup, serial ordering/failure and exact serial/parallel frozen snapshot
+equivalence using synthetic real-Git history and supporting documentation.
+
+Three interleaved release-equivalent first-selection pairs per real PR, with
+fresh private homes and complete capture assertions (`1a3d5b1` versus overlap):
+
+| PR / trial | Prior | Overlapped |
+| --- | ---: | ---: |
+| #19 / 1 | 2,498.61 ms | 1,933.32 ms |
+| #19 / 2 | 2,368.53 ms | 2,068.05 ms |
+| #19 / 3 | 2,416.75 ms | 2,218.88 ms |
+| #19 median | 2,416.75 ms | 2,068.05 ms |
+| #11 / 1 | 2,516.57 ms | 2,299.89 ms |
+| #11 / 2 | 2,534.20 ms | 2,168.46 ms |
+| #11 / 3 | 2,533.75 ms | 2,251.82 ms |
+| #11 median | 2,533.75 ms | 2,251.82 ms |
+
+Median reductions are about 14.4% / 11.1%, with improvement in every pair.
+Every pair had identical decoded snapshots, complete main inventory, all three
+commits and captured composition. Pins match the prior interactive studies.
+Timing runs from Enter in the populated picker to the first readable overview;
+this is not an expanded-source rendering measurement. Credentials remain only
+in memory. Artifacts: `/tmp/prui-details-selection-rp2mbzwy`.
+These results do not establish a universal 10x startup/selection improvement.
+
+The identical network-free complete-open benchmark command then ran against an
+exact `1a3d5b1` archive and the candidate, three one-operation trials each, with
+no concurrent builds/tests:
+
+| Cold fixture | Prior median | Overlapped median |
+| --- | ---: | ---: |
+| Packed ten commits / 100 files | 634.111 ms | 612.111 ms |
+| 100 changed files + 100 distinct supporting excerpts | 1,198.197 ms | 1,090.735 ms |
+
+Observed reductions are about 3.5% / 9.0%. All complete inventory, commit,
+composition and supporting-excerpt assertions passed. Git call counts stay
+unchanged: packed history uses 24 `cat-file`, 12 `diff-tree`, 14 `ls-tree`;
+supporting evidence uses 35, 3 and 5 respectively. Logs:
+`/tmp/prui-details-before.txt` and `/tmp/prui-details-after.txt`. The smaller local
+effect is expected because these fixtures have no network wait to overlap.
+
+The complete verification script passed (installer fixtures, vet, race tests,
+terminal journeys and build); configured lint reported zero issues. Startup
+was not remeasured because the changed stage runs only during new comparison
+capture. The overall 10x goal remains active.
+
 ## Reproduction and validation
 
 ```sh
@@ -1039,9 +1105,11 @@ including vet, race tests, PTY tests and build; configured lint reported zero is
 ## Next iterations
 
 1. Broaden the interactive first-selection fixtures beyond PRs #19 and #11,
-   including more commits and missing-object fetches. These two real PRs now
-   open about 2.56x / 3.46x faster, still below 10x. Typical populated PR-list
-   startup remains around 0.6 seconds; median offline startup is about 45 ms.
+   including more commits and missing-object fetches. Earlier matched build
+   comparisons demonstrated about 2.56x / 3.46x improvements; newer per-iteration
+   results are recorded above and do not establish the overall 10x target.
+   Populated PR-list startup has typically been around 0.6 seconds; the earlier
+   median offline startup was about 45 ms. Remeasure under matching conditions.
 2. Profile the remaining GitHub request/process/connection overhead and per-commit
    work. Preserve every pinning, freshness and completeness check; investigate
    further transport work before changing consistency boundaries. Connection

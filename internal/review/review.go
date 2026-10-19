@@ -79,14 +79,22 @@ func openWithConfigAttempt(ctx context.Context, checkout string, id source.Ident
 		}
 		inv.FullSource = inventory.CaptureFullSource(ctx, v, inv, l)
 	}
-	commitBundle, e := commits.Capture(ctx, v, p, gh, l, notify)
+	parallel := false
+	if capable, ok := r.(interface{ MaxParallelism() int }); ok {
+		parallel = capable.MaxParallelism() > 1
+	}
+	commitBundle, contextBundle, e := captureDetails(ctx, parallel, func(c context.Context) (*commits.Bundle, error) {
+		return commits.Capture(c, v, p, gh, l, notify)
+	}, func(c context.Context) reviewcontext.ContextBundle {
+		started := time.Now()
+		result := reviewcontext.Retrieve(c, v, p, inv, cfg.Policy, reviewcontext.Defaults)
+		if cfg.Timing != nil {
+			cfg.Timing.Evidence += time.Since(started)
+		}
+		return result
+	})
 	if e != nil {
 		return nil, e
-	}
-	started = time.Now()
-	contextBundle := reviewcontext.Retrieve(ctx, v, p, inv, cfg.Policy, reviewcontext.Defaults)
-	if cfg.Timing != nil {
-		cfg.Timing.Evidence += time.Since(started)
 	}
 	// Analysis consumes only frozen material and runs before slicing, so it can
 	// interpret the change but never influence file ownership or progress.

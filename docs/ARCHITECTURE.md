@@ -75,6 +75,10 @@ an independent 8 MiB / 2,048-entry reuse cap; other Git operations are not cache
 Known blob pairs can use up to eight local diff workers after reserving
 conservative patch-byte and line budgets. Results enter the inventory in the
 original order; custom runners remain serial unless they advertise parallel use.
+Once the main inventory is complete, parallel-capable runners can capture commit
+details and supporting evidence together. Both use the same pinned view and
+their existing independent budgets. Errors cancel and join evidence retrieval
+before retrying or closing the view; guide analysis waits for both results.
 Composition capture can limit tree listings to declared changed paths using
 literal Git pathspecs. Empty, unsafe, over-256-path or over-64-KiB argument scopes
 retain the full-tree listing. Both paths keep exact-path filtering, charge actual
