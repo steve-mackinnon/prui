@@ -20,9 +20,9 @@ part of the original goal.
   drafts, freshness checks, offline operation and explicit write/upload consent.
   No validation or required source capture is skipped to improve a number.
 
-## Latest verified interactive selection
+## Verified interactive selection baselines
 
-| Real PR | Original | Latest candidate | Overall improvement |
+| Real PR | Original | Tenth iteration | Overall improvement |
 | --- | ---: | ---: | ---: |
 | #19: 1 file, 3 commits | 5.80 s | 2.27 s | 2.56x |
 | #11: 26 files, 3 commits | 8.93 s | 2.58 s | 3.46x |
@@ -861,6 +861,73 @@ tests, terminal journeys and build. Configured lint reported zero issues. The
 final benchmark also requires complete commit capture/composition in both source
 fixtures. All original freshness writes, durability settings and source validation
 remain enforced. The overall goal remains active.
+
+## Twelfth iteration: bounded parent-validation read-ahead
+
+Each non-root captured commit retains four isolated Git validations: commit object/type,
+ancestry under the pinned head, exact commit/parent identity, and first-parent
+object availability. These commands formerly ran only after the previous
+commit's inventory finished. No check has been removed or replaced by an API
+membership assumption.
+
+Parallel-capable runners can now validate up to four entries ahead, leaving at
+least one runner slot for foreground capture. Entries/results remain in original
+API order. Consuming a result admits one more entry; workers cannot eagerly read
+the whole list. A ready early result never waits for a later blocked validation.
+Serial/unadvertised runners retain lazy direct calls. The reader accepts at most
+100 entries, returns failed checks once, and cancels/joins before final commit
+freshness verification or view close. Existing per-command output/time limits,
+overall capture deadline, source budgets and explicit unavailable states remain.
+
+Barrier/atomic-counter tests cover bounded admission, exact order, one attempt
+per entry including resource failures, lazy serial operation, blocked later
+entries, cancellation and joined shutdown. Real isolated Git tests compare
+ordinary and read-ahead results for a root, descendant, non-ancestor sibling and
+blob. Commit/review race tests also passed before the complete verification run.
+
+Three one-operation full cold-open trials with complete inventory, commit and
+composition assertions (network excluded, Apple M2 Max):
+
+| Ten-commit fixture | Prior `91d229f` | Read-ahead |
+| --- | ---: | ---: |
+| Loose objects | 1,770.16 ms | 1,420.22 ms |
+| Packed objects | 976.18 ms | 644.52 ms |
+| Mixed duplicate loose/packed objects | 1,032.64 ms | 690.82 ms |
+
+These are approximately 20%, 34% and 33% reductions in complete local opening.
+The recorded `cat-file`, tree-diff and tree-listing counts stay unchanged: this
+iteration overlaps required work. The identical regex selected all three layouts
+in both runs (including the mixed prefix). Logs: `/tmp/prui-parents-before.txt`
+and `/tmp/prui-parents-after.txt`. Real first-selection timing and the overall
+10x target remain separate from these synthetic results.
+
+Three release-equivalent real first-selection pairs per PR then alternated order,
+using fresh private homes, existing credentials held only in memory, and complete
+source assertions. `91d229f` versus read-ahead:
+
+| PR / trial | Prior | Read-ahead |
+| --- | ---: | ---: |
+| #19 / 1 | 2,598.43 ms | 2,567.25 ms |
+| #19 / 2 | 2,532.74 ms | 2,267.79 ms |
+| #19 / 3 | 2,517.27 ms | 2,401.25 ms |
+| #19 median | 2,532.74 ms | 2,401.25 ms |
+| #11 / 1 | 2,882.83 ms | 2,550.49 ms |
+| #11 / 2 | 2,569.45 ms | 2,699.88 ms |
+| #11 / 3 | 2,583.42 ms | 2,434.72 ms |
+| #11 median | 2,583.42 ms | 2,550.49 ms |
+
+Every pair had identical decoded snapshots, complete main inventory, all three
+commits and captured composition. Pins match the earlier interactive studies.
+Artifacts: `/tmp/prui-parent-selection-ciz7ye68`. Observed reductions are about
+5.2% / 1.3%; the latter is effectively neutral at this sample size/variability.
+The larger ten-commit synthetic wins do not establish the same improvement for
+these smaller PRs or a universal result. Do not combine historical absolute
+numbers from different build/host conditions into a new overall speedup claim.
+
+The complete verification script passed (installer fixtures, vet, race tests,
+terminal journeys and build); configured lint reported zero issues. Startup was
+not remeasured: this reader is created only during new commit capture. The overall
+10x startup/first-selection goal remains active.
 
 ## Reproduction and validation
 

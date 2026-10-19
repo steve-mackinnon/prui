@@ -75,6 +75,12 @@ an independent 8 MiB / 2,048-entry reuse cap; other Git operations are not cache
 Known blob pairs can use up to eight local diff workers after reserving
 conservative patch-byte and line budgets. Results enter the inventory in the
 original order; custom runners remain serial unless they advertise parallel use.
+Commit capture can validate parents up to four entries ahead using the existing
+commit-type, ancestry and first-parent checks. Results are consumed in API order;
+one runner slot stays available for foreground capture. Slow later validations
+do not hold ready earlier entries. Capture cancels and joins read-ahead before
+its final freshness read and before the isolated view closes. Serial runners
+remain lazy; failed validations are not retried.
 Successful syntax captures also reuse categories within one open attempt, keyed
 by exact path and a SHA-256 digest of the complete input bytes. This separate
 8 MiB / 128-entry cache holds copied spans, never source or failed results.
