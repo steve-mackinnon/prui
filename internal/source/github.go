@@ -59,15 +59,18 @@ type Metadata struct {
 }
 
 type PullRequest struct {
-	TargetBranch string
-	Description  string
-	Identity     Identity
-	Title        string
-	Author       string
-	LastModifier string // Author of the latest commit in the PR.
-	OpenedAt     time.Time
-	Checks       CheckStatus
-	ViewerReview string // Latest review state for the authenticated user; empty means no review.
+	HeadBranch               string
+	HeadRepository           string
+	StackPosition, StackSize int // Base-first position in an unambiguous open PR chain.
+	TargetBranch             string
+	Description              string
+	Identity                 Identity
+	Title                    string
+	Author                   string
+	LastModifier             string // Author of the latest commit in the PR.
+	OpenedAt                 time.Time
+	Checks                   CheckStatus
+	ViewerReview             string // Latest review state for the authenticated user; empty means no review.
 }
 
 type CheckStatus string
@@ -527,7 +530,7 @@ func (g *GH) ListPullRequests(ctx context.Context, repository string) ([]PullReq
 		return nil, err
 	}
 	parts := strings.Split(repository, "/")
-	const query = `query($owner:String!,$name:String!){repository(owner:$owner,name:$name){pullRequests(first:100,states:OPEN,orderBy:{field:CREATED_AT,direction:DESC}){nodes{number title body baseRefName createdAt author{login} viewerLatestReview{state} commits(last:1){nodes{commit{author{name user{login}} statusCheckRollup{state}}}}}}}}`
+	const query = `query($owner:String!,$name:String!){repository(owner:$owner,name:$name){pullRequests(first:100,states:OPEN,orderBy:{field:CREATED_AT,direction:DESC}){nodes{number title body baseRefName headRefName headRepository{nameWithOwner} createdAt author{login} viewerLatestReview{state} commits(last:1){nodes{commit{author{name user{login}} statusCheckRollup{state}}}}}}}}`
 	data, err := g.call(ctx, "api", "--hostname", "github.com", "graphql", "-f", "query="+query, "-F", "owner="+parts[0], "-F", "name="+parts[1])
 	if err != nil {
 		return nil, fmt.Errorf("GitHub pull request list unavailable (check authentication and connectivity): %w", err)
@@ -537,9 +540,13 @@ func (g *GH) ListPullRequests(ctx context.Context, repository string) ([]PullReq
 			Repository *struct {
 				PullRequests struct {
 					Nodes []struct {
-						Number             int       `json:"number"`
-						Title              string    `json:"title"`
-						BaseRefName        string    `json:"baseRefName"`
+						Number         int    `json:"number"`
+						Title          string `json:"title"`
+						BaseRefName    string `json:"baseRefName"`
+						HeadRefName    string `json:"headRefName"`
+						HeadRepository *struct {
+							NameWithOwner string `json:"nameWithOwner"`
+						} `json:"headRepository"`
 						Body               string    `json:"body"`
 						CreatedAt          time.Time `json:"createdAt"`
 						ViewerLatestReview *struct {
@@ -575,10 +582,16 @@ func (g *GH) ListPullRequests(ctx context.Context, repository string) ([]PullReq
 	prs := make([]PullRequest, 0, len(raw.Data.Repository.PullRequests.Nodes))
 	seen := map[int]bool{}
 	for _, item := range raw.Data.Repository.PullRequests.Nodes {
-		if item.Number <= 0 || seen[item.Number] || item.CreatedAt.IsZero() || !validListText(item.Title) || !validListText(item.BaseRefName) || !utf8.ValidString(item.Body) || len(item.Body) > descriptionMaxBytes || len(item.Commits.Nodes) > 1 {
+		if item.Number <= 0 || seen[item.Number] || item.CreatedAt.IsZero() || !validListText(item.Title) || !validListText(item.BaseRefName) || !validListText(item.HeadRefName) || !utf8.ValidString(item.Body) || len(item.Body) > descriptionMaxBytes || len(item.Commits.Nodes) > 1 {
 			return nil, errors.New("invalid pull request list")
 		}
-		pr := PullRequest{TargetBranch: item.BaseRefName, Identity: Identity{Repository: repository, Number: item.Number}, Title: item.Title, Description: item.Body, OpenedAt: item.CreatedAt, Checks: ChecksUnknown}
+		pr := PullRequest{HeadBranch: item.HeadRefName, TargetBranch: item.BaseRefName, Identity: Identity{Repository: repository, Number: item.Number}, Title: item.Title, Description: item.Body, OpenedAt: item.CreatedAt, Checks: ChecksUnknown}
+		if item.HeadRepository != nil {
+			pr.HeadRepository = item.HeadRepository.NameWithOwner
+			if !repositoryPattern.MatchString(pr.HeadRepository) {
+				return nil, errors.New("invalid pull request head repository")
+			}
+		}
 		if item.ViewerLatestReview != nil {
 			switch item.ViewerLatestReview.State {
 			case "APPROVED", "CHANGES_REQUESTED", "COMMENTED", "DISMISSED", "PENDING":
@@ -617,6 +630,7 @@ func (g *GH) ListPullRequests(ctx context.Context, repository string) ([]PullReq
 		seen[item.Number] = true
 		prs = append(prs, pr)
 	}
+	annotatePullRequestStacks(prs)
 	return prs, nil
 }
 

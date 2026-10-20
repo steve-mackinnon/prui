@@ -1081,7 +1081,8 @@ func (m *Model) switcherView() string {
 		if result.open {
 			rows[i] = "open " + Escape(result.title)
 			if known {
-				rows[i] = m.compactPullRequestRow(rows[i]+"  "+Escape(pr.Title), pr.Author, pr.ViewerReview, pullRequestChecks(pr), pr.TargetBranch)
+				rows[i] = m.prPickerRow(pr)
+				rows[i] = strings.Replace(rows[i], "\n", "\nopen  ", 1)
 			}
 		} else {
 			rows[i] = m.prPickerRow(pr)

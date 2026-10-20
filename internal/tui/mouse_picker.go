@@ -46,8 +46,13 @@ func (m *Model) mousePickerClick(x, y int) tea.Cmd {
 		if y < g.listTop || y >= g.listTop+g.listHeight || g.split && x >= g.leftWidth {
 			return nil
 		}
-		start := max(0, m.PullRequestPicker.Index-g.listHeight+1)
-		index := start + y - g.listTop
+		rowHeight := min(2, g.listHeight)
+		capacity := max(1, g.listHeight/rowHeight)
+		start := max(0, m.PullRequestPicker.Index-capacity+1)
+		index := start + (y-g.listTop)/rowHeight
+		if y-g.listTop >= capacity*rowHeight {
+			return nil
+		}
 		if index < rows {
 			m.PullRequestPicker.Index = index
 			m.PullRequestPicker.previewFocus = false

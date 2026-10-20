@@ -113,7 +113,7 @@ func TestPRPickerMousePreviewDoesNotSelect(t *testing.T) {
 	if m.PullRequestPicker.previewScroll == 0 || m.PullRequestPicker.Index != 0 {
 		t.Fatal("preview wheel did not scroll independently")
 	}
-	m.mousePickerClick(2, 2)
+	m.mousePickerClick(2, 3)
 	if m.PullRequestPicker.Index != 1 || m.PullRequestPicker.previewFocus || m.PullRequestPicker.previewScroll != 0 {
 		t.Fatal("list click did not select and reset preview")
 	}

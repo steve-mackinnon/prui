@@ -211,7 +211,7 @@ func TestCompactPullRequestsBoundAndEscapeLongContent(t *testing.T) {
 	}
 }
 
-func TestCompactPullRequestsShowManyChoicesAndSelectedDetail(t *testing.T) {
+func TestTwoLinePullRequestsShowChoicesAndSelectedDetail(t *testing.T) {
 	m := New(context.Background(), nil)
 	defer m.Close()
 	m.Stack = []page{pagePullRequestPicker}
@@ -221,8 +221,8 @@ func TestCompactPullRequestsShowManyChoicesAndSelectedDetail(t *testing.T) {
 	}
 	m.PullRequestPicker.Index = 20
 	view := ansi.Strip(m.View().Content)
-	if strings.Count(view, "Choice ") < 6 || !strings.Contains(view, "› #21") || !strings.Contains(view, "Author author-21") || strings.Contains(view, "Author author-20") {
-		t.Fatalf("picker did not prioritize compact choices and selected detail:\n%s", view)
+	if strings.Count(view, "Choice ") != 4 || strings.Count(view, "@author-") != 3 || !strings.Contains(view, "› #21") || !strings.Contains(view, "Author author-21") || strings.Contains(view, "Author author-20") {
+		t.Fatalf("picker did not show three two-line choices and selected detail:\n%s", view)
 	}
 }
 
@@ -354,41 +354,6 @@ func TestCompactSwitcherKeepsSelectionVisibleAfterResize(t *testing.T) {
 	}
 }
 
-func TestPullRequestRowsPinAuthorsBeforeChecks(t *testing.T) {
-	m := New(context.Background(), nil)
-	defer m.Close()
-	m.Width = 80
-	first := m.pullRequestRow(source.PullRequest{Identity: source.Identity{Number: 1}, Title: strings.Repeat("long title ", 20), Author: "alice", Checks: source.ChecksPassed})
-	second := m.pullRequestRow(source.PullRequest{Identity: source.Identity{Number: 2}, Title: "Short", Author: "bob", Checks: source.ChecksPending})
-	if !strings.Contains(first, "@alice") || !strings.Contains(second, "@bob") {
-		t.Fatalf("authors missing from rows: %q / %q", first, second)
-	}
-	if visibleWidth(first[:strings.Index(first, "@alice")]) != visibleWidth(second[:strings.Index(second, "@bob")]) {
-		t.Fatalf("author columns do not align: %q / %q", first, second)
-	}
-	for _, width := range []int{20, 32, 40, 60, 80} {
-		m.Width = width
-		row := m.pullRequestRow(source.PullRequest{Identity: source.Identity{Number: 42}, Title: strings.Repeat("x", 100), Author: strings.Repeat("a", 100), Checks: source.ChecksPassed})
-		if visibleWidth(row) > width-2 || !strings.Contains(row, "#42") {
-			t.Fatalf("invalid row at width %d: %q", width, row)
-		}
-	}
-}
-
-func TestPullRequestRowsKeepColumnsTogetherOnWideTerminals(t *testing.T) {
-	m := New(context.Background(), nil)
-	defer m.Close()
-	pr := source.PullRequest{Identity: source.Identity{Number: 42}, Title: strings.Repeat("long title ", 20), Author: "alice", Checks: source.ChecksPassed}
-	m.Width = 122
-	want := m.pullRequestRow(pr)
-	for _, width := range []int{160, 240, 400} {
-		m.Width = width
-		if got := m.pullRequestRow(pr); got != want {
-			t.Fatalf("columns spread at width %d: %q; want %q", width, got, want)
-		}
-	}
-}
-
 func TestPullRequestRowsShowViewerReview(t *testing.T) {
 	m := New(context.Background(), nil)
 	defer m.Close()
@@ -402,7 +367,7 @@ func TestPullRequestRowsShowViewerReview(t *testing.T) {
 		{"", "○", "Your review: None"},
 	} {
 		pr := source.PullRequest{Identity: source.Identity{Number: 1}, Title: "Change", Author: "alice", ViewerReview: tc.state}
-		if row := m.pullRequestRow(pr); !strings.Contains(row, tc.marker) || visibleWidth(row) > m.Width-2 {
+		if row := m.prPickerRow(pr); !strings.Contains(row, tc.marker) || visibleWidth(row) > m.Width-2 {
 			t.Fatalf("invalid row: %q", row)
 		}
 		if detail := m.pullRequestDetail(pr)[2]; detail != tc.detail {

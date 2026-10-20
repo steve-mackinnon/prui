@@ -64,11 +64,11 @@ func TestMousePickerPRDetailIsNotAResult(t *testing.T) {
 	m.Width, m.Height = 80, 12
 	m.Stack = []page{pagePullRequestPicker}
 	m.PullRequests = []source.PullRequest{{Identity: source.Identity{Number: 1}}, {Identity: source.Identity{Number: 2}}}
-	m.mousePickerClick(0, 2)
+	m.mousePickerClick(0, 3)
 	if m.PullRequestPicker.Index != 1 {
 		t.Fatal("second PR not selected")
 	}
-	for y := 3; y < 12; y++ {
+	for y := 4; y < 12; y++ {
 		m.mousePickerClick(0, y)
 		if m.PullRequestPicker.Index != 1 {
 			t.Fatalf("detail/footer row %d changed selection", y)
@@ -91,7 +91,7 @@ func TestMousePickerFilteredSwitcherUsesDisplayedResult(t *testing.T) {
 		{Identity: source.Identity{Repository: "owner/repo", Number: 3}, Title: "界 second"},
 	}
 	before := m.Session
-	m.mousePickerClick(5, 3)
+	m.mousePickerClick(5, 4)
 	results := m.switcherResults()
 	if m.PullRequestPicker.Index != 1 || results[m.PullRequestPicker.Index].identity.Number != 3 {
 		t.Fatal("click selected unfiltered identity")

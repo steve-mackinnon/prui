@@ -201,6 +201,8 @@ Changed or ambiguous code and unavailable source remain in historical context.
 Discussion refresh and posting retain the existing freshness and delivery checks;
 view switching does not fetch or post.
 
+The PR list uses two lines per entry: the title above author, review, checks, and target branch. Linear stacks show base-first positions such as `1/4` and `2/4`, based on branch dependencies among the loaded open PRs.
+
 Newly opened pull requests start on the Overview tab. Click **Files** (or press `2`) to read the diff. The file list shows filenames beside muted directories. Click **Filter (F)** in the file header or press `F` to filter filenames and paths (case-insensitive, including previous names for renamed files). Enter returns to navigation with the filter applied; Escape in the list clears it.
 
 Press **/** or click **Find** in the diff header to search saved diff text.

@@ -30,15 +30,58 @@ func (m *Model) prPickerGeometry(headers int) prPickerGeometry {
 	return g
 }
 
-func (m *Model) prPickerRow(pr source.PullRequest) string {
-	if m.Width < 100 {
-		return m.pullRequestRow(pr)
+func (m *Model) prPickerRowWidth() int {
+	if m.Width >= 100 {
+		return max(0, m.prPickerGeometry(1).leftWidth-2)
 	}
-	// Keep the rail scannable; full metadata belongs to the preview.
-	width := m.prPickerGeometry(1).leftWidth - 2
-	suffix := m.prPickerSuffix(pr, true)
-	titleWidth := max(1, width-visibleWidth(suffix))
-	return m.paddedPRPickerTitle(fmt.Sprintf("#%d  %s", pr.Identity.Number, Escape(pr.Title)), titleWidth) + suffix
+	return max(0, m.Width-2)
+}
+
+func (m *Model) prPickerRow(pr source.PullRequest) string {
+	width := m.prPickerRowWidth()
+	title := m.paddedPRPickerTitle(fmt.Sprintf("#%d  %s", pr.Identity.Number, Escape(pr.Title)), width)
+	return title + "\n" + clip(m.prPickerMetadata(pr), width)
+}
+
+func (m *Model) prPickerMetadata(pr source.PullRequest) string {
+	parts := []string{}
+	if pr.StackSize > 1 {
+		parts = append(parts, fmt.Sprintf("%d/%d", pr.StackPosition, pr.StackSize))
+	}
+	author := pr.Author
+	if author == "" {
+		author = "unknown"
+	}
+	parts = append(parts, m.styleLine(classHunk, clip("@"+Escape(author), 16)))
+	review := "○"
+	switch pr.ViewerReview {
+	case "APPROVED":
+		review = "✅"
+	case "COMMENTED":
+		review = "💬"
+	case "CHANGES_REQUESTED":
+		review = "🔄"
+	case "PENDING":
+		review = "✎"
+	}
+	status := pullRequestChecks(pr)
+	if m.Width >= 100 {
+		switch pr.Checks {
+		case source.ChecksPassed:
+			status = "✓"
+		case source.ChecksFailed:
+			status = "!"
+		case source.ChecksPending:
+			status = "…"
+		default:
+			status = "?"
+		}
+	}
+	parts = append(parts, review, m.styleLine(prCheckAccent(status), status))
+	if pr.TargetBranch != "" {
+		parts = append(parts, "target: "+Escape(pr.TargetBranch))
+	}
+	return strings.Join(parts, "  ")
 }
 
 func (m *Model) selectedPickerPR() (source.PullRequest, bool) {
@@ -179,7 +222,9 @@ func (m *Model) prPickerScreen(header, rows, detail []string, empty, footer stri
 	}
 	lines := append([]string(nil), header[:g.header]...)
 	selected := max(0, min(p.Index, len(rows)-1))
-	start := max(0, selected-g.listHeight+1)
+	rowHeight := min(2, g.listHeight)
+	capacity := max(1, g.listHeight/rowHeight)
+	start := max(0, selected-capacity+1)
 	left := make([]string, g.listHeight)
 	if len(rows) == 0 {
 		if m.Busy {
@@ -189,17 +234,23 @@ func (m *Model) prPickerScreen(header, rows, detail []string, empty, footer stri
 		}
 		left[0] = empty
 	} else {
-		for i := start; i < min(len(rows), start+g.listHeight); i++ {
-			line := selectionMarker(i == selected) + rows[i]
-			width := m.Width
-			if g.split {
-				width = g.leftWidth
+		for i := start; i < min(len(rows), start+capacity); i++ {
+			parts := strings.Split(rows[i], "\n")
+			for part := 0; part < min(rowHeight, len(parts)); part++ {
+				prefix := "  "
+				if part == 0 {
+					prefix = selectionMarker(i == selected)
+				}
+				width := m.Width
+				if g.split {
+					width = g.leftWidth
+				}
+				line := clip(prefix+parts[part], width)
+				if i == selected {
+					line = m.styleLine(selectedClass(false), line)
+				}
+				left[(i-start)*rowHeight+part] = line
 			}
-			line = clip(line, width)
-			if i == selected {
-				line = m.styleLine(selectedClass(false), line)
-			}
-			left[i-start] = line
 		}
 	}
 	if len(detail) == 0 {
