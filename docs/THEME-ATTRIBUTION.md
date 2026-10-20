@@ -1,40 +1,79 @@
 # Theme palette attribution
 
-The semantic mappings in `internal/theme/presets.go` adapt these palette values.
-Selection, borders, and grouping of roles are application-specific mappings;
-no editor syntax theme implementation is copied.
+## NvChad Base46 exact palette values
 
-## Herdr exact palette values
+All 22 named presets now copy unmodified RGB values from
+[NvChad/base46](https://github.com/NvChad/base46/tree/19023074b28ef5554909d27d934353603df256f0/lua/base46/themes).
+Pinned revision: `19023074b28ef5554909d27d934353603df256f0` (v3.0).
+Hex spelling is normalized to lowercase; RGB channels are unchanged.
+This supersedes all earlier Herdr and other upstream mappings, including the
+Ayu light contrast adjustments. The four terminal-oriented presets retain their
+existing values. No runtime downloads or Neovim dependencies are required.
 
-Matching presets now copy RGB values verbatim from Herdr's `Palette` constructors:
-Catppuccin Mocha (`catppuccin`), One Dark, Tokyo Night, Gruvbox Dark (`gruvbox`),
-Gruvbox Light, One Light, Rose Pine, and Rose Pine Dawn. Other presets retain
-their sources and mappings below. This supersedes their earlier mappings,
-including the darkened Rose Pine Dawn warning.
-
-Pinned revision: `75f46fe812dbc2946f7e4104c7c89b70f5a84f0a`.
-
-Source: https://github.com/herdrdev/herdr/blob/75f46fe812dbc2946f7e4104c7c89b70f5a84f0a/src/app/state.rs
-
-| Application role | Herdr token |
+| Application role | NvChad palette key |
 | --- | --- |
-| Foreground, title, file header | `text` |
-| Background | `panel_bg` |
-| Hunk, metadata | `subtext0` |
-| Added | `green` |
-| Removed, unavailable | `red` |
-| Warning, syntax function | `yellow` |
-| Selection | `selection_bg` |
-| Focused border | `accent` |
-| Border | `overlay0` |
-| Syntax type, builtin | `teal` |
-| Syntax macro, attribute | `mauve` |
-| Syntax constant | `peach` |
+| Foreground, title, file header | `base_16.base05` (Normal foreground) |
+| Background | `base_16.base00` (Normal background) |
+| Hunk, metadata | `base_30.grey_fg` (Comment foreground) |
+| Added | `base_30.green` (Added foreground) |
+| Removed, unavailable | `base_30.red` (Removed foreground) |
+| Warning | `base_30.yellow` (Changed foreground) |
+| Selection | `base_16.base02` (Visual background) |
+| Focused border | `base_30.blue` (FloatBorder foreground) |
+| Border | `base_30.line` (WinSeparator foreground) |
+| Syntax function | `base_16.base0D` |
+| Syntax type, attribute | `base_16.base0A` |
+| Syntax macro | `base_16.base08` |
+| Syntax constant, builtin | `base_16.base09` |
 
-RGB-to-hex conversion preserves all channels exactly; no color adjustments are
-applied. `internal/theme/testdata/herdr-palettes.json` records the source tokens
-and regression tests verify every resolved role against them. Herdr is licensed
-under Apache-2.0; its license is retained in `docs/licenses/HERDR-LICENSE.txt`.
+The semantic mapping uses Base46's base palettes and default highlight roles.
+It preserves neutral application headings. It does not reproduce every Neovim
+highlight group or per-theme `polish_hl` override: this TUI has fewer syntax
+roles, and keywords, strings, and numbers still share existing application
+accent tokens. Colors are never blended, darkened, or invented to distinguish
+roles; upstream values may coincide. Light-theme accents retain upstream
+contrast as requested.
+
+`internal/theme/testdata/nvchad-palettes.json` records the source theme and
+palette keys used by each preset. Tests compare every resolved token against
+that fixture and retain override/isolation checks.
+
+| Application ID | NvChad theme file (`.lua`) |
+| --- | --- |
+| `catppuccin-mocha` | `catppuccin` |
+| `one-dark` | `onedark` |
+| `tokyo-night` | `tokyonight` |
+| `gruvbox-dark` | `gruvbox` |
+| `ayu` | `ayu_light` |
+| `ayu-dark` | `ayu_dark` |
+| `gh-dark` | `github_dark` |
+| `gh-light` | `github_light` |
+| `gruvbox-light` | `gruvbox_light` |
+| `horizon` | `horizon` |
+| `material-dark` | `material-darker` |
+| `material-deep-ocean` | `material-deep-ocean` |
+| `melange` | `melange` |
+| `monokai` | `monekai` |
+| `night-owl` | `nightowl` |
+| `one-light` | `one_light` |
+| `poimandres` | `poimandres` |
+| `rose-pine` | `rosepine` |
+| `rose-pine-dawn` | `rosepine-dawn` |
+| `vscode-dark` | `vscode_dark` |
+| `vscode-light` | `vscode_light` |
+| `wombat` | `wombat` |
+
+NvChad Base46's MIT license is retained in
+[docs/licenses/NVCHAD-BASE46-LICENSE.txt](licenses/NVCHAD-BASE46-LICENSE.txt).
+Upstream theme comments credit the original theme authors; the notices below
+are retained from earlier palette versions.
+
+## Historical sources and retained notices
+
+The following sections describe previous palette versions, not the current
+mappings. Their license notices are retained for attribution history.
+Herdr's previous revision was `75f46fe812dbc2946f7e4104c7c89b70f5a84f0a`;
+its retained license is `docs/licenses/HERDR-LICENSE.txt`.
 
 ## catppuccin/go
 

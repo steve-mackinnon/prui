@@ -61,11 +61,11 @@ func TestSymbolPaletteIsIndependentOfChromeOverrides(t *testing.T) {
 		if custom.Syntax(SyntaxFunction) != "#123456" || custom.Syntax(SyntaxType) != base.Syntax(SyntaxType) {
 			t.Fatalf("%s: syntax override mixed with chrome", name)
 		}
-		if base.Syntax(SyntaxFunction) == base.Syntax(FocusedBorder) {
-			t.Fatalf("%s: functions indistinguishable from keywords", name)
-		}
-		if base.Syntax(SyntaxType) == base.Syntax(Foreground) || base.Syntax(SyntaxMacro) == base.Syntax(Foreground) {
-			t.Fatalf("%s: symbols use plain foreground", name)
+		// Upstream palettes may deliberately reuse colors across roles.
+		for _, token := range []Token{SyntaxType, SyntaxMacro, SyntaxConstant, SyntaxAttribute, SyntaxBuiltin} {
+			if custom.Syntax(token) != base.Syntax(token) {
+				t.Fatalf("%s: %s changed with chrome overrides", name, token)
+			}
 		}
 	}
 }
