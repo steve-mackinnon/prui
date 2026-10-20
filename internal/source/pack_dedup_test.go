@@ -39,6 +39,10 @@ func (r *packVerifyRunner) Run(ctx context.Context, request Request) ([]byte, er
 func duplicatedPackFixture(t *testing.T) (*testutil.Repo, string, string) {
 	t.Helper()
 	repo := testutil.NewRepo(t)
+	// This fixture requires stable loose duplicates. Newer Git versions can
+	// launch background maintenance during commit and repack/prune them.
+	repo.Git("config", "gc.auto", "0")
+	repo.Git("config", "maintenance.auto", "false")
 	for i := range 2100 {
 		repo.Write(fmt.Sprintf("file%04d", i), fmt.Sprintf("content %d\n", i))
 	}
@@ -47,6 +51,10 @@ func duplicatedPackFixture(t *testing.T) (*testutil.Repo, string, string) {
 	packs, err := filepath.Glob(filepath.Join(repo.Dir, ".git/objects/pack/*.pack"))
 	if err != nil || len(packs) != 1 {
 		t.Fatal("fixture pack missing", packs, err)
+	}
+	loose, err := filepath.Glob(filepath.Join(repo.Dir, ".git/objects/??/*"))
+	if err != nil || len(loose) < 2100 {
+		t.Fatal("fixture loose duplicates missing", len(loose), err)
 	}
 	// A real reverse index must remain byte/mode-identical during verification.
 	repo.Git("index-pack", "--rev-index", packs[0])
