@@ -410,9 +410,12 @@ func (m *Model) commitFilterMouse(msg tea.MouseMsg) (tea.Cmd, bool) {
 	}
 	f := &m.commitFilter
 	if f.open {
-		_, choices := m.commitFilterPickerBounds()
+		card, choices := m.commitFilterPickerBounds()
 		if w, ok := msg.(tea.MouseWheelMsg); ok {
 			if !image.Pt(w.X, w.Y).In(choices) {
+				return nil, true
+			}
+			if w.Button != tea.MouseWheelUp && w.Button != tea.MouseWheelDown {
 				return nil, true
 			}
 			delta := 1
@@ -423,6 +426,24 @@ func (m *Model) commitFilterMouse(msg tea.MouseMsg) (tea.Cmd, bool) {
 			return nil, true
 		}
 		if c, ok := msg.(tea.MouseClickMsg); ok && c.Button == tea.MouseLeft {
+			footerY := card.Max.Y - 1
+			padding := 0
+			if m.commitFilterPickerBordered() {
+				footerY--
+				padding = 2
+			}
+			footer := "Esc/C: close"
+			if m.commitFilterPickerBordered() {
+				footer = "Space/Enter: toggle · j/k: move · Esc/C: close"
+				if m.Width < 54 {
+					footer = "Space: toggle · Esc/C: close"
+				}
+			}
+			closeStart := visibleWidth(footer) - visibleWidth("Esc/C: close")
+			if c.Y == footerY && c.X >= card.Min.X+padding+closeStart && c.X < min(card.Max.X-padding, card.Min.X+padding+visibleWidth(footer)) {
+				f.open = false
+				return nil, true
+			}
 			i := c.Y - choices.Min.Y + f.offset
 			if image.Pt(c.X, c.Y).In(choices) && i <= len(m.commitEntries()) && i >= 0 {
 				f.focus = i
@@ -446,6 +467,16 @@ func (m *Model) commitFilterMouse(msg tea.MouseMsg) (tea.Cmd, bool) {
 	}
 	g := m.filteredGeometry()
 	if w, ok := msg.(tea.MouseWheelMsg); ok {
+		if w.Button == tea.MouseWheelLeft || w.Button == tea.MouseWheelRight {
+			if image.Pt(w.X, w.Y).In(g.Detail) {
+				delta := mouseWheelStep
+				if w.Button == tea.MouseWheelLeft {
+					delta = -delta
+				}
+				f.horizontal = max(0, f.horizontal+delta)
+			}
+			return nil, true
+		}
 		delta := mouseWheelStep
 		if w.Button == tea.MouseWheelUp {
 			delta = -delta

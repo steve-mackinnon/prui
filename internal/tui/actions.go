@@ -260,7 +260,7 @@ func (m *Model) actionsBody() string {
 			detail = fmt.Sprintf("%d of %d actions", index+1, len(actions))
 		}
 	}
-	lines = append(lines, detail, "Hotkey or ↑/↓ · Enter open · Esc close")
+	lines = append(lines, detail, pageMouseFooter(actionsMouseControls, " · "))
 	for i := range lines {
 		lines[i] = ansi.Truncate(lines[i], width, "…")
 	}

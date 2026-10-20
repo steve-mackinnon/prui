@@ -203,6 +203,6 @@ func (m *Model) issueContextView() string {
 	m.issues.scroll = min(max(0, m.issues.scroll), max(0, len(lines)-height))
 	out := []string{clip("Issue context · independent of frozen code", m.Width)}
 	out = append(out, lines[m.issues.scroll:min(len(lines), m.issues.scroll+height)]...)
-	out = append(out, clip("r: refresh context · j/k: scroll · esc: back", m.Width))
+	out = append(out, clip(pageMouseFooter(issueMouseControls, " · "), m.Width))
 	return strings.Join(out, "\n")
 }

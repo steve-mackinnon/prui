@@ -8,7 +8,7 @@ import (
 
 func (m *Model) helpLines() []string {
 	body := "Your first review\n1. Choose Files above to read the changes.\n2. Use arrows in the focused pane; Tab switches list and diff. Enter activates; Escape goes back.\n3. Press Space for Actions. Use the displayed hotkey, or select with arrows and Enter.\n4. In the diff, Enter opens a comment. Enter in the editor posts now; Ctrl+P queues a local pending comment.\n5. Choose Submit review to send your decision and pending comments after confirmation."
-	body += "\n\nFind your way\nClick Overview, Files, Guide, or Commits above to switch views.\nSpace or Ctrl+K: Actions from the review; browse tools and use their hotkeys, or arrows and Enter.\n?: open this help. s: all shortcuts. Escape: return to your place."
+	body += "\n\nFind your way\nClick Overview, Files, Guide, or Commits above to switch views.\nDouble-click a PR or list item to open it; double-click a diff line to comment.\nUse the mouse wheel to scroll, and click visible page or form controls.\nSpace or Ctrl+K: Actions from the review; browse tools and use their hotkeys, or arrows and Enter.\n?: open this help. s: all shortcuts. Escape: return to your place."
 	_, health, _ := strings.Cut(m.healthHelpView(), "\n")
 	if m.helpExpanded {
 		status, reference, _ := strings.Cut(health, "\n\n")
@@ -101,13 +101,7 @@ func (m *Model) helpViewport() string {
 	height := m.helpBodyHeight()
 	m.helpScroll = min(max(0, m.helpScroll), max(0, len(lines)-height))
 	visible := lines[m.helpScroll:min(len(lines), m.helpScroll+height)]
-	footer := "↑/↓: scroll · s: all shortcuts · esc: back"
-	if m.helpExpanded {
-		footer = "↑/↓: scroll · s: getting started · esc: back"
-	}
-	if m.Width < 40 {
-		footer = "↑↓ scroll · s: keys · esc: back"
-	}
+	footer := pageMouseFooter(m.helpMouseControls(), " · ")
 	if m.Height == 1 {
 		return clip(footer, m.Width)
 	}

@@ -166,7 +166,7 @@ func (m *Model) inboxView() string {
 	for _, p := range s.data.Problems {
 		header = append(header, "! "+Escape(p))
 	}
-	footer := "enter: open · m: mark read · f: filters · r: refresh · esc: back"
+	footer := pageMouseFooter(inboxMouseControls, " · ")
 	if s.loading {
 		footer = "Loading inbox (explicit action) · esc: cancel"
 	}
@@ -227,7 +227,7 @@ func (m *Model) inboxFiltersView() string {
 	o := s.draftOptions
 	values := []string{"View: " + o.View, "Repository: " + o.Repository, "Author: " + o.Author, "Review: " + o.Review, "State: " + o.State, "Draft: " + o.Draft, "Requests: " + o.Requests, "Activity: " + o.Activity}
 	p := pickerState{Index: s.field}
-	return m.pickerScreen(&p, []string{"Inbox filters · alerts off; no polling"}, values, "", "tab: field · left/right: cycle · type repo/author · enter: use cache · r in inbox: refresh · esc: discard")
+	return m.pickerScreen(&p, []string{"Inbox filters · alerts off; no polling"}, values, "", pageMouseFooter(inboxFilterMouseControls, " · "))
 }
 
 func (m *Model) applyInboxMessage(msg tea.Msg) tea.Cmd {

@@ -187,10 +187,7 @@ func (m *Model) searchPopover(background string) string {
 		}
 		content = append(content, modalLine(text, inside))
 	}
-	footer := "Esc: select results · Enter: jump"
-	if !s.editing {
-		footer = "n/N j/k ↑↓: select · Enter: jump · /: edit · Esc: close"
-	}
+	footer := pageMouseFooter(m.searchMouseControls(), " · ")
 	content = append(content, modalLine(footer, inside), "╰"+strings.Repeat("─", w-2)+"╯")
 	canvas := lipgloss.NewCanvas(m.Width, m.Height)
 	return canvas.Compose(lipgloss.NewCompositor(lipgloss.NewLayer(strings.Join(viewportLines(background, m.Width, m.Height), "\n")), lipgloss.NewLayer(m.styleLine(classPaneBorderFocused, strings.Join(content, "\n"))).X(bounds.Min.X).Y(bounds.Min.Y))).Render()
@@ -231,6 +228,20 @@ func (m *Model) searchMouse(msg tea.MouseMsg) tea.Cmd {
 		return nil
 	}
 	y := click.Y - bounds.Min.Y
+	if y == bounds.Dy()-2 {
+		key := pageMouseFooterKey(m.searchMouseControls(), " · ", click.X-bounds.Min.X-2, max(1, bounds.Dx()-4))
+		switch key {
+		case "esc":
+			return m.searchKey(tea.KeyPressMsg{Code: tea.KeyEscape})
+		case "enter":
+			return m.searchKey(tea.KeyPressMsg{Code: tea.KeyEnter})
+		case "/":
+			return m.searchKey(tea.KeyPressMsg{Code: '/', Text: "/"})
+		case "down":
+			return m.searchKey(tea.KeyPressMsg{Code: tea.KeyDown})
+		}
+		return nil
+	}
 	if y == 1 {
 		s.editing = true
 		s.cursor = utf8.RuneCountInString(s.inputQuery())
@@ -326,4 +337,11 @@ func (m *Model) searchHighlightedText(line diffLine, horizontal, width int, pref
 	})
 	render(last, len(text), false, false)
 	return out.String(), true
+}
+
+func (m *Model) searchMouseControls() []pageMouseControl {
+	if m.searchState().editing {
+		return []pageMouseControl{{"Esc: select results", "esc"}, {"Enter: jump", "enter"}}
+	}
+	return []pageMouseControl{{"n/N j/k ↑↓: select", "down"}, {"Enter: jump", "enter"}, {"/: edit", "/"}, {"Esc: close", "esc"}}
 }

@@ -187,3 +187,20 @@ func TestTextSelectionOverviewDoesNotToggleComment(t *testing.T) {
 		t.Fatal("plain click no longer toggles comment")
 	}
 }
+
+func TestReadOnlyPagesRetainMouseTextSelection(t *testing.T) {
+	for _, p := range []page{pageReadiness, pageIssueContext} {
+		m := pageMouseModel(t, p)
+		rows := strings.Split(ansi.Strip(m.View().Content), "\n")
+		y := 1
+		for y < len(rows)-1 && strings.TrimSpace(rows[y]) == "" {
+			y++
+		}
+		m.Update(tea.MouseClickMsg{X: 0, Y: y, Button: tea.MouseLeft})
+		m.Update(tea.MouseMotionMsg{X: 10, Y: y, Button: tea.MouseLeft})
+		_, cmd := m.Update(tea.MouseReleaseMsg{X: 10, Y: y, Button: tea.MouseLeft})
+		if clipboardText(cmd) == "" {
+			t.Fatalf("page %v swallowed readable text selection", p)
+		}
+	}
+}

@@ -535,17 +535,7 @@ func (m *Model) discussionsView() string {
 			}
 		}
 	}
-	footer := "j/k: select · enter: detail · c: refresh · esc: back"
-	if d.snapshot.Snapshot.Timeline {
-		footer = "j/k: select · enter: detail · n: comment · c: refresh · esc: back"
-	}
-	if d.detail {
-		footer = "j/k: scroll · e: edit · z: resolve/reopen · o: original · c: refresh · esc: back"
-		if d.snapshot.Snapshot.Timeline {
-			footer = "e: edit · z: resolve/reopen · r: general reply · o: original · c: refresh · esc: back"
-		}
-	}
-	lines = append(lines, clip(footer, m.Width))
+	lines = append(lines, clip(pageMouseFooter(m.discussionMouseControls(), " · "), m.Width))
 	return strings.Join(lines, "\n")
 }
 
@@ -757,4 +747,19 @@ func discussionEntries(snapshot source.DiscussionSnapshot) []source.Discussion {
 }
 func (m *Model) discussionEntries() []source.Discussion {
 	return discussionEntries(m.discussions.snapshot.Snapshot)
+}
+
+func (m *Model) discussionMouseControls() []pageMouseControl {
+	controls := []pageMouseControl{{"j/k: select", "down"}, {"enter: detail", "enter"}}
+	if m.discussions.detail {
+		controls = []pageMouseControl{{"j/k: scroll", "down"}, {"e: edit", "e"}, {"z: resolve/reopen", "z"}, {"o: original", "o"}}
+	}
+	if m.discussions.snapshot.Snapshot.Timeline {
+		if m.discussions.detail {
+			controls = []pageMouseControl{{"e: edit", "e"}, {"z: resolve/reopen", "z"}, {"r: general reply", "r"}, {"o: original", "o"}}
+		} else {
+			controls = append(controls, pageMouseControl{"n: comment", "n"})
+		}
+	}
+	return append(controls, pageMouseControl{"c: refresh", "c"}, pageMouseControl{"esc: back", "esc"})
 }

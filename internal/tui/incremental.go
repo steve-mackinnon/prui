@@ -137,7 +137,7 @@ func (m *Model) incrementalView() string {
 	if m.incremental.drafts {
 		header = "Draft anchor outcomes (private, read-only)"
 	}
-	footer := "n/p: file · ↑↓/PgUp/PgDn: scroll · ←→: pan · d: drafts/diff · o: old · esc: back"
+	footer := pageMouseFooter(incrementalMouseControls, " · ")
 	if m.ActionError != nil {
 		footer = "! " + Escape(m.ActionError.Error()) + " · esc: back"
 	}

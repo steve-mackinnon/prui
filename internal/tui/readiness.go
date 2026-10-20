@@ -193,9 +193,6 @@ func (m *Model) readinessView() string {
 	m.readiness.scroll = min(m.readiness.scroll, max(0, len(lines)-height))
 	start := m.readiness.scroll
 	end := min(len(lines), start+height)
-	footer := "l: lifecycle | r/ctrl+r: refresh | j/k, PgUp/PgDn, Home/End: scroll | esc: back | q: quit"
-	if m.Width < 80 {
-		footer = "l: lifecycle | r: refresh | ↑/↓: scroll | esc: back"
-	}
+	footer := pageMouseFooter(m.readinessMouseControls(), " | ")
 	return strings.Join(lines[start:end], "\n") + "\n" + ansi.Truncate(footer, max(1, m.Width), "")
 }

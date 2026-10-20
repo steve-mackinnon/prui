@@ -7,6 +7,9 @@ User-visible changes are recorded here before each release. See
 
 ### Fixed
 
+- Support double-click activation in PR, repository, session, theme, review, and
+  discussion lists, with mouse scrolling and controls across pages and forms.
+
 - Wrap guide and subsection headers within the guide pane and distinguish them
   from descriptions with bold title styling.
 
