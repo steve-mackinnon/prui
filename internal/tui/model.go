@@ -2705,17 +2705,6 @@ func (m *Model) contextViewTabs() string {
 	return strings.Join(tabs, "  ")
 }
 
-func (m *Model) contextViewPlaceholder() string {
-	switch m.selectedReviewView() {
-	case viewDescription:
-		return "Description is not available in this review yet."
-	case viewCommits:
-		return "Commits are not available in this review yet."
-	default:
-		return ""
-	}
-}
-
 func (m *Model) descriptionLines() []string {
 	if m.Session.PullRequestDescription == nil {
 		m.descriptionCache = descriptionRenderCache{}
@@ -2736,13 +2725,4 @@ func (m *Model) descriptionLines() []string {
 	}
 	m.descriptionCache = descriptionRenderCache{body: body, width: width, themeName: m.theme.Name, lines: lines, valid: true}
 	return lines
-}
-
-// styledFooter paints the footer as chrome, or as a warning when the last
-// action failed. Its wording is identical to footer().
-func (m *Model) styledFooter() string {
-	if m.ActionError != nil {
-		return m.styleLine(classWarning, m.footer())
-	}
-	return m.styleLine(classTitle, m.footer())
 }

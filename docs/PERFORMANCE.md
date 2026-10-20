@@ -2233,6 +2233,14 @@ Artifacts: `/tmp/prui-preparation-candidate-selection-d0r_z4ns`,
 `/tmp/prui-preparation-written-confirm-sgn8mjde`. The removed implementation
 is archived locally at `/tmp/prui-rejected-preparation-3jbm6pim`.
 
+Before publication, integrated current `main` (`8496f80`). Its PR-stack list
+fields remain in the shared GraphQL request; the CLI/HTTP equivalence test now
+also verifies both rows' stack positions and the requested head fields. The
+complete verification script passed on the combined branch, including race
+tests, terminal journeys and build. Configured lint reported zero issues.
+The earlier timings describe their recorded build cohorts, not a new timing
+measurement of this main integration.
+
 The overall 10x goal remains active and unachieved. Publishing the retained
 improvements for review does not change that status.
 

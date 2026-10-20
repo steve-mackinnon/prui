@@ -12,6 +12,8 @@ User-visible changes are recorded here before each release. See
 
 ### Changed
 
+- Remove syntax availability warnings from the footer status bar; details remain
+  available in Health & help and the diff.
 - Copy Herdr’s exact colors for the eight matching theme palettes, including
   selection, borders, and syntax accents.
 

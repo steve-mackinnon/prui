@@ -23,13 +23,6 @@ func appHeader(title, action string) string {
 	return title + " · " + action
 }
 
-func sectionHeader(section, detail string) string {
-	if detail == "" {
-		return section
-	}
-	return section + " · " + detail
-}
-
 func (m *Model) reviewHealth(s *review.Session) (string, []healthItem) {
 	progress := fmt.Sprintf("%d/%d read", len(s.ReviewedSliceIDs), len(s.Slices))
 	items := []healthItem{{text: "✓ Inventory complete"}}
@@ -63,7 +56,6 @@ func (m *Model) reviewHealth(s *review.Session) (string, []healthItem) {
 	if unavailable > 0 {
 		items = append(items, healthItem{text: fmt.Sprintf("! %d unavailable", unavailable), severity: 3})
 	}
-	items = append(items, m.syntaxDiagnosticsFor(s).health...)
 	return progress, items
 }
 
@@ -123,6 +115,7 @@ func (m *Model) healthHelpView() string {
 	text := "Health & help"
 	if m.Session != nil {
 		progress, items := m.reviewHealth(m.Session)
+		items = append(items, m.syntaxDiagnosticsFor(m.Session).health...)
 		text += "\n" + progress + fmt.Sprintf(" · %d pending comments", len(m.Pending))
 		for _, item := range items {
 			text += "\n" + item.text

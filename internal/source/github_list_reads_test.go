@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-const githubListReadFixture = `{"data":{"repository":{"pullRequests":{"nodes":[{"number":42,"title":"Change","body":"Summary\nDetails","baseRefName":"main","createdAt":"2026-09-23T12:00:00Z","author":{"login":"alice"},"viewerLatestReview":{"state":"COMMENTED"},"commits":{"nodes":[{"commit":{"author":{"name":"Bob","user":{"login":"bob"}},"statusCheckRollup":{"state":"SUCCESS"}}}]}}]}}}}`
+const githubListReadFixture = `{"data":{"repository":{"pullRequests":{"nodes":[{"number":42,"title":"Change","body":"Summary\nDetails","baseRefName":"first","headRefName":"second","headRepository":{"nameWithOwner":"owner/repo"},"createdAt":"2026-09-23T12:00:00Z","author":{"login":"alice"},"viewerLatestReview":{"state":"COMMENTED"},"commits":{"nodes":[{"commit":{"author":{"name":"Bob","user":{"login":"bob"}},"statusCheckRollup":{"state":"SUCCESS"}}}]}},{"number":41,"title":"First","baseRefName":"main","headRefName":"first","headRepository":{"nameWithOwner":"owner/repo"},"createdAt":"2026-09-22T12:00:00Z"}]}}}}`
 
 func TestListSharedReadUsesSameQueryAndFreshCredentials(t *testing.T) {
 	var legacyQuery string
@@ -26,6 +26,9 @@ func TestListSharedReadUsesSameQueryAndFreshCredentials(t *testing.T) {
 	want, err := legacy.ListPullRequests(context.Background(), "owner/repo")
 	if err != nil {
 		t.Fatal(err)
+	}
+	if len(want) != 2 || want[0].StackPosition != 2 || want[1].StackPosition != 1 || want[0].StackSize != 2 {
+		t.Fatal("list lost branch metadata or stack positions", want)
 	}
 	credentials, requests := 0, 0
 	g := &GH{Limits: Defaults(), Runner: readRunner(func(_ context.Context, q Request) ([]byte, error) {
@@ -49,6 +52,11 @@ func TestListSharedReadUsesSameQueryAndFreshCredentials(t *testing.T) {
 		}
 		if payload.Query != legacyQuery || !reflect.DeepEqual(payload.Variables, map[string]string{"owner": "owner", "name": "repo"}) {
 			t.Fatal("list query or variables changed")
+		}
+		for _, field := range []string{"headRefName", "headRepository{nameWithOwner}"} {
+			if !strings.Contains(payload.Query, field) {
+				t.Fatal("shared list request lost stack metadata", field)
+			}
 		}
 		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(githubListReadFixture))}, nil
 	})}
@@ -121,7 +129,7 @@ func TestListSharedReadAuthenticationCompatibility(t *testing.T) {
 			})}}
 			got, err := g.ListPullRequests(context.Background(), "owner/repo")
 			if failure == ErrCommand {
-				if err != nil || len(got) != 1 || got[0].Identity.Number != 42 || calls != 2 {
+				if err != nil || len(got) != 2 || got[0].Identity.Number != 42 || calls != 2 {
 					t.Fatal("list compatibility path failed", err)
 				}
 			} else if !errors.Is(err, failure) || calls != 1 {
