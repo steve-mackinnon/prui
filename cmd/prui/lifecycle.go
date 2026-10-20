@@ -31,7 +31,6 @@ type application struct {
 	cacheFullSource        bool
 	offline                bool
 	newAnalyzer            func() (guide.Analyzer, error)
-	issueContextTransport  http.RoundTripper
 	guideClient            *http.Client
 	guideSelection         guideconfig.Selection
 	guideConfigSelection   guideconfig.Selection

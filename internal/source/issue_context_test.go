@@ -13,7 +13,7 @@ func issueContextResponse(t *testing.T, more bool) []byte {
 	connection := func(nodes any) any {
 		return map[string]any{"nodes": nodes, "pageInfo": map[string]any{"hasNextPage": more}}
 	}
-	pr := map[string]any{"headRefOid": strings.Repeat("a", 40), "body": "https://linear.app/work/issue/APP-2/fix", "reviewDecision": "CHANGES_REQUESTED",
+	pr := map[string]any{"headRefOid": strings.Repeat("a", 40), "reviewDecision": "CHANGES_REQUESTED",
 		"reviewRequests":           connection([]any{map[string]any{"requestedReviewer": map[string]any{"__typename": "User", "login": "alice"}}, map[string]any{"requestedReviewer": map[string]any{"__typename": "Team", "slug": "review", "organization": map[string]any{"login": "org"}}}}),
 		"latestOpinionatedReviews": connection([]any{map[string]any{"author": map[string]any{"login": "bob"}, "state": "CHANGES_REQUESTED"}}),
 		"labels":                   connection([]any{map[string]any{"name": "bug"}}),
@@ -34,7 +34,7 @@ func TestIssueContextBoundedGitHub(t *testing.T) {
 				Query     string
 				Variables map[string]any
 			}
-			if json.Unmarshal(r.Stdin, &p) != nil || !strings.Contains(p.Query, "closingIssuesReferences(first:100)") || p.Variables["number"] != float64(1) {
+			if json.Unmarshal(r.Stdin, &p) != nil || !strings.Contains(p.Query, "closingIssuesReferences(first:100)") || strings.Contains(p.Query, " body ") || p.Variables["number"] != float64(1) {
 				t.Fatalf("bad request %s", r.Stdin)
 			}
 			return issueContextResponse(t, more), nil
@@ -43,7 +43,7 @@ func TestIssueContextBoundedGitHub(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if got.Complete == more || got.ReviewDecision != "CHANGES_REQUESTED" || len(got.Requested) != 2 || got.Requested[1].Name != "org/review" || got.Reviews[0].Decision != "CHANGES_REQUESTED" || got.Issues[0].URL != "https://github.com/o/r/issues/2" || got.Body == "" {
+		if got.Complete == more || got.ReviewDecision != "CHANGES_REQUESTED" || len(got.Requested) != 2 || got.Requested[1].Name != "org/review" || got.Reviews[0].Decision != "CHANGES_REQUESTED" || got.Issues[0].URL != "https://github.com/o/r/issues/2" {
 			t.Fatalf("bad context %#v", got)
 		}
 	}
