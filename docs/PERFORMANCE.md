@@ -2194,6 +2194,48 @@ binding; the context-value prototype is not included in production. The full
 10x startup/first-selection goal remains active and unproven, and human terminal
 usability remains unverified.
 
+## Thirty-second iteration: reject speculative view preparation
+
+Tested an explicit one-use local Git-view preparation, bound to the exact
+checkout, runner and limits. It preserved fresh metadata, verified pinning,
+revision retries, cancellation/joining and temporary-directory cleanup. Focused
+race tests passed, including complete ordinary/prepared snapshot equivalence.
+The prototype and its tests were removed after measurement; no preparation
+runtime or public API is retained.
+
+An eager-start pilot reduced readable selection medians by 4.5% / 7.4% for
+PRs #19 / #11, but list-plus-selection became 4.1% slower for #19. A second
+variant delayed preparation until the list HTTP request was successfully
+written, allowing it to overlap response wait rather than connection setup.
+Its three-pair pilot improved readable medians by 7.6% / 14.6%, but the larger
+seven-pair confirmation did not reproduce a consistent benefit:
+
+| PR | Prior readable | Prepared readable | Prior checked | Prepared checked | Prior list | Prepared list | Prior list + selection | Prepared list + selection |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| #19: 1 file | 1,025.67 ms | 1,050.12 ms | 1,240.37 ms | 1,290.65 ms | 552.00 ms | 554.35 ms | 1,602.47 ms | 1,584.76 ms |
+| #11: 26 files | 1,216.88 ms | 1,059.97 ms | 1,400.12 ms | 1,258.48 ms | 505.78 ms | 545.96 ms | 1,723.59 ms | 1,623.30 ms |
+
+All seven #11 readable pairs improved (median reduction 12.9%), while five of
+seven #19 pairs were slower (median increase 2.4%). Fully checked #19 median
+was 4.1% slower. The additional lifecycle and pre-selection work do not earn
+retention across these scenarios. Keep the already-verified shared PR-list
+connection and ordinary lazy view construction. Revisit speculative setup only
+with a design that addresses the observed variance and startup tradeoff.
+
+Each series alternated the committed `4fd17e1` release and candidate using
+fresh private profiles, waited for confirmed-current status, and required
+complete inventory, three commits and captured composition. All 20 decoded
+snapshot pairs across the two request-written series matched exactly; the
+six eager-start pairs also matched. No outliers were discarded. List-plus-
+selection is the median of per-run sums, excluding navigation keystrokes.
+Artifacts: `/tmp/prui-preparation-candidate-selection-d0r_z4ns`,
+`/tmp/prui-preparation-written-selection-ir54n86n`, and
+`/tmp/prui-preparation-written-confirm-sgn8mjde`. The removed implementation
+is archived locally at `/tmp/prui-rejected-preparation-3jbm6pim`.
+
+The overall 10x goal remains active and unachieved. Publishing the retained
+improvements for review does not change that status.
+
 ## Reproduction and validation
 
 ```sh
