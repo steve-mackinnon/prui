@@ -1895,6 +1895,84 @@ race tests, terminal journeys and build. Configured lint reported zero issues.
 The overall 10x startup/first-selection goal remains active and unproven.
 Human terminal usability remains unverified.
 
+## Twenty-eighth iteration: avoid building discarded analysis requests
+
+Reprofiled runtime `5d554fd` with three fresh private-store plain opens per PR.
+All six saved snapshots had complete inventory, three commits and captured
+composition. PR #11 median view setup was 446.14 ms, inventory 302.39 ms,
+evidence 377.58 ms, and the sum of initial/capture-end metadata reads 544.12 ms.
+These stages overlap; their sum is not total opening latency. Artifacts:
+`/tmp/prui-membership-critical-profile-q_3eb_1o`.
+
+Additional disposable instrumentation measured PR #11 commit capture, including
+its final metadata read, at 420.09–525.95 ms. Evidence was 334.89–359.79 ms and
+finished before commit capture. About 100 ms remained after the commit stage
+before raw opening returned. Separate local derivations from the same frozen
+snapshot took 60.75–61.37 ms with no analyzer configured. Inspection found that
+Go evaluated `guide.InputFrom` before `guide.Analyze` could return its immediate
+nil-analyzer fallback: ordinary opens assembled, privacy-scanned, copied and
+hashed a request that no provider would consume. Diagnostic artifacts:
+`/tmp/prui-membership-detail-profile-ng3bg9zx` and
+`/tmp/prui-capture-profile-1ou7qwyw`.
+
+Raw opening and frozen guide derivation now construct request material only
+when the analyzer interface is non-nil, matching `guide.Analyze`'s existing
+condition. They still use that function's original fallback. Enabled analysis
+keeps the identical `InputFrom` privacy, budget, provenance and digest boundary.
+Supporting-evidence retrieval retains its own filtering, and frozen raw source,
+commit capture, cleanup and every metadata check are unchanged. The existing
+derivation test now also compares the entire disabled-analysis result with the
+original frozen snapshot plus its expected fallback and predecessor reference.
+
+A new benchmark derives guides from a complete synthetic frozen comparison
+with 100 supporting excerpts. Fixture creation/capture are outside its timer.
+Three identical ten-operation trials before/after the change:
+
+| Disabled-analysis derivation | Prior median | Candidate median |
+| --- | ---: | ---: |
+| Time | 29.809 ms | 0.000479 ms |
+| Allocated bytes/op | 60,300 | 240 |
+| Allocations/op | 338 | 1 |
+
+This measures eliminated optional work, not a whole-opening or 10x goal result.
+
+A disposable release candidate was compared with the current production binary
+in three alternating first-selection pairs per PR, using fresh private stores
+and waiting for confirmed-current status before exit:
+
+| PR | Prior readable median | Candidate | Prior checked median | Candidate |
+| --- | ---: | ---: | ---: | ---: |
+| #19 | 1,175.24 ms | 1,124.05 ms | 1,398.71 ms | 1,462.04 ms |
+| #11 | 1,343.08 ms | 1,258.31 ms | 1,541.29 ms | 1,466.29 ms |
+
+Every readable pair improved, with median reductions of 4.4% / 6.3%. Fully
+checked timing remains mixed: #19's median was 4.5% slower, #11's 4.9% faster.
+All six paired decoded snapshots were identical and complete, including all
+three commits and captured composition. The first candidate populated-list
+startup was 1,166.95 ms and remains recorded; startup was not optimized.
+Artifacts: `/tmp/prui-no-analysis-input-selection-bu62eylq`.
+
+The final implementation was then built and measured independently with the
+same procedure (three pairs per PR):
+
+| PR | Prior readable median | Final | Prior checked median | Final |
+| --- | ---: | ---: | ---: | ---: |
+| #19 | 1,216.08 ms | 1,083.59 ms | 1,406.98 ms | 1,291.17 ms |
+| #11 | 1,351.05 ms | 1,267.43 ms | 1,533.56 ms | 1,459.67 ms |
+
+Final readable medians improved 10.9% / 6.2%, and checked medians 8.2% / 4.8%.
+Every final readable pair improved; one #11 checked sample was slower. Keep the
+prototype's mixed checked results alongside these observations rather than
+claiming uniform network latency gains. Across both series all twelve paired
+snapshots matched, with complete inventories, three commits and captured
+composition. The first final candidate list startup was 1,255.97 ms and remains
+included. Final artifacts: `/tmp/prui-no-analysis-final-selection-st1tf55y`.
+
+The complete verification script passed (installer fixtures, formatting, vet,
+race tests, terminal journeys and build); configured lint reported zero issues.
+The overall 10x startup/first-selection goal remains active and unproven.
+Human terminal usability remains unverified.
+
 ## Reproduction and validation
 
 ```sh
@@ -1910,6 +1988,7 @@ go test ./internal/session -run '^$' -fuzz '^FuzzSourceDecodeEquivalence$' -fuzz
 go test ./internal/session -run '^$' -bench BenchmarkSQLiteFreshnessProgress -benchtime=1x -count=3
 go test ./internal/commits -run '^$' -bench BenchmarkCompositionTreeListing -benchtime=3x -count=3
 go test ./cmd/prui -run '^$' -bench BenchmarkOfflineStartupComponents -benchtime=3x -count=3
+go test ./internal/review -run '^$' -bench BenchmarkGuideDerivationWithoutAnalyzer -benchtime=10x -count=3
 ./scripts/verify.sh
 ```
 

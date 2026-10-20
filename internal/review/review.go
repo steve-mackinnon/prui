@@ -102,7 +102,12 @@ func openWithConfigAttempt(ctx context.Context, checkout string, id source.Ident
 	}
 	// Analysis consumes only frozen material and runs before slicing, so it can
 	// interpret the change but never influence file ownership or progress.
-	b := guide.Analyze(ctx, cfg.Analyzer, inv, guide.InputFrom(inv, contextBundle, cfg.Policy, guide.Defaults))
+	// Request filtering/copying is needed only when an analyzer will consume it.
+	var in guide.Input
+	if cfg.Analyzer != nil {
+		in = guide.InputFrom(inv, contextBundle, cfg.Policy, guide.Defaults)
+	}
+	b := guide.Analyze(ctx, cfg.Analyzer, inv, in)
 	description := p.Metadata.Description
 	s := &Session{Snapshot: session.Snapshot{Inventory: inv, Checkout: []byte(checkout), PullRequestDescription: &description, Commits: commitBundle, Slices: make([]Slice, len(inv.Files)), UnitFiles: make([]int, len(inv.Units))}}
 	s.Context = contextBundle
@@ -136,7 +141,11 @@ func openWithConfigAttempt(ctx context.Context, checkout string, id source.Ident
 // It never reads the checkout or remote metadata.
 func DeriveGuide(ctx context.Context, original *Session, analyzer guide.Analyzer, cfg Config) session.Snapshot {
 	derived := original.Snapshot
-	bundle := guide.Analyze(ctx, analyzer, original.Inventory, guide.InputFrom(original.Inventory, original.Context, cfg.Policy, guide.Defaults))
+	var in guide.Input
+	if analyzer != nil {
+		in = guide.InputFrom(original.Inventory, original.Context, cfg.Policy, guide.Defaults)
+	}
+	bundle := guide.Analyze(ctx, analyzer, original.Inventory, in)
 	derived.Guides = &bundle
 	derived.DerivedFrom = original.ID
 	return derived
