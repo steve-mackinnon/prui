@@ -92,7 +92,7 @@ type syntaxBudget struct {
 	bytes, spans int
 }
 
-func (b *syntaxBudget) capture(ctx context.Context, f FileChange, old, new []byte) (oldTokens, newTokens syntax.Lines, status syntax.FileStatus) {
+func (b *syntaxBudget) capture(ctx context.Context, f FileChange, old, new []byte, hunks ...hunk) (oldTokens, newTokens syntax.Lines, status syntax.FileStatus) {
 	status = syntax.FileStatus{Old: syntax.Ready, New: syntax.Ready}
 	switch {
 	case b.remaining <= 0:
@@ -105,8 +105,9 @@ func (b *syntaxBudget) capture(ctx context.Context, f FileChange, old, new []byt
 		started := time.Now()
 		syntaxContext, stop := context.WithTimeout(ctx, b.remaining)
 		b.bytes += len(old) + len(new)
-		oldTokens, status.Old = syntax.TokenizeWithStatus(syntaxContext, string(f.OldPath), old)
-		newTokens, status.New = syntax.TokenizeWithStatus(syntaxContext, string(f.NewPath), new)
+		oldEnd, newEnd := syntaxHunkEnds(hunks)
+		oldTokens, status.Old = syntax.TokenizeThrough(syntaxContext, string(f.OldPath), old, oldEnd)
+		newTokens, status.New = syntax.TokenizeThrough(syntaxContext, string(f.NewPath), new, newEnd)
 		if syntaxContext.Err() == context.DeadlineExceeded && ctx.Err() == nil {
 			if status.Old == syntax.Timeout {
 				status.Old = syntax.InventoryTimeLimit
@@ -131,6 +132,23 @@ func (b *syntaxBudget) capture(ctx context.Context, f FileChange, old, new []byt
 		status.New = syntax.Ready
 	}
 	return
+}
+
+func syntaxHunkEnds(hunks []hunk) (int, int) {
+	ends := [2]int{}
+	for _, h := range hunks {
+		for i, r := range []Range{h.old, h.newRange} {
+			// Outside the maximum lexer input, retain ordinary full capture.
+			// Bounding both operands also keeps endpoint arithmetic safe.
+			if r.Start < 0 || r.Count < 0 || r.Start > syntax.MaxBytes || r.Count > syntax.MaxBytes {
+				return 0, 0
+			}
+			if r.Count > 0 {
+				ends[i] = max(ends[i], r.Start+r.Count-1)
+			}
+		}
+	}
+	return ends[0], ends[1]
 }
 
 // SyntaxStorageStatuses also diagnoses legacy captures that predate statuses.

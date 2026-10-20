@@ -44,12 +44,13 @@ func captureComposition(ctx context.Context, b *Bundle, o *captureObjects, l sou
 	if len(paths) > min(l.Entries, 10000) {
 		return fail()
 	}
+	selected := compositionPathspecs(paths)
 	for tree := range trees {
 		c.Trees[tree] = []TreeEntry{}
 		if tree == EmptyTreeSHA {
 			continue
 		}
-		raw, err := o.Git(ctx, min(o.remaining, 50<<20), "ls-tree", "-r", "-z", "--full-tree", tree, "--")
+		raw, err := o.Git(ctx, min(o.remaining, 50<<20), compositionTreeArgs(tree, selected)...)
 		if err != nil {
 			return fail()
 		}

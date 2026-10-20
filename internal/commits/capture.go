@@ -27,6 +27,13 @@ func capture(parent context.Context, v *source.View, p source.PinnedComparison, 
 	defer cancel()
 	ctx, stopWork := context.WithTimeout(totalCtx, workDuration)
 	defer stopWork()
+	return captureWithContexts(parent, ctx, totalCtx, v, p, gh, l, notify)
+}
+
+func captureWithContexts(parent, ctx, totalCtx context.Context, v *source.View, p source.PinnedComparison, gh source.GitHub, l source.Limits, notify func(string)) (bundle *Bundle, err error) {
+	if parent.Err() != nil {
+		return nil, parent.Err()
+	}
 	bundle = &Bundle{BaseSHA: p.Metadata.BaseSHA, HeadSHA: p.Metadata.HeadSHA, Status: Unavailable, Reason: "Commit capture unavailable."}
 	defer func() {
 		if parent.Err() != nil {
@@ -73,6 +80,15 @@ func capture(parent context.Context, v *source.View, p source.PinnedComparison, 
 	remaining -= len(metadata)
 	lines := min(l.DiffLines, 100000)
 	budget := &captureObjects{view: v, remaining: remaining}
+	var parentReader *source.CommitParentReader
+	if v != nil && budget.remaining > 0 && lines > 0 {
+		ids := make([]string, len(bundle.Entries))
+		for i, entry := range bundle.Entries {
+			ids[i] = entry.SHA
+		}
+		parentReader = v.ReadCommitParents(ctx, p.Metadata.HeadSHA, ids)
+		defer parentReader.Close()
+	}
 	for i := range bundle.Entries {
 		entry := &bundle.Entries[i]
 		if ctx.Err() != nil || budget.remaining <= 0 || lines <= 0 {
@@ -82,7 +98,7 @@ func capture(parent context.Context, v *source.View, p source.PinnedComparison, 
 		if v == nil {
 			continue
 		}
-		parents, e := v.CommitParents(ctx, entry.SHA, p.Metadata.HeadSHA)
+		parents, e := parentReader.Next()
 		if e != nil {
 			continue
 		}

@@ -351,6 +351,10 @@ func (a *application) open(ctx context.Context, checkout string, id source.Ident
 }
 
 func (a *application) openWithPrevious(ctx context.Context, checkout string, id source.Identity, notify func(string), previous *review.Session) (*review.Session, error) {
+	return a.capturePullRequest(ctx, checkout, id, notify, previous, true)
+}
+
+func (a *application) capturePullRequest(ctx context.Context, checkout string, id source.Identity, notify func(string), previous *review.Session, checkFreshness bool) (*review.Session, error) {
 	if err := a.online(ctx); err != nil {
 		return nil, err
 	}
@@ -372,6 +376,14 @@ func (a *application) openWithPrevious(ctx context.Context, checkout string, id 
 	if os.Getenv(verify.OpenTimingEnvironment) == "1" {
 		timing = &timedGitHub{GitHub: a.gh}
 		gh = timing
+		// Interface embedding would otherwise hide optional commit capture and
+		// make measured opens cheaper by silently dropping frozen PR history.
+		if reader, ok := a.gh.(source.PullRequestCommitReader); ok {
+			gh = struct {
+				*timedGitHub
+				source.PullRequestCommitReader
+			}{timing, reader}
+		}
 	}
 	var profile review.Timing
 	started := time.Now()
@@ -404,11 +416,20 @@ func (a *application) openWithPrevious(ctx context.Context, checkout string, id 
 	if err != nil {
 		return nil, err
 	}
-	if notify != nil {
-		notify("Saved session " + saved.ID + "; checking metadata freshness...")
-	}
-	if err := review.Refresh(ctx, a.store, saved, a); err != nil {
+	if err := ctx.Err(); err != nil {
 		return nil, err
+	}
+	if notify != nil {
+		if checkFreshness {
+			notify("Saved session " + saved.ID + "; checking metadata freshness...")
+		} else {
+			notify("Saved session " + saved.ID + "; freshness pending.")
+		}
+	}
+	if checkFreshness {
+		if err := review.Refresh(ctx, a.store, saved, a); err != nil {
+			return nil, err
+		}
 	}
 	if err := a.store.RememberRepository(saved.Inventory.Comparison.Metadata.BaseRepository, checkout); err != nil {
 		return nil, err
@@ -559,12 +580,34 @@ func (a *application) refreshOpenedPullRequest(ctx context.Context, opened tui.P
 // openFromPullRequestList reuses a saved guide when present. Generation is
 // requested separately through the review's explicit consent action.
 func (a *application) openFromPullRequestList(ctx context.Context, checkout string, id source.Identity, notify func(string)) (*review.Session, error) {
+	return a.openFromList(ctx, checkout, id, notify, false)
+}
+
+// openForBrowser is installed only alongside the TUI freshness refresher.
+// Frozen capture and persistence complete before returning; the event-loop
+// owner starts the remaining check and keeps freshness explicitly unchecked.
+func (a *application) openForBrowser(ctx context.Context, checkout string, id source.Identity, notify func(string)) (*review.Session, error) {
+	return a.openFromList(ctx, checkout, id, notify, true)
+}
+
+func (a *application) openFromList(ctx context.Context, checkout string, id source.Identity, notify func(string), backgroundFreshness bool) (*review.Session, error) {
 	raw, err := a.cachedPullRequestSnapshot(ctx, checkout, id, notify)
 	if err != nil {
 		return nil, err
 	}
 	if raw == nil {
-		raw, err = a.open(ctx, checkout, id, notify)
+		if backgroundFreshness {
+			if err := a.online(ctx); err != nil {
+				return nil, err
+			}
+			previous, e := a.store.LatestComparison(id)
+			if e != nil {
+				return nil, e
+			}
+			raw, err = a.capturePullRequest(ctx, checkout, id, notify, previous, false)
+		} else {
+			raw, err = a.open(ctx, checkout, id, notify)
+		}
 	}
 	if err != nil {
 		return nil, err

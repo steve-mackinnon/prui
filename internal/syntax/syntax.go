@@ -8,7 +8,6 @@ import (
 	"unicode/utf8"
 
 	"github.com/alecthomas/chroma/v2"
-	"github.com/alecthomas/chroma/v2/lexers"
 )
 
 type Kind uint8
@@ -53,10 +52,34 @@ func Tokenize(ctx context.Context, path string, source []byte) Lines {
 
 const MaxDuration = time.Second
 
-func Supported(path string) bool { return lexers.Match(path) != nil }
+func Supported(path string) bool { return matchLexer(path) != nil }
 
 // TokenizeWithStatus retains the reason a best-effort capture was unavailable.
 func TokenizeWithStatus(ctx context.Context, path string, source []byte) (Lines, Status) {
+	if cache, ok := ctx.Value(tokenCacheKey{}).(*tokenCache); ok {
+		return cache.capture(ctx, path, source, tokenizeDefault)
+	}
+	return tokenizeDefault(ctx, path, source)
+}
+
+// TokenizeThrough captures at most the given one-based source line. The lexer
+// still receives the complete pinned bytes for state and lookahead. Ready means
+// the requested prefix is complete, not that the unused tail was tokenized.
+// A nonpositive line requests the ordinary full capture.
+func TokenizeThrough(ctx context.Context, path string, source []byte, through int) (Lines, Status) {
+	if through <= 0 {
+		return TokenizeWithStatus(ctx, path, source)
+	}
+	compute := func(c context.Context, p string, b []byte) (Lines, Status) {
+		return tokenizeThrough(c, p, b, MaxDuration, through)
+	}
+	if cache, ok := ctx.Value(tokenCacheKey{}).(*tokenCache); ok {
+		return cache.captureThrough(ctx, path, source, through, compute)
+	}
+	return compute(ctx, path, source)
+}
+
+func tokenizeDefault(ctx context.Context, path string, source []byte) (Lines, Status) {
 	return tokenize(ctx, path, source, MaxDuration)
 }
 
@@ -68,6 +91,10 @@ func contextStatus(ctx context.Context) Status {
 }
 
 func tokenize(ctx context.Context, path string, source []byte, duration time.Duration) (lines Lines, status Status) {
+	return tokenizeThrough(ctx, path, source, duration, 0)
+}
+
+func tokenizeThrough(ctx context.Context, path string, source []byte, duration time.Duration, through int) (lines Lines, status Status) {
 	if ctx.Err() != nil {
 		return nil, contextStatus(ctx)
 	}
@@ -77,7 +104,7 @@ func tokenize(ctx context.Context, path string, source []byte, duration time.Dur
 	if !utf8.Valid(source) {
 		return nil, InvalidText
 	}
-	lexer := lexers.Match(path)
+	lexer := matchLexer(path)
 	if lexer == nil {
 		return nil, Unsupported
 	}
@@ -87,7 +114,7 @@ func tokenize(ctx context.Context, path string, source []byte, duration time.Dur
 		}
 	}()
 	deadline := time.Now().Add(duration)
-	it, err := lexer.Tokenise(&chroma.TokeniseOptions{State: "root", EnsureLF: false}, string(source))
+	it, err := tokenLexer(lexer).Tokenise(&chroma.TokeniseOptions{State: "root", EnsureLF: false}, string(source))
 	if err != nil {
 		return nil, LexerError
 	}
@@ -121,6 +148,15 @@ func tokenize(ctx context.Context, path string, source []byte, duration time.Dur
 			if i > 0 {
 				line++
 				column = 0
+				if through > 0 && line > through {
+					if ctx.Err() != nil {
+						return nil, contextStatus(ctx)
+					}
+					if time.Now().After(deadline) {
+						return nil, Timeout
+					}
+					return lines, Ready
+				}
 			}
 			if len(part) > 0 && kind != Plain {
 				lines[line] = append(lines[line], Span{column, column + len(part), kind})

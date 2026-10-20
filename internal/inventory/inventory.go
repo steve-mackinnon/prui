@@ -152,6 +152,14 @@ func build(ctx context.Context, objects Objects, oldSHA, newSHA string, p *sourc
 		return inv, e
 	}
 	emptyOID := strings.TrimSpace(string(empty))
+	blobs := batchBlobs(ctx, objects, inv.Files, emptyOID, l.BlobBytes)
+	diffs := newDiffReads(objects, inv.Files, blobs, emptyOID, oldSHA, newSHA, l)
+	readBlob := func(oid string) ([]byte, error) {
+		if result, ok := blobs[oid]; ok {
+			return result.Data, result.Err
+		}
+		return objects.Blob(ctx, oid, l.BlobBytes)
+	}
 	used, lines := 0, 0
 	syntaxBudget := syntaxBudget{remaining: SyntaxDuration}
 	add := func(f FileChange, k Kind, old, newRange Range, patch []byte, reason string) {
@@ -170,7 +178,7 @@ func build(ctx context.Context, objects Objects, oldSHA, newSHA string, p *sourc
 			inv.Problems = append(inv.Problems, fmt.Sprintf("file %s: %s", f.ID[:12], reason))
 		}
 	}
-	for _, f := range inv.Files {
+	for index, f := range inv.Files {
 		if ctx.Err() != nil {
 			return inv, ctx.Err()
 		}
@@ -184,15 +192,9 @@ func build(ctx context.Context, objects Objects, oldSHA, newSHA string, p *sourc
 		if f.OldOID == f.NewOID {
 			continue
 		}
-		oldOID, newOID := f.OldOID, f.NewOID
-		if f.OldMode == "000000" || f.OldMode == "160000" {
-			oldOID = emptyOID
-		}
-		if f.NewMode == "000000" || f.NewMode == "160000" {
-			newOID = emptyOID
-		}
-		a, ea := objects.Blob(ctx, oldOID, l.BlobBytes)
-		b, eb := objects.Blob(ctx, newOID, l.BlobBytes)
+		pair := fileBlobPair(f, emptyOID)
+		a, ea := readBlob(pair.old)
+		b, eb := readBlob(pair.next)
 		if ctx.Err() != nil {
 			return inv, ctx.Err()
 		}
@@ -204,7 +206,7 @@ func build(ctx context.Context, objects Objects, oldSHA, newSHA string, p *sourc
 			add(f, Unavailable, Range{}, Range{}, nil, reason)
 			continue
 		}
-		if bytes.IndexByte(a[:min(len(a), 8192)], 0) >= 0 || bytes.IndexByte(b[:min(len(b), 8192)], 0) >= 0 {
+		if binaryBlob(a) || binaryBlob(b) {
 			add(f, Binary, Range{}, Range{}, nil, "")
 			continue
 		}
@@ -213,7 +215,7 @@ func build(ctx context.Context, objects Objects, oldSHA, newSHA string, p *sourc
 			add(f, Unavailable, Range{}, Range{}, nil, "materialized content or diff-line limit exceeded")
 			continue
 		}
-		patch, e := objects.Git(ctx, remaining, "diff", "--no-ext-diff", "--no-textconv", "--no-color", "--no-renames", "--text", "--diff-algorithm=myers", "--no-indent-heuristic", "--unified=3", "--inter-hunk-context=0", "--full-index", oldOID, newOID, "--")
+		patch, e := diffs.read(ctx, index, pair, remaining, l.DiffLines-lines)
 		if ctx.Err() != nil {
 			return inv, ctx.Err()
 		}
@@ -239,7 +241,7 @@ func build(ctx context.Context, objects Objects, oldSHA, newSHA string, p *sourc
 			add(f, Unavailable, Range{}, Range{}, nil, "materialized content or diff-line limit exceeded")
 			continue
 		}
-		oldTokens, newTokens, status := syntaxBudget.capture(ctx, f, a, b)
+		oldTokens, newTokens, status := syntaxBudget.capture(ctx, f, a, b, hunks...)
 		if inv.SyntaxStatus == nil {
 			inv.SyntaxStatus = map[string]syntax.FileStatus{}
 		}

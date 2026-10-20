@@ -36,7 +36,7 @@ func (g *GH) ListPullRequestCommits(ctx context.Context, id Identity) ([]PullReq
 	if _, err := ParseIdentity(strconv.Itoa(id.Number), id.Repository); err != nil {
 		return nil, errors.New("invalid commit list identity")
 	}
-	data, err := g.call(ctx, "api", "--hostname", "github.com", "--method", "GET", fmt.Sprintf("repos/%s/pulls/%d/commits?per_page=100&page=1", id.Repository, id.Number))
+	data, err := g.readGET(ctx, fmt.Sprintf("repos/%s/pulls/%d/commits?per_page=100&page=1", id.Repository, id.Number))
 	if err != nil {
 		return nil, err
 	}

@@ -1,6 +1,7 @@
 package source
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"errors"
@@ -8,8 +9,10 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -17,7 +20,18 @@ type View struct {
 	dir, git string
 	runner   Runner
 	limits   Limits
+	blobMu   sync.Mutex // Guards both immutable read caches and closed state.
+	blobs    map[string][]byte
+	blobSize int
+	diffs    map[string][]byte
+	diffSize int
+	closed   bool
 }
+
+// Reuse pinned bytes only within this isolated view. The cap bounds retained
+// memory across inventory, commit capture, composition and evidence retrieval.
+const blobCacheBytes = 8 << 20
+const blobCacheEntries = 2048
 
 // PinTiming records the bounded phases of building a pinned comparison.
 // It is optional diagnostic data for callers such as the verifier.
@@ -27,7 +41,14 @@ type PinTiming struct {
 	Fetch     time.Duration
 }
 
-func (v *View) Close() error { return os.RemoveAll(v.dir) }
+func (v *View) Close() error {
+	v.blobMu.Lock()
+	v.blobs, v.blobSize = nil, 0
+	v.diffs, v.diffSize = nil, 0
+	v.closed = true
+	v.blobMu.Unlock()
+	return os.RemoveAll(v.dir)
+}
 func gitEnvironment(home, token string) []string {
 	env := []string{"PATH=/usr/bin:/bin", "LC_ALL=C", "HOME=" + home, "XDG_CONFIG_HOME=" + home, "GIT_CONFIG_NOSYSTEM=1", "GIT_CONFIG_GLOBAL=/dev/null", "GIT_CONFIG_SYSTEM=/dev/null", "GIT_NO_REPLACE_OBJECTS=1", "GIT_NO_LAZY_FETCH=1", "GIT_TERMINAL_PROMPT=0", "GIT_ATTR_NOSYSTEM=1", "GIT_OPTIONAL_LOCKS=0", "GIT_PAGER=", "GIT_PROTOCOL_FROM_USER=0", "GIT_LFS_SKIP_SMUDGE=1"}
 	settings := [][2]string{{"core.hooksPath", home + "/empty"}, {"init.templateDir", home + "/empty"}, {"core.attributesFile", "/dev/null"}, {"core.pager", ""}, {"color.ui", "false"}, {"credential.helper", ""}, {"protocol.allow", "never"}, {"protocol.https.allow", "always"}, {"http.followRedirects", "false"}, {"fetch.recurseSubmodules", "false"}, {"maintenance.auto", "false"}, {"gc.auto", "0"}, {"diff.external", ""}, {"diff.ignoreSubmodules", "none"}, {"core.quotePath", "true"}, {"fetch.writeCommitGraph", "false"}}
@@ -57,7 +78,7 @@ func NewView(ctx context.Context, checkout string, r Runner, l Limits) (v *View,
 	if err != nil {
 		return nil, err
 	}
-	v = &View{dir, git, r, l}
+	v = &View{dir: dir, git: git, runner: r, limits: l}
 	defer func() {
 		if err != nil {
 			_ = os.RemoveAll(dir)
@@ -74,9 +95,11 @@ func NewView(ctx context.Context, checkout string, r Runner, l Limits) (v *View,
 		}
 	}
 	// Mirror only object data, never the checkout's alternates, config, hooks or promisor markers.
-	err = filepath.WalkDir(objects, func(path string, d fs.DirEntry, e error) error {
-		return borrowObjectEntry(ctx, objects, filepath.Join(dir, "borrowed"), path, d, e)
-	})
+	skip, err := v.preparePackedObjects(ctx, objects)
+	if err != nil {
+		return nil, err
+	}
+	err = borrowObjectsSkipping(ctx, objects, filepath.Join(dir, "borrowed"), min(4, runtime.GOMAXPROCS(0)), skip)
 	if err != nil {
 		return nil, err
 	}
@@ -175,16 +198,62 @@ func readSmall(path string) ([]byte, error) {
 }
 
 func (v *View) Git(ctx context.Context, limit int, args ...string) ([]byte, error) {
-	return v.runner.Run(ctx, Request{Program: v.git, Args: append([]string{"--no-pager", "--git-dir=" + v.dir}, args...), Dir: v.dir, Env: gitEnvironment(v.dir, ""), Limit: limit, Timeout: v.limits.Operation})
+	if key := blobDiffKey(args); key != "" {
+		return v.blobDiff(ctx, limit, key, args)
+	}
+	return v.gitInput(ctx, limit, nil, args...)
+}
+
+func (v *View) gitInput(ctx context.Context, limit int, input []byte, args ...string) ([]byte, error) {
+	return v.runner.Run(ctx, Request{Program: v.git, Args: append([]string{"--no-pager", "--git-dir=" + v.dir}, args...), Dir: v.dir, Env: gitEnvironment(v.dir, ""), Stdin: input, Limit: limit, Timeout: v.limits.Operation})
 }
 func (v *View) Blob(ctx context.Context, oid string, limit int) ([]byte, error) {
 	if !shaPattern.MatchString(oid) {
 		return nil, errors.New("invalid object ID")
 	}
+	if ctx.Err() != nil {
+		return nil, ctx.Err()
+	}
+	if limit <= 0 {
+		return nil, errors.New("invalid process limits")
+	}
+	v.blobMu.Lock()
+	if v.closed {
+		v.blobMu.Unlock()
+		return nil, ErrCommand
+	}
+	if cached, ok := v.blobs[oid]; ok {
+		var data []byte
+		var err error
+		if len(cached) > limit {
+			err = ErrLimit
+		} else {
+			data = bytes.Clone(cached)
+		}
+		v.blobMu.Unlock()
+		return data, err
+	}
+	v.blobMu.Unlock()
 	// The process runner bounds stdout and kills the process group on overflow.
 	// Read once instead of spawning a separate Git process just to check size.
 	// Oversized reads return ErrLimit without exposing partial blob contents.
-	return v.Git(ctx, limit, "cat-file", "blob", oid)
+	data, err := v.Git(ctx, limit, "cat-file", "blob", oid)
+	if err == nil {
+		v.cacheBlob(oid, data)
+	}
+	return data, err
+}
+
+func (v *View) cacheBlob(oid string, data []byte) {
+	v.blobMu.Lock()
+	defer v.blobMu.Unlock()
+	if _, exists := v.blobs[oid]; !v.closed && !exists && len(v.blobs) < blobCacheEntries && len(data) <= blobCacheBytes-v.blobSize {
+		if v.blobs == nil {
+			v.blobs = map[string][]byte{}
+		}
+		v.blobs[oid] = bytes.Clone(data)
+		v.blobSize += len(data)
+	}
 }
 func (v *View) mergeBase(ctx context.Context, m Metadata) (string, error) {
 	for _, s := range []string{m.BaseSHA, m.HeadSHA} {
@@ -296,18 +365,32 @@ func PinWithTiming(ctx context.Context, checkout string, id Identity, gh GitHub,
 	if notify == nil {
 		notify = func(string) {}
 	}
-	m, e := gh.Metadata(ctx, id)
+	parallel := false
+	if capable, ok := r.(interface{ MaxParallelism() int }); ok {
+		parallel = capable.MaxParallelism() > 1
+	}
+	m, initial, elapsed, e := pinInputs(ctx, parallel, func(c context.Context) (Metadata, error) {
+		return gh.Metadata(c, id)
+	}, func(c context.Context) (*View, error) {
+		return NewView(c, checkout, r, l)
+	})
+	if timing != nil {
+		timing.ViewSetup += elapsed
+	}
 	if e != nil {
 		return nil, PinnedComparison{}, e
 	}
 	for attempt := 0; attempt < 2; attempt++ {
 		started := time.Now()
-		v, e := NewView(ctx, checkout, r, l)
-		if timing != nil {
-			timing.ViewSetup += time.Since(started)
-		}
-		if e != nil {
-			return nil, PinnedComparison{}, e
+		v := initial
+		if attempt > 0 {
+			v, e = NewView(ctx, checkout, r, l)
+			if timing != nil {
+				timing.ViewSetup += time.Since(started)
+			}
+			if e != nil {
+				return nil, PinnedComparison{}, e
+			}
 		}
 		started = time.Now()
 		base, pinErr := v.mergeBase(ctx, m)

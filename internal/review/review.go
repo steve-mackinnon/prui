@@ -12,6 +12,7 @@ import (
 	"prui/internal/privacy"
 	"prui/internal/session"
 	"prui/internal/source"
+	"prui/internal/syntax"
 	"time"
 )
 
@@ -54,15 +55,21 @@ func OpenWithConfig(ctx context.Context, checkout string, id source.Identity, gh
 }
 
 func openWithConfigAttempt(ctx context.Context, checkout string, id source.Identity, gh source.GitHub, r source.Runner, l source.Limits, notify func(string), cfg Config) (*Session, error) {
+	ctx = syntax.WithCache(ctx)
 	var pinTiming *source.PinTiming
 	if cfg.Timing != nil {
 		pinTiming = &cfg.Timing.Pin
 	}
-	v, p, e := source.PinWithTiming(ctx, checkout, id, gh, r, l, notify, pinTiming)
+	parallel := false
+	if capable, ok := r.(interface{ MaxParallelism() int }); ok {
+		parallel = capable.MaxParallelism() > 1
+	}
+	v, p, pending, e := pinWithMembership(ctx, checkout, id, gh, r, l, notify, pinTiming, parallel)
 	if e != nil {
 		return nil, e
 	}
 	defer func() { _ = v.Close() }()
+	defer pending.Close()
 	started := time.Now()
 	inv, e := inventory.Build(ctx, v, p, l)
 	if cfg.Timing != nil {
@@ -77,18 +84,30 @@ func openWithConfigAttempt(ctx context.Context, checkout string, id source.Ident
 		}
 		inv.FullSource = inventory.CaptureFullSource(ctx, v, inv, l)
 	}
-	commitBundle, e := commits.Capture(ctx, v, p, gh, l, notify)
+	commitBundle, contextBundle, e := captureDetails(ctx, parallel, func(c context.Context) (*commits.Bundle, error) {
+		if pending != nil {
+			return pending.Capture(v, l, notify)
+		}
+		return commits.Capture(c, v, p, gh, l, notify)
+	}, func(c context.Context) reviewcontext.ContextBundle {
+		started := time.Now()
+		result := reviewcontext.Retrieve(c, v, p, inv, cfg.Policy, reviewcontext.Defaults)
+		if cfg.Timing != nil {
+			cfg.Timing.Evidence += time.Since(started)
+		}
+		return result
+	})
 	if e != nil {
 		return nil, e
 	}
-	started = time.Now()
-	contextBundle := reviewcontext.Retrieve(ctx, v, p, inv, cfg.Policy, reviewcontext.Defaults)
-	if cfg.Timing != nil {
-		cfg.Timing.Evidence += time.Since(started)
-	}
 	// Analysis consumes only frozen material and runs before slicing, so it can
 	// interpret the change but never influence file ownership or progress.
-	b := guide.Analyze(ctx, cfg.Analyzer, inv, guide.InputFrom(inv, contextBundle, cfg.Policy, guide.Defaults))
+	// Request filtering/copying is needed only when an analyzer will consume it.
+	var in guide.Input
+	if cfg.Analyzer != nil {
+		in = guide.InputFrom(inv, contextBundle, cfg.Policy, guide.Defaults)
+	}
+	b := guide.Analyze(ctx, cfg.Analyzer, inv, in)
 	description := p.Metadata.Description
 	s := &Session{Snapshot: session.Snapshot{Inventory: inv, Checkout: []byte(checkout), PullRequestDescription: &description, Commits: commitBundle, Slices: make([]Slice, len(inv.Files)), UnitFiles: make([]int, len(inv.Units))}}
 	s.Context = contextBundle
@@ -122,7 +141,11 @@ func openWithConfigAttempt(ctx context.Context, checkout string, id source.Ident
 // It never reads the checkout or remote metadata.
 func DeriveGuide(ctx context.Context, original *Session, analyzer guide.Analyzer, cfg Config) session.Snapshot {
 	derived := original.Snapshot
-	bundle := guide.Analyze(ctx, analyzer, original.Inventory, guide.InputFrom(original.Inventory, original.Context, cfg.Policy, guide.Defaults))
+	var in guide.Input
+	if analyzer != nil {
+		in = guide.InputFrom(original.Inventory, original.Context, cfg.Policy, guide.Defaults)
+	}
+	bundle := guide.Analyze(ctx, analyzer, original.Inventory, in)
 	derived.Guides = &bundle
 	derived.DerivedFrom = original.ID
 	return derived

@@ -154,6 +154,19 @@ func TestDeriveGuideUsesFrozenMaterialWithoutChangingSource(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	withoutAnalysis := DeriveGuide(context.Background(), original, nil, Config{})
+	expected := original.Snapshot
+	expected.DerivedFrom = original.ID
+	fallback := guide.Fallback("analysis not requested")
+	expected.Guides = &fallback
+	want, err := json.Marshal(expected)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := json.Marshal(withoutAnalysis)
+	if err != nil || !bytes.Equal(got, want) {
+		t.Fatal("disabled derivation changed frozen source or fallback", err)
+	}
 	analyzer := &fakeAnalyzer{}
 	derived := DeriveGuide(context.Background(), original, analyzer, Config{})
 	if derived.DerivedFrom != original.ID || derived.Guides == nil || derived.Guides.Status != guide.Generated || analyzer.calls != 1 {

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"net/url"
 	"regexp"
 	"strconv"
@@ -186,11 +187,17 @@ type GH struct {
 	Executable string
 	Limits     Limits
 	Dir        string
+	readClient *http.Client
 }
 
 func NewGH(r Runner, l Limits, dir string) (*GH, error) {
 	p, e := trustedExecutable("gh")
-	return &GH{r, p, l, dir}, e
+	g := &GH{Runner: r, Executable: p, Limits: l, Dir: dir}
+	// Custom runners retain the existing CLI boundary, including test doubles.
+	if _, real := r.(processRunner); real && e == nil {
+		g.readClient = newGitHubReadClient()
+	}
+	return g, e
 }
 func (g *GH) call(ctx context.Context, args ...string) ([]byte, error) {
 	return g.callWithStdin(ctx, nil, args...)
@@ -492,10 +499,17 @@ func (g *GH) Metadata(ctx context.Context, id Identity) (Metadata, error) {
 	if _, err := ParseIdentity(strconv.Itoa(id.Number), id.Repository); err != nil {
 		return Metadata{}, err
 	}
-	data, err := g.call(ctx, "api", "--hostname", "github.com", "--method", "GET", fmt.Sprintf("repos/%s/pulls/%d", id.Repository, id.Number))
+	if g.readClient != nil {
+		return g.graphqlMetadata(ctx, id)
+	}
+	data, err := g.readGET(ctx, fmt.Sprintf("repos/%s/pulls/%d", id.Repository, id.Number))
 	if err != nil {
 		return Metadata{}, fmt.Errorf("GitHub metadata unavailable (check authentication and connectivity): %w", err)
 	}
+	return decodeRESTMetadata(id, data)
+}
+
+func decodeRESTMetadata(id Identity, data []byte) (Metadata, error) {
 	type side struct {
 		SHA  string `json:"sha"`
 		Ref  string `json:"ref"`
@@ -515,11 +529,15 @@ func (g *GH) Metadata(ctx context.Context, id Identity) (Metadata, error) {
 	if raw.Body != nil {
 		description = *raw.Body
 	}
-	if !utf8.ValidString(description) || len(description) > descriptionMaxBytes {
+	m := Metadata{TargetBranch: raw.Base.Ref, Identity: id, BaseRepository: raw.Base.Repo.FullName, HeadRepository: raw.Head.Repo.FullName, BaseSHA: raw.Base.SHA, HeadSHA: raw.Head.SHA, Description: description}
+	return validateMetadata(m)
+}
+
+func validateMetadata(m Metadata) (Metadata, error) {
+	if !utf8.ValidString(m.Description) || len(m.Description) > descriptionMaxBytes {
 		return Metadata{}, errors.New("invalid pull request description")
 	}
-	m := Metadata{TargetBranch: raw.Base.Ref, Identity: id, BaseRepository: raw.Base.Repo.FullName, HeadRepository: raw.Head.Repo.FullName, BaseSHA: raw.Base.SHA, HeadSHA: raw.Head.SHA, Description: description}
-	if !validListText(m.TargetBranch) || !repositoryPattern.MatchString(m.BaseRepository) || !repositoryPattern.MatchString(m.HeadRepository) || !strings.EqualFold(m.BaseRepository, id.Repository) || !shaPattern.MatchString(m.BaseSHA) || !shaPattern.MatchString(m.HeadSHA) {
+	if !validListText(m.TargetBranch) || !repositoryPattern.MatchString(m.BaseRepository) || !repositoryPattern.MatchString(m.HeadRepository) || !strings.EqualFold(m.BaseRepository, m.Identity.Repository) || !shaPattern.MatchString(m.BaseSHA) || !shaPattern.MatchString(m.HeadSHA) {
 		return Metadata{}, errors.New("unsupported repository or revision metadata")
 	}
 	return m, nil
@@ -531,7 +549,16 @@ func (g *GH) ListPullRequests(ctx context.Context, repository string) ([]PullReq
 	}
 	parts := strings.Split(repository, "/")
 	const query = `query($owner:String!,$name:String!){repository(owner:$owner,name:$name){pullRequests(first:100,states:OPEN,orderBy:{field:CREATED_AT,direction:DESC}){nodes{number title body baseRefName headRefName headRepository{nameWithOwner} createdAt author{login} viewerLatestReview{state} commits(last:1){nodes{commit{author{name user{login}} statusCheckRollup{state}}}}}}}}`
-	data, err := g.call(ctx, "api", "--hostname", "github.com", "graphql", "-f", "query="+query, "-F", "owner="+parts[0], "-F", "name="+parts[1])
+	payload, err := json.Marshal(struct {
+		Query     string            `json:"query"`
+		Variables map[string]string `json:"variables"`
+	}{query, map[string]string{"owner": parts[0], "name": parts[1]}})
+	if err != nil {
+		return nil, ErrCommand
+	}
+	data, err := g.readCapture(ctx, http.MethodPost, "graphql", payload, func(c context.Context) ([]byte, error) {
+		return g.call(c, "api", "--hostname", "github.com", "graphql", "-f", "query="+query, "-F", "owner="+parts[0], "-F", "name="+parts[1])
+	})
 	if err != nil {
 		return nil, fmt.Errorf("GitHub pull request list unavailable (check authentication and connectivity): %w", err)
 	}

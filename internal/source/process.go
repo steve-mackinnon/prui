@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"sync"
 	"syscall"
 	"time"
@@ -41,6 +42,10 @@ type Runner interface {
 type processRunner struct{}
 
 func NewRunner() Runner { return processRunner{} }
+
+// Custom runners remain serial unless they explicitly advertise safe parallel
+// use. Every real process retains its own timeout, output cap and process group.
+func (processRunner) MaxParallelism() int { return min(8, runtime.GOMAXPROCS(0)) }
 
 type boundedBuffer struct {
 	mu        sync.Mutex

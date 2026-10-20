@@ -5,6 +5,7 @@ import (
 	"prui/internal/source"
 	"prui/internal/syntax"
 	"prui/internal/testutil"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -63,9 +64,18 @@ func TestSyntaxBudgetReportsReasons(t *testing.T) {
 		{"spans", syntaxBudget{remaining: SyntaxDuration, spans: 32000}, syntax.InventorySpanLimit},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			old, new, status := tc.budget.capture(context.Background(), f, []byte("const x=1;\n"), []byte("const x=2;\n"))
-			if old != nil || new != nil || status.Old != tc.want || status.New != tc.want {
-				t.Fatalf("silent budget omission: %#v", status)
+			cached := syntax.WithCache(context.Background())
+			for _, text := range []string{"const x=1;\n", "const x=2;\n"} {
+				if _, status := syntax.TokenizeWithStatus(cached, "x.ts", []byte(text)); status != syntax.Ready {
+					t.Fatalf("cache warmup unavailable: %v", status)
+				}
+			}
+			for _, ctx := range []context.Context{context.Background(), cached} {
+				budget := tc.budget
+				old, new, status := budget.capture(ctx, f, []byte("const x=1;\n"), []byte("const x=2;\n"))
+				if old != nil || new != nil || status.Old != tc.want || status.New != tc.want {
+					t.Fatalf("silent budget omission: %#v", status)
+				}
 			}
 		})
 	}
@@ -124,5 +134,66 @@ func TestLegacySyntaxStorageOmissionIsDiagnosed(t *testing.T) {
 	}
 	if tokens["u"] == nil {
 		t.Fatal("mutated original metadata")
+	}
+}
+
+func TestSyntaxPrefixRetainsEveryHunkAndChargesFullBytes(t *testing.T) {
+	f := FileChange{OldPath: []byte("x.go"), NewPath: []byte("x.go")}
+	old := []byte("package p\n/* multi\nline comment\n*/\n" + strings.Repeat("const Value = 1\n", 30))
+	new := []byte(strings.ReplaceAll(string(old), "Value = 1", "Value = 2"))
+	hunks := []hunk{
+		{old: Range{Start: 2, Count: 2}, newRange: Range{Start: 2, Count: 2}, patch: []byte("@@ -2,2 +2,2 @@\n /* multi\n line comment\n")},
+		{old: Range{Start: 12, Count: 1}, newRange: Range{Start: 12, Count: 1}, patch: []byte("@@ -12 +12 @@\n-const Value = 1\n+const Value = 2\n")},
+	}
+	fullBudget, limitedBudget := syntaxBudget{remaining: SyntaxDuration}, syntaxBudget{remaining: SyntaxDuration}
+	a, b, status := fullBudget.capture(context.Background(), f, old, new)
+	x, y, limitedStatus := limitedBudget.capture(context.Background(), f, old, new, hunks...)
+	if status != limitedStatus || limitedStatus.Old != syntax.Ready || limitedStatus.New != syntax.Ready {
+		t.Fatal(status, limitedStatus)
+	}
+	if len(x[12]) == 0 || len(x[13]) != 0 || len(y[13]) != 0 {
+		t.Fatal("prefix boundary lost or exceeded")
+	}
+	for _, h := range hunks {
+		if !reflect.DeepEqual(hunkSyntax(h, a, b), hunkSyntax(h, x, y)) {
+			t.Fatal("displayed hunk syntax changed")
+		}
+	}
+	if limitedBudget.bytes != len(old)+len(new) {
+		t.Fatal("prefix bypassed full-source byte budget")
+	}
+}
+
+func TestSyntaxPrefixDoesNotMaterializeUnusedTailSpans(t *testing.T) {
+	r := testutil.NewRepo(t)
+	tail := strings.Repeat("1\n", syntax.MaxSpans+1)
+	r.Write("x.ts", "const x = 1;\n"+tail)
+	base := r.Commit()
+	r.Write("x.ts", "const x = 2;\n"+tail)
+	head := r.Commit()
+	v, err := source.NewView(context.Background(), r.Dir, source.NewRunner(), source.Defaults())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer v.Close()
+	inv, err := BuildCommit(context.Background(), v, CommitComparison{base, head}, source.Defaults())
+	if err != nil || !inv.Complete || len(inv.Files) != 1 {
+		t.Fatal(err)
+	}
+	status := inv.SyntaxStatus[inv.Files[0].ID]
+	if status.Old != syntax.Ready || status.New != syntax.Ready {
+		t.Fatal(status)
+	}
+	if len(inv.Syntax) == 0 {
+		t.Fatal("displayed source lost highlighting")
+	}
+}
+
+func TestSyntaxPrefixUnsafeEndpointsKeepFullCapture(t *testing.T) {
+	for _, r := range []Range{{Start: -1, Count: 1}, {Start: 1, Count: -1}, {Start: int(^uint(0) >> 1), Count: 2}} {
+		a, b := syntaxHunkEnds([]hunk{{old: r, newRange: Range{Start: 1, Count: 2}}})
+		if a != 0 || b != 0 {
+			t.Fatal("unsafe endpoint did not keep full capture")
+		}
 	}
 }

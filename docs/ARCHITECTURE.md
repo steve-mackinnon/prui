@@ -11,7 +11,7 @@ and boundaries for contributors.
 | Package | Responsibility |
 | --- | --- |
 | `cmd/prui` | Parse commands, assemble dependencies, control online actions and GitHub writes |
-| `internal/source` | Read GitHub metadata through `gh`; build an isolated Git object view and pin a comparison |
+| `internal/source` | Read GitHub metadata using CLI credentials; build an isolated Git object view and pin a comparison |
 | `internal/inventory` | Turn the pinned comparison into deterministic files, review units, and patches |
 | `internal/context` | Retrieve bounded repository evidence for optional guide generation |
 | `internal/privacy` | Apply path and content exclusions to material considered for upload |
@@ -44,10 +44,94 @@ For a new comparison, `internal/review.OpenWithConfig` runs these stages:
 4. `internal/review` assembles file slices from the inventory. The command layer
    saves the resulting snapshot through `internal/session`.
 
+Interactive PR-list/new-tab opens can show that complete, durably saved capture
+with freshness explicitly unchecked. The existing TUI refresh then performs the
+post-save metadata check; only its event-loop owner merges status with current
+progress. Source pinning, commit membership/capture and its final revision guard
+still finish before display. Failure or cancellation cannot imply current
+freshness, and every explicit write retains its independent exact-head preflight.
+This uses the same pending/changed-revision flow as cached browser opens; stored
+comparisons remain immutable. Fresh captures in direct/CLI opening and Inbox
+keep their synchronous post-save checks. No periodic polling is introduced.
+
 The source view reads object data from the checkout without using its config,
 hooks, filters, or worktree. The frozen inventory and description are what a
 review session displays; later changes in the checkout cannot silently alter
 that session. A new comparison is an explicit operation.
+
+For parallel-capable runners, the initial metadata read and isolated object-view
+preparation overlap. Pinning waits for both; metadata failure cancels and joins
+preparation and closes any resulting view. Custom serial runners keep the
+original ordering. Retry/fetch and every subsequent freshness boundary retain
+their original order. Individual phase timings can overlap and are not additive.
+
+PR metadata and commit capture reuse a bounded HTTPS connection to GitHub's API.
+Each request resolves the current CLI account again; tokens and responses are
+never cached. The original metadata checks before/after capture and after saving
+remain separate reads. Other GitHub operations retain their CLI transport.
+Custom runners retain the CLI boundary; offline startup constructs no client.
+
+Object-file linking uses at most four workers. A bounded preflight can replace
+duplicate loose links with independently owned, Git-verified pack/index copies.
+Unsupported layouts retain ordinary mirroring. Copies stay under borrowed
+reachability so fetching can unhook them without changing its storage budget;
+all temporary data remains owned by the view and is removed on close.
+
+Within one isolated view, successful blob reads reuse immutable object bytes
+under an 8 MiB / 2,048-entry memory cap. Every read retains its own size limit
+and cancellation check. Main inventory can batch-check object sizes and read
+eligible blobs through the same isolated runner. Canonical blob-pair diffs have
+an independent 8 MiB / 2,048-entry reuse cap; other Git operations are not cached.
+Known blob pairs can use up to eight local diff workers after reserving
+conservative patch-byte and line budgets. Results enter the inventory in the
+original order; custom runners remain serial unless they advertise parallel use.
+Diff preparation can refill after the earlier window has been consumed, using
+the actual remaining byte/line budget and the same worst-case reservations.
+Prepared successes and failures remain reusable without reattempting failed
+reads; owned copies of their raw data have an independent retention cap equal
+to the comparison content limit. Unknown earlier consumers keep the serial
+path. File/directory collision checks use all changed paths across windows.
+Once the main inventory is complete, parallel-capable runners can capture commit
+details and supporting evidence together. Both use the same pinned view and
+their existing independent budgets. Errors cancel and join evidence retrieval
+before retrying or closing the view; guide analysis waits for both results.
+For clients with commit membership support, those runners can start the selected
+PR's membership request immediately after pinning, while main inventory and any
+requested full-source capture run. A single-use preparation owns the request and
+the existing 55/60-second work/freshness deadlines; consuming it never resets
+the clock. Time spent in the overlapping local stages counts toward that window.
+Failures cancel and join preparation before view cleanup. Local commit capture
+and the final freshness read still wait for the main inventory, and unsupported
+clients or serial runners keep the original path.
+Composition capture can limit tree listings to declared changed paths using
+literal Git pathspecs. Empty, unsafe, over-256-path or over-64-KiB argument scopes
+retain the full-tree listing. Both paths keep exact-path filtering, charge actual
+returned metadata and validate the same frozen projection and blob identities.
+Commit capture can validate parents up to four entries ahead using the existing
+commit-type, ancestry and first-parent checks. Results are consumed in API order;
+one runner slot stays available for foreground capture. Slow later validations
+do not hold ready earlier entries. Capture cancels and joins read-ahead before
+its final freshness read and before the isolated view closes. Serial runners
+remain lazy; failed validations are not retried.
+Successful syntax captures also reuse categories within one open attempt, keyed
+by exact path, a SHA-256 digest of the complete input bytes and requested line
+extent. A cached prefix cannot satisfy a full capture. This separate
+8 MiB / 128-entry cache holds copied spans, never source or failed results.
+Each comparison still applies its own byte, span and elapsed-work budgets;
+source reads, provenance checks and persisted payload validation remain intact.
+Patch highlighting can stop the lexer iterator after the last selected hunk line
+on each side. The lexer still receives the entire pinned blob for state and
+lookahead; whole-input byte/UTF-8 checks and validation of every consumed token's
+raw offsets still apply. All displayed spans are retained. Unused tail spans
+are not materialized, and the ordinary full-source tokenization API remains
+unchanged. Patch readiness describes the requested projection, not the unused
+tail; full-source navigation performs its own full capture.
+Evidence retrieval indexes changed directories and deleted paths once before
+ranking the pinned trees. Eligible evidence reads use bounded eight-candidate
+windows after reserving file/excerpt allowances; privacy filtering and output
+order remain unchanged. Failed batch IDs are not retried, and unread IDs retain
+the serial path. See the
+[performance ledger](PERFORMANCE.md) for startup/open baselines and remaining work.
 
 ## Sessions and progress
 
@@ -56,7 +140,11 @@ The snapshot contains the inventory, file slices, captured PR description,
 supporting evidence, and any guide bundle. The state contains reviewed slice
 IDs, freshness status, and a generation number. SQLite stores reusable source
 snapshots and guides separately from session state; state updates use the
-generation and snapshot reference to reject stale writes.
+generation and snapshot reference to reject stale writes. Freshness-only updates
+can retain unchanged progress rows after validating their exact order, contiguous
+ordinals and current-snapshot membership in the same transaction. Generation,
+timestamp/status and the durable commit still advance; changed progress keeps
+its existing validation and rewrite path.
 
 `internal/review.Mark`, `Refresh`, and `Resume` handle reading progress and
 freshness. Resume loads the saved snapshot, then checks GitHub metadata unless
