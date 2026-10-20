@@ -94,25 +94,21 @@ mutable global active theme.
 
 ### Palette mapping
 
-Matching named presets copy Herdr’s RGB values verbatim, mapped to our semantic
-roles. Catppuccin Mocha, One Dark, Tokyo Night, Gruvbox Dark/Light, One Light,
-and Rose Pine/Dawn use its panel background, selection, text, and accents with
-no color adjustments. The catalog IDs remain stable. Other presets retain
-their existing sources. See `docs/THEME-ATTRIBUTION.md` for the pinned revision,
-role mapping, and license attribution.
+Updated 2026-10-20: all 22 named presets copy NvChad Base46 RGB values
+verbatim. This supersedes earlier Herdr mappings and adapted palette values.
+The catalog IDs, appearances, order, and user overrides remain stable.
+`material-dark` maps to NvChad `material-darker`, `monokai` to `monekai`, and
+`catppuccin-mocha` to `catppuccin`. Existing terminal-oriented defaults remain
+unchanged. See [theme attribution](../THEME-ATTRIBUTION.md) for the pinned
+revision, complete source-name and role mappings, and license notices.
 
-| Semantic token | Catppuccin Mocha | One Dark | Tokyo Night | Gruvbox Dark |
-| --- | --- | --- | --- | --- |
-| `foreground` | `#cdd6f4` | `#abb2bf` | `#c0caf5` | `#ebdbb2` |
-| `background` | `#181825` | `#282c34` | `#1a1b26` | `#282828` |
-| `title`, `fileHeader` | `#cdd6f4` | `#abb2bf` | `#c0caf5` | `#ebdbb2` |
-| `hunk`, `metadata` | `#a6adc8` | `#969ca8` | `#a9b1d6` | `#d5c4a1` |
-| `added` | `#a6e3a1` | `#98c379` | `#9ece6a` | `#b8bb26` |
-| `removed`, `unavailable` | `#f38ba8` | `#e06c75` | `#f7768e` | `#fb4934` |
-| `warning` | `#f9e2af` | `#e5c07b` | `#e0af68` | `#fabd2f` |
-| `selection` | `#313244` | `#334659` | `#2d3650` | `#4b3f27` |
-| `focusedBorder` | `#89b4fa` | `#61afef` | `#7aa2f7` | `#d79921` |
-| `border` | `#6c7086` | `#5c6370` | `#565f89` | `#928374` |
+Normal foreground/background, Visual selection, Comment metadata, diff accents,
+and border colors come directly from Base46 palettes. All six dedicated syntax
+roles also use each named palette's Base16 colors rather than generic defaults.
+Exact RGB fidelity takes precedence over previous contrast adjustments and
+assumptions that function and focus colors must differ. This maps our bounded
+semantic vocabulary; it does not implement all Neovim highlight groups or
+per-theme highlight overrides.
 
 ### Full foreground/background theming
 

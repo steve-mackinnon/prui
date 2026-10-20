@@ -106,14 +106,14 @@ func TestDiffFillPreservesTextContrast(t *testing.T) {
 	}
 }
 
-func TestGitHubDarkDiffFillRemainsUnchanged(t *testing.T) {
+func TestGitHubDarkDiffFillUsesNvChadPalette(t *testing.T) {
 	palette, _ := theme.Resolve(theme.GitHubDark, nil)
 	for role, want := range map[theme.Token]color.Color{
-		theme.Added:   color.RGBA{25, 59, 37, 255},
-		theme.Removed: color.RGBA{72, 33, 35, 255},
+		theme.Added:   color.RGBA{48, 83, 59, 255},
+		theme.Removed: color.RGBA{91, 62, 70, 255},
 	} {
 		if !sameCanvasColor(diffBackground(palette, role), want) {
-			t.Errorf("%s fill changed", role)
+			t.Errorf("%s fill does not match NvChad-derived color", role)
 		}
 	}
 }
