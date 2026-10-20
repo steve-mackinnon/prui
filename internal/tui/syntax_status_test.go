@@ -18,12 +18,9 @@ func TestSyntaxFailureVisibleInDiffAndHealth(t *testing.T) {
 	m.Session = screenSession()
 	f := m.Session.Inventory.Files[0]
 	m.Session.Inventory.SyntaxStatus = map[string]syntax.FileStatus{f.ID: {Old: syntax.Ready, New: syntax.Timeout}}
-	if got := ansi.Strip(m.healthStatus(160, m.Session)); !strings.Contains(got, "Syntax unavailable") {
-		t.Fatalf("silent failure: %q", got)
-	}
-	for _, width := range []int{40, 60, 100} {
+	for _, width := range []int{40, 60, 100, 160} {
 		got := ansi.Strip(m.healthStatus(width, m.Session))
-		if !strings.Contains(got, "!") || visibleWidth(got) > width {
+		if strings.Contains(got, "Syntax unavailable") || strings.Contains(got, "!") || visibleWidth(got) > width {
 			t.Fatalf("width %d: %q", width, got)
 		}
 	}
@@ -127,6 +124,9 @@ func TestCommitSyntaxFailureVisibleWithoutChangingAnchors(t *testing.T) {
 	m.Session = s
 	if got := m.healthHelpView(); !strings.Contains(got, "Commit syntax unavailable") {
 		t.Fatalf("commit omissions silent: %s", got)
+	}
+	if got := m.healthStatus(160, m.Session); strings.Contains(got, "Syntax unavailable") || strings.Contains(got, "syntax unavailable") {
+		t.Fatalf("unexpected commit syntax footer warning: %s", got)
 	}
 }
 
