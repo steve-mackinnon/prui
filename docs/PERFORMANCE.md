@@ -1973,6 +1973,118 @@ race tests, terminal journeys and build); configured lint reported zero issues.
 The overall 10x startup/first-selection goal remains active and unproven.
 Human terminal usability remains unverified.
 
+## Twenty-ninth iteration: reject a privacy prefilter without an opening win
+
+Runtime `fa311ad` scanned the larger PR's frozen 256 KiB of supporting evidence
+in a median 41.50 ms (five local trials). Isolated view teardown was 32.49 ms;
+setup was 441.25 ms. A disposable privacy prefilter kept the existing expressions
+as the decision and skipped them only when required assignment/material prefixes
+were absent. Pattern fingerprints and Unicode-fold guards selected the original
+path for unreviewed semantics. Assignment, material, binary-priority and Unicode
+cases matched an independent copy of the original policy; 225,287 raw/structured
+fuzz executions found no difference. Evidence scanning fell to about 0.97 ms.
+Microbenchmarks also showed large ordinary-text improvements, while a long-space
+positive was slightly slower and a short credential-material sample increased
+by a few microseconds. These are stage results, not opening results.
+
+Three alternating first-selection pairs per PR, fresh private stores, complete
+captures, and a wait for confirmed-current status produced:
+
+| PR | Prior readable median | Prototype | Prior checked median | Prototype |
+| --- | ---: | ---: | ---: | ---: |
+| #19 | 1,116.63 ms | 1,191.89 ms | 1,341.16 ms | 1,516.97 ms |
+| #11 | 1,283.66 ms | 1,294.16 ms | 1,591.65 ms | 1,541.45 ms |
+
+All six paired snapshots matched. The scanner stage win did not establish a
+first-selection win: #19 was slower and #11 essentially neutral. Keep the
+production privacy policy unchanged rather than adding manual matching
+assumptions for a hidden stage. The first candidate list startup was 1,250.35 ms
+and remains recorded. Prototype and probe sources are outside the worktree;
+none of its runtime or test code was retained. Artifacts:
+`/tmp/prui-privacy-prefilter-4u53_hck` and
+`/tmp/prui-privacy-prefilter-selection-j4tlu2o3`.
+
+## Thirtieth iteration: bounded parallel pack resource preflight
+
+A five-view CPU/timing probe attributed substantial setup time to both local
+zlib resource checks and Git's independent pack verifier. Median setup was
+447.84 ms, Git verification 198.16 ms, and teardown 31.61 ms. In-process samples
+included roughly 110 ms/view under the inflater; child-process CPU is excluded
+from those samples. The independent verifier remains required.
+
+The resource parser now validates headers and delta references and reserves all
+declared inflation bytes before starting at most four workers (also bounded by
+GOMAXPROCS and record count). Workers reuse separate inflater state and check
+immutable, disjoint compressed spans. Delta result sizes use one atomic shared
+96 MiB eligibility allowance, rather than one allowance per worker. All charges
+are nonnegative, so successful valid-pack eligibility has the same total as the
+original serial parser. Corrupt streams, exhausted aggregate allowance or parent
+cancellation stop and join every worker before Git verification or fallback.
+
+Checksums, exact zlib boundaries, declared sizes, per-record overflow probes,
+1 MiB object bounds, 64-level delta depth/cycle checks and thin-pack rejection
+remain. The 10,000-object and 16 MiB retained-input ceilings are unchanged.
+Auxiliary memory grows by bounded plan entries and up to four inflater states;
+no claim of unchanged heap usage is made. Git still independently verifies the
+private pack/index with `--threads=1`; only that verification can authorize
+omitting duplicate loose links. Original-store immutability, fetch isolation,
+resource-failure handling and ordinary unsupported-layout mirroring remain.
+
+The first prototype measured median local setup at 322.96 ms, versus the prior
+447.84 ms (27.9% lower). Git's verifier was 188.22 ms, and teardown 30.10 ms.
+Probes: `/tmp/prui-pack-parallel-ohup6pdl` (including its CPU profile).
+Three alternating fresh-profile first-selection pairs per PR then measured:
+
+| PR | Prior readable median | Prototype | Prior checked median | Prototype |
+| --- | ---: | ---: | ---: | ---: |
+| #19 | 1,150.29 ms | 1,033.29 ms | 1,408.24 ms | 1,327.32 ms |
+| #11 | 1,242.18 ms | 1,142.01 ms | 1,491.70 ms | 1,365.98 ms |
+
+Readable medians improved 10.2% / 8.1%, checked medians 5.7% / 8.4%.
+One #19 pair was slower; all #11 pairs improved. All six paired decoded source
+snapshots matched, with complete inventory, three commits and captured
+composition. The first candidate list startup was 1,279.75 ms and remains in
+the observations; startup was not optimized. Artifacts:
+`/tmp/prui-pack-parallel-selection-8xk_qh2m`.
+
+New tests compare serial/parallel eligibility, shared-budget exact boundaries,
+corrupt streams and cancellation, alongside the existing real REF/OFS delta,
+forged-index, immutable-source, failure and limit tests. The original serial
+parser is retained only as a differential test oracle. Fuzzing repairs outer
+checksums and includes a multi-object seed so it can reach framing/parallel
+logic. The prototype completed 178,844 comparisons; the final implementation
+completed 143,618 comparisons with no eligibility or plan difference.
+
+A portable resource-only benchmark with 4,096 tiny records also checks worker
+setup overhead. Three 30-operation trials measured median time 2.768 to
+1.915 ms (30.8% lower), allocated bytes/op 2,050,062 to 2,320,299 (13.2% higher),
+and allocations/op 16,526 to 16,570. It does not exercise Git identity
+verification or complete opening; its deliberately synthetic OIDs remain
+ineligible for source omission without that separate verification.
+
+The final release build was then measured independently with three alternating
+fresh-profile pairs per PR:
+
+| PR | Prior readable median | Final | Prior checked median | Final |
+| --- | ---: | ---: | ---: | ---: |
+| #19 | 1,250.11 ms | 1,175.04 ms | 1,499.66 ms | 1,491.84 ms |
+| #11 | 1,333.48 ms | 1,250.57 ms | 1,547.85 ms | 1,506.69 ms |
+
+Final readable medians improved 6.0% / 6.2%; checked medians improved only
+0.5% / 2.7%. One final #11 readable pair was slower. Keep these smaller gains
+alongside the prototype, including every observation. All twelve paired
+snapshots across both series were identical, complete, and included three
+commits plus captured composition. The first final candidate list startup was
+1,159.73 ms and remains recorded. Final artifacts:
+`/tmp/prui-pack-parallel-final-selection-9co7hhhk`.
+
+The complete verification script passed (installer fixtures, formatting, vet,
+race tests, terminal journeys and build). The new tiny-record benchmark passed
+separately; configured lint reported zero issues. No limits, assertions or
+independent-verifier settings were weakened. The overall 10x startup and
+first-selection goal remains active and unproven. Human terminal usability
+remains unverified.
+
 ## Reproduction and validation
 
 ```sh
@@ -1980,6 +2092,8 @@ go test ./internal/context -run '^$' -bench BenchmarkRetrieveLargeTree -benchtim
 go test ./cmd/prui -run '^$' -bench BenchmarkPullRequestOpen -benchtime=1x -count=3
 go test ./internal/source -run '^$' -bench BenchmarkBlobRead -benchtime=1s -count=3
 go test ./internal/source -run '^$' -bench BenchmarkBorrowObjects -benchtime=1x -count=3
+go test ./internal/source -run '^$' -bench BenchmarkPackPreflight -benchtime=30x -count=3
+go test ./internal/source -run '^$' -fuzz '^FuzzPackPreflight$' -fuzztime=20s -fuzzminimizetime=1s -parallel=4
 go test ./internal/syntax -run '^$' -bench BenchmarkLexerSelection -benchtime=100x -count=3
 go test ./internal/syntax -run '^$' -bench BenchmarkTokenizeCaptureReuse -benchtime=10x -count=3
 go test ./internal/syntax -run '^$' -bench BenchmarkTokenizeThrough -benchtime=10x -count=3

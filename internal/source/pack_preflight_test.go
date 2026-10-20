@@ -7,6 +7,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
+	"reflect"
 	"testing"
 
 	"github.com/pjbgf/sha1cd"
@@ -70,6 +71,8 @@ func preflightFixture(t testing.TB, kind byte, declared, baseSize, resultSize ui
 func FuzzPackPreflight(f *testing.F) {
 	index, pack := preflightFixture(f, 3, 2, 0, 0)
 	f.Add(index, pack)
+	multiIndex, multiPack := repeatedPreflightFixture(f, 64)
+	f.Add(multiIndex, multiPack)
 	f.Add([]byte{}, []byte{})
 	f.Fuzz(func(t *testing.T, index, pack []byte) {
 		if len(index) > 1<<20 || len(pack) > 1<<20 {
@@ -86,7 +89,12 @@ func FuzzPackPreflight(f *testing.F) {
 			copy(index[len(index)-20:], sum[:])
 		}
 		_ = preflightIndex(index, Defaults())
-		_ = preflightPack(context.Background(), index, pack, Defaults())
+		serial := preflightPackWorkers(context.Background(), index, pack, Defaults(), 1)
+		parallel := preflightPackWorkers(context.Background(), index, pack, Defaults(), 4)
+		legacy := originalPreflightPack(context.Background(), index, pack, Defaults())
+		if !reflect.DeepEqual(serial, parallel) || !reflect.DeepEqual(serial, legacy) {
+			t.Fatal("parallel eligibility differs from serial")
+		}
 	})
 }
 

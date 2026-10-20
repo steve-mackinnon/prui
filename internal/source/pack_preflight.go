@@ -8,7 +8,10 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"io"
+	"runtime"
 	"sort"
+	"sync"
+	"sync/atomic"
 
 	"github.com/pjbgf/sha1cd"
 )
@@ -80,6 +83,10 @@ func preflightIndex(data []byte, limits Limits) *packPreflight {
 }
 
 func preflightPack(ctx context.Context, index, data []byte, limits Limits) *packPreflight {
+	return preflightPackWorkers(ctx, index, data, limits, min(4, runtime.GOMAXPROCS(0)))
+}
+
+func preflightPackWorkers(ctx context.Context, index, data []byte, limits Limits, workers int) *packPreflight {
 	if ctx.Err() != nil || len(data) < 32 || len(data) > min(limits.ContentBytes, maxDedupPackBytes)-len(index) || !bytes.Equal(data[:4], []byte("PACK")) {
 		return nil
 	}
@@ -109,7 +116,7 @@ func preflightPack(ctx context.Context, index, data []byte, limits Limits) *pack
 	}
 	work, workLimit := uint64(0), uint64(maxDedupWorkBytes)
 	objectLimit := uint64(max(0, min(limits.BlobBytes, 1<<20)))
-	var inflater packInflater
+	checks := make([]packInflation, len(plan.records))
 	for i := range plan.records {
 		if ctx.Err() != nil {
 			return nil
@@ -150,19 +157,67 @@ func preflightPack(ctx context.Context, index, data []byte, limits Limits) *pack
 		default:
 			return nil
 		}
-		resultSize, ok := inflater.check(body, kind == 6 || kind == 7, size, objectLimit)
-		if !ok {
-			return nil
-		}
-		work += resultSize
-		if work > workLimit {
-			return nil
-		}
+		checks[i] = packInflation{start: end - body.Len(), end: end, delta: kind == 6 || kind == 7, size: size}
 	}
-	if !boundedDeltaDepth(plan.records) {
+	if !boundedDeltaDepth(plan.records) || !checkPackInflations(ctx, data, checks, work, workLimit, objectLimit, workers) {
 		return nil
 	}
 	return plan
+}
+
+type packInflation struct {
+	start, end int
+	size       uint64
+	delta      bool
+}
+
+// All declared inflation bytes were reserved before starting any worker. Delta
+// result sizes share the same aggregate eligibility budget, never a per-worker
+// allowance. Every worker joins before verification or ordinary mirroring.
+func checkPackInflations(parent context.Context, data []byte, checks []packInflation, declared, workLimit, objectLimit uint64, workers int) bool {
+	if declared > workLimit {
+		return false
+	}
+	workers = max(1, min(4, workers, len(checks)))
+	ctx, cancel := context.WithCancel(parent)
+	defer cancel()
+	var spent atomic.Uint64
+	spent.Store(declared)
+	reserve := func(n uint64) bool {
+		for {
+			previous := spent.Load()
+			if n > workLimit-previous {
+				return false
+			}
+			if spent.CompareAndSwap(previous, previous+n) {
+				return true
+			}
+		}
+	}
+	run := func(worker int) {
+		var inflater packInflater
+		for i := worker; i < len(checks); i += workers {
+			if ctx.Err() != nil {
+				return
+			}
+			item := checks[i]
+			result, ok := inflater.check(bytes.NewReader(data[item.start:item.end]), item.delta, item.size, objectLimit)
+			if !ok || result > 0 && !reserve(result) {
+				cancel()
+				return
+			}
+		}
+	}
+	if workers == 1 {
+		run(0)
+	} else {
+		var group sync.WaitGroup
+		for i := range workers {
+			group.Go(func() { run(i) })
+		}
+		group.Wait()
+	}
+	return ctx.Err() == nil
 }
 
 func boundedDeltaDepth(records []packRecord) bool {
