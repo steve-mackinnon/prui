@@ -60,7 +60,7 @@ func TestPRPickerUsernameAndChecksUseDistinctAccents(t *testing.T) {
 	if !strings.Contains(fail, m.styleLine(classRemoved, "!")) {
 		t.Fatal("failed check lacks failure accent")
 	}
-	if !strings.Contains(ansi.Strip(pass), "@alice ✓") {
+	if !strings.Contains(ansi.Strip(pass), "@alice  ○  ✓") {
 		t.Fatal("accent styling changed row text")
 	}
 }

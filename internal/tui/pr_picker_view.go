@@ -2,7 +2,6 @@ package tui
 
 import (
 	"fmt"
-	"strings"
 
 	"prui/internal/source"
 )
@@ -41,51 +40,6 @@ func pullRequestChecks(pr source.PullRequest) string {
 	}
 }
 
-func (m *Model) pullRequestRow(pr source.PullRequest) string {
-	return m.compactPullRequestRow(fmt.Sprintf("#%d  %s", pr.Identity.Number, Escape(pr.Title)), pr.Author, pr.ViewerReview, pullRequestChecks(pr), pr.TargetBranch)
-}
-
-func (m *Model) compactPullRequestRow(title, author, review, status, target string) string {
-	// Keep columns together on wide terminals instead of stretching metadata
-	// to the right edge. Narrow terminals still use all available row space.
-	width := min(120, max(0, m.Width-2))
-	// At narrow widths keep the PR identity readable; the selected detail also
-	// carries the full check state when there is room beneath the list.
-	if width < 32 {
-		return m.prPickerTitle(title, width)
-	}
-	if author == "" {
-		author = "unknown"
-	}
-	targetLabel := ""
-	if target != "" && width >= 60 {
-		targetWidth := min(20, width-45)
-		targetLabel = clip("target: "+Escape(target), targetWidth)
-		targetLabel += strings.Repeat(" ", targetWidth-visibleWidth(targetLabel)+2)
-	}
-	// Reserve a stable author column while leaving space for the PR identity.
-	statusWidth := visibleWidth("⏳ Checks pending")
-	authorWidth := min(20, max(1, width-statusWidth-15-visibleWidth(targetLabel)))
-	author = clip("@"+Escape(author), authorWidth)
-	marker := "○"
-	switch review {
-	case "APPROVED":
-		marker = "✅"
-	case "COMMENTED":
-		marker = "💬"
-	case "CHANGES_REQUESTED":
-		marker = "🔄"
-	case "PENDING":
-		marker = "✎"
-	}
-	author = m.styleLine(classHunk, author)
-	status = m.styleLine(prCheckAccent(status), status)
-	metadata := marker + strings.Repeat(" ", 3-visibleWidth(marker)) + author + strings.Repeat(" ", authorWidth-visibleWidth(author)) + strings.Repeat(" ", 2+statusWidth-visibleWidth(status)) + status
-	metadata = targetLabel + metadata
-	title = m.prPickerTitle(title, width-visibleWidth(metadata)-2)
-	return title + strings.Repeat(" ", width-visibleWidth(title)-visibleWidth(metadata)) + metadata
-}
-
 func (m *Model) pullRequestDetail(pr source.PullRequest) []string {
 	name := func(value string) string {
 		if value == "" {
@@ -102,7 +56,11 @@ func (m *Model) pullRequestDetail(pr source.PullRequest) []string {
 		"Last commit " + name(pr.LastModifier) + "  ·  " + pullRequestChecks(pr),
 		"Your review: " + pullRequestReviewLabel(pr.ViewerReview),
 	}
-	return append(detail, "Target branch: "+name(pr.TargetBranch))
+	detail = append(detail, "Target branch: "+name(pr.TargetBranch))
+	if pr.StackSize > 1 {
+		detail = append(detail, fmt.Sprintf("Stack: %d/%d (base first)", pr.StackPosition, pr.StackSize))
+	}
+	return detail
 }
 
 func pullRequestReviewLabel(state string) string {
