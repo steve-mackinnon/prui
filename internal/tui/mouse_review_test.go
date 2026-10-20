@@ -2,6 +2,9 @@ package tui
 
 import (
 	tea "charm.land/bubbletea/v2"
+	"errors"
+	"github.com/charmbracelet/x/ansi"
+	"strings"
 	"testing"
 
 	"prui/internal/source"
@@ -281,4 +284,99 @@ func TestMouseReviewInactiveTabResizeKeepsCommentID(t *testing.T) {
 		return
 	}
 	t.Fatal("missing comment row")
+}
+
+func TestMouseReviewDoubleClickCommentAndRailActivation(t *testing.T) {
+	m := largeModel(screenSession(), 120, 24)
+	m.selectReviewView(viewFiles)
+	g := m.workspaceGeometry()
+	list, _ := m.reviewListPresentation()
+	for i, item := range list {
+		if item.row < 0 {
+			continue
+		}
+		m.mouseReviewClick(g.Rail.Min.X+2, g.Rail.Min.Y+i)
+		if m.Focus != paneList {
+			t.Fatal("single click focused detail")
+		}
+		m.mouseReviewClick(g.Rail.Min.X+2, g.Rail.Min.Y+i)
+		if m.Focus != paneDiff {
+			t.Fatal("double click did not focus detail")
+		}
+		break
+	}
+	m.resetMouseActivation()
+	for i, line := range m.displayDetail() {
+		if line.target == nil || line.target.Side != "RIGHT" || i >= g.Detail.Dy() {
+			continue
+		}
+		x, y := g.Detail.Min.X+2, g.Detail.Min.Y+i
+		m.mouseReviewClick(x, y)
+		if m.Composer != nil {
+			t.Fatal("single click opened editor")
+		}
+		m.mouseReviewClick(x, y)
+		if m.Composer == nil || m.Composer.Target != *line.target {
+			t.Fatal("double click failed exact target editor")
+		}
+		return
+	}
+	t.Fatal("fixture lacks visible target")
+}
+
+func TestMouseReviewHorizontalWheelSplitAndFiltered(t *testing.T) {
+	m := largeModel(screenSession(), 160, 24)
+	m.selectReviewView(viewFiles)
+	m.layout = diffLayoutSideBySide
+	g := m.workspaceGeometry()
+	m.mouseWheel(tea.MouseWheelMsg{X: g.Detail.Min.X, Y: g.Detail.Min.Y, Button: tea.MouseWheelRight})
+	if m.Horizontal != mouseWheelStep {
+		t.Fatal("split diff did not pan")
+	}
+	m.mouseWheel(tea.MouseWheelMsg{X: g.Detail.Min.X, Y: g.Detail.Min.Y, Button: tea.MouseWheelLeft})
+	if m.Horizontal != 0 {
+		t.Fatal("left wheel did not restore pan")
+	}
+}
+
+func TestMouseRangeFooterComposeAndCancel(t *testing.T) {
+	for _, action := range []string{"enter: compose", "esc: cancel"} {
+		m := rangeTestModel()
+		selectRawTarget(t, m, "RIGHT", 1)
+		target := *m.selectedDiffTarget()
+		m.rangeStart = &target
+		m.Width, m.Height = 160, 24
+		hints := ansi.Strip(m.reviewHints())
+		at := strings.Index(hints, action)
+		if at < 0 {
+			t.Fatal("missing range action")
+		}
+		y := len(strings.Split(m.reviewView(), "\n")) - 1
+		m.Update(tea.MouseClickMsg{X: visibleWidth(hints[:at]) + 1, Y: y, Button: tea.MouseLeft})
+		if m.rangeStart != nil {
+			t.Fatal("range control did not activate guarded handler")
+		}
+		if action == "enter: compose" && m.Composer == nil {
+			t.Fatal("compose did not open editor")
+		}
+		if action == "esc: cancel" && m.Composer != nil {
+			t.Fatal("cancel opened editor")
+		}
+	}
+}
+
+func TestMouseRangeFooterDoesNotInterpretErrorAsControls(t *testing.T) {
+	m := rangeTestModel()
+	selectRawTarget(t, m, "RIGHT", 1)
+	target := *m.selectedDiffTarget()
+	m.rangeStart = &target
+	m.Width, m.Height = 180, 24
+	m.ActionError = errors.New("enter: compose · esc: cancel")
+	hints := ansi.Strip(m.reviewHints())
+	at := strings.Index(hints, "enter: compose")
+	y := len(strings.Split(m.reviewView(), "\n")) - 1
+	m.Update(tea.MouseClickMsg{X: visibleWidth(hints[:at]) + 1, Y: y, Button: tea.MouseLeft})
+	if m.rangeStart == nil || m.Composer != nil {
+		t.Fatal("error text activated range controls")
+	}
 }

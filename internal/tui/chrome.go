@@ -129,9 +129,9 @@ func (m *Model) healthHelpView() string {
 		text += "\n\n" + renderHealth()
 		text += "\n\nCommits (4)\nArrows: select in the list or scroll the focused diff. Tab/Shift+Tab: switch panes.\nn/p: next/previous commit. Enter/l: focus diff; Escape/h: return to list.\n[/]: resize the commit rail at 100+ columns. Below 100 columns, focus selects the visible pane."
 		text += "\n\nFiles\nF: filter by filename or path. Enter: keep filter and navigate. Escape: clear filter.\n/: find code text in Files or the selected Guide section.\nL: toggle line numbers in Files, Guide, and Commits."
-		text += "\n\nMouse\nClick: select an item or diff cell; Enter: activate.\nClick view tabs to switch. Drag the file/diff divider to resize.\nScroll over a pane to move it. Drag readable text to copy; terminal selection modifiers also work."
+		text += "\n\nMouse\nClick: select; double-click or Enter: activate.\nClick view tabs to switch. Drag the file/diff divider to resize.\nScroll over a pane to move it. Drag readable text to copy; terminal selection modifiers also work."
 	}
-	text += "\n\nControls and invalid bytes escaped. Mouse selects; Enter activates.\nReading progress is local, not GitHub approval.\nGuides interpret the diff; the raw inventory remains the complete source view.\nMarking any portion of a file marks its whole slice, under every guide.\nEvidence is pinned, bounded, and omissions are reported. Guide generation is optional: choose Generate guide in Actions, then confirm the provider, model, and source upload."
+	text += "\n\nControls and invalid bytes escaped. Click selects; double-click or Enter activates.\nReading progress is local, not GitHub approval.\nGuides interpret the diff; the raw inventory remains the complete source view.\nMarking any portion of a file marks its whole slice, under every guide.\nEvidence is pinned, bounded, and omissions are reported. Guide generation is optional: choose Generate guide in Actions, then confirm the provider, model, and source upload."
 	if m.store != nil && m.Session != nil {
 		text += "\nStorage: " + Escape(m.store.Path()) + "\nSession: " + Escape(m.Session.ID)
 	}
@@ -178,7 +178,7 @@ func (m *Model) reviewHints() string {
 		return m.styleLine(classWarning, clip("enter: post now · ctrl+p: save pending · esc: discard · shift+enter: newline", m.Width))
 	}
 	if menu := m.CommentMenu; menu != nil {
-		text := "Comment actions: r reply · a react · y copy URL · z resolve/reopen · esc cancel"
+		text := "Comment actions: r reply · a react · y copy URL · z resolve/reopen · ctrl+a apply suggestion · esc cancel"
 		switch menu.mode {
 		case commentActionReply:
 			text = "Reply editor open · enter submit · esc cancel"

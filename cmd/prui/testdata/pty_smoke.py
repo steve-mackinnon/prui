@@ -408,6 +408,15 @@ def main():
         terminal.key(b"P", "Switch pull requests")
         terminal.key(b"\x1b[200~alpha\x1b[201~", "filter: alpha")
         terminal.key(b"\x1b", "0/2 read")
+        # Open the existing PR through a real double-click in the PR switcher.
+        # Offline fixtures keep this journey independent of GitHub credentials.
+        terminal.key(b"P", "Switch pull requests")
+        start = len(terminal.output)
+        click = b"\x1b[<0;5;3M\x1b[<0;5;3m"
+        os.write(terminal.master, click + click)
+        terminal.wait_until(lambda screen: "Switch pull requests" not in screen and
+                            "0/2 read" in screen,
+                            "double-click open PR", start)
         terminal.key(b"\x1b[B", "› [ ] b.go")
         terminal.key(b"m", "1/2 read")
         # Resizing across the split-pane breakpoint must cause a real repaint.
@@ -417,8 +426,25 @@ def main():
                             all(" | " not in row for row in screen.splitlines()[4:11]),
                             "narrow file pane after resize", start)
         terminal.key(b"?", "Health & help")
+        terminal.wait_for("s: all shortcuts")
+        rows = terminal.screen.text().splitlines()
+        footer_row = next(i for i, line in enumerate(rows) if "s: all shortcuts" in line)
+        toggle_col = rows[footer_row].index("s: all shortcuts")
+        terminal.key(f"\x1b[<0;{toggle_col+1};{footer_row+1}M"
+                     f"\x1b[<0;{toggle_col+1};{footer_row+1}m".encode(),
+                     "s: getting started")
+        before = terminal.screen.text()
         start = len(terminal.output)
-        os.write(terminal.master, b"\x1b")
+        os.write(terminal.master, b"\x1b[<65;5;5M")
+        terminal.wait_until(lambda screen: screen != before and "Health & help" in screen,
+                            "mouse wheel help scrolling", start)
+        rows = terminal.screen.text().splitlines()
+        footer_row = next(i for i, line in enumerate(rows) if "esc: back" in line)
+        back_col = rows[footer_row].index("esc: back")
+        start = len(terminal.output)
+        os.write(terminal.master,
+                 (f"\x1b[<0;{back_col+1};{footer_row+1}M"
+                  f"\x1b[<0;{back_col+1};{footer_row+1}m").encode())
         terminal.wait_until(lambda screen: "1/2 read" in screen and
                             "Health & help" not in screen,
                             "return from help", start)
@@ -427,6 +453,7 @@ def main():
     print("PASS offline commit picker, legacy source state, and All commits restoration")
     print("PASS Actions hotkeys, Tab/Shift+Tab panes, review form and cancel")
     print("PASS drag selection, OSC 52 clipboard payload, and transient copy toast")
+    print("PASS PR double-click, help mouse toggle, wheel scrolling, and back")
 
     with Terminal(binary, resume, environment) as terminal:
         terminal.wait_for("1/2 read")

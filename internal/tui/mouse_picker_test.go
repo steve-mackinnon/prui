@@ -198,3 +198,18 @@ func TestMousePickerUpdateSelectionAndKeyboardNavigation(t *testing.T) {
 		t.Fatal("keyboard navigation stopped working")
 	}
 }
+
+func TestMousePickerVisibleFooterBackAndHelp(t *testing.T) {
+	m := New(context.Background(), nil)
+	m.Width, m.Height = 120, 20
+	m.Stack = []page{pageReview, pageRepositoryPicker}
+	m.mousePickerClick(31, 19) // enter: open · r: reload · esc: back
+	if m.top() != pageReview {
+		t.Fatal("repository back control failed")
+	}
+	m.Stack = []page{pageReview, pagePicker}
+	m.mousePickerClick(42, 19) // help follows the session footer
+	if m.top() != pageHelp {
+		t.Fatal("session help control failed")
+	}
+}

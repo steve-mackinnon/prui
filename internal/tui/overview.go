@@ -100,7 +100,7 @@ func (m *Model) overviewRows() []overviewRow {
 		if expanded {
 			actions := m.overviewDiscussionActions(t)
 			if len(actions) > 0 {
-				appendText("Actions · "+strings.Join(actions, " · "), t.ID, "detail")
+				appendText("Actions · "+strings.Join(actions, " · "), t.ID, "actions")
 			}
 		}
 		for _, line := range m.discussionCodeContext(t) {

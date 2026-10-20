@@ -216,8 +216,11 @@ and does not fetch omitted context or full files.
 
 Drag-select text in a content pane to copy it automatically on release. A small
 `copied to clipboard` toast appears at the bottom for two seconds (requires a
-terminal that permits OSC 52 clipboard writes). Mouse item selection, pane
-resizing, themes, and side-by-side diffs are also available.
+terminal that permits OSC 52 clipboard writes). Single-click selects;
+double-click opens a PR or list item, focuses review detail, or opens a diff
+comment editor. Page and form controls support mouse clicks, and the wheel
+scrolls content and navigates lists. Pane resizing, themes, and side-by-side
+diffs are also available.
 In Files or Guide, select **Commits [C]** to choose commits for one net diff.
 **All changes** restores the full PR comparison. Selected commits are read-only;
 use All changes to mark files or the Commits tab to discuss an individual commit.

@@ -197,7 +197,8 @@ func (m *Model) prPickerPreviewKey(key string) bool {
 	return true
 }
 
-func (m *Model) prPickerScreen(header, rows, detail []string, empty, footer string) string {
+func (m *Model) prPickerScreen(header, rows, detail []string, empty string) string {
+	var footer string
 	g := m.prPickerGeometry(len(header))
 	p := &m.PullRequestPicker
 	switch {
@@ -206,14 +207,7 @@ func (m *Model) prPickerScreen(header, rows, detail []string, empty, footer stri
 	case m.ActionError != nil:
 		footer = "! Action failed: " + Escape(m.ActionError.Error())
 	default:
-		hints := "j/k: select · tab: preview · "
-		if m.Width < 80 && m.Session == nil {
-			hints = "tab: preview · "
-		}
-		if p.previewFocus {
-			hints = "j/k: scroll · tab: list · "
-		}
-		footer = hints + footer
+		footer = pageMouseFooter(m.prPickerMouseControls(), " · ")
 	}
 	if m.Width >= 110 {
 		footer += " · ?: Health & help"

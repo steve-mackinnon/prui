@@ -591,3 +591,39 @@ func TestOverviewRefreshKeepsCursorOnActivity(t *testing.T) {
 		t.Fatal("refresh detached cursor from selected activity")
 	}
 }
+
+func TestOverviewMouseActionUsesNamedGuardedHandler(t *testing.T) {
+	m := publishedModel(t)
+	m.selectReviewView(viewDescription)
+	entries := m.discussionEntries()
+	for _, entry := range entries {
+		if entry.Kind != "PR comment" {
+			continue
+		}
+		m.discussions.overviewExpanded = map[string]bool{entry.ID: true}
+		m.discussions.overviewFocus = true
+		m.discussions.selectedID = entry.ID
+		for i, row := range m.overviewRows() {
+			if row.action != "actions" || row.id != entry.ID {
+				continue
+			}
+			plain := ansi.Strip(row.text)
+			at := strings.Index(plain, "e: edit")
+			if at < 0 {
+				continue
+			}
+			m.DescriptionScroll = max(0, i-2)
+			x, y := ansi.StringWidth(plain[:at])+1, 3+i-m.DescriptionScroll
+			m.Update(tea.MouseClickMsg{X: x, Y: y, Button: tea.MouseLeft})
+			if m.discussions.published != nil {
+				t.Fatal("action fired before release")
+			}
+			m.Update(tea.MouseReleaseMsg{X: x, Y: y, Button: tea.MouseLeft})
+			if m.discussions.published == nil || !m.discussions.overviewExpanded[entry.ID] {
+				t.Fatal("edit hit toggled card instead of opening editor")
+			}
+			return
+		}
+	}
+	t.Fatal("fixture missing clickable edit action")
+}

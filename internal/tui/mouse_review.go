@@ -1,21 +1,62 @@
 package tui
 
 import (
+	"fmt"
 	"image"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 	"prui/internal/source"
 )
 
-// mouseReviewClick selects only a visible semantic item. It never activates
-// guide actions, editors, or remote operations.
+// mouseReviewClick selects visible semantic items and activates double clicks
+// through the same guarded handlers used by keyboard input.
 func (m *Model) mouseReviewClick(x, y int) tea.Cmd {
 	if x < 0 || y < 0 || x >= m.Width || y >= m.Height || m.Session == nil {
 		return nil
 	}
 	if cmd, handled := m.reviewHeaderClick(x, y); handled {
 		return cmd
+	}
+	if m.rangeStart != nil && y == len(strings.Split(m.reviewView(), "\n"))-1 {
+		suffix := "enter: compose · esc: cancel"
+		full := *m
+		full.Width = max(m.Width, 4096)
+		hints := ansi.Strip(full.reviewHints())
+		// Only the fixed trailing controls supply actions. Earlier error text
+		// contributes geometry but can never supply an action or a label.
+		prefix := strings.TrimSuffix(hints, suffix)
+		if len(prefix) != len(hints) {
+			key := pageMouseFooterKey([]pageMouseControl{{"enter: compose", "enter"}, {"esc: cancel", "esc"}}, " · ", x-visibleWidth(prefix), m.Width-visibleWidth(prefix))
+			if key != "" {
+				return m.mouseKey(key)
+			}
+		}
+		return nil
+	}
+	if m.ActionError == nil && !m.ReviewSubmitted && m.rangeStart == nil && y == len(strings.Split(m.reviewView(), "\n"))-1 && m.Height >= 10 {
+		// This row contains only locally generated navigation hints. Never
+		// interpret source, error text, or remote discussion bodies as controls.
+		hints := ansi.Strip(m.reviewHints())
+		offset := 0
+		for _, part := range strings.Split(hints, " · ") {
+			end := offset + visibleWidth(part)
+			if x >= offset && x < end && end <= m.Width {
+				switch {
+				case strings.HasPrefix(part, "Space:"):
+					m.openActions()
+					return nil
+				case strings.HasPrefix(part, "Tab:"):
+					return m.mouseKey("tab")
+				case strings.HasPrefix(part, "enter:"):
+					return m.mouseKey("enter")
+				case strings.HasPrefix(part, "esc:"):
+					return m.mouseKey("esc")
+				}
+			}
+			offset = end + 3
+		}
 	}
 	if y == 1 {
 		start := 0
@@ -33,7 +74,39 @@ func (m *Model) mouseReviewClick(x, y int) tea.Cmd {
 		return nil
 	}
 	if m.selectedReviewView() == viewDescription {
+		rows := m.overviewRows()
+		index := m.DescriptionScroll + y - 3
+		if y >= 3 && y < 3+m.overviewHeight() && index >= 0 && index < len(rows) && rows[index].action == "actions" {
+			m.discussions.overviewCursor, m.discussions.overviewCursorActive = index, true
+			m.selectOverviewCursor(rows)
+			for _, entry := range m.discussionEntries() {
+				if entry.ID != rows[index].id {
+					continue
+				}
+				plain := ansi.Strip(rows[index].text)
+				for _, label := range m.overviewDiscussionActions(entry) {
+					start := strings.Index(plain, label)
+					if start < 0 {
+						continue
+					}
+					left := visibleWidth(plain[:start])
+					right := left + visibleWidth(label)
+					if x >= left && x < right && right <= m.Width {
+						key, _, _ := strings.Cut(label, ":")
+						cmd, _ := m.overviewKey(key)
+						return cmd
+					}
+				}
+			}
+			return nil
+		}
 		m.overviewMouseClick(y)
+		rows = m.overviewRows()
+		index = m.DescriptionScroll + y - 3
+		if y >= 3 && y < 3+m.overviewHeight() && index >= 0 && index < len(rows) && rows[index].action == "" && m.discussions.overviewFocus && m.mouseActivate("overview/"+m.discussions.selectedID) {
+			cmd, _ := m.overviewKey("enter")
+			return cmd
+		}
 		return nil
 	}
 	if m.selectedReviewView() == viewCommits {
@@ -43,9 +116,16 @@ func (m *Model) mouseReviewClick(x, y int) tea.Cmd {
 			m.commit.focus = paneDiff
 			row := m.commitOffset() + y - g.Detail.Min.Y
 			rows := m.commitRows()
-			if row >= 0 && row < len(rows) && rows[row].target != nil {
+			if row >= 0 && row < len(rows) && (rows[row].target != nil || rows[row].commentID > 0) {
 				m.commitCursor()
 				m.commit.cursors[m.commit.selectedSHA] = row
+				identity := fmt.Sprintf("commit/%s/comment/%d", m.commit.selectedSHA, rows[row].commentID)
+				if rows[row].target != nil {
+					identity = fmt.Sprintf("commit/%s/%v", m.commit.selectedSHA, *rows[row].target)
+				}
+				if m.mouseActivate(identity) {
+					return m.mouseKey("enter")
+				}
 			}
 		}
 		if p.In(g.Rail) {
@@ -55,6 +135,9 @@ func (m *Model) mouseReviewClick(x, y int) tea.Cmd {
 				m.selectCommit(rows[i].row)
 				m.commit.focus = paneList
 				m.commitOffset()
+				if m.mouseActivate("commit/" + m.commit.selectedSHA) {
+					return m.mouseKey("enter")
+				}
 			}
 		}
 		return nil
@@ -86,6 +169,9 @@ func (m *Model) mouseReviewClick(x, y int) tea.Cmd {
 			m.move(row - m.Selected)
 		} else {
 			m.selectFile(row)
+		}
+		if m.mouseActivate(fmt.Sprintf("rail/%d/%d/%d", m.Selected, m.Row, m.ContextView)) {
+			return m.mouseKey("enter")
 		}
 		return m.restartGuidePathScroll()
 	}
@@ -143,6 +229,13 @@ func (m *Model) mouseReviewClick(x, y int) tea.Cmd {
 	m.Focus, m.cursorActive = paneDiff, true
 	if m.fileView() {
 		m.syncFileToLine(i)
+	}
+	identity := fmt.Sprintf("diff/%d/%d/%v/%d", m.Selected, m.Row, target, line.commentID)
+	if target != nil {
+		identity = fmt.Sprintf("diff/%d/%d/%v", m.Selected, m.Row, *target)
+	}
+	if m.mouseActivate(identity) {
+		return m.mouseKey("enter")
 	}
 	return m.restartGuidePathScroll()
 }

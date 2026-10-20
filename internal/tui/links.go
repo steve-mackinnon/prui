@@ -92,7 +92,14 @@ func hoverURL(content string, width, height, x, y int) string {
 }
 
 func (m *Model) linksAvailable() bool {
-	return m.reviewTabState != nil && m.mouseAvailable() && m.top() == pageReview && !m.searchOpen() && !m.commitFilter.open && !m.drag.active
+	if m.reviewTabState == nil || !m.mouseAvailable() || m.searchOpen() || m.commitFilter.open || m.drag.active {
+		return false
+	}
+	switch m.top() {
+	case pageReview, pageDiscussions, pageReadiness, pageIssueContext, pagePullRequestPicker:
+		return true
+	}
+	return false
 }
 
 func (m *Model) mouseURL(msg tea.MouseMsg) (tea.Cmd, bool) {

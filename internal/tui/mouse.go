@@ -2,6 +2,7 @@ package tui
 
 import (
 	"image"
+	"strings"
 
 	tea "charm.land/bubbletea/v2"
 )
@@ -27,6 +28,51 @@ func (m *Model) mouseAvailable() bool {
 
 func (m *Model) mouseUpdate(msg tea.MouseMsg) tea.Cmd {
 	m.linkMouseValid = false
+	serial := m.mouseClickSerial
+	defer func() {
+		if click, ok := msg.(tea.MouseClickMsg); ok {
+			deferredOverview := m.textSelection.active && m.top() == pageReview && m.selectedReviewView() == viewDescription
+			if click.Button != tea.MouseLeft || m.mouseClickSerial == serial && !deferredOverview {
+				m.resetMouseActivation()
+			}
+		}
+	}()
+	event := msg.Mouse()
+	if event.X < 0 || event.Y < 0 || event.X >= m.Width || event.Y >= m.Height || event.Mod != 0 {
+		m.resetMouseActivation()
+		m.cancelMouseDrag()
+		m.textSelection = textSelection{}
+		return nil
+	}
+	switch msg.(type) {
+	case tea.MouseWheelMsg:
+		m.resetMouseActivation()
+	case tea.MouseMotionMsg:
+		if event.Button != tea.MouseNone {
+			m.resetMouseActivation()
+		}
+	}
+	if cmd, handled := m.mouseModal(msg); handled {
+		m.resetMouseActivation()
+		m.cancelMouseDrag()
+		m.textSelection = textSelection{}
+		return cmd
+	}
+	if m.top() == pageReadiness || m.top() == pageIssueContext {
+		if cmd, handled := m.mouseTextSelection(msg); handled {
+			return cmd
+		}
+		if cmd, handled := m.mouseURL(msg); handled {
+			if m.textSelection.active {
+				m.textSelection.click = cmd
+				return nil
+			}
+			return cmd
+		}
+	}
+	if cmd, handled := m.mousePage(msg); handled {
+		return cmd
+	}
 	if !m.mouseAvailable() {
 		m.cancelMouseDrag()
 		m.textSelection = textSelection{}
@@ -36,7 +82,6 @@ func (m *Model) mouseUpdate(msg tea.MouseMsg) tea.Cmd {
 		m.textSelection = textSelection{}
 		return m.searchMouse(msg)
 	}
-	event := msg.Mouse()
 	if event.Mod != 0 {
 		m.cancelMouseDrag()
 		m.textSelection = textSelection{}
@@ -56,6 +101,7 @@ func (m *Model) mouseUpdate(msg tea.MouseMsg) tea.Cmd {
 		}
 	}
 	if cmd, handled := m.mouseResize(msg); handled {
+		m.resetMouseActivation()
 		m.textSelection = textSelection{}
 		return cmd
 	}
@@ -87,7 +133,17 @@ func (m *Model) mouseUpdate(msg tea.MouseMsg) tea.Cmd {
 		return nil
 	}
 	if m.top() == pageDiscussions {
+		footerY := strings.Count(m.discussionsView(), "\n")
+		if click.Y == footerY {
+			return m.discussionKey(pageMouseFooterKey(m.discussionMouseControls(), " · ", click.X, m.Width))
+		}
+		header, start := m.discussionListStart()
+		index := start + click.Y - header
 		m.discussionMouseClick(click.Y)
+		entries := m.discussionEntries()
+		if !m.discussions.detail && click.Y >= header && click.Y < m.Height-1 && index >= 0 && index < len(entries) && m.mouseActivate("discussion/"+entries[index].ID) {
+			return m.discussionKey("enter")
+		}
 		return nil
 	}
 	if m.searchAvailable() && image.Pt(click.X, click.Y).In(m.searchHeaderBounds()) {
@@ -100,6 +156,20 @@ func (m *Model) mouseUpdate(msg tea.MouseMsg) tea.Cmd {
 }
 
 func (m *Model) mouseWheel(wheel tea.MouseWheelMsg) tea.Cmd {
+	m.resetMouseActivation()
+	if wheel.X < 0 || wheel.Y < 0 || wheel.X >= m.Width || wheel.Y >= m.Height {
+		return nil
+	}
+	if wheel.Button == tea.MouseWheelLeft || wheel.Button == tea.MouseWheelRight {
+		if m.top() == pageReview && m.diffReviewView() && image.Pt(wheel.X, wheel.Y).In(m.workspaceGeometry().Detail) {
+			delta := mouseWheelStep
+			if wheel.Button == tea.MouseWheelLeft {
+				delta = -delta
+			}
+			m.Horizontal = max(0, m.Horizontal+delta)
+		}
+		return nil
+	}
 	var delta int
 	switch wheel.Button {
 	case tea.MouseWheelUp:
@@ -107,6 +177,16 @@ func (m *Model) mouseWheel(wheel tea.MouseWheelMsg) tea.Cmd {
 	case tea.MouseWheelDown:
 		delta = mouseWheelStep
 	default:
+		return nil
+	}
+	if m.top() == pageRepositoryPicker || m.top() == pagePicker || m.top() == pageThemePicker {
+		key := "down"
+		if delta < 0 {
+			key = "up"
+		}
+		for i := 0; i < mouseWheelStep; i++ {
+			m.pageKey(m.top(), tea.KeyPressMsg{Code: map[string]rune{"up": tea.KeyUp, "down": tea.KeyDown}[key]})
+		}
 		return nil
 	}
 	if m.top() == pagePullRequestPicker {

@@ -232,6 +232,8 @@ const (
 )
 
 type Model struct {
+	mouseClickSerial  uint64
+	mouseActivation   mouseActivation
 	reconcileDraft    DraftReconciler
 	prepareSuggestion SuggestionPreparer
 	applySuggestion   SuggestionCommitter
@@ -777,6 +779,7 @@ func (m *Model) update(msg tea.Msg) (updated tea.Model, command tea.Cmd) {
 		m.clipboardTarget = nil
 		return m, m.mouseUpdate(v)
 	case tea.WindowSizeMsg:
+		m.resetMouseActivation()
 		m.textSelection = textSelection{}
 		m.cancelMouseDrag()
 		if m.commitFilter.subset && m.diffReviewView() {
@@ -796,6 +799,7 @@ func (m *Model) update(msg tea.Msg) (updated tea.Model, command tea.Cmd) {
 		})
 		return m, m.restartGuidePathScroll()
 	case tea.KeyPressMsg:
+		m.resetMouseActivation()
 		m.textSelection = textSelection{}
 		// Any intervening key invalidates a pending clipboard request.
 		m.clipboardTarget = nil
@@ -1378,6 +1382,7 @@ func (m *Model) selectReviewView(view reviewView) {
 }
 
 func (m *Model) push(p page) {
+	m.resetMouseActivation()
 	m.cancelMouseDrag()
 	if m.top() != p {
 		if p == pageHelp {
@@ -1388,6 +1393,7 @@ func (m *Model) push(p page) {
 	}
 }
 func (m *Model) pop() {
+	m.resetMouseActivation()
 	m.cancelMouseDrag()
 	if len(m.Stack) > 1 {
 		m.Stack = m.Stack[:len(m.Stack)-1]
@@ -2423,9 +2429,7 @@ func (m *Model) View() tea.View {
 	}
 	v := tea.NewView(m.clipboardPresentation(content))
 	v.AltScreen = true
-	if m.mouseAvailable() {
-		v.MouseMode = tea.MouseModeCellMotion
-	}
+	v.MouseMode = tea.MouseModeCellMotion
 	return v
 }
 

@@ -6,6 +6,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 	"os"
 	"path/filepath"
+	"prui/internal/source"
 	"runtime"
 	"strings"
 	"testing"
@@ -173,4 +174,29 @@ func TestCodeURLMouseRouting(t *testing.T) {
 		}
 		m.Close()
 	}
+}
+
+func TestSecondaryReadablePagesEnableURLClickWithoutOpeningBrowser(t *testing.T) {
+	m := largeModel(screenSession(), 120, 24)
+	m.Stack = []page{pageReview, pagePullRequestPicker}
+	m.PullRequests = []source.PullRequest{{Identity: source.Identity{Repository: "owner/repo", Number: 1}, Description: "https://example.com/secondary"}}
+	content := m.View().Content
+	canvas := themeCanvasBuffer(content, m.Width, m.Height)
+	for y := 0; y < m.Height; y++ {
+		for x := 0; x < m.Width; x++ {
+			if canvas.CellAt(x, y).Link.URL != "https://example.com/secondary" {
+				continue
+			}
+			_, cmd := m.Update(tea.MouseClickMsg{X: x, Y: y, Button: tea.MouseLeft})
+			if cmd != nil {
+				t.Fatal("link opened before release")
+			}
+			_, cmd = m.Update(tea.MouseReleaseMsg{X: x, Y: y, Button: tea.MouseLeft})
+			if cmd == nil {
+				t.Fatal("secondary page link did not produce browser command")
+			}
+			return
+		}
+	}
+	t.Fatal("missing secondary page link")
 }

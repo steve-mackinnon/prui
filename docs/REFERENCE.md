@@ -266,8 +266,8 @@ Click a file, guide row, inventory unit, picker item, diff source cell, or
 comment card to select it. Selecting a file scrolls its diff into view; the file
 header highlights the selection and follows the cursor while navigating the diff.
 Click the visible view tabs to switch views.
-Selection does not activate an item: Enter still opens a PR, applies a theme,
-or opens the selected comment editor/menu. Existing keyboard controls remain
+Double-click the selected item to open a PR, apply a theme, or open the
+selected comment editor/menu. Enter also activates. Existing keyboard controls remain
 available. In split diffs, click the old or new source cell to select that
 cell's exact comment target; old context cells are not comment targets.
 
@@ -287,9 +287,12 @@ without expanding a card or following a link.
 Keyboard input, wheel scrolling, or resizing cancels an in-progress selection.
 The terminal must support and permit OSC 52 clipboard writes.
 
-Mouse input is disabled during loading, editors, and confirmation forms.
-Wheel input scrolls diff and description panes, moves selection in navigation
-lists, and navigates discussions. Double-click activation is not supported. Mouse capture
+Mouse input follows the foremost page, editor, or confirmation form.
+Single-click selects an item; double-click the same item within half a second
+to open a PR, repository, saved session, or theme, focus a review detail, or
+activate a commentable diff line or discussion. Existing write confirmations
+still apply. Wheel input scrolls content and moves list selection; horizontal
+wheel input pans unwrapped diffs. Visible form and page controls are clickable. Mouse capture
 may affect native terminal text selection; use your terminal's selection
 modifier (often Shift, depending on the terminal or multiplexer) to copy text.
 

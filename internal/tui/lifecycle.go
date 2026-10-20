@@ -1092,11 +1092,8 @@ func (m *Model) switcherView() string {
 		}
 	}
 	header := []string{appHeader("Switch pull requests", "type to filter"), "filter: " + Escape(m.SwitcherQuery)}
-	footer := "type: filter · enter: switch/open · esc: cancel"
-	if m.inbox.load != nil {
-		footer = "type: filter · enter: switch/open · ctrl+o: inbox · esc: cancel"
-	}
-	return m.prPickerScreen(header, rows, detail, "No matching open reviews or pull requests.", footer)
+
+	return m.prPickerScreen(header, rows, detail, "No matching open reviews or pull requests.")
 }
 
 func (m *Model) footer() string {

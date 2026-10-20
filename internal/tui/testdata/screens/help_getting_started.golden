@@ -4,21 +4,21 @@ Health & help
 ├─────────────────────────────────────────────────────────┤  ├─────────────────────────────────────────────────────────┤
 │ 1. Choose Files above to read the changes.              │  │ Click Overview, Files, Guide, or Commits above to       │
 │ 2. Use arrows in the focused pane; Tab switches list    │  │ switch views.                                           │
-│ and diff. Enter activates; Escape goes back.            │  │ Space or Ctrl+K: Actions from the review; browse tools  │
-│ 3. Press Space for Actions. Use the displayed hotkey,   │  │ and use their hotkeys, or arrows and Enter.             │
-│ or select with arrows and Enter.                        │  │ ?: open this help. s: all shortcuts. Escape: return to  │
-│ 4. In the diff, Enter opens a comment. Enter in the     │  │ your place.                                             │
-│ editor posts now; Ctrl+P queues a local pending         │  └─────────────────────────────────────────────────────────┘
-│ comment.                                                │
-│ 5. Choose Submit review to send your decision and       │
-│ pending comments after confirmation.                    │
-└─────────────────────────────────────────────────────────┘
+│ and diff. Enter activates; Escape goes back.            │  │ Double-click a PR or list item to open it; double-click │
+│ 3. Press Space for Actions. Use the displayed hotkey,   │  │ a diff line to comment.                                 │
+│ or select with arrows and Enter.                        │  │ Use the mouse wheel to scroll, and click visible page   │
+│ 4. In the diff, Enter opens a comment. Enter in the     │  │ or form controls.                                       │
+│ editor posts now; Ctrl+P queues a local pending         │  │ Space or Ctrl+K: Actions from the review; browse tools  │
+│ comment.                                                │  │ and use their hotkeys, or arrows and Enter.             │
+│ 5. Choose Submit review to send your decision and       │  │ ?: open this help. s: all shortcuts. Escape: return to  │
+│ pending comments after confirmation.                    │  │ your place.                                             │
+└─────────────────────────────────────────────────────────┘  └─────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────┐  ┌─────────────────────────────────────────────────────────┐
 │ Health                                                  │  │ Notes                                                   │
 ├─────────────────────────────────────────────────────────┤  ├─────────────────────────────────────────────────────────┤
-│ 0/2 read · 0 pending comments                           │  │ Controls and invalid bytes escaped. Mouse selects;      │
-│ ✓ Inventory complete                                    │  │ Enter activates.                                        │
+│ 0/2 read · 0 pending comments                           │  │ Controls and invalid bytes escaped. Click selects;      │
+│ ✓ Inventory complete                                    │  │ double-click or Enter activates.                        │
 │ ? Freshness unknown                                     │  │ Reading progress is local, not GitHub approval.         │
 │ Guide available with g                                  │  │ Guides interpret the diff; the raw inventory remains    │
 ↑/↓: scroll · s: all shortcuts · esc: back

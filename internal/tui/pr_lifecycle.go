@@ -226,13 +226,32 @@ func (m *Model) lifecycleView() string {
 	}
 	end := min(len(lines), d.scroll+height)
 	body := strings.Join(viewportLines(strings.Join(lines[d.scroll:end], "\n"), m.Width, height), "\n")
-	return body + "\n" + strings.Join(viewportLines("↑/↓: select | enter: review/confirm | r: refresh | esc: back", m.Width, 1), "")
+	return body + "\n" + strings.Join(viewportLines(pageMouseFooter(lifecycleMouseControls, " | "), m.Width, 1), "")
 }
 
 func (m *Model) lifecycleConfirmationBody() (string, bool) {
+	body := m.lifecycleConfirmationLines()
+	if len(body) == 0 {
+		return "", false
+	}
+
+	inside := max(1, m.Width)
+	framed := m.Width >= 20 && m.Height >= 8
+	if framed {
+		inside = min(96, m.Width-8)
+	}
+	wrapped := ansi.Hardwrap(ansi.Wrap(strings.Join(body, "\n"), inside, ""), inside, false)
+	rows := strings.Count(wrapped, "\n") + 1
+	if framed {
+		rows += 2
+	}
+	return wrapped, inside >= 40 && rows <= m.Height
+}
+
+func (m *Model) lifecycleConfirmationLines() []string {
 	d := &m.lifecycle
 	if d.confirmation == nil || m.Session == nil {
-		return "", false
+		return nil
 	}
 	a := d.confirmation
 	body := []string{"Confirm PR lifecycle action", lifecycleLabel(*a), "PR: " + Escape(a.Expected.Identity.URL()), "Expected head: " + Escape(a.Expected.HeadSHA), "Expected base: " + Escape(a.Expected.BaseSHA), "Pinned code head: " + m.Session.Inventory.Comparison.Metadata.HeadSHA}
@@ -247,15 +266,5 @@ func (m *Model) lifecycleConfirmationBody() (string, bool) {
 	}
 	body = append(body, "GitHub enforces policy. No admin bypass or protection override.", "Enter: confirm one write | esc: cancel", d.notice)
 
-	inside := max(1, m.Width)
-	framed := m.Width >= 20 && m.Height >= 8
-	if framed {
-		inside = min(96, m.Width-8)
-	}
-	wrapped := ansi.Hardwrap(ansi.Wrap(strings.Join(body, "\n"), inside, ""), inside, false)
-	rows := strings.Count(wrapped, "\n") + 1
-	if framed {
-		rows += 2
-	}
-	return wrapped, inside >= 40 && rows <= m.Height
+	return body
 }

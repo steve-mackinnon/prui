@@ -13,8 +13,8 @@ func TestMouseRoutingOwnsOnlySupportedSurfaces(t *testing.T) {
 		m.Width, m.Height = 120, 24
 		m.Stack = []page{surface}
 		m.Update(tea.MouseClickMsg{Button: tea.MouseLeft, X: 4, Y: 4})
-		if m.Selected != 0 || m.View().MouseMode != tea.MouseModeNone {
-			t.Fatalf("page %v accepts mouse", surface)
+		if m.Selected != 0 || m.View().MouseMode != tea.MouseModeCellMotion {
+			t.Fatalf("page %v did not exclusively own mouse", surface)
 		}
 		m.Close()
 	}
