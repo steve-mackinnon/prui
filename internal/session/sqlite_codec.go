@@ -5,7 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
+
+	fastjson "github.com/segmentio/encoding/json"
 
 	"prui/internal/commits"
 	reviewcontext "prui/internal/context"
@@ -57,12 +58,14 @@ func decodeSource(expectedDigest string, b []byte) (Snapshot, error) {
 		return Snapshot{}, fmt.Errorf("%w: source checksum or size mismatch", ErrInvalidRecord)
 	}
 	var payload sqliteSourcePayload
-	decoder := json.NewDecoder(bytes.NewReader(b))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&payload); err != nil {
-		return Snapshot{}, fmt.Errorf("%w: source decode: %v", ErrInvalidRecord, err)
+	// Strict exact-name decoding is compatible with the canonical bytes checked
+	// below. Leave copy optimizations disabled: the snapshot owns its values.
+	rest, err := fastjson.Parse(b, &payload, fastjson.DisallowUnknownFields|fastjson.DontMatchCaseInsensitiveStructFields)
+	if err != nil {
+		// This decoder's diagnostics can contain source fragments.
+		return Snapshot{}, fmt.Errorf("%w: source decode failed", ErrInvalidRecord)
 	}
-	if err := decoder.Decode(new(any)); err != io.EOF || payload.Version != sqlitePayloadVersion {
+	if len(rest) != 0 || payload.Version != sqlitePayloadVersion {
 		return Snapshot{}, fmt.Errorf("%w: unsupported or trailing source payload", ErrInvalidRecord)
 	}
 	canonical, err := json.Marshal(payload)

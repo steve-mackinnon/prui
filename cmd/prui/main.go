@@ -146,7 +146,7 @@ func run(args []string) int {
 		}
 		resolveInteractiveTheme(&o)
 		m := app.model(ctx, o)
-		p := tea.NewProgram(m, tea.WithContext(ctx))
+		p := tea.NewProgram(m, tea.WithContext(ctx), tea.WithFPS(120))
 		m.SetNotifier(func(s string) { p.Send(tui.Notice(s)) })
 		_, err := p.Run()
 		cancel()
@@ -184,7 +184,7 @@ func run(args []string) int {
 	}
 	resolveInteractiveTheme(&o)
 	m := app.model(ctx, o)
-	p := tea.NewProgram(m, tea.WithContext(ctx))
+	p := tea.NewProgram(m, tea.WithContext(ctx), tea.WithFPS(120))
 	m.SetNotifier(func(s string) { p.Send(tui.Notice(s)) })
 	_, e = p.Run()
 	cancel()

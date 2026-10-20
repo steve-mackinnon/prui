@@ -1732,6 +1732,110 @@ The complete verification script passed, including installer fixtures, vet,
 race tests, terminal journeys and build. Configured lint reported zero issues.
 The overall 10x startup/first-selection goal remains active and unproven.
 
+## Twenty-sixth iteration: saved-source decoding and rendering cadence
+
+Profiled the 1,000-file offline first-frame component at `254dc20`: 27.91 ms/op
+across 100 operations. In-process samples placed most load work under source JSON
+decoding; package initialization, terminal I/O and fixture setup are not part of
+that benchmark timer. The original streaming decoder copies an already-owned
+SQLite payload into its input buffer before decoding it.
+
+First tried standard-library `json.Unmarshal` with the existing canonical byte
+comparison. Three ten-operation trials reduced allocations substantially but
+left time effectively unchanged: load/validation 24.36 to 24.01 ms and model/
+first-frame construction 27.65 to 27.37 ms. Reverted this experiment. Logs:
+`/tmp/prui-source-decode-startup-before.txt` and
+`/tmp/prui-source-decode-startup-after.txt`.
+
+The retained adapter uses pinned `github.com/segmentio/encoding v0.5.4` with
+`github.com/segmentio/asm v1.2.1`. Only frozen source decoding changes; encoding,
+canonical-byte comparison, source digests, indexed identity/reference checks,
+commit/incremental validation and SQLite transactions remain unchanged.
+Unknown fields are rejected, exact field-name matching is required, trailing
+data is rejected, and copy optimizations are disabled. Decoded values remain
+independent of the input buffer. Parser errors are generic because the new
+library's raw diagnostics can contain source fragments. A failing synthetic
+privacy test caught that exposure before the generic error was added.
+The library documents its copy flags and compatibility approach in its
+[official source](https://github.com/segmentio/encoding/tree/v0.5.4/json).
+
+Warm in-process medians, three ten-operation trials of the existing complete
+synthetic startup fixtures:
+
+| 1,000-file component | Prior | Fast decoder | Prior allocated bytes | Fast decoder allocated bytes |
+| --- | ---: | ---: | ---: | ---: |
+| Load and validate | 24.363 ms | 14.335 ms | 22,960,564 | 18,659,000 |
+| Load, model and first frame | 27.648 ms | 18.187 ms | 23,337,896 | 19,705,593 |
+
+That stage gain alone did not improve actual fresh-process PTY startup: eleven
+interleaved pairs measured 60.63 / 60.19 ms (neutral). All launches, including
+first executions of 223.69 / 742.68 ms, remain recorded. Source and all 1,000 read
+marks were unchanged. The first harness attempt correctly failed store ownership
+validation because the database copy omitted `.sqlite-owner`; fixed the harness
+to copy the existing marker with private permissions, without weakening storage
+validation. Artifacts: `/tmp/prui-fastjson-offline-startup-alsb7zve`.
+
+Then separated decoder and rendering cadence in a four-variant experiment.
+Bubble Tea defaults to a maximum 60 FPS; the candidate uses its supported 120 FPS
+cap for both interactive program entry points. This changes presentation cadence,
+not model loading, capture completeness, source validation or action consent.
+All variants use release-equivalent builds and the same copied private stores.
+Every launch is a new process; this is warm-filesystem startup, not a disk-cold
+or first-install guarantee. No concurrent timing jobs, builds or tests:
+
+| Saved review / trials per variant | Std decoder, 60 FPS | Std decoder, 120 FPS | Fast decoder, 60 FPS | Fast decoder, 120 FPS |
+| --- | ---: | ---: | ---: | ---: |
+| Complete 1,000-file synthetic review, nine | 59.27 ms | 60.20 ms | 59.90 ms | 51.71 ms |
+| Complete one-file PR #19, seven | 42.97 ms | 35.41 ms | 43.26 ms | 35.04 ms |
+
+The combined candidate improves these medians by about 12.7% / 18.4%. The
+factorial result matters: rendering cadence alone benefits the small review,
+while the large fixture needs both changes to show an earlier readable frame.
+All source payloads and read marks stayed unchanged. First large-fixture launches
+were 231.56, 653.49, 165.24 and 632.45 ms respectively and remain in the samples.
+Artifacts: `/tmp/prui-startup-decoder-fps-s06m1t17` and
+`/tmp/prui-startup-small-decoder-fps-a687k_z9`.
+
+Also checked the final implementation against `254dc20` in three interleaved
+first-selection pairs per PR, fresh stores, waiting for confirmed freshness:
+
+| PR | Prior readable | Candidate readable | Prior confirmed | Candidate confirmed |
+| --- | ---: | ---: | ---: | ---: |
+| #19 | 1,382.89 ms | 1,334.24 ms | 1,596.58 ms | 1,573.98 ms |
+| #11 | 1,301.40 ms | 1,334.92 ms | 1,516.96 ms | 1,616.60 ms |
+
+Results are mixed, including slower PR #11 samples; do not claim a first-selection
+improvement from this change. All six paired snapshots were identical, with
+complete inventories, three commits and captured composition. The first
+candidate list startup was 1,354 ms and remains recorded. Artifacts:
+`/tmp/prui-decoder-render-selection-pk56q5es`.
+
+New tests preserve the original strict streaming decoder as a differential
+oracle. They cover nested unknown fields, duplicate/escaped keys, alternate
+encodings, malformed UTF-8, version/digest errors, binary source, input-buffer
+ownership, privacy and plain-schema assumptions. The final isolated structured
+fuzz run compared arbitrary input and generated canonical snapshots with varied
+paths, patches and descriptions: 24,330 executions without a difference. A prior
+run concurrent with audit/build work made only 31 executions; its low throughput
+was investigated with seeds and a bounded isolated replay, and is not used as
+the confidence result. Logs: `/tmp/prui-source-decode-final-fuzz.txt`.
+
+Reviewed the two new modules, their MIT licenses, pinned checksums, default copy
+behavior and architecture-specific implementation. `go mod verify` passed.
+`govulncheck v1.8.0` source/symbol scanning reported no called-symbol findings and
+no advisory for either new module. It reported the existing module-only
+`GO-2026-5932` for unchanged `golang.org/x/crypto v0.57.0`; no dependency upgrade
+or unrelated remediation was performed. Audit: `/tmp/prui-source-fastjson-audit.json`.
+This is point-in-time advisory evidence, not proof that unsafe parsing code is
+defect-free. All four release targets built with CGO disabled: Darwin/Linux,
+amd64/arm64. Configured lint reported zero issues. The first full gate, concurrent
+with cross-compilation, hit the existing TypeScript span-limit test's ten-second
+deadline and reported timeout. The focused test passed unchanged in isolation;
+the complete gate then passed without competing builds, including installer
+fixtures, vet, race tests, terminal journeys and build. No deadline, assertion
+or resource limit was changed. The overall 10x startup/first-selection goal remains active and
+unproven, and human terminal usability remains unverified.
+
 ## Reproduction and validation
 
 ```sh
@@ -1743,6 +1847,7 @@ go test ./internal/syntax -run '^$' -bench BenchmarkLexerSelection -benchtime=10
 go test ./internal/syntax -run '^$' -bench BenchmarkTokenizeCaptureReuse -benchtime=10x -count=3
 go test ./internal/syntax -run '^$' -bench BenchmarkTokenizeThrough -benchtime=10x -count=3
 go test ./internal/syntax -run '^$' -fuzz '^FuzzGoDispatchTokens$' -fuzztime=20s -parallel=4
+go test ./internal/session -run '^$' -fuzz '^FuzzSourceDecodeEquivalence$' -fuzztime=20s -fuzzminimizetime=1s -parallel=4
 go test ./internal/session -run '^$' -bench BenchmarkSQLiteFreshnessProgress -benchtime=1x -count=3
 go test ./internal/commits -run '^$' -bench BenchmarkCompositionTreeListing -benchtime=3x -count=3
 go test ./cmd/prui -run '^$' -bench BenchmarkOfflineStartupComponents -benchtime=3x -count=3
