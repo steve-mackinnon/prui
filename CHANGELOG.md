@@ -5,21 +5,51 @@ User-visible changes are recorded here before each release. See
 
 ## [Unreleased]
 
+## [0.5.0]
+
+### Added
+
+- Open named review Actions with Space or Ctrl+K, then choose a displayed hotkey
+  or use arrows and Enter. Getting started help includes the full shortcut list.
+- Show PR titles above author, review, checks, and target-branch details, with
+  base-first stack positions for branch dependencies among loaded open PRs.
+
 ### Fixed
 
 - Support double-click activation in PR, repository, session, theme, review, and
   discussion lists, with mouse scrolling and controls across pages and forms.
-
 - Wrap guide and subsection headers within the guide pane and distinguish them
   from descriptions with bold title styling.
+- Open PRs faster with bounded source capture, reused reads, and cached reviews.
+- Preserve Files and Guide positions across navigation and apply consistent
+  multiline draft editing controls.
+- Surface syntax capture failures with more time for source capture.
+- Support Sonnet 5.5 reading guides and show provider errors when guide generation
+  fails.
+- Keep scrolling responsive for large diffs with comments and refresh the search
+  input after jumping to results.
 
 ### Changed
 
-- Remove the optional Linear issue integration and trim appended README details.
+- Use arrows within panes and Tab/Shift+Tab to switch panes; choose guide
+  expansion and other review tools from Actions.
 - Remove syntax availability warnings from the footer status bar; details remain
   available in Health & help and the diff.
-- Copy Herdr’s exact colors for the eight matching theme palettes, including
-  selection, borders, and syntax accents.
+- Match named theme palettes to NvChad Base46, including syntax accents.
+
+### Removed
+
+- Remove the optional Linear issue integration. Live issue context now reads
+  linked GitHub issues only. Previously saved Linear context is omitted when
+  older sessions are read; no configuration migration is required.
+
+### Release notes
+
+- `v0.4.0` was tagged but did not publish. This release also includes the changes
+  listed under 0.4.0 below: clipboard paste, drag-to-copy, the one-command
+  installer, richer syntax highlighting, improved diff contrast and headers,
+  stationary comment editing, and Go vulnerability fixes. The previous published
+  release is `v0.3.0`.
 
 ## [0.4.0]
 
