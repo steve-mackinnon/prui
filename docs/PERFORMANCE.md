@@ -22,18 +22,33 @@ part of the original goal.
 
 ## Verified interactive selection baselines
 
-| Real PR | Original | Tenth iteration | Overall improvement |
-| --- | ---: | ---: | ---: |
-| #19: 1 file, 3 commits | 5.80 s | 2.27 s | 2.56x |
-| #11: 26 files, 3 commits | 8.93 s | 2.58 s | 3.46x |
+Matched release builds of original `78cb664` and runtime `405c105`, using the
+same toolchain/flags and three alternating fresh-profile pairs per real PR:
 
-These are Enter-to-readable-overview medians in fresh private stores, with real
-GitHub/Git access and identical complete snapshots. See the tenth-iteration
-ledger for both paired series and their limits. Populated PR-list startup still
-typically takes about 0.6 seconds. A separate release-build comparison with
-1,000 saved read marks improved offline startup from 96.6 to 63.5 ms; this is
-an incremental 1.52x gain against `5752542`. Neither startup scenario has reached
-10x. Absolute offline times vary by fixture, build and host conditions.
+| Real PR | Original readable | Current readable | Readable speedup | Fully checked speedup |
+| --- | ---: | ---: | ---: | ---: |
+| #19: 1 file, 3 commits | 6,166.76 ms | 1,066.61 ms | 5.78x | 4.53x |
+| #11: 26 files, 3 commits | 9,650.17 ms | 1,217.74 ms | 7.92x | 6.58x |
+
+All six paired decoded snapshots were identical and complete. Readable timing
+starts at Enter in the populated picker; fully checked timing also waits for
+confirmed-current status. These measurements supersede the summary of the
+older development-build series; the complete earlier observations remain in
+the ledger. Do not chain per-iteration ratios or compare unlike build cohorts.
+
+Matched offline process launches from identical copied complete snapshots,
+eleven interleaved pairs per fixture, preserved source and every read mark:
+
+| Offline first review frame | Original | Current | Speedup |
+| --- | ---: | ---: | ---: |
+| One file, no read marks | 44.79 ms | 35.93 ms | 1.25x |
+| 1,000 files and read marks | 96.27 ms | 54.41 ms | 1.77x |
+
+These are process-cold launches with copied/warm filesystem data, not disk-cache
+flushes. All observations, including first one-file samples of 130.73 / 126.24 ms,
+remain included. Populated PR-list startup is still typically around 0.6 seconds.
+Neither startup nor the real first-selection scenarios have reached 10x. See
+the thirty-first iteration for artifacts and later transport experiments.
 
 ## Design findings
 
@@ -2084,6 +2099,100 @@ separately; configured lint reported zero issues. No limits, assertions or
 independent-verifier settings were weakened. The overall 10x startup and
 first-selection goal remains active and unproven. Human terminal usability
 remains unverified.
+
+## Thirty-first iteration: rebaseline and share the PR-list connection
+
+Rebuilt original `78cb664` with the same CGO-disabled, trimmed release flags and
+Go 1.26.9 toolchain as `405c105`. Three alternating fresh-profile pairs per PR
+confirmed the original-to-current ratios in the summary above. Fully checked
+medians were 6,167.40 to 1,361.79 ms for #19 and 9,650.77 to 1,466.75 ms for #11.
+Every paired source snapshot matched and contained complete inventory, three
+commits and captured composition. Existing authentication stayed in memory;
+there were no remote writes. Artifacts:
+`/tmp/prui-original-current-selection-tmft45gl`.
+
+Separately launched both releases offline from independent SQLite backups of
+identical complete one-file and 1,000-mark fixtures. Ownership markers and
+private modes were retained, provider credentials removed, and source digests
+plus every progress row compared before/after. All 44 runs preserved source and
+marks. Startup remains only 1.25x / 1.77x faster, rather than 10x. Artifacts:
+`/tmp/prui-original-current-offline-dz42buyo`.
+
+Revisited shared-list transport and local view preparation because the capture
+critical path has changed substantially since the earlier rejected prototypes.
+A balanced four-variant experiment used four runs per PR and rotated each
+variant through every order position. All used release flags, fresh private
+profiles and the same complete-source/freshness requirements. Instrumented
+variants reported successful one-time consumption of all 16 prepared views;
+the suspected checkout-path mismatch was not observed. A context-carried
+preparation remains an experiment-only interface.
+
+| PR / variant | List startup median | Readable median | Checked median | Median list + selection |
+| --- | ---: | ---: | ---: | ---: |
+| #19 baseline | 705.75 ms | 1,291.47 ms | 1,536.38 ms | 2,039.49 ms |
+| #19 shared list | 575.39 ms | 1,133.37 ms | 1,353.40 ms | 2,029.35 ms |
+| #19 prepared view | 554.74 ms | 1,108.70 ms | 1,389.62 ms | 1,676.44 ms |
+| #19 combined | 693.50 ms | 1,062.03 ms | 1,282.21 ms | 1,756.18 ms |
+| #11 baseline | 559.95 ms | 1,301.00 ms | 1,495.41 ms | 1,828.74 ms |
+| #11 shared list | 526.85 ms | 1,192.41 ms | 1,500.05 ms | 1,806.69 ms |
+| #11 prepared view | 592.44 ms | 1,234.34 ms | 1,482.74 ms | 1,811.57 ms |
+| #11 combined | 548.44 ms | 1,158.98 ms | 1,400.84 ms | 1,727.90 ms |
+
+The final column is the median of each run's list-plus-selection sum, excluding
+navigation keystrokes; it is not the sum of the two medians. Shared-list readable
+medians improved 12.2% / 8.3%, with mixed individual and fully checked results.
+The combined readable medians improved 17.8% / 10.9%. All 24 variant-to-baseline
+snapshot comparisons matched, with complete inventory, three commits and
+captured composition. First list/prepared/combined startups were 1,467.32 /
+1,278.09 / 1,232.57 ms and remain included. Artifacts:
+`/tmp/prui-list-view-factorial-zosox49h`.
+
+Connection reuse is implemented first as a separately verified change. The fixed
+list GraphQL query, variables and decoder are unchanged. Production lists now
+use the existing bounded read client, allowing its TLS connection to serve
+subsequent pinning/membership reads. Each request still resolves fresh CLI
+credentials; responses are not cached. Custom runners retain the original CLI
+request. Unavailable token export may fall back before HTTP dispatch; attempted
+HTTP reads never retry via CLI. The same operation deadline, 1 MiB decompressed
+body cap, header/connection bounds and redirect policy remain. Writes stay on
+the existing explicit CLI path. No prepared-view state or extra local object
+copying before selection is included in this change.
+
+The TLS regression test first failed on the prior implementation: only the
+three capture requests reached the shared connection, while the list bypassed
+it. It now compares identical normalized CLI/HTTP lists and verifies one
+connection carries the list, two metadata reads and commit membership. Added
+coverage checks exact query/variables, fresh credentials/responses, invalid
+identity refusal, authentication compatibility, cancellation, a deadline that
+includes token export, bounded errors and no fallback after dispatch. Existing
+list-field validation and all other read/write boundaries remain covered.
+
+The final production implementation was measured against `405c105` in a fresh
+series of three alternating first-selection pairs per PR:
+
+| PR | Prior readable median | Final | Prior checked median | Final |
+| --- | ---: | ---: | ---: | ---: |
+| #19 | 1,208.54 ms | 1,033.01 ms | 1,410.05 ms | 1,282.22 ms |
+| #11 | 1,242.50 ms | 1,184.47 ms | 1,477.11 ms | 1,450.13 ms |
+
+Readable medians improved 14.5% / 4.7%; every readable pair improved, although
+one #11 difference was only 1.76 ms. Checked medians improved 9.1% / 1.8%, with
+mixed individual #11 results. List-startup medians were 677.79 to 617.78 ms for
+#19 and 580.04 to 599.69 ms for #11. Median list-plus-selection sums improved
+1,824.23 to 1,767.70 ms and 1,822.54 to 1,775.29 ms (about 3.1% / 2.6%). Do not
+claim a universal startup improvement or multiply these ratios into the earlier
+original-build cohort. All six final paired snapshots matched and contained
+complete inventory, three commits and captured composition. The first final
+candidate list startup was 1,119.51 ms and remains recorded. Artifacts:
+`/tmp/prui-list-shared-final-selection-5byvo25o`.
+
+The complete verification script passed (installer fixtures, formatting, vet,
+race tests, terminal journeys and build); configured lint reported zero issues.
+The additional gain from early view preparation remains a measured candidate
+for a later slice. It needs explicit ownership/lifetime and checkout/runner/limit
+binding; the context-value prototype is not included in production. The full
+10x startup/first-selection goal remains active and unproven, and human terminal
+usability remains unverified.
 
 ## Reproduction and validation
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/json"
 	"errors"
 	"io"
 	"net"
@@ -11,6 +12,7 @@ import (
 	"net/http/httptest"
 	"reflect"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -128,15 +130,26 @@ func TestGitHubReadConnectionReuseAndValidation(t *testing.T) {
 	graphqlMetadata := `{"data":{"repository":{"pullRequest":{"number":1,"body":"description","baseRefName":"","baseRefOid":"` + base + `","headRefOid":"` + head + `","baseRepository":{"nameWithOwner":"owner/repo"},"headRepository":{"nameWithOwner":"owner/repo"}}}}}`
 	commits := `[{"sha":"` + head + `","commit":{"message":"subject\nbody","author":{"name":"author"}}}]`
 	var connections []string
+	var connectionMu sync.Mutex
 	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		connectionMu.Lock()
 		connections = append(connections, req.RemoteAddr)
+		connectionMu.Unlock()
 		if req.URL.RawQuery != "" {
 			_, _ = io.WriteString(w, commits)
 		} else {
 			if req.Method != "POST" || req.URL.Path != "/graphql" {
 				t.Error("incorrect metadata request")
 			}
-			_, _ = io.WriteString(w, graphqlMetadata)
+			var payload struct{ Query string }
+			if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
+				t.Error(err)
+			}
+			if strings.Contains(payload.Query, "pullRequests(") {
+				_, _ = io.WriteString(w, githubListReadFixture)
+			} else {
+				_, _ = io.WriteString(w, graphqlMetadata)
+			}
 		}
 	}))
 	defer server.Close()
@@ -156,6 +169,9 @@ func TestGitHubReadConnectionReuseAndValidation(t *testing.T) {
 		if req.Args[0] == "auth" {
 			return []byte("token"), nil
 		}
+		if len(req.Args) > 3 && req.Args[3] == "graphql" {
+			return []byte(githubListReadFixture), nil
+		}
 		if strings.Contains(req.Args[len(req.Args)-1], "/commits?") {
 			return []byte(commits), nil
 		}
@@ -164,6 +180,11 @@ func TestGitHubReadConnectionReuseAndValidation(t *testing.T) {
 	g := &GH{Runner: runner, Limits: Defaults(), readClient: client}
 	legacy := &GH{Runner: runner, Limits: Defaults()}
 	id := Identity{"owner/repo", 1}
+	listed, err := g.ListPullRequests(context.Background(), id.Repository)
+	legacyList, listErr := legacy.ListPullRequests(context.Background(), id.Repository)
+	if err != nil || listErr != nil || !reflect.DeepEqual(listed, legacyList) {
+		t.Fatalf("list differs: %v, %v", err, listErr)
+	}
 	for range 2 {
 		got, err := g.Metadata(context.Background(), id)
 		want, wantErr := legacy.Metadata(context.Background(), id)
@@ -176,8 +197,15 @@ func TestGitHubReadConnectionReuseAndValidation(t *testing.T) {
 	if err != nil || wantErr != nil || !reflect.DeepEqual(got, want) {
 		t.Fatalf("commits differ: %v, %v", err, wantErr)
 	}
-	if len(connections) != 3 || connections[0] != connections[1] || connections[1] != connections[2] {
-		t.Fatalf("connections not reused: %v", connections)
+	connectionMu.Lock()
+	defer connectionMu.Unlock()
+	if len(connections) != 4 {
+		t.Fatalf("list or capture bypassed shared transport: %v", connections)
+	}
+	for _, connection := range connections {
+		if connection != connections[0] {
+			t.Fatalf("connections not reused: %v", connections)
+		}
 	}
 }
 

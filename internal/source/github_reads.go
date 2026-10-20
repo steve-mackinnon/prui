@@ -9,8 +9,8 @@ import (
 	"time"
 )
 
-// Only the two validated PR capture endpoints use this client. Connections are
-// reused; credentials and responses are not. All other operations retain gh.
+// The PR list and validated capture reads share this client. Connections are
+// reused; credentials and responses are not. Other operations retain gh.
 func newGitHubReadClient() *http.Client {
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	// Match the CLI's restricted environment, which excludes proxy settings.
@@ -40,7 +40,7 @@ func (g *GH) readGET(parent context.Context, endpoint string) ([]byte, error) {
 	return g.readCapture(parent, http.MethodGet, endpoint, nil, legacy)
 }
 
-// readCapture serves fixed read-only capture requests. The compatibility path
+// readCapture serves fixed read-only capture and list requests. The compatibility path
 // runs only before HTTP dispatch, when exporting the CLI credential is unavailable.
 func (g *GH) readCapture(parent context.Context, method, endpoint string, body []byte, legacy func(context.Context) ([]byte, error)) ([]byte, error) {
 	if g.readClient == nil {

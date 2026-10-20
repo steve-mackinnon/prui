@@ -546,7 +546,16 @@ func (g *GH) ListPullRequests(ctx context.Context, repository string) ([]PullReq
 	}
 	parts := strings.Split(repository, "/")
 	const query = `query($owner:String!,$name:String!){repository(owner:$owner,name:$name){pullRequests(first:100,states:OPEN,orderBy:{field:CREATED_AT,direction:DESC}){nodes{number title body baseRefName createdAt author{login} viewerLatestReview{state} commits(last:1){nodes{commit{author{name user{login}} statusCheckRollup{state}}}}}}}}`
-	data, err := g.call(ctx, "api", "--hostname", "github.com", "graphql", "-f", "query="+query, "-F", "owner="+parts[0], "-F", "name="+parts[1])
+	payload, err := json.Marshal(struct {
+		Query     string            `json:"query"`
+		Variables map[string]string `json:"variables"`
+	}{query, map[string]string{"owner": parts[0], "name": parts[1]}})
+	if err != nil {
+		return nil, ErrCommand
+	}
+	data, err := g.readCapture(ctx, http.MethodPost, "graphql", payload, func(c context.Context) ([]byte, error) {
+		return g.call(c, "api", "--hostname", "github.com", "graphql", "-f", "query="+query, "-F", "owner="+parts[0], "-F", "name="+parts[1])
+	})
 	if err != nil {
 		return nil, fmt.Errorf("GitHub pull request list unavailable (check authentication and connectivity): %w", err)
 	}
