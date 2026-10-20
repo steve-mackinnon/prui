@@ -60,20 +60,16 @@ func openWithConfigAttempt(ctx context.Context, checkout string, id source.Ident
 	if cfg.Timing != nil {
 		pinTiming = &cfg.Timing.Pin
 	}
-	v, p, e := source.PinWithTiming(ctx, checkout, id, gh, r, l, notify, pinTiming)
-	if e != nil {
-		return nil, e
-	}
-	defer func() { _ = v.Close() }()
 	parallel := false
 	if capable, ok := r.(interface{ MaxParallelism() int }); ok {
 		parallel = capable.MaxParallelism() > 1
 	}
-	var pending *commits.PendingCapture
-	if parallel {
-		pending = commits.PrepareCapture(ctx, p, gh)
-		defer pending.Close()
+	v, p, pending, e := pinWithMembership(ctx, checkout, id, gh, r, l, notify, pinTiming, parallel)
+	if e != nil {
+		return nil, e
 	}
+	defer func() { _ = v.Close() }()
+	defer pending.Close()
 	started := time.Now()
 	inv, e := inventory.Build(ctx, v, p, l)
 	if cfg.Timing != nil {

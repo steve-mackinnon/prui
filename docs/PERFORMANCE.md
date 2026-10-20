@@ -1836,6 +1836,65 @@ fixtures, vet, race tests, terminal journeys and build. No deadline, assertion
 or resource limit was changed. The overall 10x startup/first-selection goal remains active and
 unproven, and human terminal usability remains unverified.
 
+## Twenty-seventh iteration: start membership after initial metadata
+
+The selected PR's commit-membership request previously waited for isolated Git
+view setup and ancestry validation, even though it needs only the initial
+validated metadata. A private review-layer adapter now starts that request as
+soon as the initial metadata response arrives, for runners advertising parallel
+use. Local pinning continues independently. Inventory and all commit-parent,
+composition and final metadata checks still finish before source capture returns.
+The final metadata read waits for membership to join.
+
+The preparation belongs to the review context, rather than pin input setup's
+shorter-lived context. Its existing 55-second work and 60-second total deadlines
+now include the remaining setup/ancestry work as well as inventory; consuming it
+never restarts those deadlines. Exhaustion retains explicit unavailable states.
+A pin failure cancels and joins preparation. If fetch discovers different source
+pins, the old request is canceled and joined before preparing membership for the
+returned revision. Same-pin failures are consumed once, without an automatic
+retry. Unsupported clients and runners without parallel capability retain their
+existing capture path. No public source API or resource limit changed.
+
+A disposable prototype was compared with `a56dadd` using alternating release
+binaries, fresh private HOME/storage directories and three paired first
+selections per PR. PR #19's readable median changed from 1,358.69 to 1,192.09 ms
+(12.3%), and fully checked from 1,599.06 to 1,429.01 ms (10.6%). PR #11 was
+essentially unchanged: 1,375.46 to 1,358.14 ms readable, and 1,583.15 to
+1,591.75 ms checked. All six paired decoded snapshots matched, with complete
+inventory, three commits and captured composition. The first candidate PR-list
+startup was 1,102.81 ms and remains included. Artifacts:
+`/tmp/prui-early-membership-selection-sjx_wwit`.
+
+The final production implementation was measured again against `a56dadd` with
+the same alternating, fresh-profile procedure (three pairs per PR):
+
+| PR | Prior readable median | Earlier membership | Prior checked median | Earlier membership |
+| --- | ---: | ---: | ---: | ---: |
+| #19 | 1,324.97 ms | 1,110.10 ms | 1,532.73 ms | 1,324.80 ms |
+| #11 | 1,317.55 ms | 1,325.50 ms | 1,516.62 ms | 1,557.62 ms |
+
+PR #19 improved by 16.2% readable and 13.6% fully checked; every paired sample
+improved. PR #11 remained mixed, including slower samples: readable median was
+0.6% slower and checked median 2.7% slower. This is a small networked sample,
+not evidence of a universal improvement. All six final paired snapshots matched,
+again with complete inventory, three commits and captured composition. The first
+candidate PR-list startup was 1,169.93 ms; it remains recorded. This change does
+not optimize startup. Final artifacts:
+`/tmp/prui-membership-final-selection-svmp6uzj`.
+
+The ordering regression test first failed on the previous implementation: local
+ancestry validation waited for membership that could only start after pinning.
+New tests also cover pin failure cleanup/cancellation, a failed membership read
+without retry, and revision movement during pin/fetch. The latter blocks old
+membership until canceled, then verifies it joins before replacement begins.
+The final freshness-read fixture rejects a check that precedes membership join.
+
+The complete verification script passed: installer fixtures, formatting, vet,
+race tests, terminal journeys and build. Configured lint reported zero issues.
+The overall 10x startup/first-selection goal remains active and unproven.
+Human terminal usability remains unverified.
+
 ## Reproduction and validation
 
 ```sh
