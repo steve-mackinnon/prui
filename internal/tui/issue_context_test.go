@@ -16,7 +16,7 @@ func TestIssueContextExplicitRefreshAndRetainedCache(t *testing.T) {
 	reads := []bool{}
 	m.SetIssueContextReader(func(_ context.Context, id source.Identity, refresh bool) (source.IssueContext, error) {
 		reads = append(reads, refresh)
-		return source.IssueContext{Identity: id, HeadSHA: strings.Repeat("f", 40), CapturedAt: time.Date(2026, 10, 4, 12, 0, 0, 0, time.UTC), Complete: true, Labels: []string{"bug\x1b[31m"}, LinearReason: "integration not configured"}, nil
+		return source.IssueContext{Identity: id, HeadSHA: strings.Repeat("f", 40), CapturedAt: time.Date(2026, 10, 4, 12, 0, 0, 0, time.UTC), Complete: true, Labels: []string{"bug\x1b[31m"}}, nil
 	})
 	cmd := m.openIssueContext()
 	m.Update(cmd())
@@ -24,7 +24,7 @@ func TestIssueContextExplicitRefreshAndRetainedCache(t *testing.T) {
 		t.Fatal("open performed remote read")
 	}
 	text := m.issueContextView()
-	for _, want := range []string{"Saved context", "2026-10-04", "differs", "integration not configured", "bug"} {
+	for _, want := range []string{"Saved context", "2026-10-04", "differs", "bug"} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("missing %q in %s", want, text)
 		}
@@ -58,7 +58,7 @@ func TestIssueContextLateResultAndViewport(t *testing.T) {
 		t.Fatal("late generation accepted")
 	}
 	m.issues.loaded = true
-	m.issues.snapshot = source.IssueContext{Identity: m.Session.Inventory.Comparison.Metadata.Identity, HeadSHA: strings.Repeat("a", 40), CapturedAt: time.Now(), Complete: false, Reason: "partial", Linear: []source.ContextIssue{{Title: strings.Repeat("wide ", 100), Description: strings.Repeat("line\n", 100), URL: "https://linear.app/work/issue/APP-1"}}}
+	m.issues.snapshot = source.IssueContext{Identity: m.Session.Inventory.Comparison.Metadata.Identity, HeadSHA: strings.Repeat("a", 40), CapturedAt: time.Now(), Complete: false, Reason: "partial", Issues: []source.ContextIssue{{Title: strings.Repeat("wide ", 100), Description: strings.Repeat("line\n", 100), URL: "https://github.com/o/r/issues/1"}}}
 	m.openIssueContext()
 	m.issueContextKey("end")
 	text := m.issueContextView()
@@ -105,5 +105,17 @@ func TestIssueContextUnloadedNarrowViewport(t *testing.T) {
 				t.Fatal("unloaded width overflow", line)
 			}
 		}
+	}
+}
+
+func TestIssueContextHasNoLinearIntegration(t *testing.T) {
+	m := commitModel(t)
+	if text := m.issueContextView(); strings.Contains(text, "Linear") {
+		t.Fatal("unloaded view advertises removed integration", text)
+	}
+	m.issues.loaded = true
+	m.issues.snapshot = source.IssueContext{Complete: true}
+	if text := strings.Join(m.issueContextLines(), "\n"); strings.Contains(text, "Linear") {
+		t.Fatal("saved context advertises removed integration", text)
 	}
 }

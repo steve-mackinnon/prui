@@ -55,7 +55,7 @@ func (m *Model) loadIssueContext(refresh bool) tea.Cmd {
 	target, s, generation, read := m.activeTab, m.Session, m.issues.generation, m.readIssueContext
 	m.issues.notice = "Loading saved context..."
 	if refresh {
-		m.issues.notice = "Refreshing GitHub and authorized Linear context..."
+		m.issues.notice = "Refreshing GitHub context..."
 	}
 	return func() tea.Msg {
 		snapshot, err := read(ctx, s.Inventory.Comparison.Metadata.Identity, refresh)
@@ -133,7 +133,7 @@ func (m *Model) issueContextLines() []string {
 		lines = append(lines, d.notice)
 	}
 	if !d.loaded {
-		return m.wrapIssueContextLines(append(lines, "No saved issue context. r explicitly reads GitHub and configured Linear."))
+		return m.wrapIssueContextLines(append(lines, "No saved issue context. r explicitly reads GitHub."))
 	}
 	c := d.snapshot
 	label := "Saved context · freshness unknown (historical)"
@@ -171,21 +171,6 @@ func (m *Model) issueContextLines() []string {
 	}
 	for _, v := range c.Issues {
 		lines = append(lines, v.Identifier+" · "+v.Status+" · "+v.Title, v.URL)
-	}
-	lines = append(lines, "Linear issues:")
-	if len(c.Linear) > 0 {
-		if c.LinearWorkspace != "" {
-			lines = append(lines, "Captured Linear workspace: "+c.LinearWorkspace+" · auth: "+c.LinearAuth)
-		} else {
-			lines = append(lines, "Captured Linear authorization provenance unavailable (legacy cache)")
-		}
-		lines = append(lines, "Historical authorization at capture only; current account access unknown")
-	}
-	if c.LinearReason != "" {
-		lines = append(lines, c.LinearReason)
-	}
-	for _, v := range c.Linear {
-		lines = append(lines, v.Identifier+" · "+v.Status+" · "+v.Title, v.Description, v.URL)
 	}
 	lines = append(lines, "Context stays local; no additional AI upload")
 	return m.wrapIssueContextLines(lines)

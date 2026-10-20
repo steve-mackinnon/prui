@@ -12,23 +12,18 @@ import (
 	"unicode/utf8"
 )
 
-// IssueContext is mutable provider context. Body is only a candidate-link input
-// and is never persisted or supplied to AI analysis by this feature.
+// IssueContext is mutable GitHub context, stored independently of frozen source.
 type IssueContext struct {
-	Identity                    Identity
-	HeadSHA                     string
-	CapturedAt                  time.Time
-	Complete                    bool
-	Reason                      string
-	ReviewDecision              string // authoritative aggregate; empty means unknown
-	Requested                   []ContextReviewer
-	Reviews                     []ContextReview
-	Labels                      []string
-	Issues                      []ContextIssue
-	Linear                      []ContextIssue
-	LinearWorkspace, LinearAuth string
-	LinearReason                string
-	Body                        string `json:"-"`
+	Identity       Identity
+	HeadSHA        string
+	CapturedAt     time.Time
+	Complete       bool
+	Reason         string
+	ReviewDecision string // authoritative aggregate; empty means unknown
+	Requested      []ContextReviewer
+	Reviews        []ContextReview
+	Labels         []string
+	Issues         []ContextIssue
 }
 type ContextReviewer struct{ Kind, Name string }
 type ContextReview struct{ Author, Decision string }
@@ -37,7 +32,7 @@ type IssueContextReader interface {
 	ReadIssueContext(context.Context, Identity) (IssueContext, error)
 }
 
-const issueContextQuery = `query($owner:String!,$name:String!,$number:Int!){repository(owner:$owner,name:$name){pullRequest(number:$number){headRefOid body reviewDecision reviewRequests(first:100){nodes{requestedReviewer{__typename ... on User{login} ... on Team{slug organization{login}}}} pageInfo{hasNextPage}} latestOpinionatedReviews(first:100){nodes{author{login} state} pageInfo{hasNextPage}} labels(first:100){nodes{name} pageInfo{hasNextPage}} closingIssuesReferences(first:100){nodes{number title state url repository{nameWithOwner}} pageInfo{hasNextPage}}}}}`
+const issueContextQuery = `query($owner:String!,$name:String!,$number:Int!){repository(owner:$owner,name:$name){pullRequest(number:$number){headRefOid reviewDecision reviewRequests(first:100){nodes{requestedReviewer{__typename ... on User{login} ... on Team{slug organization{login}}}} pageInfo{hasNextPage}} latestOpinionatedReviews(first:100){nodes{author{login} state} pageInfo{hasNextPage}} labels(first:100){nodes{name} pageInfo{hasNextPage}} closingIssuesReferences(first:100){nodes{number title state url repository{nameWithOwner}} pageInfo{hasNextPage}}}}}`
 
 type contextConnection struct {
 	Nodes    []json.RawMessage
@@ -61,7 +56,7 @@ func (g *GH) ReadIssueContext(ctx context.Context, id Identity) (IssueContext, e
 		Data   struct {
 			Repository *struct {
 				PullRequest *struct {
-					HeadRefOID, Body                                                          string
+					HeadRefOID                                                                string
 					ReviewDecision                                                            *string
 					ReviewRequests, LatestOpinionatedReviews, Labels, ClosingIssuesReferences *contextConnection
 				}
@@ -72,10 +67,10 @@ func (g *GH) ReadIssueContext(ctx context.Context, id Identity) (IssueContext, e
 		return IssueContext{}, errors.New("invalid GitHub issue context")
 	}
 	p := response.Data.Repository.PullRequest
-	if !shaPattern.MatchString(p.HeadRefOID) || !validDiscussionField(p.Body, 1<<20, true) {
+	if !shaPattern.MatchString(p.HeadRefOID) {
 		return IssueContext{}, errors.New("invalid GitHub issue context")
 	}
-	out := IssueContext{Identity: id, HeadSHA: p.HeadRefOID, CapturedAt: time.Now().UTC(), Complete: true, Body: p.Body}
+	out := IssueContext{Identity: id, HeadSHA: p.HeadRefOID, CapturedAt: time.Now().UTC(), Complete: true}
 	partial := func() {
 		out.Complete = false
 		out.Reason = "GitHub context partial: missing, invalid, or additional records"
@@ -182,18 +177,10 @@ func ValidateIssueContext(c IssueContext) bool {
 	if _, err := ParseIdentity(strconv.Itoa(c.Identity.Number), c.Identity.Repository); err != nil {
 		return false
 	}
-	if !shaPattern.MatchString(c.HeadSHA) || c.CapturedAt.IsZero() || c.CapturedAt.UnixNano() <= 0 || len(c.Requested) > 100 || len(c.Reviews) > 100 || len(c.Labels) > 100 || len(c.Issues) > 100 || len(c.Linear) > 10 || !validDiscussionField(c.Reason, 4096, true) || !validDiscussionField(c.LinearReason, 4096, true) || c.Body != "" {
+	if !shaPattern.MatchString(c.HeadSHA) || c.CapturedAt.IsZero() || c.CapturedAt.UnixNano() <= 0 || len(c.Requested) > 100 || len(c.Reviews) > 100 || len(c.Labels) > 100 || len(c.Issues) > 100 || !validDiscussionField(c.Reason, 4096, true) {
 		return false
 	}
 	if c.Complete && c.Reason != "" || !c.Complete && c.Reason == "" {
-		return false
-	}
-	if !validDiscussionField(c.LinearWorkspace, 100, false) || (c.LinearWorkspace == "") != (c.LinearAuth == "") {
-		return false
-	}
-	switch c.LinearAuth {
-	case "", "api_key", "oauth":
-	default:
 		return false
 	}
 	switch c.ReviewDecision {
@@ -221,11 +208,9 @@ func ValidateIssueContext(c IssueContext) bool {
 			return false
 		}
 	}
-	for _, group := range [][]ContextIssue{c.Issues, c.Linear} {
-		for _, v := range group {
-			if v.Identifier == "" || v.Title == "" || v.Status == "" || !validDiscussionField(v.Identifier, 512, false) || !validDiscussionField(v.Title, 4096, true) || !validDiscussionField(v.Status, 256, false) || !validDiscussionField(v.Description, 65536, true) || !validContextURL(v.URL) {
-				return false
-			}
+	for _, v := range c.Issues {
+		if v.Identifier == "" || v.Title == "" || v.Status == "" || !validDiscussionField(v.Identifier, 512, false) || !validDiscussionField(v.Title, 4096, true) || !validDiscussionField(v.Status, 256, false) || !validDiscussionField(v.Description, 65536, true) || !validContextURL(v.URL) {
+			return false
 		}
 	}
 	for _, v := range c.Issues {
@@ -238,16 +223,9 @@ func ValidateIssueContext(c IssueContext) bool {
 			return false
 		}
 	}
-	for _, v := range c.Linear {
-		u, _ := url.Parse(v.URL)
-		parts := strings.Split(strings.TrimPrefix(u.Path, "/"), "/")
-		if u.Host != "linear.app" || len(parts) < 3 || len(parts) > 4 || parts[1] != "issue" || parts[2] != v.Identifier || c.LinearWorkspace != "" && parts[0] != c.LinearWorkspace {
-			return false
-		}
-	}
 	return true
 }
 func validContextURL(s string) bool {
 	u, e := url.Parse(s)
-	return e == nil && len(s) <= 4096 && validDiscussionField(s, 4096, false) && u.Scheme == "https" && (u.Host == "github.com" || u.Host == "linear.app") && u.User == nil && u.RawQuery == "" && u.Fragment == "" && u.RawPath == ""
+	return e == nil && len(s) <= 4096 && validDiscussionField(s, 4096, false) && u.Scheme == "https" && u.Host == "github.com" && u.User == nil && u.RawQuery == "" && u.Fragment == "" && u.RawPath == ""
 }

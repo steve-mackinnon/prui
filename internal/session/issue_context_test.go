@@ -2,6 +2,9 @@ package session
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/json"
+	"fmt"
 	"path/filepath"
 	"prui/internal/source"
 	"strings"
@@ -20,7 +23,7 @@ func TestIssueContextIndependentOfflineCache(t *testing.T) {
 		t.Fatal(err)
 	}
 	id := frozen.Inventory.Comparison.Metadata.Identity
-	c := source.IssueContext{Identity: id, HeadSHA: strings.Repeat("f", 40), CapturedAt: time.Now().UTC(), Complete: true, ReviewDecision: "APPROVED", LinearReason: "not configured"}
+	c := source.IssueContext{Identity: id, HeadSHA: strings.Repeat("f", 40), CapturedAt: time.Now().UTC(), Complete: true, ReviewDecision: "APPROVED"}
 	if err = s.SaveIssueContext(context.Background(), c); err != nil {
 		t.Fatal(err)
 	}
@@ -73,22 +76,43 @@ func TestIssueContextMissingAndCorrupt(t *testing.T) {
 	}
 }
 
-func TestIssueContextCapturedWorkspaceCannotBeRelabeled(t *testing.T) {
-	s, err := Open(filepath.Join(t.TempDir(), "private"))
+func TestIssueContextLegacyLinearFieldsIgnored(t *testing.T) {
+	s, err := Open(filepath.Join(t.TempDir(), "store"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer s.Close()
-	c := source.IssueContext{Identity: source.Identity{Repository: "o/r", Number: 7}, HeadSHA: strings.Repeat("a", 40), CapturedAt: time.Now(), Complete: true, LinearWorkspace: "work", LinearAuth: "api_key", Linear: []source.ContextIssue{{Identifier: "APP-1", Title: "captured account context", Status: "Done", URL: "https://linear.app/work/issue/APP-1/fix"}}}
+	c := source.IssueContext{Identity: source.Identity{Repository: "o/r", Number: 7}, HeadSHA: strings.Repeat("a", 40), CapturedAt: time.Now(), Complete: true, Labels: []string{"bug"}}
 	if err = s.SaveIssueContext(context.Background(), c); err != nil {
 		t.Fatal(err)
 	}
-	c.LinearWorkspace = "foreign"
-	if err = s.SaveIssueContext(context.Background(), c); err == nil {
-		t.Fatal("foreign workspace relabel accepted")
+	payload, err := json.Marshal(c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var legacy map[string]any
+	if err = json.Unmarshal(payload, &legacy); err != nil {
+		t.Fatal(err)
+	}
+	legacy["LinearWorkspace"], legacy["LinearAuth"] = "work", "api_key"
+	legacy["Linear"] = []source.ContextIssue{{Identifier: "APP-1", Title: "old ticket", Status: "Done", URL: "https://linear.app/work/issue/APP-1/fix"}}
+	payload, err = json.Marshal(legacy)
+	if err != nil {
+		t.Fatal(err)
+	}
+	db, err := s.db.SQL()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = db.Exec(`UPDATE issue_context SET payload=?, digest=?`, payload, fmt.Sprintf("%x", sha256.Sum256(payload))); err != nil {
+		t.Fatal(err)
 	}
 	got, err := s.LoadIssueContext(context.Background(), c.Identity)
-	if err != nil || got.LinearWorkspace != "work" || got.LinearAuth != "api_key" {
-		t.Fatal("captured provenance lost", got, err)
+	if err != nil || len(got.Labels) != 1 || got.Labels[0] != "bug" {
+		t.Fatal("legacy cache lost GitHub context", got, err)
+	}
+	payload, err = json.Marshal(got)
+	if err != nil || strings.Contains(string(payload), "Linear") {
+		t.Fatal("legacy integration retained", string(payload), err)
 	}
 }

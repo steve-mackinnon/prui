@@ -110,7 +110,7 @@ func TestIssueContextUpdatePrivateAttemptsSourceAndLayoutIntegration(t *testing.
 			reads, writes := 0, 0
 			cancelled := false
 			m.SetReviewSubmitter(func(context.Context, ReviewSubmission) error { writes++; return nil })
-			snapshot := source.IssueContext{Identity: meta.Identity, HeadSHA: strings.Repeat("f", 40), CapturedAt: time.Now().UTC(), Complete: false, Reason: "additional GitHub records", Labels: []string{"bug"}, LinearWorkspace: "work", LinearAuth: "api_key", Linear: []source.ContextIssue{{Identifier: "APP-2", Title: "product", Status: "Done", Description: "saved detail", URL: "https://linear.app/work/issue/APP-2/fix"}}}
+			snapshot := source.IssueContext{Identity: meta.Identity, HeadSHA: strings.Repeat("f", 40), CapturedAt: time.Now().UTC(), Complete: false, Reason: "additional GitHub records", Labels: []string{"bug"}}
 			m.SetIssueContextReader(func(c context.Context, id source.Identity, refresh bool) (source.IssueContext, error) {
 				reads++
 				if id != meta.Identity {
@@ -147,7 +147,7 @@ func TestIssueContextUpdatePrivateAttemptsSourceAndLayoutIntegration(t *testing.
 			}
 			m.Update(cmd())
 			text := m.issueContextView()
-			for _, want := range []string{"PARTIAL", "differs from frozen", "workspace: work", "auth: api_key", "current account access unknown"} {
+			for _, want := range []string{"PARTIAL", "differs from frozen", "Labels: bug", "Linked GitHub closing issues:"} {
 				if !strings.Contains(text, want) {
 					t.Fatal("missing honest context", want, text)
 				}
