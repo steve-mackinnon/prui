@@ -1,7 +1,7 @@
 # Readable Diff Comment Markdown and HTML Tasks
 
 Plan: [diff-comment-markdown-plan.md](diff-comment-markdown-plan.md).
-Status: all implementation tasks pending. File destinations approved by the
+Status: implementation in progress; see checked tasks and evidence below. File destinations approved by the
 user on 2026-10-21; existing `tasks/plan.md` and `tasks/todo.md` are untouched.
 
 ## Task 1: Render readable diff comment bodies
@@ -12,19 +12,19 @@ and preserve formatted output through card assembly. Establish a synthetic
 Devin-style regression fixture before changing the rendering path.
 
 **Acceptance criteria:**
-- [ ] The fixture hides HTML comments/attributes, formats emphasis/code/links,
+- [x] The fixture hides HTML comments/attributes, formats emphasis/code/links,
   displays summary and detail prose, and turns the picture badge into its linked
   alt label without fetching assets.
-- [ ] Body lines fit wide and narrow card interiors, including indented replies;
+- [x] Body lines fit wide and narrow card interiors, including indented replies;
   HTML within inline/fenced/indented code remains literal.
-- [ ] Raw bodies and suggestion parsing remain unchanged; existing safe-input,
+- [x] Raw bodies and suggestion parsing remain unchanged; existing safe-input,
   fallback and bounded-cache behavior remain in effect.
 
 **Verification:**
-- [ ] Add focused failing card tests, then make them pass alongside
+- [x] Add focused failing card tests, then make them pass alongside
   `go test ./internal/tui -run 'DiffCommentMarkdown|ConversationMarkdown|SelectedComment' -count=1`.
-- [ ] Build succeeds: `go build ./...`.
-- [ ] Inspect the synthetic card's rendered text at wide and narrow widths.
+- [x] Build succeeds: `go build ./...`.
+- [x] Inspect the synthetic card's rendered text at wide and narrow widths.
 
 **Dependencies:** None.
 

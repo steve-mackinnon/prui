@@ -37,8 +37,9 @@ const (
 	classRemovedSource
 )
 
-// styledLine is one already-escaped display line plus its semantic class.
-// Text never contains ANSI: styling happens after scrolling and clipping.
+// styledLine is one safe display line plus its semantic class. Source text is
+// escaped and styled after clipping; published comment bodies may also contain
+// trusted ANSI from the local Markdown adapter.
 type styledLine struct {
 	Class lineClass
 	Text  string

@@ -52,7 +52,11 @@ func TestSelectedCommentUsesBorderInsteadOfRowHighlight(t *testing.T) {
 			if cells.CellAt(x, y).Style.Attrs&uv.AttrReverse != 0 {
 				t.Fatal("selected comment still uses reverse row highlight")
 			}
-			left := x - 2
+			border := strings.LastIndex(row[:body], "│")
+			if border < 0 {
+				t.Fatal("selected comment lacks solid side border")
+			}
+			left := visibleWidth(row[:border])
 			if cells.CellAt(left, y).Content != "│" {
 				t.Fatal("selected comment lacks solid side border")
 			}

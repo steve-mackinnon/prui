@@ -385,7 +385,13 @@ type conversationRenderCache struct {
 }
 
 func (m *Model) conversationLines(body string, expanded bool) []string {
-	key := conversationRenderKey{body: body, theme: m.theme.Name + "/" + m.theme.Syntax(theme.Foreground) + "/" + m.theme.Syntax(theme.Background), width: max(1, m.Width), expanded: expanded}
+	return m.conversationLinesAt(body, m.Width, expanded)
+}
+
+// conversationLinesAt shares the bounded cache across standalone conversations
+// and diff cards, whose inner width also depends on reply indentation.
+func (m *Model) conversationLinesAt(body string, width int, expanded bool) []string {
+	key := conversationRenderKey{body: body, theme: m.theme.Name + "/" + m.theme.Syntax(theme.Foreground) + "/" + m.theme.Syntax(theme.Background), width: max(1, width), expanded: expanded}
 	c := &m.discussions.markdown
 	if lines, ok := c.lines[key]; ok {
 		return lines
