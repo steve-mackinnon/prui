@@ -405,13 +405,8 @@ func (m *Model) reviewFormMouse(msg tea.MouseMsg) tea.Cmd {
 	if m.ReviewForm == nil || m.Session == nil {
 		return nil
 	}
-	form := *m
-	if m.Width >= 20 && m.Height >= 8 {
-		form.Width = min(96, m.Width-8)
-		form.Height = min(22, m.Height-2)
-	}
-	body := form.reviewFormView()
-	lines := strings.Split(body, "\n")
+	layout := m.reviewFormModalLayout()
+	body := layout.text()
 	b := actionBodyBounds(m.Width, m.Height, body)
 	event := msg.Mouse()
 	if !image.Pt(event.X, event.Y).In(b) {
@@ -435,127 +430,7 @@ func (m *Model) reviewFormMouse(msg tea.MouseMsg) tea.Cmd {
 	if !ok || c.Button != tea.MouseLeft {
 		return nil
 	}
-	row, x := c.Y-b.Min.Y, c.X-b.Min.X
-	if row == len(lines)-1 {
-		if k := hintMouseKey(reviewFormFooter(f), x, b.Dx()); k != "" {
-			return m.reviewFormKey(mouseKey(k))
-		}
-		return nil
-	}
-	if f.Confirm {
-		return nil
-	}
-	choices := 2
-	if form.Height >= 9 {
-		choices++
-	}
-	if form.Height >= 12 {
-		choices++
-	}
-	if form.Height <= 8 {
-		choices = 0
-		if form.Height >= 7 {
-			choices++
-		}
-		if form.Height >= 6 || form.Height == 5 && m.ActionError == nil {
-			choices++
-		}
-	}
-	if row >= choices && row < choices+len(reviewEvents) {
-		f.Event = row - choices
-		f.Focus = 0
-		return nil
-	}
-	pendingTop, pendingStart, pendingCount := form.reviewPendingMouseRows()
-	if row >= pendingTop && row < pendingTop+pendingCount {
-		f.Focus = 2
-		f.Selected = pendingStart + row - pendingTop
-		return nil
-	}
-	if row >= choices+len(reviewEvents) {
-		f.Focus = 1
-		summaryTop := choices + len(reviewEvents)
-		if form.Height >= 13 {
-			summaryTop++
-		}
-		summaryTop++ // heading
-		bordered := form.Height >= 14 && form.Width >= 20
-		if bordered {
-			summaryTop++
-		}
-		end := pendingTop - 1
-		if bordered {
-			end--
-		}
-		if row >= summaryTop && row < end {
-			bodyRows := strings.Split(f.Body, "\n")
-			before := string([]rune(f.Body)[:min(f.Cursor, len([]rune(f.Body)))])
-			cursorLine := strings.Count(before, "\n")
-			limit := end - summaryTop
-			start := max(0, min(cursorLine-limit+1, len(bodyRows)-limit))
-			if at, ok := editorCursorAt(f.Body, f.Cursor, 1<<20, true, true, x-4, row-summaryTop+start); ok {
-				f.Cursor = at
-			}
-		}
-	}
-	return nil
-}
-
-// Reproduce the form's structural row allocation; pending bodies are never
-// interpreted as control labels or used to locate their own hit regions.
-func (m *Model) reviewPendingMouseRows() (top, start, count int) {
-	f := m.ReviewForm
-	if f == nil || f.Confirm || m.Height <= 8 {
-		return 0, 0, 0
-	}
-	lines := 1
-	if m.Height >= 9 {
-		lines++
-	}
-	if m.Height >= 12 {
-		lines++
-	}
-	lines += 1 + len(reviewEvents)
-	if m.Height >= 13 {
-		lines++
-	}
-	lines++ // summary heading
-	reserved := 2
-	if len(m.Pending) > 0 {
-		reserved++
-	}
-	if !m.Session.Inventory.Complete {
-		reserved++
-	}
-	if m.ActionError != nil {
-		reserved += 2
-	}
-	bordered := m.Height >= 14 && m.Width >= 20
-	if bordered {
-		reserved += 2
-	}
-	bodyLimit := max(1, min(3, m.Height-lines-reserved))
-	bodyLines := min(len(strings.Split(f.Body, "\n")), bodyLimit)
-	if m.Height >= 14 {
-		bodyLines = bodyLimit
-	}
-	lines += bodyLines
-	if bordered {
-		lines += 2
-	}
-	lines++ // pending heading
-	top = lines
-	reserved = 1
-	if !m.Session.Inventory.Complete {
-		reserved++
-	}
-	if m.ActionError != nil {
-		reserved += 2
-	}
-	available := max(0, m.Height-lines-reserved)
-	start = max(0, f.Selected-available+1)
-	count = min(available, max(0, len(m.Pending)-start))
-	return
+	return m.clickReviewForm(layout, c.X-b.Min.X, c.Y-b.Min.Y)
 }
 
 func (m *Model) modalReviewHints() string {
