@@ -92,7 +92,7 @@ See [storage and deletion](docs/REFERENCE.md#local-storage-and-deletion) and
 
 ## Development
 
-Requires Go **1.26.9+**. Clone the repository and run `go install ./cmd/prui` to
+Requires Go **1.26.10+**. Clone the repository and run `go install ./cmd/prui` to
 build from source. Run `./scripts/verify.sh` for formatting, vet, race tests, PTY
 tests, and build checks. See [TESTING.md](TESTING.md#repository-verification) for all
 verification gates, [CONSTRAINTS.md](CONSTRAINTS.md) for the quality contract,

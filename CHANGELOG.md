@@ -5,6 +5,11 @@ User-visible changes are recorded here before each release. See
 
 ## [Unreleased]
 
+### Security
+
+- Require Go 1.26.10 to include the crypto/x509 certificate verification fix
+  for GO-2026-6809.
+
 ### Changed
 
 - Consolidate review refresh into **Refresh PR** (`r`): check GitHub, load a new
