@@ -38,6 +38,7 @@ func TestDiffStyleScreenshotRegressions(t *testing.T) {
 				markerRole = theme.Removed
 			}
 			marker, _ := palette.Color(markerRole)
+			marker = readableSourceColor(marker, sourceBackground(palette, row.Class), colorprofile.TrueColor)
 			if !sameCanvasColor(cells.CellAt(0, 0).Style.Fg, marker) {
 				t.Errorf("marker color lost: %q", row.Text)
 			}
@@ -62,6 +63,28 @@ func TestDiffStyleScreenshotRegressions(t *testing.T) {
 	}
 }
 
+func TestHighContrastDiffInheritsTerminalForeground(t *testing.T) {
+	palette, _ := theme.Resolve(theme.HighContrast, nil)
+	for _, profile := range []colorprofile.Profile{colorprofile.TrueColor, colorprofile.ANSI256, colorprofile.ANSI} {
+		m := &Model{theme: palette, styles: stylesFor(palette), colorProfile: profile}
+		for _, class := range []lineClass{classContext, classAdded, classRemoved} {
+			marker := map[lineClass]string{classContext: " ", classAdded: "+", classRemoved: "-"}[class]
+			row := diffLine{styledLine: styledLine{class, marker + "plain tail"}}
+			const prefix = "  1   1 "
+			got := downsample(m.styleLine(sourceLineClass(class), m.syntaxText(row, 0, 80, prefix)), profile)
+			cells := canvasCells(got, visibleWidth(got), 1)
+			for x := 0; x < visibleWidth(got); x++ {
+				if x == len(prefix) { // Added/removed patch markers keep their semantic color.
+					continue
+				}
+				if fg := cells.CellAt(x, 0).Style.Fg; fg != nil {
+					t.Fatalf("%s class %d cell %d: expected terminal foreground, got %#v", profile, class, x, fg)
+				}
+			}
+		}
+	}
+}
+
 func TestDiffStyleThemesProfilesAndFragments(t *testing.T) {
 	names := append(theme.BuiltInNames(), "custom")
 	for _, name := range names {
@@ -75,13 +98,16 @@ func TestDiffStyleThemesProfilesAndFragments(t *testing.T) {
 			for _, profile := range []colorprofile.Profile{colorprofile.TrueColor, colorprofile.ANSI256, colorprofile.ANSI, colorprofile.Ascii, colorprofile.NoTTY} {
 				m := &Model{theme: palette, styles: stylesFor(palette), colorProfile: profile}
 				fg, _ := palette.Color(theme.Foreground)
+				if palette.Syntax(theme.Foreground) == "default" {
+					fg = nil // Inherited terminal foreground remains unset in rendered cells.
+				}
 				green, _ := palette.Color(theme.Added)
 				plain := diffLine{styledLine: styledLine{classAdded, "+.map(toItem)"}}
 				plainRendered := downsample(m.styleLine(classAddedSource, m.syntaxText(plain, 0, 40, "")), profile)
 				if profile > colorprofile.Ascii {
 					cells := canvasCells(plainRendered, len(plain.Text), 1)
 					for x := 1; x < len(plain.Text); x++ {
-						if !sameCanvasColor(cells.CellAt(x, 0).Style.Fg, profile.Convert(fg)) {
+						if !sameCanvasColor(cells.CellAt(x, 0).Style.Fg, convertedSourceColor(fg, sourceBackground(palette, classAdded), profile)) {
 							t.Fatalf("%s: token-free cell %d inherited a diff color", profile, x)
 						}
 					}
@@ -118,7 +144,7 @@ func TestDiffStyleThemesProfilesAndFragments(t *testing.T) {
 							if x >= 8 && x < 15 {
 								want = green
 							}
-							if !sameCanvasColor(cells.CellAt(x, 0).Style.Fg, profile.Convert(want)) {
+							if !sameCanvasColor(cells.CellAt(x, 0).Style.Fg, convertedSourceColor(want, sourceBackground(palette, class), profile)) {
 								t.Fatalf("%s class %d fragmented %v cell %d wrong foreground", profile, class, fragmented, x)
 							}
 							if fragmented && (cells.CellAt(x, 0).Style.Attrs&uv.AttrBold == 0 || cells.CellAt(x, 0).Style.Underline == 0) {
@@ -159,6 +185,7 @@ func TestDiffStyleGeometryAndLinks(t *testing.T) {
 		}
 		cells := canvasCells(split, 40, 1)
 		marker, _ := palette.Color(theme.Added)
+		marker = readableSourceColor(marker, sourceBackground(palette, classAdded), colorprofile.TrueColor)
 		fg, _ := palette.Color(theme.Foreground)
 		if !sameCanvasColor(cells.CellAt(6, 0).Style.Fg, marker) || !sameCanvasColor(cells.CellAt(8, 0).Style.Fg, fg) {
 			t.Fatal("split marker/source colors mixed")
@@ -219,6 +246,7 @@ func TestDiffStyleSearchSelectionAndResetBoundaries(t *testing.T) {
 				t.Fatal("match styling leaked")
 			}
 			keyword, _ := m.theme.Color(theme.FocusedBorder)
+			keyword = readableSourceColor(keyword, warning, colorprofile.TrueColor)
 			if !sameCanvasColor(cells.CellAt(8, 0).Style.Fg, keyword) {
 				t.Fatal("search overwrote explicit syntax foreground")
 			}
@@ -253,4 +281,11 @@ func TestDiffStyleSearchSelectionAndResetBoundaries(t *testing.T) {
 			t.Fatalf("reset/attribute boundary at %d: %#v", x, c.Style)
 		}
 	}
+}
+
+func convertedSourceColor(fg, bg color.Color, profile colorprofile.Profile) color.Color {
+	if fg == nil {
+		return nil
+	}
+	return profile.Convert(readableSourceColor(fg, bg, profile))
 }
