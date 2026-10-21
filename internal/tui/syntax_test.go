@@ -76,6 +76,7 @@ func TestSyntaxThemeColorsSurviveDiffAndSelectionStyles(t *testing.T) {
 		rendered := m.styleLine(line.Class, m.syntaxText(line, 0, 30, ""))
 		cells := canvasCells(rendered, 30, 1)
 		expected, _ := palette.Color(theme.FocusedBorder)
+		expected = readableSourceColor(expected, sourceBackground(palette, line.Class), m.colorProfile)
 		if !sameCanvasColor(cells.CellAt(1, 0).Style.Fg, expected) {
 			t.Fatalf("%s: keyword color overridden", name)
 		}
@@ -126,6 +127,7 @@ func TestSymbolColorsSurviveDiffGeometry(t *testing.T) {
 			for _, role := range roles {
 				x := visibleWidth(line.Text[:strings.Index(line.Text, role.text)])
 				expected, _ := palette.Color(role.token)
+				expected = readableSourceColor(expected, sourceBackground(palette, line.Class), m.colorProfile)
 				if !sameCanvasColor(cells.CellAt(x, 0).Style.Fg, expected) {
 					t.Fatalf("%s: lost %s color", name, role.text)
 				}

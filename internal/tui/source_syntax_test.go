@@ -176,6 +176,7 @@ func TestSourceSyntaxProjectionReuseAndRendering(t *testing.T) {
 					rendered := m.syntaxText(row, 0, 180, "")
 					cells := canvasCells(rendered, visibleWidth(row.Text), 1)
 					keyword, _ := m.theme.Color(theme.FocusedBorder)
+					keyword = readableSourceColor(keyword, sourceBackground(m.theme, row.Class), profile)
 					if !sameCanvasColor(cells.CellAt(1, 0).Style.Fg, keyword) {
 						t.Fatal("keyword palette lost")
 					}

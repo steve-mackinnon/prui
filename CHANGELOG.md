@@ -5,6 +5,13 @@ User-visible changes are recorded here before each release. See
 
 ## [Unreleased]
 
+### Fixed
+
+- Ensure source text and syntax colors, including comments, reach 4.5:1 contrast
+  against diff backgrounds across themes and terminal color profiles.
+- Preserve terminal foreground colors for diff line numbers and unhighlighted
+  code in High Contrast and other themes that inherit terminal colors.
+
 ## [0.5.0]
 
 ### Added

@@ -133,3 +133,41 @@ func diffContrast(a, b color.Color) float64 {
 	x, y := luminance(a), luminance(b)
 	return (math.Max(x, y) + 0.05) / (math.Min(x, y) + 0.05)
 }
+
+func TestSourceContrastAcrossThemes(t *testing.T) {
+	for _, name := range theme.BuiltInNames() {
+		palette, _ := theme.Resolve(name, nil)
+		for _, profile := range []colorprofile.Profile{colorprofile.TrueColor, colorprofile.ANSI256, colorprofile.ANSI} {
+			m := &Model{theme: palette, styles: stylesFor(palette), colorProfile: profile}
+			for _, class := range []lineClass{classContext, classAdded, classRemoved} {
+				background := profile.Convert(sourceBackground(palette, class))
+				for kind := syntax.Kind(0); kind <= syntax.Builtin; kind++ {
+					row := diffLine{styledLine: styledLine{class, " text"}, syntax: []syntax.Span{{Start: 1, End: 5, Kind: kind}}}
+					if kind == 0 {
+						row.syntax = nil // Also check unhighlighted source and line numbers.
+					}
+					for _, rendered := range []string{
+						m.styleLine(sourceLineClass(class), m.syntaxText(row, 0, 40, "")),
+						m.renderSideBySideCell(&diffCell{line: &row, number: 1}, 20, 0),
+					} {
+						got := downsample(rendered, profile)
+						cells := canvasCells(got, visibleWidth(got), 1)
+						for x := 0; x < visibleWidth(got); x++ {
+							cell := cells.CellAt(x, 0)
+							if cell.Content != "t" {
+								continue
+							}
+							bg := background
+							if cell.Style.Bg != nil {
+								bg = cell.Style.Bg
+							}
+							if fg := cell.Style.Fg; fg != nil && diffContrast(fg, bg) < 4.5 {
+								t.Errorf("%s %s class %d syntax %d: contrast %.2f < 4.5", name, profile, class, kind, diffContrast(fg, bg))
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+}

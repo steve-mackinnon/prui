@@ -157,11 +157,16 @@ func (m *Model) patchMarker(marker string, class lineClass) string {
 func (m *Model) sourceText(line diffLine, horizontal, width int, prefix string, baseRole theme.Token) (rendered string) {
 	defer func() {
 		if m.colorProfile > colorprofile.Ascii {
-			foreground, _ := m.theme.Color(baseRole)
-			if foreground == nil {
-				foreground, _ = m.theme.Color(theme.Foreground)
+			role := baseRole
+			if m.theme.Syntax(role) == "" {
+				role = theme.Foreground
 			}
+			// Canvas inheritance uses nil; lipgloss.NoColor would render as black.
+			foreground := themeBaseColor(m.theme, role)
 			rendered = paintThemeCanvas(rendered, visibleWidth(rendered), 1, foreground, nil)
+			if baseRole == theme.Foreground {
+				rendered = m.readableSource(rendered, line.Class)
+			}
 		}
 		if m.linksAvailable() {
 			rendered = linkSourceURLs(rendered, line.Text, horizontal, visibleWidth(clip(prefix, width)))

@@ -293,6 +293,19 @@ separate release acceptance step.
 
 Plan: [Theme presets implementation plan](../../tasks/theme-presets-plan.md).
 
+## Source text contrast
+
+Source rendering adjusts foregrounds below 4.5:1 contrast against context,
+added, and removed row backgrounds. It blends toward white or black only as
+needed, after accounting for the active terminal color profile. Explicit search
+backgrounds take precedence when checking contrast. Palette definitions and
+saved overrides retain their original values; the adjustment is presentation
+only and preserves word emphasis, links, and source geometry.
+
+Inherited foregrounds remain terminal defaults. Inherited backgrounds use the
+same light/dark family baseline as diff fills; actual terminal defaults and
+custom ANSI palettes cannot be measured without terminal color probing.
+
 ## Theme picker context preview
 
 On review and navigation screens, the theme picker overlays the current view.
