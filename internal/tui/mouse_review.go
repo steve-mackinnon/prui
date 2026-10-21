@@ -76,6 +76,25 @@ func (m *Model) mouseReviewClick(x, y int) tea.Cmd {
 	if m.selectedReviewView() == viewDescription {
 		rows := m.overviewRows()
 		index := m.DescriptionScroll + y - 3
+		if y >= 3 && y < 3+m.overviewHeight() && index >= 0 && index < len(rows) && rows[index].action == "footer" {
+			for _, entry := range m.discussionEntries() {
+				if entry.ID == rows[index].id {
+					// Footer rows are trusted controls. Only complete, visible chips activate.
+					plain := ansi.Strip(rows[index].text)
+					for _, control := range m.discussionFooterControls(entry) {
+						at := strings.Index(plain, control.label)
+						if at < 0 {
+							continue
+						}
+						left := visibleWidth(plain[:at])
+						if x >= left && x < left+visibleWidth(control.label) {
+							return m.discussionFooterClick(entry, control.key)
+						}
+					}
+				}
+			}
+			return nil
+		}
 		if y >= 3 && y < 3+m.overviewHeight() && index >= 0 && index < len(rows) && rows[index].action == "actions" {
 			m.discussions.overviewCursor, m.discussions.overviewCursorActive = index, true
 			m.selectOverviewCursor(rows)
@@ -184,6 +203,19 @@ func (m *Model) mouseReviewClick(x, y int) tea.Cmd {
 		return nil
 	}
 	line := lines[i]
+	if line.commentFooter {
+		local := x - g.Detail.Min.X
+		if m.cursorActive {
+			local -= 2
+		}
+		local -= visibleWidth(m.lineNumberPrefix(line))
+		if !m.sideBySideEnabled() {
+			local += m.Horizontal
+		}
+		if cmd, handled := m.diffFooterClick(line, local); handled {
+			return cmd
+		}
+	}
 	target := line.target
 	if line.sideBySide != nil && line.sideBySide.full == nil {
 		old, new := splitCellBounds(m.detailWidth())

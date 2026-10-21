@@ -55,6 +55,7 @@ type ViewerReader func(context.Context) (source.Viewer, error)
 // CommentAction is deliberately small and tab-local. Body is used only for a
 // reply; Reaction is one of the finite GitHub values. Reply bodies follow the private draft contract; reactions remain transient.
 type CommentAction struct {
+	General  bool
 	Metadata source.Metadata
 	Comment  source.ReviewComment
 	Body     string
@@ -89,6 +90,7 @@ type BackgroundCommentListResult struct {
 	Err        error
 }
 type CommentActionResult struct {
+	General    bool
 	Target     int
 	CommentID  int64
 	Generation uint64
@@ -479,6 +481,12 @@ func (m *Model) commentActionKey(key tea.KeyPressMsg) tea.Cmd {
 	if menu.mode == commentActionReply && !m.prepareDraftAttempt("reply") {
 		return nil
 	}
+	if menu.mode == commentActionReact {
+		m.discussions.generation++
+		if m.discussions.cancel != nil {
+			m.discussions.cancel()
+		}
+	}
 	menu.generation++
 	generation, target, submit := menu.generation, m.activeTab, m.submitCommentAction
 	action := m.commentActionRequest(menu)
@@ -486,7 +494,7 @@ func (m *Model) commentActionKey(key tea.KeyPressMsg) tea.Cmd {
 	ctx := m.beginAction()
 	return m.start(func() tea.Msg {
 		reply, reaction, err := submit(ctx, action)
-		return CommentActionResult{Target: target, CommentID: menu.CommentID, Generation: generation, Reply: reply, Reaction: reaction, Delete: action.Delete, Err: err}
+		return CommentActionResult{General: menu.General, Target: target, CommentID: menu.CommentID, Generation: generation, Reply: reply, Reaction: reaction, Delete: action.Delete, Err: err}
 	})
 }
 
@@ -517,7 +525,7 @@ func (m *Model) applyCommentResult(result CommentResult) {
 
 func (m *Model) applyCommentActionResult(result CommentActionResult) {
 	state := m.reviewStateForTarget(result.Target)
-	if state == nil || state.CommentMenu == nil || state.CommentMenu.CommentID != result.CommentID || state.CommentMenu.generation != result.Generation {
+	if state == nil || state.CommentMenu == nil || state.CommentMenu.CommentID != result.CommentID || state.CommentMenu.General != result.General || state.CommentMenu.generation != result.Generation {
 		return
 	}
 	state.Busy, state.ActionError = false, result.Err
@@ -538,7 +546,19 @@ func (m *Model) applyCommentActionResult(result CommentActionResult) {
 		if state.CommentReactions == nil {
 			state.CommentReactions = map[int64][]source.ReviewCommentReaction{}
 		}
-		state.CommentReactions[result.CommentID] = append(state.CommentReactions[result.CommentID], result.Reaction)
+		key := result.CommentID
+		if result.General {
+			key = -key
+		}
+		found := false
+		for _, existing := range state.CommentReactions[key] {
+			if existing.ID == result.Reaction.ID {
+				found = true
+			}
+		}
+		if !found {
+			state.CommentReactions[key] = append(state.CommentReactions[key], result.Reaction)
+		}
 	}
 	updateDiscussionAction(state, result)
 	state.CommentMenu = nil
@@ -1155,9 +1175,9 @@ func (m *Model) commentActionRequest(menu *commentActionMenu) CommentAction {
 	if menu.mode == commentActionReply && menu.ReplyToID > 0 {
 		commentID = menu.ReplyToID
 	}
-	action := CommentAction{Metadata: m.Session.Inventory.Comparison.Metadata, Comment: source.ReviewComment{ID: commentID, Author: menu.Author, Target: menu.Target}, Body: menu.Draft, Reaction: menu.Reaction, Delete: menu.mode == commentActionDeleteConfirm}
+	action := CommentAction{General: menu.General, Metadata: m.Session.Inventory.Comparison.Metadata, Comment: source.ReviewComment{ID: commentID, Author: menu.Author, Target: menu.Target}, Body: menu.Draft, Reaction: menu.Reaction, Delete: menu.mode == commentActionDeleteConfirm}
 	for _, existing := range m.Comments {
-		if existing.ID == commentID {
+		if !menu.General && existing.ID == commentID {
 			action.Comment = existing
 			break
 		}

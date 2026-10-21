@@ -543,12 +543,17 @@ func (g *actionFixtureGH) AddReviewCommentReaction(context.Context, source.Ident
 	return source.ReviewCommentReaction{}, nil
 }
 
+func (g *actionFixtureGH) AddGeneralCommentReaction(context.Context, source.Identity, int64, string) (source.ReviewCommentReaction, error) {
+	g.writes++
+	return source.ReviewCommentReaction{}, nil
+}
+
 func TestCommentActionPreflightUsesPinnedRevision(t *testing.T) {
 	app, saved := wiringFixture(t)
 	frozen := saved.Inventory.Comparison.Metadata
 	gh := &actionFixtureGH{fixtureGH: app.gh.(*fixtureGH), comment: source.ReviewComment{ID: 42, Author: "reviewer", Target: source.ReviewCommentTarget{Identity: frozen.Identity, CommitID: frozen.HeadSHA, Path: "a", Side: "RIGHT", Line: 1}, Body: "existing"}}
 	app.gh = gh
-	for _, kind := range []string{"reply", "reaction", "delete"} {
+	for _, kind := range []string{"reply", "reaction", "general reaction", "delete"} {
 		for _, change := range []string{"description", "identity", "base repository", "head repository", "base SHA", "head SHA"} {
 			t.Run(kind+"/"+change, func(t *testing.T) {
 				gh.value = frozen
@@ -571,7 +576,8 @@ func TestCommentActionPreflightUsesPinnedRevision(t *testing.T) {
 				switch kind {
 				case "reply":
 					action.Body = "reply"
-				case "reaction":
+				case "reaction", "general reaction":
+					action.General = kind == "general reaction"
 					action.Reaction = "+1"
 				case "delete":
 					action.Delete = true

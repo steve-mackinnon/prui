@@ -17,6 +17,11 @@ User-visible changes are recorded here before each release. See
   Unchanged source preserves reading position and drafts; previous comparisons
   and their drafts remain in Saved reviews. Workspace `c` and `N` are aliases.
 
+### Added
+
+- Click thumbs up, thumbs down, or heart reaction counts and a reply arrow in
+  the selected PR comment or discussion footer.
+
 ### Fixed
 
 - Ensure source text and syntax colors, including comments, reach 4.5:1 contrast
