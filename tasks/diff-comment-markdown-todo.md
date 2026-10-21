@@ -1,8 +1,8 @@
 # Readable Diff Comment Markdown and HTML Tasks
 
 Plan: [diff-comment-markdown-plan.md](diff-comment-markdown-plan.md).
-Status: implementation in progress; see checked tasks and evidence below. File destinations approved by the
-user on 2026-10-21; existing `tasks/plan.md` and `tasks/todo.md` are untouched.
+Status: implementation in progress; see checked tasks and evidence below.
+File destinations approved by the user on 2026-10-21; existing `tasks/plan.md` and `tasks/todo.md` are untouched.
 
 ## Task 1: Render readable diff comment bodies
 
@@ -42,18 +42,18 @@ final painting and the existing comment interactions. Keep changes limited to
 the shared comment surface and focused regressions.
 
 **Acceptance criteria:**
-- [ ] Every body row retains its comment ID; selection and actions keep the same
+- [x] Every body row retains its comment ID; selection and actions keep the same
   comment and immutable source target in unified and split layouts.
-- [ ] Nested replies, reactions, file comments, suggestion previews and historical
+- [x] Nested replies, reactions, file comments, suggestion previews and historical
   discussion navigation remain attached to their existing identities/anchors.
-- [ ] Emphasis/code/link styles survive final painting and selected borders;
+- [x] Emphasis/code/link styles survive final painting and selected borders;
   colorless output remains readable without raw control sequences.
 
 **Verification:**
-- [ ] Focused tests pass:
+- [x] Focused tests pass:
   `go test ./internal/tui -run 'DiffCommentMarkdown|SelectedComment|Comment|Historical|ThemeRenderer' -count=1`.
-- [ ] Build succeeds: `go build ./...`.
-- [ ] Inspect selected/unselected cards in unified and split layouts, including
+- [x] Build succeeds: `go build ./...`.
+- [x] Inspect selected/unselected cards in unified and split layouts, including
   one nested reply and one historical comment.
 
 **Dependencies:** Task 1.
@@ -68,10 +68,10 @@ the shared comment surface and focused regressions.
 
 ## Checkpoint: Readability and interaction
 
-- [ ] Tasks 1–2 pass their focused checks and builds.
-- [ ] Wide/narrow sample output shows formatted prose and expanded details with
+- [x] Tasks 1–2 pass their focused checks and builds.
+- [x] Wide/narrow sample output shows formatted prose and expanded details with
   no metadata clutter, truncated borders or incorrect comment actions.
-- [ ] Record observed readability and any limitations before further expansion
+- [x] Record observed readability and any limitations before further expansion
   of scope; new disclosure behavior is outside this plan.
 
 ## Task 3: Verify cache freshness and safe rendering cost
@@ -81,18 +81,18 @@ input and repeated overlay assembly. Adjust the existing cache access only if
 the card integration requires it; avoid a second rendering cache.
 
 **Acceptance criteria:**
-- [ ] Resize, indentation, theme and body edits produce fresh output; shared
+- [x] Resize, indentation, theme and body edits produce fresh output; shared
   caching remains bounded at 128 entries and 4 MiB including raw/rendered text.
-- [ ] Unsafe URLs, terminal controls and encoded controls stay neutralized in
+- [x] Unsafe URLs, terminal controls and encoded controls stay neutralized in
   final cards; malformed HTML retains readable content or sanitized fallback.
-- [ ] Unchanged cards reuse rendering work and satisfy the existing overlay
+- [x] Unchanged cards reuse rendering work and satisfy the existing overlay
   scroll allocation budget without weakening its threshold.
 
 **Verification:**
-- [ ] Focused tests pass:
+- [x] Focused tests pass:
   `go test ./internal/tui -run 'DiffCommentMarkdown|ConversationMarkdown|DiffOverlay' -count=1`.
-- [ ] Build succeeds: `go build ./...`.
-- [ ] Inspect card reflow after resizing and switching themes; confirm comment
+- [x] Build succeeds: `go build ./...`.
+- [x] Inspect card reflow after resizing and switching themes; confirm comment
   selection remains attached to the same ID.
 
 **Dependencies:** Tasks 1–2.
