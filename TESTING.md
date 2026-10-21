@@ -1,5 +1,14 @@
 # Automated verification
 
+## PR list pane resizing
+
+`go test ./internal/tui -run 'PRPickerDivider' -count=1` checks dragging in the PR
+list and switcher, rendered divider placement, updated preview hit testing,
+selection/focus preservation, width limits, cancellation, and restoring the
+preferred width after a narrow terminal. A Bubble Tea event-loop scenario checks
+the rendered transition through drag and terminal resize. Human terminal
+usability remains unverified by these synthetic checks.
+
 ## Unified PR refresh
 
 `go test ./internal/tui ./cmd/prui -run 'RefreshPR|ActionsExposeOnePRRefresh|ManualRefresh|LifecycleCancelRefresh' -count=1`
