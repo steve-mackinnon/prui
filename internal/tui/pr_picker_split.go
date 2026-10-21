@@ -17,6 +17,9 @@ type prPickerGeometry struct {
 func (m *Model) prPickerGeometry(headers int) prPickerGeometry {
 	h := max(1, m.Height)
 	g := prPickerGeometry{header: min(headers, max(0, h-2)), split: m.Width >= 100, leftWidth: max(1, (m.Width-3)*2/5)}
+	if g.split && m.prPickerWidth > 0 {
+		g.leftWidth = m.clampPRPickerWidth(m.prPickerWidth)
+	}
 	available := max(1, h-g.header-1)
 	g.listTop = g.header
 	g.listHeight = available
@@ -28,6 +31,10 @@ func (m *Model) prPickerGeometry(headers int) prPickerGeometry {
 		g.previewTop = g.listTop + g.listHeight + 1
 	}
 	return g
+}
+
+func (m *Model) clampPRPickerWidth(width int) int {
+	return max(24, min(width, m.Width-3-30))
 }
 
 func (m *Model) prPickerRowWidth() int {

@@ -252,6 +252,7 @@ type Model struct {
 	clipboardToastGeneration uint64
 
 	drag                 dividerDrag
+	prPickerWidth        int
 	pendingCenter        bool
 	helpScroll           int
 	helpExpanded         bool

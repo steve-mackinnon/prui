@@ -12,6 +12,8 @@ User-visible changes are recorded here before each release. See
 
 ### Changed
 
+- Drag the divider between the PR list and description preview to resize the
+  panes in wide terminals, including the PR switcher.
 - Consolidate review refresh into **Refresh PR** (`r`): check GitHub, load a new
   comparison when source changes, and refresh discussions and inline comments.
   Unchanged source preserves reading position and drafts; previous comparisons
