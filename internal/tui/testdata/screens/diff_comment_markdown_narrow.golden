@@ -1,0 +1,36 @@
+owner/repo #7                        Actions [Space]  Review [R]
+PRs  Overview  › Files  Guide  Commits
+┌ Files · ▽ Filter (F) · Commits [C] · All commits · Find (/) ─┐
+│  ── text                                                     │
+│  @@ -1,3 +1,3 @@                                             │
+│     1      -one                                              │
+│›   ┌────────────────────────────────────────────────────────┐│
+│    │ @review-bot                                            ││
+│    │   🟡 Valid room builds fail after upload               ││
+│    │                                                        ││
+│    │   When a build contains  .nova/  files,                ││
+│    │    buildRefArchive  rejects it after upload.           ││
+│    │                                                        ││
+│    │   ▾ Learn more                                         ││
+│    │                                                        ││
+│    │   The upload validator accepts every safe path.        ││
+│    │   Example: An agent uploads files, then the archive    ││
+│    │   builder throws.                                      ││
+│    │                                                        ││
+│    │   Devin Review                                         ││
+│    └────────────────────────────────────────────────────────┘│
+│        +----------------------------------------------------+│
+│        | @reviewer                                          |│
+│        |   Confirmed. Keep  <details>  literal in code.     |│
+│        +----------------------------------------------------+│
+│     2      -two                                              │
+│     3      -three                                            │
+│          1 +first                                            │
+│          2 +second                                           │
+│          3 +third                                            │
+│                                                              │
+│  ── image.png                                                │
+│  image.png [binary]                                          │
+└──────────────────────────────────────────────────────────────┘
+0/4 read · R Review (0) · ! Inventory gap · ! 1 unavailable
+↑/↓: scroll · Tab: panes · enter: comment · esc: list

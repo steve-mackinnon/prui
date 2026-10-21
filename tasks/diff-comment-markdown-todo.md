@@ -1,7 +1,7 @@
 # Readable Diff Comment Markdown and HTML Tasks
 
 Plan: [diff-comment-markdown-plan.md](diff-comment-markdown-plan.md).
-Status: implementation in progress; see checked tasks and evidence below.
+Status: implementation complete and verified; evidence is recorded below.
 File destinations approved by the user on 2026-10-21; existing `tasks/plan.md` and `tasks/todo.md` are untouched.
 
 ## Task 1: Render readable diff comment bodies
@@ -112,19 +112,19 @@ overlays, review intentional snapshot changes and complete repository checks.
 Record evidence and remaining limitations without claiming browser fidelity.
 
 **Acceptance criteria:**
-- [ ] The spec and relevant constraints describe formatted diff comments with
+- [x] The spec and relevant constraints describe formatted diff comments with
   expanded details, local-only conversion and preserved raw-body boundaries.
-- [ ] Intentional comment-card snapshots reflect the new presentation; unrelated
+- [x] Intentional comment-card snapshots reflect the new presentation; unrelated
   screen behavior and existing checks remain intact.
-- [ ] Repository verification passes and actual wide/narrow terminal inspection
+- [x] Repository verification passes and actual wide/narrow terminal inspection
   is recorded separately from automated evidence.
 
 **Verification:**
-- [ ] Run screen tests; update affected goldens explicitly and inspect each diff:
+- [x] Run screen tests; update affected goldens explicitly and inspect each diff:
   `go test ./internal/tui -run 'ScreenSnapshots|ConversationMarkdown' -count=1`.
-- [ ] Run `./scripts/verify.sh` (includes `go build ./...`).
-- [ ] Run `git diff --check` and review the final change for scope and safety.
-- [ ] Inspect the synthetic bot comment in a terminal: wide/narrow cards,
+- [x] Run `./scripts/verify.sh` (includes `go build ./...`).
+- [x] Run `git diff --check` and review the final change for scope and safety.
+- [x] Inspect the synthetic bot comment in a terminal: wide/narrow cards,
   unified/split layouts, nested replies, selected border and expanded details.
 
 **Dependencies:** Tasks 1–3.
@@ -140,8 +140,54 @@ split snapshot review into another small verification task.
 
 ## Completion Checkpoint
 
-- [ ] All task acceptance criteria and checks are complete.
-- [ ] Record focused checks, full verification and terminal inspection evidence.
-- [ ] Confirm no new dependency, asset fetching, posting/persistence changes or
+- [x] All task acceptance criteria and checks are complete.
+- [x] Record focused checks, full verification and terminal inspection evidence.
+- [x] Confirm no new dependency, asset fetching, posting/persistence changes or
   per-details UI state entered the implementation.
-- [ ] Summarize readability gains and remaining fidelity limits for user review.
+- [x] Summarize readability gains and remaining fidelity limits for user review.
+
+## Implementation Evidence (2026-10-21)
+
+- First slice: `516a3f8` routes published cards through the width-aware shared
+  renderer and clips their trusted ANSI by display cells during horizontal pan.
+  Synthetic bot metadata/HTML failures were reproduced before the rendering fix;
+  a separate horizontal-pan regression reproduced literal `[1m` fragments.
+- Interaction/cache slice: `3bca710` covers final selected-card painting,
+  dark/light themes, safe hyperlinks, ASCII output, nested replies, file targets,
+  reactions, suggestion previews and historical navigation. The color/link
+  safety tests explicitly select TrueColor rather than depending on the shell.
+- Focused tests passed with `GOCACHE=/private/tmp/prui-go-cache`:
+  `go test ./internal/tui -run 'DiffCommentMarkdown|DiffCommentCard|ConversationMarkdown|SelectedComment|DiffOverlay' -count=1`.
+  `go build ./...` passed after the production slice. Existing scroll allocation
+  thresholds were retained.
+- Independent review approved production behavior, scope, security and cache
+  use. It caught the tests' terminal-profile assumption, which was corrected.
+  A controlled mutation changing expanded details to collapsed failed the card
+  fixture test; the production file was restored byte-for-byte.
+- The first unsandboxed gate exposed three legacy assertions tied to exact
+  paragraph padding or word-wrap positions. `c0e8142` makes those checks
+  independent of padding while retaining raw-control/anchor rejection, checking
+  complete wrapped body text and verifying reply indentation by comment ID.
+  Exact and broader local comment tests passed. Independent review confirmed
+  these changes do not weaken the original guarantees.
+- Reviewed both new final-View snapshots at 64-column unified and 160-column
+  split layouts, including a selected parent, expanded details, linked badge
+  label, nested reply and literal `<details>` code. Printed these exact frames
+  through a PTY for geometry inspection. Final cell styles, horizontal pan,
+  resize/theme freshness and historical navigation are covered separately by
+  tests. This is synthetic rendering evidence, not human usability approval or
+  a live GitHub review. The only existing golden change is paragraph indentation
+  in `comment_thread`; unrelated baselines are unchanged.
+- The initial sandboxed repository gate could not run Git/local-server fixtures:
+  macOS `confstr` warnings polluted fixture IDs and loopback binds were denied.
+  The isolated `TestBlobSingleBoundedRead` passed outside the sandbox, confirming
+  the environment cause. The complete gate subsequently passed outside the sandbox.
+
+Remaining fidelity limits: no CSS, fetched images or per-details toggles; cards
+show all loaded details content expanded. Unknown wrappers retain their text.
+
+Final gate: `GOCACHE=/private/tmp/prui-go-cache ./scripts/verify.sh` passed
+formatting, installer scenarios, vet, the full race-enabled suite (including
+compiled-binary CLI PTY smoke), and `go build ./...`. The TUI package passed in
+112.467 seconds. `git diff --check` passed. No dependency versions, source
+contracts, posting behavior or persistence formats changed.

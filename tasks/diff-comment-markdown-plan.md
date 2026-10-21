@@ -1,8 +1,9 @@
 # Implementation Plan: Readable Diff Comment Markdown and HTML
 
 Date: 2026-10-21.
-Status: planning complete; implementation has not started. The user approved
-these dedicated planning files so existing unfinished task lists stay intact.
+Status: implemented and verified; all tasks and the full repository gate passed.
+The user approved these dedicated planning files so existing unfinished task
+lists stay intact.
 
 ## Overview
 

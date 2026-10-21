@@ -103,13 +103,18 @@
 
 # Complete PR Conversation Contract
 
-- Overview and discussion detail render bodies through the local Markdown/HTML
-  display adapter. HTML comments and unused reference definitions stay hidden;
-  details show summaries and expand in place in Overview. Preserve code literals
+- Overview, discussion detail and published diff comment cards render bodies
+  through the local Markdown/HTML display adapter. HTML comments and unused
+  reference definitions stay hidden; details show summaries and expand in place
+  in Overview. Preserve code literals
   and neutralize controls, decoded entities and unsafe link destinations. Never
   execute HTML or fetch images. Presentation cannot rewrite raw bodies, drafts,
   suggestions, submitted payloads or source targets. The tab-owned render cache
   is bounded to 128 entries and 4 MiB, including raw bodies and rendered lines.
+  Diff cards use their actual inner width (including reply indentation), retain
+  trusted body styling and stable comment identities, and show details expanded
+  without introducing new disclosure controls. Width, theme and body changes
+  cannot reuse stale cached lines.
 
 - Issue #27 supersedes Phase 5's restriction against timeline comments only for
   an explicit general PR comment or @mention reply in the interactive conversation
