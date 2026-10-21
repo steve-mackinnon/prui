@@ -722,6 +722,13 @@ func (m *Model) update(msg tea.Msg) (updated tea.Model, command tea.Cmd) {
 			} else {
 				current.RevisionStatus = v.Freshness.Status
 			}
+			if v.Foreground && v.Target == m.activeTab {
+				if current.RevisionStatus == session.Stale {
+					return m, m.refreshComparison()
+				}
+				m.notice = "PR refreshed; source unchanged."
+				return m, tea.Batch(m.refreshDiscussions(), m.refreshCommentsInBackground())
+			}
 			return m, nil
 		}
 		// Changed comparisons never inherit progress or offsets from old source.
@@ -962,9 +969,6 @@ func (m *Model) update(msg tea.Msg) (updated tea.Model, command tea.Cmd) {
 			if v.String() == "5" && m.Session != nil {
 				m.openIncremental()
 				return m, nil
-			}
-			if v.String() == "c" && m.readDiscussions != nil {
-				return m, tea.Batch(m.refreshDiscussions(), m.refreshComments())
 			}
 			if v.String() == "esc" && (m.restoreDiscussionFiles() || m.restoreDiscussionContext()) {
 				return m, nil

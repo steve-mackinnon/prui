@@ -1,5 +1,13 @@
 # Automated verification
 
+## Unified PR refresh
+
+`go test ./internal/tui ./cmd/prui -run 'RefreshPR|ActionsExposeOnePRRefresh|ManualRefresh|LifecycleCancelRefresh' -count=1`
+checks one named Refresh PR action, the `r`/`c`/`N` workspace aliases,
+current-source capture after a synthetic push, preserved navigation for unchanged
+source, conversation retrieval, durable old drafts and progress, cancellation,
+failed fetches, draft-save failures, and zero feedback submissions during refresh.
+
 ## Approachable review workflow
 
 `go test ./internal/tui -run 'Actions|ReviewHeader|ReviewArrow|GuideArrow|TabSwitch|NavigationTabs|GettingStarted|HelpStarts|RoutineReviewHints' -count=1`

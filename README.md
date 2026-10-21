@@ -39,9 +39,11 @@ prui open https://github.com/owner/repo/pull/42  # open a specific PR
    changes review with your queued comments after confirmation.
 
 Reading progress saves immediately. **Space → Saved reviews** reopens a saved
-comparison. If the author pushes changes, **Actions → New comparison** captures
-an updated snapshot and reconciles progress while retaining the old comparison
-and its drafts. Marking files as read does not submit a GitHub review.
+comparison. Press **r** or choose **Actions → Refresh PR** to update source,
+discussions, and comments. Unchanged code keeps your position and drafts; changed
+code opens the latest comparison while preserving the old review and its drafts
+in Saved reviews. Workspace `c` and `N` are aliases for Refresh PR. Marking files
+as read does not submit a GitHub review.
 
 ## Keys
 
@@ -59,6 +61,7 @@ Keys below apply while navigating; text editors use their own controls.
 | `1` / `2` / `3` / `4` | Overview / Files / Guide / Commits |
 | Space / Ctrl+K | Open Actions for review tools, settings, and saved reviews |
 | `m` / `R` | Mark file read / submit review |
+| `r` | Refresh PR source, discussions, and comments |
 | `/` / `F` | Search diff text / filter file paths |
 | `?` | Help and review health; `s` inside help shows all shortcuts |
 | `q` / Ctrl+C | Quit |

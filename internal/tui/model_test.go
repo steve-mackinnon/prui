@@ -1376,7 +1376,7 @@ func TestBindingsRenderHelpAndFooter(t *testing.T) {
 			t.Fatalf("binding %q missing from help", key)
 		}
 	}
-	for _, key := range []string{"P", "h/l, ctrl+h/ctrl+l", "esc", "q/ctrl+c", "m", "N"} {
+	for _, key := range []string{"P", "h/l, ctrl+h/ctrl+l", "esc", "q/ctrl+c", "m", "r"} {
 		if !strings.Contains(footer, key) {
 			t.Fatalf("binding %q missing from footer", key)
 		}

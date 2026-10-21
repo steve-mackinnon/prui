@@ -83,7 +83,7 @@ func TestLifecycleProgressRefreshPickerAndFreshFailure(t *testing.T) {
 		t.Fatal("plain lifecycle state missing")
 	}
 	action(t, m, 'm')
-	m.SetLifecycle(store, fakeGitHub{meta}, func(_ context.Context, old *review.Session, _ func(string)) (*review.Session, error) {
+	m.SetLifecycle(store, fakeGitHub{changed}, func(_ context.Context, old *review.Session, _ func(string)) (*review.Session, error) {
 		return store.Create(old.Snapshot)
 	})
 	action(t, m, 'n')
@@ -753,8 +753,9 @@ func TestBackgroundReplacementCannotInterruptForegroundReviewAction(t *testing.T
 			}
 			switch kind {
 			case "new comparison":
+				m.reader = canceledReader{}
 				m.fresh = blocked
-				m.lifecycleKey("N")
+				m.lifecycleKey("r")
 			case "guide":
 				m.generateGuide = func(ctx context.Context, s *review.Session, _ guideconfig.Selection, n func(string)) (*review.Session, error) {
 					return blocked(ctx, s, n)
