@@ -325,7 +325,11 @@ func (m *Model) renderSideBySideCell(cell *diffCell, width, horizontal int) stri
 	marker, text := splitPatchMarker(cell.line.Text)
 	gutter := m.patchMarker(marker, cell.line.Class) + " "
 	if m.lineNumbersEnabled() {
-		gutter = fmt.Sprintf("%5d %s", cell.number, gutter)
+		if cell.line.continuation {
+			gutter = "      " + gutter
+		} else {
+			gutter = fmt.Sprintf("%5d %s", cell.number, gutter)
+		}
 	}
 	source := *cell.line
 	source.Text = text
@@ -412,6 +416,9 @@ func numberedPatchText(row diffLine) string {
 }
 
 func patchLineNumberPrefix(row diffLine) string {
+	if row.continuation && (row.oldLine != 0 || row.newLine != 0) {
+		return "          "
+	}
 	switch {
 	case row.oldLine != 0 && row.newLine != 0:
 		return fmt.Sprintf("%4d %4d ", row.oldLine, row.newLine)
