@@ -77,7 +77,7 @@ func TestSubmitPullRequestReviewRequiresFrozenComparison(t *testing.T) {
 		t.Fatal(err, gh.reviews)
 	}
 	gh.value.HeadSHA = frozen.BaseSHA
-	if err := app.submitPullRequestReview(context.Background(), submission); err == nil || !strings.Contains(err.Error(), "new comparison") || len(gh.reviews) != 1 {
+	if err := app.submitPullRequestReview(context.Background(), submission); err == nil || !strings.Contains(err.Error(), "refresh PR (r)") || len(gh.reviews) != 1 {
 		t.Fatal("stale review was submitted", err, gh.reviews)
 	}
 	gh.value = frozen
@@ -112,7 +112,7 @@ func TestSubmitReviewCommentRequiresExactFrozenMetadata(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			gh.value = current
 			before := len(gh.comments)
-			if _, err := app.submitReviewComment(context.Background(), submission); err == nil || !strings.Contains(err.Error(), "new comparison") {
+			if _, err := app.submitReviewComment(context.Background(), submission); err == nil || !strings.Contains(err.Error(), "refresh PR (r)") {
 				t.Fatal("mismatched metadata was allowed", err)
 			}
 			if len(gh.comments) != before {

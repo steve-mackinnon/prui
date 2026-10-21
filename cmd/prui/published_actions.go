@@ -37,7 +37,7 @@ func (a *application) submitPublished(ctx context.Context, action tui.PublishedA
 		return tui.PublishedValue{}, err
 	}
 	if !source.SamePinnedRevision(before, frozen) {
-		return fail("pull request changed; open a new comparison")
+		return fail("pull request changed; refresh PR (r)")
 	}
 	author := ""
 	if action.General {
@@ -100,7 +100,7 @@ func (a *application) submitPublished(ctx context.Context, action tui.PublishedA
 		return tui.PublishedValue{}, err
 	}
 	if !source.SamePinnedRevision(after, frozen) {
-		return fail("pull request changed; open a new comparison")
+		return fail("pull request changed; refresh PR (r)")
 	}
 	if action.Resolve != nil {
 		writer, ok := a.gh.(source.ThreadResolver)

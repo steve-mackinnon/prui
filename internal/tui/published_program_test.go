@@ -13,6 +13,7 @@ import (
 func TestProgramPublishedEditUnknownRefreshAndCanonicalResult(t *testing.T) {
 	m := publishedModel(t)
 	m.Loading = false
+	enablePRRefresh(t, m)
 	m.selectReviewView(viewDescription)
 	var writes atomic.Int32
 	release := make(chan struct{})
@@ -41,6 +42,9 @@ func TestProgramPublishedEditUnknownRefreshAndCanonicalResult(t *testing.T) {
 	h := runProgram(t, m)
 	h.expect("review", func(f programFrame) bool { return !f.loading && f.page == pageReview })
 	h.key('c')
+	h.expect("PR refreshed", func(f programFrame) bool {
+		return !f.busy && strings.Contains(f.text, "Freshness current") && !strings.Contains(f.text, "Refreshing discussions")
+	})
 	h.key('D')
 	h.expect("discussion list", func(f programFrame) bool { return f.page == pageReview && strings.Contains(f.text, "old") })
 	h.key(tea.KeyEnter)

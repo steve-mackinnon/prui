@@ -1,5 +1,12 @@
 # TUI approachability contract (issues #102–104)
 
+- The review workspace exposes one Refresh PR action (`r`; legacy `c`/`N`
+  aliases). It checks pinned metadata and explicitly opens a new comparison on
+  change, preserving the old saved comparison and its drafts without retargeting.
+  Unchanged source preserves navigation and drafts. Successful refresh retrieves
+  discussions and inline comments. Offline, cancellation, and failed retrieval
+  never imply current source; failed draft saves block comparison replacement.
+
 - Review navigation uses focused-pane arrows, Tab/Shift+Tab to switch panes,
   Enter to activate, and Escape to return. Editor and modal input ownership
   takes precedence. Existing expert shortcuts remain accelerators.

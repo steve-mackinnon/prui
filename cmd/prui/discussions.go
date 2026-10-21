@@ -82,7 +82,7 @@ func (a *application) submitGeneralComment(ctx context.Context, frozen source.Me
 		return source.ConversationEvent{}, err
 	}
 	if !source.SamePinnedRevision(current, frozen) {
-		return source.ConversationEvent{}, errors.New("pull request changed; open a new comparison before posting a PR comment")
+		return source.ConversationEvent{}, errors.New("pull request changed; refresh PR (r) before posting a PR comment")
 	}
 	event, err := writer.CreateGeneralComment(ctx, frozen.Identity, body)
 	if err != nil {

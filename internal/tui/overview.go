@@ -54,7 +54,7 @@ func (m *Model) overviewRows() []overviewRow {
 		appendText(d.notice, "", "")
 	}
 	if !d.loaded {
-		label := "Discussions unavailable · c: refresh"
+		label := "Discussions unavailable · r: refresh PR"
 		if m.readDiscussions == nil {
 			label = "Discussions unavailable · offline or unsupported"
 		}

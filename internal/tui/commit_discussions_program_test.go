@@ -16,6 +16,7 @@ import (
 func TestProgramCommitDiscussionReadFallbackJumpReturn(t *testing.T) {
 	m := commitModel(t)
 	m.Loading = false
+	enablePRRefresh(t, m)
 	m.selectReviewView(viewDescription)
 	sha := m.commitEntries()[1].SHA
 	d := testDiscussion("thread-captured", sha)
@@ -74,6 +75,7 @@ func TestProgramCommitCommentNullCurrentAndPartialRefresh(t *testing.T) {
 		t.Run(fmt.Sprintf("historical=%v", historical), func(t *testing.T) {
 			m := commitModel(t)
 			m.Loading = false
+			enablePRRefresh(t, m)
 			s := m.Session
 			sha := s.Inventory.Comparison.Metadata.HeadSHA
 			if historical {
@@ -147,6 +149,7 @@ func TestProgramCommitCommentNullCurrentAndPartialRefresh(t *testing.T) {
 func TestProgramDiscussionFreshnessMismatchSuppressesMainCards(t *testing.T) {
 	m := commitModel(t)
 	m.Loading = false
+	enablePRRefresh(t, m)
 	m.selectReviewView(viewFiles)
 	m.Focus = paneDiff
 	var target *source.ReviewCommentTarget
@@ -169,7 +172,7 @@ func TestProgramDiscussionFreshnessMismatchSuppressesMainCards(t *testing.T) {
 	h.expect("review", func(f programFrame) bool { return f.page == pageReview && !f.loading })
 	h.key('c')
 	h.expect("refresh complete without misplaced card", func(f programFrame) bool {
-		return f.page == pageReview && !strings.Contains(f.text, "Refreshing") && !strings.Contains(f.text, "Live snapshot concern")
+		return f.page == pageReview && !f.busy && strings.Contains(f.text, "Freshness current") && !strings.Contains(f.text, "Refreshing") && !strings.Contains(f.text, "Live snapshot concern")
 	})
 	h.key('D')
 	h.expect("live discussion remains discoverable", func(f programFrame) bool {

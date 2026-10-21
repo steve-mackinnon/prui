@@ -33,7 +33,7 @@ func TestDescriptionViewRendersFrozenEscapedTextAndProvenance(t *testing.T) {
 	}
 }
 
-func TestDescriptionViewKeepsGlobalActionsAndDisablesProgressCommentActions(t *testing.T) {
+func TestDescriptionViewKeepsGlobalActionsAndDisablesProgressActions(t *testing.T) {
 	store, err := session.Open(filepath.Join(t.TempDir(), "sessions"))
 	if err != nil {
 		t.Fatal(err)
@@ -64,14 +64,14 @@ func TestDescriptionViewKeepsGlobalActionsAndDisablesProgressCommentActions(t *t
 	namedKey(m, tea.KeyEscape)
 	_, cmd := m.Update(tea.KeyPressMsg{Code: 'r', Text: "r"})
 	if cmd == nil || !m.Busy {
-		t.Fatal("r did not start metadata refresh from Description")
+		t.Fatal("r did not start PR refresh from Description")
 	}
 	completeAction(t, m, cmd)
 	before := len(m.Session.ReviewedSliceIDs)
 	key(m, 'm')
-	key(m, 'c')
-	if len(m.Session.ReviewedSliceIDs) != before || m.Busy {
-		t.Fatal("Description progress or comment action mutated review state")
+	action(t, m, 'c')
+	if len(m.Session.ReviewedSliceIDs) != before || m.Busy || m.Session.ID != saved.ID || m.Session.RevisionStatus != session.Current {
+		t.Fatal("Description refresh alias changed reading progress or source")
 	}
 }
 

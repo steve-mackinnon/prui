@@ -5,6 +5,18 @@ User-visible changes are recorded here before each release. See
 
 ## [Unreleased]
 
+### Security
+
+- Require Go 1.26.10 to include the crypto/x509 certificate verification fix
+  for GO-2026-6809.
+
+### Changed
+
+- Consolidate review refresh into **Refresh PR** (`r`): check GitHub, load a new
+  comparison when source changes, and refresh discussions and inline comments.
+  Unchanged source preserves reading position and drafts; previous comparisons
+  and their drafts remain in Saved reviews. Workspace `c` and `N` are aliases.
+
 ### Fixed
 
 - Ensure source text and syntax colors, including comments, reach 4.5:1 contrast

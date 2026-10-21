@@ -52,7 +52,7 @@ func (m *Model) reviewActions() []namedReviewAction {
 		{label: "Saved reviews", shortcut: "s", unavailable: unavailable(m.listSessions != nil, "session storage unavailable"), run: m.loadSessions},
 		{label: "Switch pull request", shortcut: "P", run: m.openSwitcher},
 		{label: "Generate guide", shortcut: "g", unavailable: unavailable(m.generateGuide != nil, "guide generation unavailable"), run: local(func() { m.resetGuideDraft(); m.guideFocus = 0; m.guideModelEditing = false; m.push(pageGuideConsent) })},
-		{label: "New comparison", shortcut: "N", unavailable: unavailable(m.fresh != nil && m.store != nil, "new comparison unavailable"), run: lifecycle("N")},
+		{label: "Refresh PR", shortcut: "r", unavailable: unavailable(m.store != nil && m.reader != nil && m.fresh != nil, "PR refresh unavailable"), run: lifecycle("r")},
 		{label: "Changes since previous review", shortcut: "5", run: local(m.openIncremental)},
 		{label: "Filter files by name", shortcut: "F", run: local(func() { m.selectReviewView(viewFiles); m.openFileFilter() })},
 		{label: "Find code", shortcut: "/", run: func() tea.Cmd {
@@ -85,8 +85,6 @@ func (m *Model) reviewActions() []namedReviewAction {
 		{label: "Evidence scope", shortcut: "e", run: local(func() { m.push(pageEvidence); m.Inventory, m.Focus = false, paneList })},
 		{label: "Help and health", shortcut: "?", run: local(func() { m.push(pageHelp) })},
 		{label: "GitHub URL", shortcut: "U", run: local(func() { m.push(pageURL) })},
-		{label: "Refresh GitHub metadata", shortcut: "r", unavailable: unavailable(m.store != nil && m.reader != nil, "metadata refresh unavailable"), run: lifecycle("r")},
-		{label: "Refresh discussions and comments", shortcut: "c", unavailable: unavailable(m.readDiscussions != nil || m.readComments != nil, "discussion refresh unavailable"), run: func() tea.Cmd { return tea.Batch(m.refreshDiscussions(), m.refreshComments()) }},
 	}
 	var reviewControls []namedReviewAction
 	if m.diffReviewView() && !m.commitFilter.subset {
