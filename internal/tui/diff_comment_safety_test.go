@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/charmbracelet/colorprofile"
 	"github.com/charmbracelet/x/ansi"
 	"prui/internal/source"
 	"prui/internal/theme"
@@ -23,6 +24,7 @@ func diffCommentCardText(lines []diffLine) string {
 func TestDiffCommentCardCacheFreshnessAndBounds(t *testing.T) {
 	m := fileScrollModel(120)
 	defer m.Close()
+	m.colorProfile = colorprofile.TrueColor
 	comment := source.ReviewComment{ID: 1, Body: "# Heading\n\n" + strings.Repeat("中文 café words ", 16)}
 	card := func(indent int) string {
 		t.Helper()
@@ -73,6 +75,7 @@ func TestDiffCommentCardCacheFreshnessAndBounds(t *testing.T) {
 func TestDiffCommentCardSanitizesControlsAndUnsafeLinks(t *testing.T) {
 	m := fileScrollModel(120)
 	defer m.Close()
+	m.colorProfile = colorprofile.TrueColor
 	comment := source.ReviewComment{ID: 1, Author: "bot\x1b[2J", Body: "Visible\x1b[2J\a\n&#27;[2J &#7;\n" +
 		`<a href="java&#115;cript:alert(1)">unsafe label</a> [data label](data:text/plain,abc) ` +
 		`<a href="https://example.com/review">safe label</a>`}

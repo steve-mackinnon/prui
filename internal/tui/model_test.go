@@ -999,8 +999,12 @@ func TestInlineCommentsRenderOnlyAtExactFrozenTargets(t *testing.T) {
 	if got := boxed[2]; got.Class != classPlain || !strings.Contains(got.Text, "exact\\x1b[2J") {
 		t.Fatalf("body line = %#v, want escaped plain/white text", got)
 	}
-	view := ansi.Strip(m.reviewView())
-	for _, want := range []string{"+---", "| @reviewer\\x1b[31m", "| exact\\x1b[2J"} {
+	rendered := m.reviewView()
+	if strings.Contains(rendered, "\x1b[2J") || strings.Contains(rendered, "\x1b[31m") {
+		t.Fatal("remote terminal controls reached the rendered comment")
+	}
+	view := ansi.Strip(rendered)
+	for _, want := range []string{"+---", "| @reviewer\\x1b[31m", "exact\\x1b[2J"} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("inline overlay missing bordered comment part %q:\n%s", want, view)
 		}
@@ -1028,15 +1032,14 @@ func TestReviewCommentUsesAvailableDetailWidthAndWrapsLongBody(t *testing.T) {
 	if len(lines) < 5 { // border, author, at least two body rows, border
 		t.Fatalf("long comment body was not wrapped: %#v", lines)
 	}
-	rendered := strings.Join(func() []string {
-		out := make([]string, len(lines))
-		for i := range lines {
-			out[i] = lines[i].Text
-		}
-		return out
-	}(), "\n")
-	if !strings.Contains(rendered, "The final words") || !strings.Contains(rendered, "must remain visible.") {
-		t.Fatalf("wrapped comment lost trailing text:\n%s", rendered)
+	var bodyRows []string
+	for _, line := range lines[2 : len(lines)-1] {
+		body := strings.TrimSpace(ansi.Strip(line.Text))
+		body = strings.TrimSuffix(strings.TrimPrefix(body, "|"), "|")
+		bodyRows = append(bodyRows, body)
+	}
+	if got := strings.Join(strings.Fields(strings.Join(bodyRows, " ")), " "); got != comment.Body {
+		t.Fatalf("wrapped comment body = %q, want complete original %q", got, comment.Body)
 	}
 }
 
@@ -1105,9 +1108,28 @@ func TestReplyEditorAndCanonicalReplyRenderAsIndentedThread(t *testing.T) {
 	m.Comments = []source.ReviewComment{{ID: 7, Target: target, Body: "parent"}, {ID: 8, Target: target, ParentID: 7, Body: "reply"}}
 	m.CommentMenu = &commentActionMenu{CommentID: 7, Target: target, mode: commentActionReply, Draft: "draft"}
 	view := ansi.Strip(m.reviewView())
-	for _, want := range []string{"  | parent", "      | reply", "      |  draft"} {
+	for _, want := range []string{"parent", "reply", "      |  draft"} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("threaded reply missing %q:\n%s", want, view)
+		}
+	}
+	for _, want := range []struct {
+		id     int64
+		body   string
+		prefix string
+	}{{7, "parent", "  |"}, {8, "reply", "      |"}} {
+		found := false
+		for _, row := range m.detail() {
+			plain := ansi.Strip(row.Text)
+			if row.commentID == want.id && strings.Contains(plain, want.body) {
+				found = true
+				if !strings.HasPrefix(plain, want.prefix) {
+					t.Fatalf("comment %d lost indentation: %q", want.id, plain)
+				}
+			}
+		}
+		if !found {
+			t.Fatalf("comment %d missing from thread", want.id)
 		}
 	}
 	if strings.Contains(m.reviewStatus(), "draft") {
