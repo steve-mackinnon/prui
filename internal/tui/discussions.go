@@ -161,6 +161,25 @@ func (m *Model) applyDiscussionResult(v DiscussionResult) {
 	}
 	reconcilePublished(d, v.Snapshot)
 	retainPublished(d, &v.Snapshot)
+	if v.Snapshot.Snapshot.Complete {
+		state.CommentReactions = nil
+	} else {
+		// Observed comments carry canonical totals even when another connection is
+		// incomplete. Keep local confirmations only for identities still omitted.
+		for _, thread := range v.Snapshot.Snapshot.Threads {
+			for _, comment := range thread.Comments {
+				if !thread.Retained && !comment.Retained {
+					delete(state.CommentReactions, comment.ID)
+				}
+			}
+		}
+		for _, event := range v.Snapshot.Snapshot.Events {
+			if event.Kind == "PR comment" && !event.Retained {
+				entry := source.Discussion{ID: event.ID, Kind: event.Kind, Comments: []source.ReviewComment{{}}}
+				delete(state.CommentReactions, discussionReactionID(entry))
+			}
+		}
+	}
 	d.snapshot, d.loaded, d.notice = v.Snapshot, true, ""
 	if d.editor != nil {
 		if v.Snapshot.Snapshot.Timeline && v.Snapshot.Snapshot.Complete && v.Snapshot.CurrentVerified {
@@ -516,6 +535,9 @@ func (m *Model) discussionsView() string {
 			}
 			body = strings.Split(ansi.Wrap(strings.Join(body, "\n"), max(1, m.Width), ""), "\n")
 			height := max(1, m.Height-len(lines)-2)
+			if len(m.discussionFooterControls(t)) > 0 {
+				height = max(1, height-1)
+			}
 			d.scroll = min(d.scroll, max(0, len(body)-height))
 			lines = append(lines, body[d.scroll:min(len(body), d.scroll+height)]...)
 		default:
@@ -532,6 +554,14 @@ func (m *Model) discussionsView() string {
 					marker = "> "
 				}
 				lines = append(lines, clip(marker+discussionStatus(t)+" · "+label, m.Width))
+			}
+		}
+	}
+	if d.detail {
+		entries := m.discussionEntries()
+		if d.selected >= 0 && d.selected < len(entries) {
+			if controls := m.discussionFooterControls(entries[d.selected]); len(controls) > 0 {
+				lines = append(lines, clip(pageMouseFooter(controls, " "), m.Width))
 			}
 		}
 	}
@@ -599,7 +629,7 @@ func insertCommentDiscussion(state *reviewTabState, comment source.ReviewComment
 }
 
 func updateDiscussionAction(state *reviewTabState, result CommentActionResult) {
-	if state == nil || result.Err != nil {
+	if state == nil || result.Err != nil || result.General {
 		return
 	}
 	threads := state.discussions.snapshot.Snapshot.Threads
@@ -734,7 +764,7 @@ func discussionEntries(snapshot source.DiscussionSnapshot) []source.Discussion {
 			continue
 		}
 		seen[event.ID] = true
-		entries = append(entries, source.Discussion{ID: event.ID, Retained: event.Retained, Kind: event.Kind, Decision: event.Decision, CreatedAt: event.CreatedAt, URL: event.URL, Comments: []source.ReviewComment{{Author: event.Author, Body: event.Body, CreatedAt: event.CreatedAt}}})
+		entries = append(entries, source.Discussion{ID: event.ID, Retained: event.Retained, Kind: event.Kind, Decision: event.Decision, CreatedAt: event.CreatedAt, URL: event.URL, Comments: []source.ReviewComment{{ReactionCounts: event.ReactionCounts, Author: event.Author, Body: event.Body, CreatedAt: event.CreatedAt}}})
 	}
 	sort.SliceStable(entries, func(i, j int) bool {
 		a, b := entries[i], entries[j]

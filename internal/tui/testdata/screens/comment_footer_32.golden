@@ -1,0 +1,24 @@
+example/review   Actions [Space]
+PRs  › Overview  Files  Guide  C
+Overview · Discussions [D]
+│ Description · captured when  │
+│ review opened                │
+│ Description was not captured │
+│ for this session.            │
+│                              │
+└──────────────────────────────┘
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Discussions
+▸─ Selected ───────────────────┐
+│ > @alice · PR comment ·      │
+│ timestamp unavailable        │
+│   Please check the fallback  │
+│   behavior.                  │
+│ [👍 2] [👎 1] [❤️ 5]         │
+│ [↩ Reply]                    │
+│                              │
+└──────────────────────────────┘
+
+0/2 · R (0) · ? unknown
+↑↓ · Tab · enter · esc: back

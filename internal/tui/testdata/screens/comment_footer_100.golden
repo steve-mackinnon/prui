@@ -1,0 +1,24 @@
+example/review #42                                                       Actions [Space]  Review [R]
+  PRs [P]  › Overview [1]    Files [2]    Guide [3]    Commits [4]
+Overview · Discussions [D]
+┌──────────────────────────────────────────────────────────────────────────────────────────────────┐
+│ Description · captured when review opened                                                        │
+│ Description was not captured for this session.                                                   │
+│                                                                                                  │
+└──────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Discussions
+▸─ Selected ───────────────────────────────────────────────────────────────────────────────────────┐
+│ > @alice · PR comment · timestamp unavailable                                                    │
+│   Please check the fallback behavior.                                                            │
+│ [👍 2] [👎 1] [❤️ 5] [↩ Reply]                                                                   │
+│                                                                                                  │
+└──────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+
+
+
+
+0/2 read · R Review (0) · ? Freshness unknown · ?: Help
+Space: Actions · ↑/↓: scroll · enter: expand · esc: back

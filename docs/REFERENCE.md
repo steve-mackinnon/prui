@@ -266,6 +266,13 @@ Every interactive PR has `Overview` (`1`), `Files` (`2`), `Guide` (`3`), and `Co
 
 ### Mouse selection and panel resizing
 
+The selected PR comment or discussion shows a compact footer with thumbs up,
+thumbs down, and heart reaction counts. Click a reaction to add it, or click
+`↩ Reply` to focus the existing reply composer. Controls appear only where the
+loaded item supports the action. Reactions use the usual pinned-PR freshness
+check and refresh the conversation totals after confirmation. Explicit non-UTF-8
+locales use reaction tokens in place of emoji.
+
 Click a file, guide row, inventory unit, picker item, diff source cell, or
 comment card to select it. Selecting a file scrolls its diff into view; the file
 header highlights the selection and follows the cursor while navigating the diff.

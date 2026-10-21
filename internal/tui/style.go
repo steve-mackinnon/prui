@@ -47,9 +47,10 @@ type styledLine struct {
 // diffLine keeps the immutable GitHub review target next to the already-safe
 // display data. The target is derived from patch bytes, never terminal text.
 type diffLine struct {
-	searchID     searchSourceID
-	rawSource    string
-	sourceOffset int // escaped-source bytes removed by wrapping or marker stripping
+	commentFooter bool
+	searchID      searchSourceID
+	rawSource     string
+	sourceOffset  int // escaped-source bytes removed by wrapping or marker stripping
 	styledLine
 	syntax, oldSyntax []syntax.Span
 	wordChanges       []syntax.Span

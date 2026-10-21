@@ -185,6 +185,14 @@ func (a *application) submitReviewCommentAction(ctx context.Context, action tui.
 	if !source.SamePinnedRevision(current, action.Metadata) {
 		return source.ReviewComment{}, source.ReviewCommentReaction{}, errors.New("pull request changed; refresh PR (r) before changing a comment")
 	}
+	if action.General {
+		reacter, ok := a.gh.(source.GeneralCommentReactioner)
+		if !ok {
+			return source.ReviewComment{}, source.ReviewCommentReaction{}, errors.New("PR comment reactions unavailable")
+		}
+		reaction, err := reacter.AddGeneralCommentReaction(ctx, action.Metadata.Identity, action.Comment.ID, action.Reaction)
+		return source.ReviewComment{}, reaction, err
+	}
 	if action.Delete {
 		viewer, ok := a.gh.(source.ReviewCommentViewer)
 		if !ok {
@@ -237,6 +245,13 @@ func (a *application) submitReviewCommentAction(ctx context.Context, action tui.
 }
 
 func validReviewCommentAction(action tui.CommentAction) error {
+	if action.General {
+		if !validIdentity(action.Metadata.Identity) || !validSHA(action.Metadata.HeadSHA) || action.Comment.ID <= 0 || action.Delete || action.Body != "" || !source.IsReviewCommentReaction(action.Reaction) {
+			return errors.New("invalid PR comment reaction")
+		}
+		return nil
+	}
+
 	if !validIdentity(action.Metadata.Identity) || action.Comment.ID <= 0 || action.Comment.Target.Identity != action.Metadata.Identity || action.Comment.Target.CommitID != action.Metadata.HeadSHA || !validSHA(action.Metadata.HeadSHA) {
 		return errors.New("invalid review comment action")
 	}

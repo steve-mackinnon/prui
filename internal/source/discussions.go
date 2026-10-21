@@ -50,6 +50,10 @@ type discussionPageInfo struct {
 func (p *discussionPageInfo) more() bool { return p != nil && p.HasNextPage != nil && *p.HasNextPage }
 
 type discussionComment struct {
+	ReactionGroups []struct {
+		Content string
+		Users   struct{ TotalCount int }
+	}
 	FullDatabaseID         json.RawMessage `json:"fullDatabaseId"`
 	Body, URL, DiffHunk    string
 	CreatedAt              time.Time
@@ -69,7 +73,7 @@ type remoteDiscussion struct {
 	Comments                                         discussionComments
 }
 
-const discussionCommentFields = `fullDatabaseId body url diffHunk createdAt author{login} commit{oid} originalCommit{oid} replyTo{fullDatabaseId}`
+const discussionCommentFields = `reactionGroups{content users{totalCount}} fullDatabaseId body url diffHunk createdAt author{login} commit{oid} originalCommit{oid} replyTo{fullDatabaseId}`
 const discussionFields = `id path diffSide startDiffSide subjectType line originalLine startLine originalStartLine isOutdated isResolved viewerCanResolve viewerCanUnresolve comments(first:20){nodes{` + discussionCommentFields + `} pageInfo{hasNextPage endCursor}}`
 const discussionsQuery = `query($owner:String!,$name:String!,$number:Int!,$cursor:String){repository(owner:$owner,name:$name){pullRequest(number:$number){reviewThreads(first:100,after:$cursor){nodes{` + discussionFields + `} pageInfo{hasNextPage endCursor}}}}}`
 const discussionRepliesQuery = `query($id:ID!,$cursor:String){node(id:$id){... on PullRequestReviewThread{comments(first:20,after:$cursor){nodes{` + discussionCommentFields + `} pageInfo{hasNextPage endCursor}}}}}`
@@ -153,7 +157,14 @@ func normalizeDiscussion(raw *remoteDiscussion, id Identity) (Discussion, time.T
 				return Discussion{}, created, errors.New("invalid original commit")
 			}
 		}
-		comment := ReviewComment{CreatedAt: c.CreatedAt, ID: cid, ParentID: parent, Author: author, Body: c.Body, URL: discussionURL(c.URL), DiffHunk: c.DiffHunk}
+		counts := map[string]int{}
+		for _, group := range c.ReactionGroups {
+			token := map[string]string{"THUMBS_UP": "+1", "THUMBS_DOWN": "-1", "HEART": "heart", "LAUGH": "laugh", "HOORAY": "hooray", "CONFUSED": "confused", "ROCKET": "rocket", "EYES": "eyes"}[group.Content]
+			if token != "" {
+				counts[token] = group.Users.TotalCount
+			}
+		}
+		comment := ReviewComment{ReactionCounts: boundedReactionCounts(counts), CreatedAt: c.CreatedAt, ID: cid, ParentID: parent, Author: author, Body: c.Body, URL: discussionURL(c.URL), DiffHunk: c.DiffHunk}
 		if i == 0 && parent == 0 {
 			created = c.CreatedAt
 			d.OriginalCommitID = original
