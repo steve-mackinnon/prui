@@ -1957,8 +1957,13 @@ func (m *Model) reviewCommentLinesAt(comment source.ReviewComment, indent int) [
 			lines = append(lines, wrappedLines(classMetadata, "ctrl+a in comment actions: apply suggestion")...)
 		}
 	}
-	for _, body := range strings.Split(comment.Body, "\n") {
-		lines = append(lines, wrappedLines(classPlain, body)...)
+	for _, body := range m.conversationLinesAt(comment.Body, inner, true) {
+		// The adapter has already escaped untrusted controls. Keep its trusted
+		// styling and links intact; wrappedLines is only for raw metadata.
+		if m.colorProfile <= colorprofile.Ascii {
+			body = ansi.Strip(body)
+		}
+		lines = append(lines, line(classPlain, body))
 	}
 	return append(lines, diffLine{styledLine: styledLine{Class: classMetadata, Text: m.commentBottomBorder(prefix, inner, comment.ID)}, commentID: comment.ID, commentFooter: true})
 }
@@ -2561,7 +2566,7 @@ func (m *Model) reviewViewForLayout(preferSideBySide bool) string {
 	if useSideBySide {
 		detail = m.renderSideBySideViewport(detail, m.detailWidth(), m.Horizontal, cursor-offset, selected)
 	}
-	// Horizontal scrolling stays on unstyled text; styles are applied after clipping.
+	// Source scrolling precedes styling; comment bodies use ANSI-aware clipping.
 	// Split rows need the same stable cursor gutter as unified rows. Without it,
 	// a focused comment target remains selectable but has no visible location.
 	for i, line := range detail {
