@@ -167,7 +167,7 @@ func TestDiffStyleGeometryAndLinks(t *testing.T) {
 	raw := "+literal\t界e\u0301 alpha beta gamma https://example.com/path\x1b"
 	row := diffLine{styledLine: styledLine{classAdded, "+" + Escape(raw)}, rawSource: raw, wordChanges: []syntax.Span{{Start: 1, End: len("+" + Escape(raw)), Kind: syntax.Operator}}}
 	before := row
-	for _, line := range wrapDiffLines([]diffLine{row}, 24) {
+	for i, line := range wrapDiffLines([]diffLine{row}, 24) {
 		for _, pan := range []int{0, 1, 8, 1000} {
 			for _, width := range []int{0, 1, 12, 70} {
 				const prefix = "› "
@@ -180,7 +180,11 @@ func TestDiffStyleGeometryAndLinks(t *testing.T) {
 			}
 		}
 		split := m.renderSideBySideCell(&diffCell{line: &line, number: 42}, 40, 0)
-		if visibleWidth(split) != 40 || !strings.HasPrefix(ansi.Strip(split), "   42 + ") {
+		gutter := "   42 + "
+		if i > 0 {
+			gutter = "      + "
+		}
+		if visibleWidth(split) != 40 || !strings.HasPrefix(ansi.Strip(split), gutter) {
 			t.Fatalf("split geometry changed: %q", split)
 		}
 		cells := canvasCells(split, 40, 1)

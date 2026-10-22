@@ -50,7 +50,8 @@ type diffLine struct {
 	commentFooter bool
 	searchID      searchSourceID
 	rawSource     string
-	sourceOffset  int // escaped-source bytes removed by wrapping or marker stripping
+	sourceOffset  int  // escaped-source bytes removed by wrapping or marker stripping
+	continuation  bool // visual continuation of a wrapped source line
 	styledLine
 	syntax, oldSyntax []syntax.Span
 	wordChanges       []syntax.Span

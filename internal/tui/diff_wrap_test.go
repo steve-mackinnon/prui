@@ -3,10 +3,51 @@ package tui
 import (
 	tea "charm.land/bubbletea/v2"
 	"context"
+	"github.com/charmbracelet/x/ansi"
 	"prui/internal/source"
 	"strings"
 	"testing"
 )
+
+func TestWrappedDiffNumbersAppearOnlyOnFirstRow(t *testing.T) {
+	m := New(context.Background(), nil)
+	for _, class := range []lineClass{classAdded, classRemoved, classContext} {
+		line := diffLine{styledLine: styledLine{class, "+alpha beta gamma delta"}, oldLine: 34, newLine: 35}
+		target := &source.ReviewCommentTarget{Path: "file.go", Side: "RIGHT", Line: 35}
+		line.target = target
+		rows := wrapDiffLines([]diffLine{line}, 13)
+		if len(rows) < 2 {
+			t.Fatal("expected wrapped source")
+		}
+		for i, row := range rows {
+			want := "  34   35 "
+			if i > 0 {
+				want = strings.Repeat(" ", 10)
+			}
+			if got := m.lineNumberPrefix(row); got != want {
+				t.Fatalf("class %v row %d: gutter %q, want %q", class, i, got, want)
+			}
+			if row.oldLine != 34 || row.newLine != 35 || row.target != target {
+				t.Fatal("wrapping changed source coordinates or review target")
+			}
+		}
+	}
+	old := diffLine{styledLine: styledLine{classRemoved, "-alpha beta gamma delta"}}
+	new := diffLine{styledLine: styledLine{classAdded, "+one two three four five six seven"}}
+	row := diffRow{old: &diffCell{line: &old, number: 34}, new: &diffCell{line: &new, number: 35}}
+	rows := wrapDiffLines([]diffLine{{sideBySide: &row}}, 43)
+	for i, row := range rows {
+		for _, cell := range []*diffCell{row.sideBySide.old, row.sideBySide.new} {
+			if cell == nil {
+				continue
+			}
+			got := ansi.Strip(m.renderSideBySideCell(cell, 20, 0))
+			if i == 0 && strings.TrimSpace(got[:5]) == "" || i > 0 && got[:6] != "      " {
+				t.Fatalf("split row %d repeats or omits number: %q", i, got)
+			}
+		}
+	}
+}
 
 func TestDiffWrappingKeepsTargetsAndLongTokens(t *testing.T) {
 	target := &source.ReviewCommentTarget{Path: "file.go", Side: "RIGHT", Line: 9}
