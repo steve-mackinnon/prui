@@ -5,7 +5,7 @@ import (
 	"image"
 )
 
-// dividerDrag is transient workspace state, never a review-tab preference.
+// dividerDrag is transient mouse state, never a review-tab preference.
 type dividerDrag struct {
 	active     bool
 	grabOffset int
@@ -18,7 +18,8 @@ func (m *Model) cancelMouseDrag() { m.drag = dividerDrag{} }
 func (m *Model) mouseResize(msg tea.MouseMsg) (tea.Cmd, bool) {
 	event := msg.Mouse()
 	wasDragging := m.drag.active
-	if m.Width < 100 || m.top() != pageReview || (!m.diffReviewView() && m.selectedReviewView() != viewCommits) {
+	picker := m.top() == pagePullRequestPicker
+	if m.Width < 100 || (!picker && (m.top() != pageReview || (!m.diffReviewView() && m.selectedReviewView() != viewCommits))) {
 		m.cancelMouseDrag()
 		return nil, wasDragging
 	}
@@ -33,12 +34,22 @@ func (m *Model) mouseResize(msg tea.MouseMsg) (tea.Cmd, bool) {
 	switch msg.(type) {
 	case tea.MouseClickMsg:
 		m.cancelMouseDrag()
-		divider := m.workspaceGeometry().Divider
-		if m.commitFilter.subset {
-			divider = m.filteredGeometry().Divider
-		}
-		if m.selectedReviewView() == viewCommits {
-			divider = m.commitGeometry().Divider
+		var divider image.Rectangle
+		if picker {
+			headers := 1
+			if m.Session != nil {
+				headers = 2
+			}
+			g := m.prPickerGeometry(headers)
+			divider = image.Rect(g.leftWidth, g.listTop, g.leftWidth+3, min(m.Height-1, g.listTop+g.listHeight))
+		} else {
+			divider = m.workspaceGeometry().Divider
+			if m.commitFilter.subset {
+				divider = m.filteredGeometry().Divider
+			}
+			if m.selectedReviewView() == viewCommits {
+				divider = m.commitGeometry().Divider
+			}
 		}
 		if event.Button == tea.MouseLeft && event.Mod == 0 && image.Pt(event.X, event.Y).In(divider) {
 			m.drag = dividerDrag{active: true, grabOffset: event.X - divider.Min.X}
@@ -52,6 +63,10 @@ func (m *Model) mouseResize(msg tea.MouseMsg) (tea.Cmd, bool) {
 		}
 		if event.Button != tea.MouseLeft || event.Mod != 0 {
 			m.cancelMouseDrag()
+			return nil, true
+		}
+		if picker {
+			m.prPickerWidth = m.clampPRPickerWidth(event.X - m.drag.grabOffset)
 			return nil, true
 		}
 		width := m.clampListWidth(event.X - m.drag.grabOffset - 1)

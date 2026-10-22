@@ -107,6 +107,10 @@ header classes are copied with their projection, leaving cached source untouched
 
 ## Line numbers and cursor parity — 2026-10-07
 
+Wrapped source lines show numbers only on their first visual row in both unified
+and split layouts. Continuation rows retain blank number gutters and their raw
+source coordinates and review targets.
+
 Unified Files, Guides, filtered comparisons, and Commits compose the same old/new
 line-number prefix. Numbers are shown by default; uppercase `L` toggles them for
 the current review tab, including split cells. Structural, comment, and editor

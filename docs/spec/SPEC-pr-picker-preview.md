@@ -1,7 +1,12 @@
 # PR picker preview
 
-The PR picker uses a 40/60 list and preview split at widths of 100 columns or
-more. Narrower terminals stack the list over the preview. At tiny heights,
+The PR picker defaults to a 40/60 list and preview split at widths of 100 columns or
+more. Drag the divider or its adjacent spacing with the left mouse button to
+resize the panes, leaving at least 24 columns for the list and 30 for the preview.
+The chosen width is shared with the PR switcher and retained while the app is
+open; terminal resizing clamps the visible width without losing that preference.
+Release, keyboard input, terminal resizing, or leaving the surface cancels a drag.
+Narrower terminals stack the list over the preview. At tiny heights,
 selection takes precedence over the preview. The footer reserves the last row;
 only a one-row terminal omits it to keep the selected PR visible.
 
@@ -31,5 +36,6 @@ available, and known PRs use the same preview.
 
 Verification includes source description parsing, viewport bounds from 24 to 180
 columns and 1 to 24 rows, footer placement, preview scrolling, selection reset,
-mouse routing, and a Bubble Tea event-loop scenario covering focus and resize.
+mouse routing, divider dragging and cancellation, pane width limits, and Bubble
+Tea event-loop scenarios covering focus, dragging, and terminal resizing.
 Human terminal verification is still needed to assess usability.

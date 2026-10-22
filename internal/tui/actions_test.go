@@ -97,7 +97,7 @@ func TestActionsSubmitReviewOpensUnconfirmedFormFromCommits(t *testing.T) {
 func TestActionsUnavailableOperationStaysInMenuWithReason(t *testing.T) {
 	m := actionsModel(t)
 	m.openActions()
-	highlightAction(t, m, "New comparison")
+	highlightAction(t, m, "Refresh PR")
 	if !strings.Contains(m.actionsView(), "unavailable") {
 		t.Fatal("unavailable operation has no reason")
 	}

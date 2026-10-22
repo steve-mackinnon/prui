@@ -55,6 +55,7 @@ type ViewerReader func(context.Context) (source.Viewer, error)
 // CommentAction is deliberately small and tab-local. Body is used only for a
 // reply; Reaction is one of the finite GitHub values. Reply bodies follow the private draft contract; reactions remain transient.
 type CommentAction struct {
+	General  bool
 	Metadata source.Metadata
 	Comment  source.ReviewComment
 	Body     string
@@ -89,6 +90,7 @@ type BackgroundCommentListResult struct {
 	Err        error
 }
 type CommentActionResult struct {
+	General    bool
 	Target     int
 	CommentID  int64
 	Generation uint64
@@ -479,6 +481,12 @@ func (m *Model) commentActionKey(key tea.KeyPressMsg) tea.Cmd {
 	if menu.mode == commentActionReply && !m.prepareDraftAttempt("reply") {
 		return nil
 	}
+	if menu.mode == commentActionReact {
+		m.discussions.generation++
+		if m.discussions.cancel != nil {
+			m.discussions.cancel()
+		}
+	}
 	menu.generation++
 	generation, target, submit := menu.generation, m.activeTab, m.submitCommentAction
 	action := m.commentActionRequest(menu)
@@ -486,7 +494,7 @@ func (m *Model) commentActionKey(key tea.KeyPressMsg) tea.Cmd {
 	ctx := m.beginAction()
 	return m.start(func() tea.Msg {
 		reply, reaction, err := submit(ctx, action)
-		return CommentActionResult{Target: target, CommentID: menu.CommentID, Generation: generation, Reply: reply, Reaction: reaction, Delete: action.Delete, Err: err}
+		return CommentActionResult{General: menu.General, Target: target, CommentID: menu.CommentID, Generation: generation, Reply: reply, Reaction: reaction, Delete: action.Delete, Err: err}
 	})
 }
 
@@ -517,7 +525,7 @@ func (m *Model) applyCommentResult(result CommentResult) {
 
 func (m *Model) applyCommentActionResult(result CommentActionResult) {
 	state := m.reviewStateForTarget(result.Target)
-	if state == nil || state.CommentMenu == nil || state.CommentMenu.CommentID != result.CommentID || state.CommentMenu.generation != result.Generation {
+	if state == nil || state.CommentMenu == nil || state.CommentMenu.CommentID != result.CommentID || state.CommentMenu.General != result.General || state.CommentMenu.generation != result.Generation {
 		return
 	}
 	state.Busy, state.ActionError = false, result.Err
@@ -538,7 +546,19 @@ func (m *Model) applyCommentActionResult(result CommentActionResult) {
 		if state.CommentReactions == nil {
 			state.CommentReactions = map[int64][]source.ReviewCommentReaction{}
 		}
-		state.CommentReactions[result.CommentID] = append(state.CommentReactions[result.CommentID], result.Reaction)
+		key := result.CommentID
+		if result.General {
+			key = -key
+		}
+		found := false
+		for _, existing := range state.CommentReactions[key] {
+			if existing.ID == result.Reaction.ID {
+				found = true
+			}
+		}
+		if !found {
+			state.CommentReactions[key] = append(state.CommentReactions[key], result.Reaction)
+		}
 	}
 	updateDiscussionAction(state, result)
 	state.CommentMenu = nil
@@ -570,7 +590,7 @@ func (m *Model) lifecycleKey(k string) (tea.Cmd, bool) {
 	if m.store == nil || m.Session == nil {
 		return nil, false
 	}
-	if m.selectedReviewView() == viewDescription && (k == "m" || k == "c") {
+	if m.selectedReviewView() == viewDescription && k == "m" {
 		return nil, true
 	}
 	s := *m.Session
@@ -587,9 +607,12 @@ func (m *Model) lifecycleKey(k string) (tea.Cmd, bool) {
 		m.ActionError = review.Mark(m.ctx, m.store, m.Session, id, !slices.Contains(s.ReviewedSliceIDs, id))
 		m.notice = ""
 		return nil, true
-	case "r":
+	case "r", "c", "N":
 		if m.reader == nil {
-			m.ActionError = errors.New("offline mode: metadata refresh is unavailable")
+			m.ActionError = errors.New("offline mode: PR refresh is unavailable")
+			return nil, true
+		}
+		if !m.persistDraft(m.reviewTabState) {
 			return nil, true
 		}
 		// Persist an unknown/failed check before cancellable work, on the owner.
@@ -601,7 +624,7 @@ func (m *Model) lifecycleKey(k string) (tea.Cmd, bool) {
 		m.Session.State = state
 		target := m.activeTab
 		reader, metadata := m.reader, s.Inventory.Comparison.Metadata
-		m.notice = "Checking GitHub metadata only; source stays local..."
+		m.notice = "Refreshing PR; checking for source changes..."
 		ctx := m.beginAction()
 		generation := m.tabs[target].freshnessGeneration
 		return m.start(func() tea.Msg {
@@ -613,27 +636,7 @@ func (m *Model) lifecycleKey(k string) (tea.Cmd, bool) {
 					status = session.Current
 				}
 			}
-			return PullRequestRefreshResult{Target: target, SessionID: s.ID, Generation: generation, Foreground: true, Freshness: PullRequestFreshness{Status: status}, Err: ctx.Err()}
-		}), true
-	case "c":
-		if m.readComments == nil {
-			m.ActionError = errors.New("offline mode: comment refresh is unavailable")
-			return nil, true
-		}
-		return m.refreshComments(), true
-	case "N":
-		if m.fresh == nil {
-			return nil, true
-		}
-		m.notice = "Opening new comparison; old snapshot and progress retained..."
-		ctx := m.beginAction()
-		return m.start(func() tea.Msg {
-			n := m.notify
-			if n == nil {
-				n = func(string) {}
-			}
-			fresh, err := m.fresh(ctx, &s, n)
-			return ActionResult{Session: fresh, Err: err, Reset: true}
+			return PullRequestRefreshResult{Target: target, SessionID: s.ID, Generation: generation, Foreground: true, Freshness: PullRequestFreshness{Status: status}, Err: err}
 		}), true
 	case "s":
 		return m.loadSessions(), true
@@ -650,6 +653,28 @@ func (m *Model) lifecycleKey(k string) (tea.Cmd, bool) {
 		return nil, true
 	}
 	return nil, false
+}
+
+// Only an explicit PR refresh may move drafts off screen to their saved
+// comparison. Background freshness checks keep the reviewer on their source.
+func (m *Model) refreshComparison() tea.Cmd {
+	if m.fresh == nil {
+		m.ActionError = errors.New("PR changed; loading current source is unavailable")
+		return nil
+	}
+	if !m.persistDraft(m.reviewTabState) {
+		return nil
+	}
+	s, fresh, notify := *m.Session, m.fresh, m.notify
+	if notify == nil {
+		notify = func(string) {}
+	}
+	m.notice = "PR changed; loading current source. Previous drafts remain in Saved reviews..."
+	ctx := m.beginAction()
+	return m.start(func() tea.Msg {
+		next, err := fresh(ctx, &s, notify)
+		return ActionResult{Session: next, Err: err, Reset: true}
+	})
 }
 
 func (m *Model) guideConsentKey(k string) tea.Cmd {
@@ -1113,7 +1138,7 @@ func progress(s *review.Session) string {
 	}
 	text := fmt.Sprintf("freshness: %s | %d/%d read (local)", state, len(s.ReviewedSliceIDs), len(s.Slices))
 	if state == session.Stale {
-		text += " | keep reading old or N: new/reset"
+		text += " | r: refresh PR"
 	}
 	if state == session.Unchecked || state == session.CheckFailed {
 		text += " | freshness unknown"
@@ -1150,9 +1175,9 @@ func (m *Model) commentActionRequest(menu *commentActionMenu) CommentAction {
 	if menu.mode == commentActionReply && menu.ReplyToID > 0 {
 		commentID = menu.ReplyToID
 	}
-	action := CommentAction{Metadata: m.Session.Inventory.Comparison.Metadata, Comment: source.ReviewComment{ID: commentID, Author: menu.Author, Target: menu.Target}, Body: menu.Draft, Reaction: menu.Reaction, Delete: menu.mode == commentActionDeleteConfirm}
+	action := CommentAction{General: menu.General, Metadata: m.Session.Inventory.Comparison.Metadata, Comment: source.ReviewComment{ID: commentID, Author: menu.Author, Target: menu.Target}, Body: menu.Draft, Reaction: menu.Reaction, Delete: menu.mode == commentActionDeleteConfirm}
 	for _, existing := range m.Comments {
-		if existing.ID == commentID {
+		if !menu.General && existing.ID == commentID {
 			action.Comment = existing
 			break
 		}

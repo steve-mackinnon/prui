@@ -210,6 +210,7 @@ type commentComposer struct {
 }
 
 type commentActionMenu struct {
+	General    bool
 	RootAnchor *source.ReviewCommentTarget
 	CommentID  int64
 	ReplyToID  int64 // GitHub permits replies only to the thread's root comment.
@@ -252,6 +253,7 @@ type Model struct {
 	clipboardToastGeneration uint64
 
 	drag                 dividerDrag
+	prPickerWidth        int
 	pendingCenter        bool
 	helpScroll           int
 	helpExpanded         bool
@@ -637,12 +639,16 @@ func (m *Model) update(msg tea.Msg) (updated tea.Model, command tea.Cmd) {
 	case PublishedResult:
 		m.applyPublishedResult(v)
 	case CommentActionResult:
+		state := m.reviewStateForTarget(v.Target)
+		accepted := state != nil && state.CommentMenu != nil && state.CommentMenu.CommentID == v.CommentID && state.CommentMenu.General == v.General && state.CommentMenu.generation == v.Generation
 		active := m.activeTab
 		busy, actionErr, notice := m.Busy, m.ActionError, m.notice
 		v.Err = m.finishAction(v.Err)
 		m.applyCommentActionResult(v)
 		if active != v.Target {
 			m.Busy, m.ActionError, m.notice = busy, actionErr, notice
+		} else if accepted && v.Err == nil && v.Reaction.ID > 0 && m.CommentMenu == nil {
+			return m, m.refreshDiscussions()
 		}
 	case CommentListResult:
 		active := m.activeTab
@@ -721,6 +727,13 @@ func (m *Model) update(msg tea.Msg) (updated tea.Model, command tea.Cmd) {
 				current.State = updated
 			} else {
 				current.RevisionStatus = v.Freshness.Status
+			}
+			if v.Foreground && v.Target == m.activeTab {
+				if current.RevisionStatus == session.Stale {
+					return m, m.refreshComparison()
+				}
+				m.notice = "PR refreshed; source unchanged."
+				return m, tea.Batch(m.refreshDiscussions(), m.refreshCommentsInBackground())
 			}
 			return m, nil
 		}
@@ -962,9 +975,6 @@ func (m *Model) update(msg tea.Msg) (updated tea.Model, command tea.Cmd) {
 			if v.String() == "5" && m.Session != nil {
 				m.openIncremental()
 				return m, nil
-			}
-			if v.String() == "c" && m.readDiscussions != nil {
-				return m, tea.Batch(m.refreshDiscussions(), m.refreshComments())
 			}
 			if v.String() == "esc" && (m.restoreDiscussionFiles() || m.restoreDiscussionContext()) {
 				return m, nil
@@ -1955,7 +1965,7 @@ func (m *Model) reviewCommentLinesAt(comment source.ReviewComment, indent int) [
 		}
 		lines = append(lines, line(classPlain, body))
 	}
-	return append(lines, diffLine{styledLine: styledLine{Class: classMetadata, Text: m.commentBottomBorder(prefix, inner, comment.ID)}, commentID: comment.ID})
+	return append(lines, diffLine{styledLine: styledLine{Class: classMetadata, Text: m.commentBottomBorder(prefix, inner, comment.ID)}, commentID: comment.ID, commentFooter: true})
 }
 
 func (m *Model) commentBottomBorder(prefix string, inner int, commentID int64) string {
@@ -2544,6 +2554,15 @@ func (m *Model) reviewViewForLayout(preferSideBySide bool) string {
 	if sticky >= 0 {
 		pinned = detail[0]
 	}
+	footerRow, footerText := -1, ""
+	if m.CommentMenu == nil {
+		for i, line := range detail {
+			if line.commentFooter && line.commentID == selectedCommentID {
+				footerRow, footerText = i, m.selectedCommentFooter(line)
+				break
+			}
+		}
+	}
 	if useSideBySide {
 		detail = m.renderSideBySideViewport(detail, m.detailWidth(), m.Horizontal, cursor-offset, selected)
 	}
@@ -2562,6 +2581,9 @@ func (m *Model) reviewViewForLayout(preferSideBySide bool) string {
 		marker := ""
 		if m.cursorActive {
 			marker = cursorMarker(offset+i == cursor)
+		}
+		if i == footerRow {
+			line.Text = footerText
 		}
 		if useSideBySide {
 			if line.sideBySide != nil && line.sideBySide.full == nil {

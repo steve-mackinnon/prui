@@ -137,10 +137,17 @@ func (m *Model) mouseUpdate(msg tea.MouseMsg) tea.Cmd {
 		if click.Y == footerY {
 			return m.discussionKey(pageMouseFooterKey(m.discussionMouseControls(), " · ", click.X, m.Width))
 		}
+		entries := m.discussionEntries()
+		if m.discussions.detail && m.discussions.selected >= 0 && m.discussions.selected < len(entries) {
+			entry := entries[m.discussions.selected]
+			if controls := m.discussionFooterControls(entry); len(controls) > 0 && click.Y == footerY-1 {
+				return m.discussionFooterClick(entry, pageMouseFooterKey(controls, " ", click.X, m.Width))
+			}
+		}
 		header, start := m.discussionListStart()
 		index := start + click.Y - header
 		m.discussionMouseClick(click.Y)
-		entries := m.discussionEntries()
+		entries = m.discussionEntries()
 		if !m.discussions.detail && click.Y >= header && click.Y < m.Height-1 && index >= 0 && index < len(entries) && m.mouseActivate("discussion/"+entries[index].ID) {
 			return m.discussionKey("enter")
 		}

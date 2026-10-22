@@ -14,14 +14,15 @@ import (
 
 // Conversation events are live overlay data, never comparison or draft storage.
 type ConversationEvent struct {
-	Retained  bool
-	ID        string
-	Kind      string
-	Decision  string
-	Author    string
-	Body      string
-	URL       string
-	CreatedAt time.Time
+	ReactionCounts ReactionCounts
+	Retained       bool
+	ID             string
+	Kind           string
+	Decision       string
+	Author         string
+	Body           string
+	URL            string
+	CreatedAt      time.Time
 }
 type ConversationSnapshot struct {
 	Events   []ConversationEvent
@@ -35,6 +36,7 @@ type GeneralCommentWriter interface {
 	CreateGeneralComment(context.Context, Identity, string) (ConversationEvent, error)
 }
 type remoteConversationEvent struct {
+	Reactions   remoteReactionCounts `json:"reactions"`
 	ID          int64
 	Body, State string
 	CreatedAt   time.Time `json:"created_at"`
@@ -62,7 +64,7 @@ func normalizeConversation(raw remoteConversationEvent, kind string) (Conversati
 			return ConversationEvent{}, errors.New("invalid submitted review decision")
 		}
 	}
-	return ConversationEvent{ID: kind + ":" + strconv.FormatInt(raw.ID, 10), Kind: kind, Decision: raw.State, Author: author, Body: raw.Body, URL: discussionURL(raw.URL), CreatedAt: t}, nil
+	return ConversationEvent{ReactionCounts: boundedReactionCounts(raw.Reactions), ID: kind + ":" + strconv.FormatInt(raw.ID, 10), Kind: kind, Decision: raw.State, Author: author, Body: raw.Body, URL: discussionURL(raw.URL), CreatedAt: t}, nil
 }
 
 // ListConversation bounds each REST connection to 500 events and the combined
