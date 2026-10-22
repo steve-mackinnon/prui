@@ -1,0 +1,36 @@
+owner/repo #7                                                                                                                        Actions [Space]  Review [R]
+  PRs [P]    Overview [1]  › Files [2]    Guide [3]    Commits [4]
+┌ Files · ▽ Filter (F) ──────────────┬ Commits [C] · All commits · Find (/) · file 1/4 ────────────────────────────────────────────────────────────────────────┐
+│› text                              │  ── text                                                                                                                │
+│  image.png                         │  @@ -1,3 +1,3 @@                                                                                                        │
+│  sub                               │      1 - one                                               │       1 + first                                            │
+│  huge                              │›   ┌───────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐│
+│                                    │    │ @review-bot                                                                                                       ││
+│                                    │    │   🟡 Valid room builds fail after upload                                                                          ││
+│                                    │    │                                                                                                                   ││
+│                                    │    │   When a build contains  .nova/  files,  buildRefArchive  rejects it after upload.                                ││
+│                                    │    │                                                                                                                   ││
+│                                    │    │   ▾ Learn more                                                                                                    ││
+│                                    │    │                                                                                                                   ││
+│                                    │    │   The upload validator accepts every safe path. Example: An agent uploads files, then the archive builder         ││
+│                                    │    │   throws.                                                                                                         ││
+│                                    │    │                                                                                                                   ││
+│                                    │    │   Devin Review                                                                                                    ││
+│                                    │    └───────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘│
+│                                    │        +---------------------------------------------------------------------------------------------------------------+│
+│                                    │        | @reviewer                                                                                                     |│
+│                                    │        |   Confirmed. Keep  <details>  literal in code.                                                                |│
+│                                    │        +---------------------------------------------------------------------------------------------------------------+│
+│                                    │      2 - two                                               │       2 + second                                           │
+│                                    │      3 - three                                             │       3 + third                                            │
+│                                    │                                                                                                                         │
+│                                    │  ── image.png                                                                                                           │
+│                                    │  image.png [binary]                                                                                                     │
+│                                    │  Binary content changed; no text patch. Object IDs in file metadata.                                                    │
+│                                    │  ── sub                                                                                                                 │
+│                                    │  sub [gitlink]                                                                                                          │
+│                                    │  Submodule pointer: 5555555 -> 6666666                                                                                  │
+│                                    │  Submodule content not fetched or executed.                                                                             │
+└────────────────────────────────────┴─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+0/4 read · R Submit review (0) · ! Inventory incomplete · ! 1 unavailable · ?: Health & help
+Space: Actions · ↑/↓: scroll · Tab: panes · enter: comment/menu · esc: list

@@ -2,6 +2,7 @@ package tui
 
 import (
 	tea "charm.land/bubbletea/v2"
+	"unicode"
 	"unicode/utf8"
 )
 
@@ -65,9 +66,38 @@ const (
 // with the caller; pasted text never passes through key interpretation.
 func (e draftEditor) key(key tea.KeyPressMsg) draftEditResult {
 	switch key.String() {
-	case "left", "right", "home", "end", "backspace", "delete":
+	case "left", "right", "home", "end", "backspace", "delete",
+		"alt+left", "alt+right", "alt+b", "alt+f",
+		"super+left", "super+right", "super+backspace", "ctrl+a", "ctrl+e", "ctrl+u":
 		runes := e.clamp()
 		switch key.String() {
+		case "alt+left", "alt+b":
+			for *e.cursor > 0 && !editorWordRune(runes[*e.cursor-1]) {
+				*e.cursor--
+			}
+			for *e.cursor > 0 && editorWordRune(runes[*e.cursor-1]) {
+				*e.cursor--
+			}
+		case "alt+right", "alt+f":
+			for *e.cursor < len(runes) && !editorWordRune(runes[*e.cursor]) {
+				*e.cursor++
+			}
+			for *e.cursor < len(runes) && editorWordRune(runes[*e.cursor]) {
+				*e.cursor++
+			}
+		case "super+left", "ctrl+a", "super+backspace", "ctrl+u":
+			start := *e.cursor
+			for start > 0 && runes[start-1] != '\n' {
+				start--
+			}
+			if key.String() == "super+backspace" || key.String() == "ctrl+u" {
+				*e.body = string(append(runes[:start], runes[*e.cursor:]...))
+			}
+			*e.cursor = start
+		case "super+right", "ctrl+e":
+			for *e.cursor < len(runes) && runes[*e.cursor] != '\n' {
+				*e.cursor++
+			}
 		case "left":
 			*e.cursor = max(0, *e.cursor-1)
 		case "right":
@@ -91,7 +121,7 @@ func (e draftEditor) key(key tea.KeyPressMsg) draftEditResult {
 			return draftRejected
 		}
 	default:
-		if key.Text == "" || key.Mod.Contains(tea.ModCtrl) || key.Mod.Contains(tea.ModAlt) {
+		if key.Text == "" || key.Mod.Contains(tea.ModCtrl) || key.Mod.Contains(tea.ModAlt) || key.Mod.Contains(tea.ModSuper) || key.Mod.Contains(tea.ModMeta) {
 			return draftUnhandled
 		}
 		if !e.insert(key.Text) {
@@ -106,4 +136,9 @@ func composerDraftPolicy(c *commentComposer) draftPolicy {
 		return suggestionDraft
 	}
 	return commentDraft
+}
+
+// Include combining marks so accented words keep their rune boundaries intact.
+func editorWordRune(r rune) bool {
+	return unicode.IsLetter(r) || unicode.IsNumber(r) || unicode.IsMark(r) || r == '_'
 }

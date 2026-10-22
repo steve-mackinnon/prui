@@ -1,5 +1,12 @@
 # TUI approachability contract (issues #102–104)
 
+- The review workspace exposes one Refresh PR action (`r`; legacy `c`/`N`
+  aliases). It checks pinned metadata and explicitly opens a new comparison on
+  change, preserving the old saved comparison and its drafts without retargeting.
+  Unchanged source preserves navigation and drafts. Successful refresh retrieves
+  discussions and inline comments. Offline, cancellation, and failed retrieval
+  never imply current source; failed draft saves block comparison replacement.
+
 - Review navigation uses focused-pane arrows, Tab/Shift+Tab to switch panes,
   Enter to activate, and Escape to return. Editor and modal input ownership
   takes precedence. Existing expert shortcuts remain accelerators.
@@ -103,13 +110,18 @@
 
 # Complete PR Conversation Contract
 
-- Overview and discussion detail render bodies through the local Markdown/HTML
-  display adapter. HTML comments and unused reference definitions stay hidden;
-  details show summaries and expand in place in Overview. Preserve code literals
+- Overview, discussion detail and published diff comment cards render bodies
+  through the local Markdown/HTML display adapter. HTML comments and unused
+  reference definitions stay hidden; details show summaries and expand in place
+  in Overview. Preserve code literals
   and neutralize controls, decoded entities and unsafe link destinations. Never
   execute HTML or fetch images. Presentation cannot rewrite raw bodies, drafts,
   suggestions, submitted payloads or source targets. The tab-owned render cache
   is bounded to 128 entries and 4 MiB, including raw bodies and rendered lines.
+  Diff cards use their actual inner width (including reply indentation), retain
+  trusted body styling and stable comment identities, and show details expanded
+  without introducing new disclosure controls. Width, theme and body changes
+  cannot reuse stale cached lines.
 
 - Issue #27 supersedes Phase 5's restriction against timeline comments only for
   an explicit general PR comment or @mention reply in the interactive conversation

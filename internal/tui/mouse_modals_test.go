@@ -219,14 +219,18 @@ func TestEditorCursorAtEscapingWrappingAndLines(t *testing.T) {
 	for _, tt := range []struct {
 		body                        string
 		cursor, width, x, row, want int
-		hard, multiline             bool
+		hard, multiline, overlay    bool
 	}{
-		{"ab界c", 4, 80, 3, 0, 2, false, false},
-		{"one two three", 13, 7, 2, 1, 10, false, false},
-		{"abc\ndef", 7, 80, 1, 1, 5, true, true},
-		{"abc\ndef", 7, 80, 4, 0, 3, false, false},
+		{"abcd", 1, 80, 2, 0, 2, true, true, true},
+		{"abcd", 1, 80, 2, 0, 1, true, true, false},
+		{"abcdefgh", 1, 4, 0, 1, 4, true, true, true},
+		{"abc\ndef", 3, 80, 0, 1, 4, true, true, true},
+		{"ab界c", 4, 80, 3, 0, 2, false, false, false},
+		{"one two three", 13, 7, 2, 1, 10, false, false, false},
+		{"abc\ndef", 7, 80, 1, 1, 5, true, true, false},
+		{"abc\ndef", 7, 80, 4, 0, 3, false, false, false},
 	} {
-		got, ok := editorCursorAt(tt.body, tt.cursor, tt.width, tt.hard, tt.multiline, tt.x, tt.row)
+		got, ok := editorCursorAt(tt.body, tt.cursor, editorCursorLayout{width: tt.width, hardwrap: tt.hard, multiline: tt.multiline, overlayCaret: tt.overlay}, tt.x, tt.row)
 		if !ok || got != tt.want {
 			t.Fatalf("%q row %d col %d: %d %v want %d", tt.body, tt.row, tt.x, got, ok, tt.want)
 		}

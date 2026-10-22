@@ -19,7 +19,11 @@ cover cases that need a specific target or non-interactive output:
 | `prui resume <id> --new --repo <checkout>` | Start a new comparison using another checkout; keep the old snapshot. |
 | `prui delete <id>` | Immediately delete a local session. |
 
-In the TUI, `s` opens saved sessions and `N` starts a new comparison. Direct
+In the TUI, `s` opens saved sessions and `r` refreshes PR source, discussions,
+and comments. If the source changed, refresh opens a new comparison and preserves
+the old saved review and its drafts; unchanged source keeps navigation and drafts.
+Workspace `c` and `N` are aliases for `r`. Use `prui resume <id> --new` to force
+a new capture of unchanged source, for example to retry syntax capture. Direct
 `resume <id>` remains available when you already know the ID. Opening a PR in
 plain mode saves a snapshot. Normal resume checks GitHub; `--offline` disables
 network operations. `--plain` is also selected automatically for redirected
@@ -249,8 +253,8 @@ Shift+Enter adds a newline.
 | `U` | Show canonical GitHub URL for copying; does not launch a browser |
 | `g` | Request guide generation after confirming source upload; Escape cancels an in-flight request |
 | `m` | Mark/unmark the whole file slice of the selected unit, including its units under other guide sections; saves immediately |
-| `r` | Explicit metadata refresh; no diff recomputation or polling |
-| `N` | Start a new comparison with empty progress; retain the old session |
+| `r` | Refresh PR source, discussions, and comments; preserve the old comparison and drafts if source changes |
+| `c` / `N` | Workspace aliases for Refresh PR |
 | `s` | Session picker; up/down to select, Enter to resume, Esc to return |
 | `t` | Open the theme picker; up/down or `j`/`k` chooses, Enter saves and applies, Esc/`t` cancels |
 | Escape during a cancellable action | Cancel the operation and retain the current review |
@@ -261,6 +265,13 @@ Selection, expansion, and diff scroll offsets survive resizing; navigation posit
 Every interactive PR has `Overview` (`1`), `Files` (`2`), `Guide` (`3`), and `Commits` (`4`) context views, in that order. New reviews open on Overview; `F` opens the Files filename filter; `G` selects Guide. Guide has its own top-level tab and requires explicit generation with `g` when no guide is available. Description is display-only GitHub-flavored Markdown frozen from GitHub when the session opened; it is available after an offline resume and does not refresh when selected. Raw HTML remains literal text, links are not activated, and images never load. Empty captured descriptions and older sessions that did not capture one are labeled explicitly. Context views are not included in `--plain` output.
 
 ### Mouse selection and panel resizing
+
+The selected PR comment or discussion shows a compact footer with thumbs up,
+thumbs down, and heart reaction counts. Click a reaction to add it, or click
+`↩ Reply` to focus the existing reply composer. Controls appear only where the
+loaded item supports the action. Reactions use the usual pinned-PR freshness
+check and refresh the conversation totals after confirmation. Explicit non-UTF-8
+locales use reaction tokens in place of emoji.
 
 Click a file, guide row, inventory unit, picker item, diff source cell, or
 comment card to select it. Selecting a file scrolls its diff into view; the file
@@ -379,8 +390,8 @@ Press `enter` on a selected commentable diff line to open an inline editor immed
 
 `R` opens **Submit review** from any PR context view. The form shows Comment, Approve, and Request changes as radio choices; use `j`/`k` or up/down to select one. All three choices and the selected state remain visible through confirmation, including on short terminals. Press Tab or Enter to move to the comment box below. Comment and Request changes require text; Approve allows an empty comment. Tab again to browse pending line comments: Enter edits the selected draft at its diff target, and `d` removes it. Enter in the comment box opens a confirmation showing the review decision and pending count; a second Enter sends the review and all pending comments to GitHub in one request. Escape backs out without writing. A failed submission leaves the comment and pending drafts in memory for inspection; because a network failure can have an uncertain outcome, check GitHub before retrying. Successful submission clears the local queue and refreshes the inline comment overlay.
 
-Online reviews load bounded review discussions through GitHub GraphQL; `c`
-refreshes them. `D` opens the PR-wide list, including outdated, file-level,
+Online reviews load bounded review discussions through GitHub GraphQL; **Refresh PR**
+(`r`) refreshes them along with source and inline comments. `D` opens the PR-wide list, including outdated, file-level,
 multiline, and unplaceable discussions. Select with j/k or arrows, Enter reads
 replies and a historical snippet, `o` views the captured original commit when
 its context is available, and Escape returns. Thread detail displays a validated
@@ -401,7 +412,7 @@ reviews neither fetch nor post them; browsing captured commits stays offline.
 
 Comment boxes participate in focused-diff `j`/`k` navigation, are visibly marked, and are kept in view. `enter` on one opens a local action menu: `r` opens a separate rune-aware reply box indented beneath that message, `a` opens the finite GitHub reaction picker (`1`–`8` choose its displayed reaction), and `d` is shown only after the authenticated viewer identity matches the displayed comment author. GitHub replies can target only a thread’s top-level comment, so `r` on an existing reply automatically uses that root and renders the canonical response in its thread. Reaction totals are compact emoji chips (`👍`, `👎`, `😄`, `😕`, `❤️`, `🎉`, `🚀`, `👀`) in the message box’s bottom border; an explicit non-UTF-8 locale uses the original GitHub token labels instead. Deletion requires a second `enter` confirmation. `esc` always closes the menu or draft without a write. Reply/reaction/deletion requests are preflighted against the frozen PR and update only that tab’s memory-only overlay from the canonical GitHub response; a failed reply retains its draft for retry.
 
-Immediately before posting a comment or submitting a review, prui re-reads GitHub metadata and requires the repository identities plus base and head SHAs to equal the frozen comparison. If they differ, it makes no write and asks you to open a new comparison. A successful request uses the frozen head SHA and line targets; GitHub can still mark a comment outdated if the pull request advances after that preflight. Writes are unavailable in `--plain` and `resume --offline`, and no open, resume, refresh, guide action, or background task can submit one.
+Immediately before posting a comment or submitting a review, prui re-reads GitHub metadata and requires the repository identities plus base and head SHAs to equal the frozen comparison. If they differ, it makes no write and asks you to return to the review workspace and refresh PR (`r`). A successful request uses the frozen head SHA and line targets; GitHub can still mark a comment outdated if the pull request advances after that preflight. Writes are unavailable in `--plain` and `resume --offline`, and no open, resume, refresh, guide action, or background task can submit one.
 
 ## Color
 
@@ -604,7 +615,8 @@ stored generated guides reports `not_available`.
 
 `D` opens chronological live activity: general PR comments, submitted review
 bodies and decisions, and each inline-thread comment/reply. UTC timestamps and
-actors are shown; `c` explicitly refreshes while preserving selected activity.
+actors are shown; **Refresh PR** (`r`) retrieves current activity and checks for
+source changes. Unchanged source preserves selected activity.
 Partial retrieval, stale snapshots, unavailable reads and offline mode are labeled.
 General comments and reviews each load at most 500 records, with a combined 4 MiB
 response budget and the discussion operation's 60-second deadline.
@@ -690,7 +702,7 @@ Enter on a published inline suggestion opens comment actions. `ctrl+a` prepares
 application and shows the head repository, branch and replacement. Enter opens
 confirmation; a second Enter creates a remote commit. GitHub permissions and
 expected branch head are checked; the checkout and pinned snapshot stay untouched.
-Open a new comparison to review the resulting commit.
+Return to the review workspace and refresh PR (`r`) to review the resulting commit.
 
 Application supports a current right-side anchor on an ordinary non-executable
 UTF-8 file up to 512 KiB. Left/file/historical targets, multiple/offset suggestions,

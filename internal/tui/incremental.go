@@ -90,7 +90,7 @@ func (m *Model) incrementalDraftOutcomes() []string {
 func (m *Model) incrementalRows() []diffLine {
 	b := m.Session.Incremental
 	if b == nil {
-		return body(classWarning, "No prior-head comparison captured. N: capture a new comparison from this session.")
+		return body(classWarning, "No prior-head comparison captured. r: refresh PR to capture source changes.")
 	}
 	if m.incremental.drafts {
 		var out []diffLine

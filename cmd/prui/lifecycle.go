@@ -91,7 +91,7 @@ func (a *application) submitReviewComment(ctx context.Context, submission tui.Co
 		return source.ReviewComment{}, err
 	}
 	if !source.SamePinnedRevision(current, submission.Metadata) {
-		return source.ReviewComment{}, errors.New("pull request changed; open a new comparison before posting a comment")
+		return source.ReviewComment{}, errors.New("pull request changed; refresh PR (r) before posting a comment")
 	}
 	created, err := commenter.CreateReviewComment(ctx, submission.Comment)
 	if err != nil {
@@ -132,7 +132,7 @@ func (a *application) submitPullRequestReview(ctx context.Context, submission tu
 		return err
 	}
 	if !source.SamePinnedRevision(current, frozen) {
-		return errors.New("pull request changed; open a new comparison before submitting a review")
+		return errors.New("pull request changed; refresh PR (r) before submitting a review")
 	}
 	return writer.CreatePullRequestReview(ctx, review)
 }
@@ -183,7 +183,15 @@ func (a *application) submitReviewCommentAction(ctx context.Context, action tui.
 		return source.ReviewComment{}, source.ReviewCommentReaction{}, err
 	}
 	if !source.SamePinnedRevision(current, action.Metadata) {
-		return source.ReviewComment{}, source.ReviewCommentReaction{}, errors.New("pull request changed; open a new comparison before changing a comment")
+		return source.ReviewComment{}, source.ReviewCommentReaction{}, errors.New("pull request changed; refresh PR (r) before changing a comment")
+	}
+	if action.General {
+		reacter, ok := a.gh.(source.GeneralCommentReactioner)
+		if !ok {
+			return source.ReviewComment{}, source.ReviewCommentReaction{}, errors.New("PR comment reactions unavailable")
+		}
+		reaction, err := reacter.AddGeneralCommentReaction(ctx, action.Metadata.Identity, action.Comment.ID, action.Reaction)
+		return source.ReviewComment{}, reaction, err
 	}
 	if action.Delete {
 		viewer, ok := a.gh.(source.ReviewCommentViewer)
@@ -237,6 +245,13 @@ func (a *application) submitReviewCommentAction(ctx context.Context, action tui.
 }
 
 func validReviewCommentAction(action tui.CommentAction) error {
+	if action.General {
+		if !validIdentity(action.Metadata.Identity) || !validSHA(action.Metadata.HeadSHA) || action.Comment.ID <= 0 || action.Delete || action.Body != "" || !source.IsReviewCommentReaction(action.Reaction) {
+			return errors.New("invalid PR comment reaction")
+		}
+		return nil
+	}
+
 	if !validIdentity(action.Metadata.Identity) || action.Comment.ID <= 0 || action.Comment.Target.Identity != action.Metadata.Identity || action.Comment.Target.CommitID != action.Metadata.HeadSHA || !validSHA(action.Metadata.HeadSHA) {
 		return errors.New("invalid review comment action")
 	}

@@ -34,14 +34,18 @@ prui open https://github.com/owner/repo/pull/42  # open a specific PR
    the line cursor; Down/Up scrolls. Press `m` to mark a file as read.
 3. Press Enter on a commentable line to compose. **Enter in the editor posts
    immediately; Ctrl+P queues a local pending line comment.** Shift+Enter adds a
-   newline; Escape discards the editor.
+   newline; Escape discards the editor. Option+Left/Right moves by word;
+   Command+Left/Right moves to the current line’s start/end, and Command+Delete
+   deletes back to its start. Terminals can also send Alt+B/F and Ctrl+A/E/U.
 4. Press `R` or choose **Submit review** to send a Comment, Approve, or Request
    changes review with your queued comments after confirmation.
 
 Reading progress saves immediately. **Space → Saved reviews** reopens a saved
-comparison. If the author pushes changes, **Actions → New comparison** captures
-an updated snapshot and reconciles progress while retaining the old comparison
-and its drafts. Marking files as read does not submit a GitHub review.
+comparison. Press **r** or choose **Actions → Refresh PR** to update source,
+discussions, and comments. Unchanged code keeps your position and drafts; changed
+code opens the latest comparison while preserving the old review and its drafts
+in Saved reviews. Workspace `c` and `N` are aliases for Refresh PR. Marking files
+as read does not submit a GitHub review.
 
 ## Keys
 
@@ -59,6 +63,7 @@ Keys below apply while navigating; text editors use their own controls.
 | `1` / `2` / `3` / `4` | Overview / Files / Guide / Commits |
 | Space / Ctrl+K | Open Actions for review tools, settings, and saved reviews |
 | `m` / `R` | Mark file read / submit review |
+| `r` | Refresh PR source, discussions, and comments |
 | `/` / `F` | Search diff text / filter file paths |
 | `?` | Help and review health; `s` inside help shows all shortcuts |
 | `q` / Ctrl+C | Quit |
@@ -89,7 +94,7 @@ See [storage and deletion](docs/REFERENCE.md#local-storage-and-deletion) and
 
 ## Development
 
-Requires Go **1.26.9+**. Clone the repository and run `go install ./cmd/prui` to
+Requires Go **1.26.10+**. Clone the repository and run `go install ./cmd/prui` to
 build from source. Run `./scripts/verify.sh` for formatting, vet, race tests, PTY
 tests, and build checks. See [TESTING.md](TESTING.md#repository-verification) for all
 verification gates, [CONSTRAINTS.md](CONSTRAINTS.md) for the quality contract,

@@ -70,8 +70,8 @@ func TestEntryPointsShareReviewOperations(t *testing.T) {
 			}
 			id := m.Session.ID
 			modelKey(m, 'N')
-			if m.ActionError != nil || m.Session.ID == id {
-				t.Fatal("new comparison not wired", m.ActionError)
+			if m.ActionError != nil || m.Session.ID != id {
+				t.Fatal("unchanged refresh alias replaced comparison", m.ActionError)
 			}
 			id = m.Session.ID
 			modelKey(m, 'g')
@@ -83,6 +83,34 @@ func TestEntryPointsShareReviewOperations(t *testing.T) {
 				t.Fatal("guide not wired", m.ActionError)
 			}
 		})
+	}
+}
+
+func TestRefreshPRCapturesPushedSourceWithoutSubmitting(t *testing.T) {
+	app, original := wiringFixture(t)
+	m := app.model(context.Background(), options{Command: "resume", SessionID: original.ID})
+	defer m.Close()
+	completeModelAction(t, m, m.Init())
+	modelKey(m, '2')
+	modelKey(m, 'm')
+	repo := &testutil.Repo{T: t, Dir: string(original.Checkout), Home: t.TempDir()}
+	repo.Write("a", "pushed source\n")
+	head := repo.Commit()
+	gh := app.gh.(*fixtureGH)
+	gh.value.HeadSHA = head
+	modelKey(m, 'r')
+	if m.ActionError != nil || m.Session.ID == original.ID || m.Session.Inventory.Comparison.Metadata.HeadSHA != head || m.Session.RevisionStatus != session.Current {
+		t.Fatal("refresh did not load pushed source", m.ActionError)
+	}
+	if len(m.Session.ReviewedSliceIDs) != 0 {
+		t.Fatal("refresh marked changed source read")
+	}
+	previous, err := app.store.Load(original.ID)
+	if err != nil || previous.Inventory.Comparison.Metadata.HeadSHA != original.Inventory.Comparison.Metadata.HeadSHA || previous.RevisionStatus != session.Stale || len(previous.ReviewedSliceIDs) != 1 {
+		t.Fatal("refresh changed or lost the previous saved comparison", err)
+	}
+	if len(gh.comments) != 0 || len(gh.reviews) != 0 {
+		t.Fatal("refresh submitted feedback")
 	}
 }
 

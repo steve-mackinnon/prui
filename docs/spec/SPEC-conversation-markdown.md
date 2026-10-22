@@ -9,9 +9,10 @@ The runnable binary is `/Users/steve/.codex/worktrees/85e0/review/prui`.
 ## Objective
 
 Make general PR comments, review bodies, and inline discussion bodies readable in
-Overview and discussion detail. The Vercel and Devin bot examples should show
-human prose rather than hidden metadata, raw HTML attributes, or literal newline
-escapes. This extends SPEC-overview-conversation.md without changing navigation.
+Overview, discussion detail and published diff comment cards. The Vercel and
+Devin bot examples should show human prose rather than hidden metadata, raw HTML
+attributes, or literal newline escapes. This extends SPEC-overview-conversation.md
+without changing navigation.
 
 ## Display contract
 
@@ -35,7 +36,7 @@ escapes. This extends SPEC-overview-conversation.md without changing navigation.
 6. Rendering is presentation-only. Source bodies, edit drafts, suggestions,
    submitted payloads, activity IDs, targets, freshness and permissions remain
    unchanged. Description HTML continues to use its existing literal policy;
-   diff comment overlays and editors are outside this change.
+   editors retain raw Markdown/HTML for editing.
 7. Cache rendered bodies within a bounded tab-owned cache, keyed by raw body,
    width, expansion mode and theme. Resizing, theme changes and body edits must
    not return stale lines. Rendering and asset handling perform no network I/O.
@@ -103,3 +104,28 @@ summaries and image labels; Enter reveals full content; code examples stay
 literal; controls stay inert; width/theme refresh correctly; all verification
 passes. No open questions; the existing Enter/Escape detail interaction supplies
 the expansion mechanism.
+
+## Extension: Published diff comment cards (2026-10-21)
+
+The diff overlay now shares the existing local display adapter. This extends
+the original scope exclusion for diff cards; posting, persistence, editors and
+Overview/detail interactions retain their existing contracts.
+
+- Render each card body at its actual inner width, including nested reply
+  indentation. Keep paragraph spacing inside the body without document margins.
+- Show details summaries and all loaded details content expanded. No per-section
+  state or new expansion binding is introduced in the diff.
+- Hide HTML metadata comments and presentation attributes. Render mixed Markdown
+  and HTML, preserve literal code, and show linked image alt labels locally.
+- Preserve trusted renderer styling and safe hyperlinks through card framing and
+  selected-border painting. Escape author/status metadata separately. Remote
+  controls and decoded entities remain inert; unsafe link destinations are removed.
+- Preserve every generated row's comment ID, source attachment, reactions,
+  suggestion preview and action routing. Presentation cannot alter raw bodies,
+  edit drafts, suggestion parsing, targets or outbound payloads.
+- Share the existing tab-owned cache, keyed by effective body width, theme, raw
+  body and expansion mode, with the existing 128-entry / 4 MiB bounds. Rendering
+  and asset handling perform no network I/O.
+
+Implementation and evidence are tracked in
+[the dedicated task list](../../tasks/diff-comment-markdown-todo.md).

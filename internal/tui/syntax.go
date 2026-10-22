@@ -7,6 +7,7 @@ import (
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/colorprofile"
+	"github.com/charmbracelet/x/ansi"
 	"prui/internal/inventory"
 	"prui/internal/syntax"
 	"prui/internal/theme"
@@ -112,10 +113,20 @@ func wrappedSyntax(line diffLine, part string, offset *int) diffLine {
 // syntaxText separates the structural patch marker from source before styling.
 // Fragment renderers use sourceText directly, so source '+'/'-' is never a marker.
 func (m *Model) syntaxText(line diffLine, horizontal, width int, prefix string) string {
+	if line.commentID > 0 {
+		// Published card bodies contain trusted Markdown SGR and hyperlinks.
+		// Crop display cells so scrolling cannot split their control sequences.
+		prefix = clip(prefix, width)
+		left := max(0, horizontal)
+		return prefix + ansi.Cut(line.Text, left, left+max(0, width-visibleWidth(prefix)))
+	}
 	if line.Class != classAdded && line.Class != classRemoved && line.Class != classContext {
 		prefix = clip(prefix, width)
 		runes := []rune(line.Text)
-		rendered := prefix + clip(string(runes[min(max(horizontal, 0), len(runes)):]), max(0, width-visibleWidth(prefix)))
+		start := min(max(horizontal, 0), len(runes))
+		text := clip(string(runes[start:]), max(0, width-visibleWidth(prefix)))
+		text = renderEditorCaret(text, line.editorCaret, visibleWidth(string(runes[:start])))
+		rendered := prefix + text
 		if m.linksAvailable() {
 			rendered = linkSourceURLs(rendered, line.Text, horizontal, visibleWidth(prefix))
 		}

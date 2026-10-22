@@ -127,7 +127,7 @@ func (m *Model) clickReviewForm(layout reviewFormLayout, x, row int) tea.Cmd {
 			f.Focus = 1
 			if hit.index >= 0 {
 				offset := hit.offset
-				if at, ok := editorCursorAt(f.Body, f.Cursor, 1<<20, true, !hit.singleLine, x-offset, hit.index); ok {
+				if at, ok := editorCursorAt(f.Body, f.Cursor, editorCursorLayout{width: 1 << 20, hardwrap: true, multiline: !hit.singleLine}, x-offset, hit.index); ok {
 					f.Cursor = at
 				}
 			}

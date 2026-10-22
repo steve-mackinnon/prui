@@ -284,7 +284,7 @@ func (m *Model) acceptSuggestionApplied(v suggestionApplied) {
 		state.draft.attempt = ""
 		state.draft.attempted = nil
 		state.SuggestionApply = nil
-		state.notice = "Suggestion committed · " + Escape(v.result.SHA) + " · open a new comparison"
+		state.notice = "Suggestion committed · " + Escape(v.result.SHA) + " · r: refresh PR"
 		if state.Stack[len(state.Stack)-1] == pageSuggestionApply {
 			state.Stack = state.Stack[:len(state.Stack)-1]
 		}

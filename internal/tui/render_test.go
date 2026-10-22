@@ -29,7 +29,7 @@ func TestCommentComposerViewRendersFrozenTargetEscapedMultilineDraftAndControls(
 	}(), "\n"))
 	for _, want := range []string{
 		"+",
-		"first ▏line",
+		"first line",
 		"second\\x1b[31m line",
 	} {
 		if !strings.Contains(view, want) {
@@ -50,7 +50,7 @@ func TestCommentBindingsAdvertiseComposerEntryAndControls(t *testing.T) {
 		"enter: submit inline comment editor",
 		"shift+enter: newline in inline comment editor",
 		"backspace/delete: delete previous/following rune in comment editor",
-		"c: refresh ephemeral inline review comments",
+		"r: refresh PR source, discussions, and comments",
 		"r/a/d: reply, react, or delete a selected comment (delete requires ownership and confirmation)",
 	} {
 		if !strings.Contains(help, want) {

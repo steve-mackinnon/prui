@@ -289,7 +289,7 @@ func (m *Model) renderSideBySideViewport(lines []diffLine, width, horizontal, se
 		if line.sideBySide == nil {
 			rendered = append(rendered, diffLine{styledLine: styledLine{
 				Class: line.Class,
-				Text:  m.styleLine(line.Class, clip(line.Text, width)),
+				Text:  m.styleLine(line.Class, renderEditorCaret(clip(line.Text, width), line.editorCaret, 0)),
 			}, target: line.target, commentID: line.commentID})
 			continue
 		}
@@ -297,7 +297,7 @@ func (m *Model) renderSideBySideViewport(lines []diffLine, width, horizontal, se
 		if row.full != nil {
 			rendered = append(rendered, diffLine{styledLine: styledLine{
 				Class: classPlain,
-				Text:  m.styleLine(row.full.Class, clip(row.full.Text, width)),
+				Text:  m.styleLine(row.full.Class, renderEditorCaret(clip(row.full.Text, width), row.full.editorCaret, 0)),
 			}, target: line.target, commentID: line.commentID})
 			continue
 		}
@@ -325,7 +325,11 @@ func (m *Model) renderSideBySideCell(cell *diffCell, width, horizontal int) stri
 	marker, text := splitPatchMarker(cell.line.Text)
 	gutter := m.patchMarker(marker, cell.line.Class) + " "
 	if m.lineNumbersEnabled() {
-		gutter = fmt.Sprintf("%5d %s", cell.number, gutter)
+		if cell.line.continuation {
+			gutter = "      " + gutter
+		} else {
+			gutter = fmt.Sprintf("%5d %s", cell.number, gutter)
+		}
 	}
 	source := *cell.line
 	source.Text = text
@@ -412,6 +416,9 @@ func numberedPatchText(row diffLine) string {
 }
 
 func patchLineNumberPrefix(row diffLine) string {
+	if row.continuation && (row.oldLine != 0 || row.newLine != 0) {
+		return "          "
+	}
 	switch {
 	case row.oldLine != 0 && row.newLine != 0:
 		return fmt.Sprintf("%4d %4d ", row.oldLine, row.newLine)

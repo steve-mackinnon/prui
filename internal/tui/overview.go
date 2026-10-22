@@ -54,7 +54,7 @@ func (m *Model) overviewRows() []overviewRow {
 		appendText(d.notice, "", "")
 	}
 	if !d.loaded {
-		label := "Discussions unavailable · c: refresh"
+		label := "Discussions unavailable · r: refresh PR"
 		if m.readDiscussions == nil {
 			label = "Discussions unavailable · offline or unsupported"
 		}
@@ -142,6 +142,14 @@ func (m *Model) overviewRows() []overviewRow {
 		}
 		if expanded && t.URL != "" {
 			appendText(Escape(t.URL), t.ID, "detail")
+		}
+		if d.overviewFocus && t.ID == d.selectedID {
+			controls := m.discussionFooterControls(t)
+			if len(controls) > 0 {
+				for _, row := range commentFooterRows(controls, max(1, m.Width-4)) {
+					appendText(row, t.ID, "footer")
+				}
+			}
 		}
 		if m.discussions.editor != nil && m.discussions.editor.replyTo != "" && t.ID == m.discussions.editor.replyTo || m.CommentMenu != nil && m.CommentMenu.mode == commentActionReply && len(t.Comments) > 0 && t.Comments[0].ID == m.CommentMenu.CommentID {
 			for _, line := range m.overviewComposerLines() {
@@ -275,7 +283,7 @@ func (m *Model) overviewComposerLines() []string {
 	var lines []string
 	lines = append(lines, "Reply to code thread · posts immediately")
 	for _, line := range m.inlineReplyEditorLines(0) {
-		lines = append(lines, line.Text)
+		lines = append(lines, renderEditorCaret(line.Text, line.editorCaret, 0))
 	}
 	return append(lines, "Enter: post · shift+enter: newline · ctrl+r: refresh · esc: cancel")
 }
