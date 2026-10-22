@@ -493,7 +493,7 @@ func (m *Model) reviewFormMouse(msg tea.MouseMsg) tea.Cmd {
 			cursorLine := strings.Count(before, "\n")
 			limit := end - summaryTop
 			start := max(0, min(cursorLine-limit+1, len(bodyRows)-limit))
-			if at, ok := editorCursorAt(f.Body, f.Cursor, 1<<20, true, true, x-4, row-summaryTop+start); ok {
+			if at, ok := editorCursorAt(f.Body, f.Cursor, editorCursorLayout{width: 1 << 20, hardwrap: true, multiline: true}, x-4, row-summaryTop+start); ok {
 				f.Cursor = at
 			}
 		}
@@ -564,10 +564,17 @@ func (m *Model) modalReviewHints() string {
 	return full.reviewHints()
 }
 
-// Map the same escaped, wrapped text used by editors back to rune offsets.
-// This maps text position only; it never treats body text as UI commands.
-func editorCursorAt(body string, cursor, width int, hardwrap, multiline bool, x, row int) (int, bool) {
-	if row < 0 || width < 1 {
+// editorCursorLayout mirrors the editor renderer, including whether its caret
+// occupies an inserted cell or highlights existing text.
+type editorCursorLayout struct {
+	width                             int
+	hardwrap, multiline, overlayCaret bool
+}
+
+// Map escaped, wrapped display positions back to rune offsets. Body text is
+// never interpreted as a UI command.
+func editorCursorAt(body string, cursor int, layout editorCursorLayout, x, row int) (int, bool) {
+	if row < 0 || layout.width < 1 {
 		return 0, false
 	}
 	runes := []rune(body)
@@ -581,10 +588,13 @@ func editorCursorAt(body string, cursor, width int, hardwrap, multiline bool, x,
 		}
 	}
 	for i, r := range runes {
-		if i == cursor {
+		if i == cursor && !layout.overlayCaret {
 			appendText("█", i)
 		}
-		if r == '\n' && multiline {
+		if i == cursor && layout.overlayCaret && r == '\n' {
+			appendText(" ", i)
+		}
+		if r == '\n' && layout.multiline {
 			appendText("\n", i)
 		} else {
 			appendText(Escape(string(r)), i)
@@ -594,9 +604,9 @@ func editorCursorAt(body string, cursor, width int, hardwrap, multiline bool, x,
 		appendText("█", cursor)
 	}
 	raw := stream.String()
-	wrapped := ansi.Wrap(raw, width, "")
-	if hardwrap {
-		wrapped = ansi.Hardwrap(raw, width, true)
+	wrapped := ansi.Wrap(raw, layout.width, "")
+	if layout.hardwrap {
+		wrapped = ansi.Hardwrap(raw, layout.width, true)
 	}
 	rows := strings.Split(wrapped, "\n")
 	if row >= len(rows) {
@@ -642,7 +652,7 @@ func (m *Model) fullEditorMouse(body *string, cursor *int, x, y int) {
 	at := min(max(0, *cursor), len(runes))
 	prefix := strings.Split(ansi.Wrap(Escape(string(runes[:at]))+"█", max(1, m.Width), ""), "\n")
 	start := max(0, len(prefix)-max(1, m.Height-4))
-	if next, ok := editorCursorAt(*body, *cursor, max(1, m.Width), false, false, x, y-2+start); ok {
+	if next, ok := editorCursorAt(*body, *cursor, editorCursorLayout{width: max(1, m.Width)}, x, y-2+start); ok {
 		*cursor = next
 	}
 }
@@ -713,7 +723,7 @@ func (m *Model) inlineEditorMouse(x, y int) {
 	if local < 0 || local >= m.overlayInnerWidth(indent) {
 		return
 	}
-	if next, ok := editorCursorAt(*body, *cursor, m.overlayInnerWidth(indent), true, true, local, logicalRow); ok {
+	if next, ok := editorCursorAt(*body, *cursor, editorCursorLayout{width: m.overlayInnerWidth(indent), hardwrap: true, multiline: true, overlayCaret: true}, local, logicalRow); ok {
 		*cursor = next
 		m.editorCursorVisible = true
 	}
@@ -786,7 +796,7 @@ func (m *Model) overviewEditorMouse(x, y int, handler func(tea.KeyPressMsg) tea.
 			basic := m.inlineReplyEditorLines(0)
 			bodyRow := logical - 2 // title followed by box border
 			if bodyRow >= 0 && bodyRow < len(basic)-2 && column >= 4 {
-				if cursor, ok := editorCursorAt(menu.Draft, menu.Cursor, m.overlayInnerWidth(0), true, true, column-4, bodyRow); ok {
+				if cursor, ok := editorCursorAt(menu.Draft, menu.Cursor, editorCursorLayout{width: m.overlayInnerWidth(0), hardwrap: true, multiline: true, overlayCaret: true}, column-4, bodyRow); ok {
 					menu.Cursor = cursor
 					m.editorCursorVisible = true
 				}

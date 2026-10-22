@@ -289,7 +289,7 @@ func (m *Model) renderSideBySideViewport(lines []diffLine, width, horizontal, se
 		if line.sideBySide == nil {
 			rendered = append(rendered, diffLine{styledLine: styledLine{
 				Class: line.Class,
-				Text:  m.styleLine(line.Class, clip(line.Text, width)),
+				Text:  m.styleLine(line.Class, renderEditorCaret(clip(line.Text, width), line.editorCaret, 0)),
 			}, target: line.target, commentID: line.commentID})
 			continue
 		}
@@ -297,7 +297,7 @@ func (m *Model) renderSideBySideViewport(lines []diffLine, width, horizontal, se
 		if row.full != nil {
 			rendered = append(rendered, diffLine{styledLine: styledLine{
 				Class: classPlain,
-				Text:  m.styleLine(row.full.Class, clip(row.full.Text, width)),
+				Text:  m.styleLine(row.full.Class, renderEditorCaret(clip(row.full.Text, width), row.full.editorCaret, 0)),
 			}, target: line.target, commentID: line.commentID})
 			continue
 		}

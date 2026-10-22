@@ -114,15 +114,30 @@ func TestCommitCacheKeepsEditorFreshAndRemovesCancelledDraft(t *testing.T) {
 		}
 		return strings.Join(lines, "\n")
 	}
+	caretCount := func() int {
+		count := 0
+		for _, row := range m.commitRows() {
+			if row.editorCaret != nil {
+				count++
+			}
+		}
+		return count
+	}
 	m.Composer.Draft, m.Composer.Cursor = "updated", 3
 	m.editorCursorVisible = true
 	m.ActionError = errors.New("synthetic error")
-	if got := text(); !strings.Contains(got, "upd▏ated") || !strings.Contains(got, "synthetic error") {
+	if got := text(); !strings.Contains(got, "updated") || !strings.Contains(got, "synthetic error") {
 		t.Fatalf("editor changes stale: %s", got)
 	}
+	if caretCount() != 1 {
+		t.Fatal("visible editor caret missing from cache")
+	}
 	m.editorCursorVisible = false
-	if got := text(); strings.Contains(got, "▏") || !strings.Contains(got, "upd ated") {
+	if got := text(); strings.Contains(got, "▏") || !strings.Contains(got, "updated") {
 		t.Fatalf("cursor blink stale: %s", got)
+	}
+	if caretCount() != 0 {
+		t.Fatal("hidden editor caret retained in cache")
 	}
 	m.commentComposerKey(tea.KeyPressMsg{Code: tea.KeyEscape})
 	if got := text(); strings.Contains(got, "updated") || strings.Contains(got, "Comment on") || strings.Contains(got, "synthetic error") {

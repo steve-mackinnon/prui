@@ -247,6 +247,30 @@ func TestProgramQuitCancelsInitialLoad(t *testing.T) {
 	}
 }
 
+func TestProgramCommentCursorKeepsFollowingTextInPlace(t *testing.T) {
+	m := New(context.Background(), nil)
+	m.Loading = false
+	m.Session, m.Selected, m.Focus = kindsSession(), 1, paneDiff
+	h := runProgram(t, m)
+	h.expect("review", func(f programFrame) bool { return f.page == pageReview && !f.loading })
+	h.key(tea.KeyEnter)
+	h.expect("comment editor", func(f programFrame) bool { return strings.Contains(f.text, "+---") })
+	for _, r := range "the vercel cdn" {
+		h.key(r)
+	}
+	h.expect("draft", func(f programFrame) bool { return strings.Contains(f.text, "the vercel cdn▏") })
+	for range 8 {
+		h.key(tea.KeyLeft)
+	}
+	h.expect("cursor inside text without gap", func(f programFrame) bool {
+		return strings.Contains(f.text, "the vercel cdn") && !strings.Contains(f.text, "▏")
+	})
+	h.key('X')
+	h.expect("insert at cursor without gap", func(f programFrame) bool { return strings.Contains(f.text, "the veXrcel cdn") })
+	h.key(tea.KeyEscape)
+	h.quit()
+}
+
 func TestProgramCommentComposerSubmitErrorAndCancellation(t *testing.T) {
 	newCommentProgram := func(t *testing.T, submit CommentSubmitter) *programDriver {
 		t.Helper()

@@ -2041,17 +2041,39 @@ func (m *Model) inlineEditorLinesFor(draft string, editorCursor, indent int) []d
 	}
 	for i, text := range strings.Split(draft, "\n") {
 		content := Escape(text)
+		caretOffset := -1
 		if i == cursorLine {
-			// Keep the caret's column reserved so blinking cannot move text or wraps.
-			caret := " "
-			if m.editorCursorVisible {
-				caret = "▏"
+			caretOffset = len(Escape(beforeLine))
+			// Only a cursor at the end of a logical line needs an extra cell.
+			if afterLine == "" {
+				caret := " "
+				if m.editorCursorVisible {
+					caret = "▏"
+				}
+				content += caret
+				caretOffset = -1
 			}
-			content = Escape(beforeLine) + caret + Escape(afterLine)
 		}
+		offset := 0
 		for _, part := range strings.Split(ansi.Hardwrap(content, inner, true), "\n") {
+			var caret *editorCaret
+			if m.editorCursorVisible && caretOffset >= offset && caretOffset < offset+len(part) {
+				// Select the whole grapheme, including wide and combining characters.
+				column := visibleWidth(prefix) + 2
+				for rest, at := part, offset; rest != ""; {
+					cluster, width := ansi.FirstGraphemeCluster(rest, ansi.GraphemeWidth)
+					if caretOffset < at+len(cluster) {
+						caret = &editorCaret{column: column, width: width}
+						break
+					}
+					at += len(cluster)
+					column += width
+					rest = rest[len(cluster):]
+				}
+			}
+			offset += len(part)
 			part += strings.Repeat(" ", max(0, inner-visibleWidth(part)))
-			lines = append(lines, diffLine{styledLine: styledLine{Class: classWarning, Text: prefix + "| " + part + " |"}})
+			lines = append(lines, diffLine{styledLine: styledLine{Class: classWarning, Text: prefix + "| " + part + " |"}, editorCaret: caret})
 		}
 	}
 	if m.ActionError != nil {
