@@ -111,9 +111,10 @@ func TestDiffCommentMarkdownRowsKeepNestedReplyAndFileTargets(t *testing.T) {
 					if row.target != nil || row.sideBySide != nil && len(rowTargets(*row.sideBySide)) != 0 {
 						t.Fatal("formatted comment row became a source target")
 					}
-					if row.commentID == 7 {
+					switch row.commentID {
+					case 7:
 						rootText += ansi.Strip(row.Text) + "\n"
-					} else if row.commentID == 8 {
+					case 8:
 						replyText += ansi.Strip(row.Text) + "\n"
 						if strings.Contains(ansi.Strip(row.Text), "reply explanation") {
 							m.setCursor(i)
