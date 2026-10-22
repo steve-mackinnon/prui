@@ -123,7 +123,10 @@ func (m *Model) syntaxText(line diffLine, horizontal, width int, prefix string) 
 	if line.Class != classAdded && line.Class != classRemoved && line.Class != classContext {
 		prefix = clip(prefix, width)
 		runes := []rune(line.Text)
-		rendered := prefix + clip(string(runes[min(max(horizontal, 0), len(runes)):]), max(0, width-visibleWidth(prefix)))
+		start := min(max(horizontal, 0), len(runes))
+		text := clip(string(runes[start:]), max(0, width-visibleWidth(prefix)))
+		text = renderEditorCaret(text, line.editorCaret, visibleWidth(string(runes[:start])))
+		rendered := prefix + text
 		if m.linksAvailable() {
 			rendered = linkSourceURLs(rendered, line.Text, horizontal, visibleWidth(prefix))
 		}

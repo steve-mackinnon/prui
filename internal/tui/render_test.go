@@ -29,7 +29,7 @@ func TestCommentComposerViewRendersFrozenTargetEscapedMultilineDraftAndControls(
 	}(), "\n"))
 	for _, want := range []string{
 		"+",
-		"first ▏line",
+		"first line",
 		"second\\x1b[31m line",
 	} {
 		if !strings.Contains(view, want) {

@@ -7,6 +7,7 @@ import (
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/colorprofile"
+	"github.com/charmbracelet/x/ansi"
 	"prui/internal/inventory"
 	"prui/internal/source"
 	"prui/internal/syntax"
@@ -48,6 +49,7 @@ type styledLine struct {
 // diffLine keeps the immutable GitHub review target next to the already-safe
 // display data. The target is derived from patch bytes, never terminal text.
 type diffLine struct {
+	editorCaret   *editorCaret
 	commentFooter bool
 	searchID      searchSourceID
 	rawSource     string
@@ -63,6 +65,24 @@ type diffLine struct {
 	editor            bool        // true for rows in the active inline editor
 	sideBySide        *diffRow    // non-nil for one logical, aligned source row
 	guideAnchor       *fileAnchor // guide occurrence beginning at this source row
+}
+
+// editorCaret identifies display cells without inserting text into the draft.
+type editorCaret struct {
+	column, width int
+}
+
+// Reverse video is independent of the color palette. Apply it only to trusted,
+// escaped display cells after clipping, leaving logical text and width intact.
+func renderEditorCaret(text string, caret *editorCaret, removed int) string {
+	if caret == nil {
+		return text
+	}
+	start, end := caret.column-removed, caret.column+caret.width-removed
+	if start < 0 || end > visibleWidth(text) || start == end {
+		return text
+	}
+	return ansi.Cut(text, 0, start) + "\x1b[7m" + ansi.Cut(text, start, end) + "\x1b[27m" + ansi.Cut(text, end, visibleWidth(text))
 }
 
 // palette is the semantic style table, named by meaning rather than color.

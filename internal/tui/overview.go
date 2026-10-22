@@ -283,7 +283,7 @@ func (m *Model) overviewComposerLines() []string {
 	var lines []string
 	lines = append(lines, "Reply to code thread · posts immediately")
 	for _, line := range m.inlineReplyEditorLines(0) {
-		lines = append(lines, line.Text)
+		lines = append(lines, renderEditorCaret(line.Text, line.editorCaret, 0))
 	}
 	return append(lines, "Enter: post · shift+enter: newline · ctrl+r: refresh · esc: cancel")
 }
