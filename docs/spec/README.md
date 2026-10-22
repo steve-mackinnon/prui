@@ -4,6 +4,7 @@ These documents preserve requirements, acceptance criteria, and the reasoning be
 
 ## Specifications
 
+- [Spec: TUI Feature Ownership and Coordination](SPEC-tui-feature-ownership.md)
 - [Spec: Commit Filter in the Diff Workspace](SPEC-diff-commit-filter.md)
 - [Spec: Diff Text Search](SPEC-diff-text-search.md)
 - [Spec: Expanded Source Syntax Highlighting](SPEC-expanded-source-syntax.md)
