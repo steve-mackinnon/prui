@@ -191,3 +191,11 @@ formatting, installer scenarios, vet, the full race-enabled suite (including
 compiled-binary CLI PTY smoke), and `go build ./...`. The TUI package passed in
 112.467 seconds. `git diff --check` passed. No dependency versions, source
 contracts, posting behavior or persistence formats changed.
+
+PR integration verification (2026-10-21): merged current main at `54ec898`,
+preserving its clickable comment footers, PR refresh behavior and wrapped-line
+numbering. Focused comment/footer/overlay/snapshot checks passed. Full
+`./scripts/verify.sh` passed again on the integrated branch (TUI race suite:
+108.311 seconds). `golangci-lint run ./...` with an isolated cache reported zero
+issues after simplifying a new test's comment-ID dispatch. CI uses its pinned
+linter version for the final remote gate.
