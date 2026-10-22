@@ -237,6 +237,11 @@ generated. Review summaries retain their existing uncapped individual-body
 policy; private draft storage still enforces its aggregate payload limit.
 All multiline surfaces support Left/Right rune movement and Home/End movement
 to the beginning/end of the whole draft, including review summaries.
+Option+Left/Right (Alt+B/F) moves across Unicode words. Command+Left/Right
+(Ctrl+A/E) moves to the current newline-delimited line’s start/end;
+Command+Delete (Ctrl+U) deletes from the cursor back to that line’s start,
+preserving the newline and text after the cursor. Command uses Bubble Tea’s
+Super modifier; terminals must forward it or the equivalent terminal mappings.
 Insertion rejects invalid UTF-8 or an entire edit exceeding the surface budget
 without truncating text. Deletion remains available for oversized recovered text.
 Editing accepts empty and literal multiline text; submission validation stays

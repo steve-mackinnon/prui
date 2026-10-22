@@ -65,6 +65,10 @@ func TestSuggestionPublishedUncertaintyKeepsPrivateDraftAndExactAttempt(t *testi
 			if m.Composer != nil || m.SuggestionApply != nil || edits != 0 {
 				t.Fatal("published editor routed suggestion keys")
 			}
+			if m.discussions.published.cursor != 0 || m.discussions.published.draft != "published body/q" {
+				t.Fatal("ctrl+a did not move within the published editor")
+			}
+			m.Update(tea.KeyPressMsg{Code: 'e', Mod: tea.ModCtrl})
 			_, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 			if cmd == nil {
 				t.Fatal("published edit not dispatched")
