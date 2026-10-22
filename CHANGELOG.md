@@ -21,6 +21,10 @@ User-visible changes are recorded here before each release. See
 
 ### Added
 
+- macOS draft editing shortcuts: Option+Left/Right moves by word,
+  Command+Left/Right moves to the current line’s start/end, and Command+Delete
+  deletes back to the line’s start. Alt+B/F and Ctrl+A/E/U are terminal aliases.
+
 - Click thumbs up, thumbs down, or heart reaction counts and a reply arrow in
   the selected PR comment or discussion footer.
 

@@ -34,7 +34,9 @@ prui open https://github.com/owner/repo/pull/42  # open a specific PR
    the line cursor; Down/Up scrolls. Press `m` to mark a file as read.
 3. Press Enter on a commentable line to compose. **Enter in the editor posts
    immediately; Ctrl+P queues a local pending line comment.** Shift+Enter adds a
-   newline; Escape discards the editor.
+   newline; Escape discards the editor. Option+Left/Right moves by word;
+   Command+Left/Right moves to the current line’s start/end, and Command+Delete
+   deletes back to its start. Terminals can also send Alt+B/F and Ctrl+A/E/U.
 4. Press `R` or choose **Submit review** to send a Comment, Approve, or Request
    changes review with your queued comments after confirmation.
 
