@@ -3,7 +3,6 @@ package tui
 import (
 	"image"
 	"strings"
-	"unicode/utf8"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
@@ -572,7 +571,8 @@ type editorCursorLayout struct {
 }
 
 // Map escaped, wrapped display positions back to rune offsets. Body text is
-// never interpreted as a UI command.
+// never interpreted as a UI command. Every cell in a displayed grapheme maps to
+// its first raw rune; keyboard editing remains rune-based.
 func editorCursorAt(body string, cursor int, layout editorCursorLayout, x, row int) (int, bool) {
 	if row < 0 || layout.width < 1 {
 		return 0, false
@@ -622,13 +622,12 @@ func editorCursorAt(body string, cursor int, layout editorCursorLayout, x, row i
 		if n == row {
 			col := 0
 			for offset := 0; offset < len(line); {
-				r, size := utf8.DecodeRuneInString(line[offset:])
-				width := visibleWidth(string(r))
+				cluster, width := ansi.FirstGraphemeCluster(line[offset:], ansi.GraphemeWidth)
 				if x < col+width {
 					return offsets[min(at+offset, len(offsets)-1)], true
 				}
 				col += width
-				offset += size
+				offset += len(cluster)
 			}
 			end := at + len(line)
 			if end < len(offsets) {
