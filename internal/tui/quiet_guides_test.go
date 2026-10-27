@@ -20,8 +20,8 @@ func TestQuietGuidePortionsRetainExceptionalKindsAndCoverage(t *testing.T) {
 		if got := portionLabel(s, file, r.units); got != want {
 			t.Fatalf("%s portion label = %q, want %q", unit.Kind, got, want)
 		}
-		if got := guidePortionText(s, r, "› ", 100, false, 0); got != "› "+want {
-			t.Fatalf("%s portion row = %q, want %q", unit.Kind, got, "› "+want)
+		if got := guidePortionText(s, r, "› ", 100, false, 0); got != "› "+pathLabel(s.Inventory.Files[file])+guidePortionMetricsSuffix(s, r) {
+			t.Fatalf("%s portion row = %q, want %q", unit.Kind, got, "› "+pathLabel(s.Inventory.Files[file])+guidePortionMetricsSuffix(s, r))
 		}
 	}
 	if got := portionLabel(s, 0, []int{0, 1}); got != "text [2 units]" {

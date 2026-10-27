@@ -21,6 +21,8 @@ type commitState struct {
 	offsets                     map[string]int
 	cursors                     map[string]int
 	sourceCache                 commitSourceCache
+	metricsSession              *review.Session
+	metrics                     map[*commits.Diff]string
 	cache                       commitRenderCache
 }
 type commitRenderCache struct {
@@ -125,7 +127,7 @@ func (m *Model) commitRail() []listLine {
 	rows := make([]listLine, 0, height)
 	for line := m.commit.railOffset; line < min(len(entries)*2, m.commit.railOffset+height); line++ {
 		i := line / 2
-		text := "  " + commitMeta(entries[i])
+		text := "  " + m.commitDiffStat(entries[i]) + " · " + commitMeta(entries[i])
 		if m.discussions.loaded || m.readDiscussions != nil {
 			text += " · " + m.commitDiscussionCount(entries[i].SHA)
 		}
@@ -169,7 +171,7 @@ func (m *Model) commitSourceRows(e commits.Entry) []diffLine {
 			comparison = "Compared with first parent · " + shortCommitSHA(e.Parents[0])
 		}
 	}
-	rows = append(rows, body(classMetadata, comparison)...)
+	rows = append(rows, body(classMetadata, m.commitDiffStat(e)+" · "+comparison)...)
 	if e.Status != commits.Captured || e.Diff == nil {
 		rows = append(rows, body(classWarning, "Commit diff unavailable: "+Escape(e.Reason))...)
 	} else {
@@ -243,8 +245,9 @@ func commitDiffRowsFor(d *commits.Diff, identity source.Identity, sha string) []
 	for _, unit := range d.Units {
 		unitsByFile[unit.FileChangeID] = append(unitsByFile[unit.FileChangeID], unit)
 	}
+	stats := diffMetrics(d.Units, d.Patches)
 	for _, f := range d.Files {
-		rows = append(rows, body(classFileHeader, fileDivider(f))...)
+		rows = append(rows, body(classFileHeader, fileDivider(f)+" "+stats[f.ID].String())...)
 		if status, ok := diagnostics[f.ID]; ok {
 			rows = append(rows, syntaxDiagnosticRows(status)...)
 		}
@@ -572,4 +575,24 @@ func (m *Model) ensureCommitEditorVisible() {
 		}
 	}
 	m.commit.offsets[c.CommitSHA] = max(0, min(offset, max(0, len(rows)-height)))
+}
+
+func (m *Model) commitDiffStat(e commits.Entry) string {
+	if e.Status != commits.Captured || e.Diff == nil {
+		return "Diff stats unavailable"
+	}
+	if m.commit.metricsSession != m.Session {
+		m.commit.metricsSession = m.Session
+		m.commit.metrics = make(map[*commits.Diff]string)
+	}
+	if text, ok := m.commit.metrics[e.Diff]; ok {
+		return text
+	}
+	total := diffStat{partial: !e.Diff.Complete}
+	for _, stat := range diffMetrics(e.Diff.Units, e.Diff.Patches) {
+		total.add(stat)
+	}
+	text := total.String()
+	m.commit.metrics[e.Diff] = text
+	return text
 }

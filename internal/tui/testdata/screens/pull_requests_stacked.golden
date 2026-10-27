@@ -1,6 +1,6 @@
 Open pull requests · 1 open
 › #42  Fix retry handling
-  @alice  ○  ? Checks unknown  target: main
+  +122/-100  @alice  ○  ? Checks unknown  target: main
 
 
 
@@ -14,7 +14,7 @@ Open pull requests · 1 open
 Author alice  ·  Opened unknown
 Last commit unknown  ·  ? Checks unknown
 Your review: None
++122/-100
 Target branch: main
 DESCRIPTION
-  Preserve cancellation while retrying requests.
 j/k: select · tab: preview · enter: open · esc: back · ?: help

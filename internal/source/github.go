@@ -60,6 +60,8 @@ type Metadata struct {
 }
 
 type PullRequest struct {
+	Additions, Deletions     int
+	DiffStatsKnown           bool
 	HeadBranch               string
 	HeadRepository           string
 	StackPosition, StackSize int // Base-first position in an unambiguous open PR chain.
@@ -562,7 +564,7 @@ func (g *GH) ListPullRequests(ctx context.Context, repository string) ([]PullReq
 		return nil, err
 	}
 	parts := strings.Split(repository, "/")
-	const query = `query($owner:String!,$name:String!){repository(owner:$owner,name:$name){pullRequests(first:100,states:OPEN,orderBy:{field:CREATED_AT,direction:DESC}){nodes{number title body baseRefName headRefName headRepository{nameWithOwner} createdAt author{login} viewerLatestReview{state} commits(last:1){nodes{commit{author{name user{login}} statusCheckRollup{state}}}}}}}}`
+	const query = `query($owner:String!,$name:String!){repository(owner:$owner,name:$name){pullRequests(first:100,states:OPEN,orderBy:{field:CREATED_AT,direction:DESC}){nodes{number title body additions deletions baseRefName headRefName headRepository{nameWithOwner} createdAt author{login} viewerLatestReview{state} commits(last:1){nodes{commit{author{name user{login}} statusCheckRollup{state}}}}}}}}`
 	payload, err := json.Marshal(struct {
 		Query     string            `json:"query"`
 		Variables map[string]string `json:"variables"`
@@ -581,6 +583,8 @@ func (g *GH) ListPullRequests(ctx context.Context, repository string) ([]PullReq
 			Repository *struct {
 				PullRequests struct {
 					Nodes []struct {
+						Additions      *int   `json:"additions"`
+						Deletions      *int   `json:"deletions"`
 						Number         int    `json:"number"`
 						Title          string `json:"title"`
 						BaseRefName    string `json:"baseRefName"`
@@ -627,6 +631,12 @@ func (g *GH) ListPullRequests(ctx context.Context, repository string) ([]PullReq
 			return nil, errors.New("invalid pull request list")
 		}
 		pr := PullRequest{HeadBranch: item.HeadRefName, TargetBranch: item.BaseRefName, Identity: Identity{Repository: repository, Number: item.Number}, Title: item.Title, Description: item.Body, OpenedAt: item.CreatedAt, Checks: ChecksUnknown}
+		if item.Additions != nil && item.Deletions != nil {
+			if *item.Additions < 0 || *item.Deletions < 0 {
+				return nil, errors.New("invalid pull request diff stats")
+			}
+			pr.Additions, pr.Deletions, pr.DiffStatsKnown = *item.Additions, *item.Deletions, true
+		}
 		if item.HeadRepository != nil {
 			pr.HeadRepository = item.HeadRepository.NameWithOwner
 			if !repositoryPattern.MatchString(pr.HeadRepository) {

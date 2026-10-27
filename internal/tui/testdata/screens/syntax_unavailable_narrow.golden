@@ -1,7 +1,7 @@
 example/review #42               Actions [Space]  Review [R]
 PRs  Overview  › Files  Guide  Commits
 ┌ Files · ▽ Filter (F) · Commits [C] · All commits · Find (┐
-│── main.go                                                │
+│── main.go +1/-1                                          │
 │! Syntax highlighting unavailable: NEW: capture timed out.│
 │@@ -1 +1 @@                                               │
 │   1      -old greeting                                   │

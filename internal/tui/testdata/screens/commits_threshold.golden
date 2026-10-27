@@ -2,9 +2,9 @@ example/review #42                                                       Actions
   PRs [P]    Overview [1]    Files [2]    Guide [3]  › Commits [4]
 ┌ Commits · 1/2 ──────────────────┬ Commit diff · aaaaaaaaaaaa ────────────────────────────────────┐
 │› First commit                   │First commit                                                    │
-│  Alice · aaaaaaaaaaaa           │Alice · aaaaaaaaaaaa                                            │
-│  Second commit                  │Compared with empty tree (root commit)                          │
-│  Alice · bbbbbbbbbbbb           │── changed.go                                                   │
+│  +30/-1 · Alice · aaaaaaaaaaaa  │Alice · aaaaaaaaaaaa                                            │
+│  Second commit                  │+30/-1 · Compared with empty tree (root commit)                 │
+│  +30/-1 · Alice · bbbbbbbbbbbb  │── changed.go +30/-1                                            │
 │                                 │Mode:  -> 100644                                                │
 │                                 │@@ -1,1 +1,30 @@                                                │
 └─────────────────────────────────┴────────────────────────────────────────────────────────────────┘

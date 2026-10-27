@@ -40,7 +40,7 @@ func TestGuideHeadersWrapWithoutLosingTextOrRowIdentity(t *testing.T) {
 						parts = append(parts, strings.TrimSpace(strings.TrimPrefix(line.text, "› ")))
 					}
 					got := strings.ReplaceAll(strings.Join(parts, ""), " ", "")
-					want := strings.ReplaceAll(rows[index].label, " ", "")
+					want := strings.ReplaceAll(rows[index].label+" "+portionDiffStat(s, rows[index].units).String(), " ", "")
 					if got != want {
 						t.Fatalf("wrapped header = %q, want %q", got, want)
 					}

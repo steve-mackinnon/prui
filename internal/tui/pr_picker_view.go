@@ -53,6 +53,9 @@ func (m *Model) pullRequestDetail(pr source.PullRequest) []string {
 		"Last commit " + name(pr.LastModifier) + "  ·  " + pullRequestChecks(pr),
 		"Your review: " + pullRequestReviewLabel(pr.ViewerReview),
 	}
+	if pr.DiffStatsKnown {
+		detail = append(detail, m.styleDiffMetrics(diffStat{added: pr.Additions, removed: pr.Deletions}.String()))
+	}
 	detail = append(detail, "Target branch: "+name(pr.TargetBranch))
 	if pr.StackSize > 1 {
 		detail = append(detail, fmt.Sprintf("Stack: %d/%d (base first)", pr.StackPosition, pr.StackSize))

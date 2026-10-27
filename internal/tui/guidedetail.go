@@ -86,7 +86,7 @@ func guideDetailFor(s *review.Session, guide int, fullFile func(int) []diffLine)
 			if file != previous && (fullFile != nil || s.Inventory.Units[unit].Kind != inventory.FileMetadata) {
 				detail.files = append(detail.files, fileAnchor{section: si, file: file, offset: len(detail.lines)})
 				detail.splitFiles = append(detail.splitFiles, fileAnchor{section: si, file: file, offset: len(detail.splitLines)})
-				appendLines([]diffLine{{styledLine: styledLine{Class: classFileHeader, Text: fileDivider(s.Inventory.Files[file])}}})
+				appendLines([]diffLine{{styledLine: styledLine{Class: classFileHeader, Text: sessionFileDivider(s, file)}}})
 			}
 			if file != previous && fullFile == nil && s.Inventory.Units[unit].Kind == inventory.FileMetadata {
 				detail.files = append(detail.files, fileAnchor{section: si, file: file, offset: len(detail.lines)})

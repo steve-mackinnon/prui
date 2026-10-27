@@ -2,9 +2,9 @@ example/review #42                                                      Actions 
   PRs [P]    Overview [1]    Files [2]    Guide [3]  › Commits [4]
 ┌ Commits · 2/2 · enter/l: diff ──────────────────────────────────────────────────────────────────┐
 │  First commit                                                                                   │
-│  Alice · aaaaaaaaaaaa                                                                           │
+│  +30/-1 · Alice · aaaaaaaaaaaa                                                                  │
 │› Second commit                                                                                  │
-│  Alice · bbbbbbbbbbbb                                                                           │
+│  +30/-1 · Alice · bbbbbbbbbbbb                                                                  │
 │                                                                                                 │
 │                                                                                                 │
 └─────────────────────────────────────────────────────────────────────────────────────────────────┘

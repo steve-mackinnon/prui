@@ -1,11 +1,11 @@
 example/review #42                                                                                                                                       Actions [Space]  Review [R]
   PRs [P]    Overview [1]  › Files [2]    Guide [3]    Commits [4]                        ╭──────────────────────────────────────────────────────────────────────────────────────╮
 ┌ Files · ▽ Filter (F) ──────────────┬ Commits [C] · All commits · Find (/) · file 1/2 ───│ Find: l▏                                                                             │─┐
-│› main.go                           │── main.go                                          │ 4 matches in 1 file                                                                  │ │
-│  README.md                         │@@ -1 +1 @@                                         │ main.go   (4)                                                                        │ │
+│› main.go +1/-1                     │── main.go +1/-1                                    │ 4 matches in 1 file                                                                  │ │
+│  README.md +0/-0                   │@@ -1 +1 @@                                         │ main.go   (4)                                                                        │ │
 │                                    │    1 - old greeting                                │ ›  L1 - old greeting                                                                 │ │
 │                                    │                                                    │    R1 + hello world                                                                  │ │
-│                                    │── README.md                                        │    R1 + hello world                                                                  │ │
+│                                    │── README.md +0/-0                                  │    R1 + hello world                                                                  │ │
 │                                    │                                                    │    R1 + hello world                                                                  │ │
 │                                    │                                                    │                                                                                      │ │
 │                                    │                                                    │                                                                                      │ │
