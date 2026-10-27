@@ -12,18 +12,36 @@ func wheel(m *Model, x, y int, button tea.MouseButton) {
 	m.Update(tea.MouseWheelMsg{X: x, Y: y, Button: button})
 }
 
+func TestMouseWheelMovesOneSearchResult(t *testing.T) {
+	m := largeModel(largeTextSession(8, 2), 120, 24)
+	defer m.Close()
+	m.selectReviewView(viewFiles)
+	searchInput(m, "new")
+	bounds := m.searchBounds()
+	for _, want := range []int{1, 2} {
+		wheel(m, bounds.Min.X, bounds.Min.Y, tea.MouseWheelDown)
+		if got := m.searchState().selected; got != want {
+			t.Fatalf("search wheel selected result %d, want %d", got, want)
+		}
+	}
+	wheel(m, bounds.Min.X, bounds.Min.Y, tea.MouseWheelUp)
+	if got := m.searchState().selected; got != 1 {
+		t.Fatalf("up wheel selected result %d, want 1", got)
+	}
+}
+
 func TestMouseWheelRoutesFileListAndDiff(t *testing.T) {
 	m := largeModel(largeTextSession(8, 24), 120, 10)
 	defer m.Close()
 	g := m.workspaceGeometry()
 	wheel(m, g.Rail.Min.X, g.Rail.Min.Y, tea.MouseWheelDown)
-	if got := m.Session.UnitFiles[m.Selected]; got != 3 {
-		t.Fatalf("file wheel selected file %d, want 3", got)
+	if got := m.Session.UnitFiles[m.Selected]; got != 1 {
+		t.Fatalf("file wheel selected file %d, want 1", got)
 	}
 	selected := m.Selected
 	before := m.offset()
 	wheel(m, g.Detail.Min.X, g.Detail.Min.Y, tea.MouseWheelDown)
-	if m.offset() <= before || m.Selected != selected {
+	if m.offset() != before+1 || m.Selected != selected {
 		t.Fatalf("diff wheel did not scroll the detail independently: offset %d, selected %d", m.offset(), m.Selected)
 	}
 	wheel(m, g.Detail.Min.X, g.Detail.Min.Y, tea.MouseWheelUp)
@@ -38,13 +56,17 @@ func TestMouseWheelRoutesGuideListAndNarrowVisiblePane(t *testing.T) {
 	m.Row, m.Focus = 0, paneList
 	g := m.workspaceGeometry()
 	wheel(m, g.Rail.Min.X, g.Rail.Min.Y, tea.MouseWheelDown)
+	if m.Row != 1 {
+		t.Fatalf("guide wheel moved to row %d, want 1", m.Row)
+	}
+	wheel(m, g.Rail.Min.X, g.Rail.Min.Y, tea.MouseWheelDown)
 	if m.Row != 2 {
-		t.Fatalf("guide wheel moved to row %d, want 2", m.Row)
+		t.Fatalf("second guide wheel moved to row %d, want 2", m.Row)
 	}
 	row := m.Row
 	before := m.offset()
 	wheel(m, g.Detail.Min.X, g.Detail.Min.Y, tea.MouseWheelDown)
-	if m.offset() <= before || m.Row != row {
+	if m.offset() != before+1 || m.Row != row {
 		t.Fatalf("guide detail wheel changed row or failed to scroll: row %d, offset %d", m.Row, m.offset())
 	}
 	m.Width = 80
@@ -95,11 +117,11 @@ func TestMouseWheelScrollsDescription(t *testing.T) {
 	m.Width, m.Height = 60, 7
 	m.selectReviewView(viewDescription)
 	wheel(m, 10, 3, tea.MouseWheelDown)
-	if m.DescriptionScroll != mouseWheelStep {
-		t.Fatalf("description wheel scrolled %d, want %d", m.DescriptionScroll, mouseWheelStep)
+	if m.DescriptionScroll != 1 {
+		t.Fatalf("description wheel scrolled %d, want %d", m.DescriptionScroll, 1)
 	}
 	wheel(m, 10, 1, tea.MouseWheelDown)
-	if m.DescriptionScroll != mouseWheelStep {
+	if m.DescriptionScroll != 1 {
 		t.Fatal("description chrome wheel moved content")
 	}
 }

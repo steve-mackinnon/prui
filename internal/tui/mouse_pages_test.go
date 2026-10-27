@@ -50,8 +50,8 @@ func TestPageMouseHelpWheelToggleAndBack(t *testing.T) {
 	m := pageMouseModel(t, pageHelp)
 	m.Height = 8
 	m.mousePage(tea.MouseWheelMsg{Button: tea.MouseWheelDown, X: 5, Y: 3})
-	if m.helpScroll == 0 {
-		t.Fatal("help wheel did not scroll")
+	if m.helpScroll != 1 {
+		t.Fatal("help wheel did not scroll one row")
 	}
 	pageClick(m, 20, 7)
 	if !m.helpExpanded {
@@ -65,7 +65,7 @@ func TestPageMouseHelpWheelToggleAndBack(t *testing.T) {
 func TestPageMouseIncrementalWheelPanAndBack(t *testing.T) {
 	m := pageMouseModel(t, pageIncremental)
 	m.mousePage(tea.MouseWheelMsg{Button: tea.MouseWheelRight, X: 5, Y: 3})
-	if m.incremental.horizontal != 15 {
+	if m.incremental.horizontal != 5 {
 		t.Fatal("horizontal wheel did not pan")
 	}
 	pageClick(m, 2, 23)
@@ -110,7 +110,7 @@ func TestPageMouseLifecycleSelectionAndWheel(t *testing.T) {
 		t.Fatalf("selected %d", m.lifecycle.selected)
 	}
 	m.mousePage(tea.MouseWheelMsg{Button: tea.MouseWheelDown, X: 3, Y: 10})
-	if m.lifecycle.selected != 4 {
+	if m.lifecycle.selected != 2 {
 		t.Fatal("lifecycle wheel failed")
 	}
 	if m.lifecycle.confirmation != nil || m.lifecycle.busy {

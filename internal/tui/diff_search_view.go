@@ -216,10 +216,10 @@ func (m *Model) searchMouse(msg tea.MouseMsg) tea.Cmd {
 	}
 	if wheel, ok := msg.(tea.MouseWheelMsg); ok {
 		if wheel.Button == tea.MouseWheelDown {
-			s.selected = min(max(0, len(s.matches)-1), s.selected+3)
+			s.selected = min(max(0, len(s.matches)-1), s.selected+mouseWheelStep)
 		}
 		if wheel.Button == tea.MouseWheelUp {
-			s.selected = max(0, s.selected-3)
+			s.selected = max(0, s.selected-mouseWheelStep)
 		}
 		return nil
 	}
