@@ -61,7 +61,7 @@ Keys below apply while navigating; text editors use their own controls.
 | `zz` | Center diff on its cursor |
 | Enter / Escape | Activate selection or compose a comment / go back |
 | `1` / `2` / `3` / `4` | Overview / Files / Guide / Commits |
-| Space / Ctrl+K | Open Actions for review tools, settings, and saved reviews |
+| Space / Ctrl+K | Open Actions for review tools, settings, and saved reviews; `j` / `k` or arrows navigate |
 | `m` / `R` | Mark file read / submit review |
 | `r` | Refresh PR source, discussions, and comments |
 | `/` / `F` | Search diff text / filter file paths |

@@ -160,9 +160,9 @@ func (m *Model) actionsKey(key tea.KeyPressMsg) tea.Cmd {
 	switch key.String() {
 	case "esc":
 		m.pop()
-	case "up":
+	case "up", "k":
 		m.actions.index = max(0, m.actions.index-1)
-	case "down":
+	case "down", "j":
 		m.actions.index = min(max(0, len(m.reviewActions())-1), m.actions.index+1)
 	case "home":
 		m.actions.index = 0
