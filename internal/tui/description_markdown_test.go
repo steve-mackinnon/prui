@@ -119,6 +119,35 @@ func TestDescriptionMarkdownKeepsLiteralEntitiesInFencedCode(t *testing.T) {
 	}
 }
 
+func TestMarkdownPreservesCodeAngleBrackets(t *testing.T) {
+	renderers := map[string]func(string, int) ([]string, error){
+		"description": renderDescriptionMarkdown,
+		"conversation": func(body string, width int) ([]string, error) {
+			return renderConversationMarkdown(body, width, themeForName(t, theme.Dark), true)
+		},
+	}
+	for name, render := range renderers {
+		for _, tc := range []struct{ name, body string }{
+			{"fenced", "```text\nPOST novadb://db/<user>/exec\n<em>literal</em> &lt; &amp; &#7;\n```"},
+			{"tilde fenced", "~~~html\nPOST novadb://db/<user>/exec\n<em>literal</em> &lt; &amp; &#7;\n~~~"},
+			{"indented", "    POST novadb://db/<user>/exec\n    <em>literal</em> &lt; &amp; &#7;\n"},
+		} {
+			t.Run(name+"/"+tc.name, func(t *testing.T) {
+				lines, err := render(tc.body, 100)
+				if err != nil {
+					t.Fatal(err)
+				}
+				plain := ansi.Strip(strings.Join(lines, "\n"))
+				for _, want := range []string{"POST novadb://db/<user>/exec", "<em>literal</em> &lt; &amp; &#7;"} {
+					if !strings.Contains(plain, want) {
+						t.Fatalf("code text lost %q:\n%s", want, plain)
+					}
+				}
+			})
+		}
+	}
+}
+
 func TestDescriptionMarkdownKeepsRendererHyperlinks(t *testing.T) {
 	lines, err := renderDescriptionMarkdown("[normal link](https://example.com/%07?x=1) &amp; <em>literal</em>", 100)
 	if err != nil {

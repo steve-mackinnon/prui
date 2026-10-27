@@ -116,10 +116,10 @@ func descriptionWithoutBackgrounds(lines []string) []string {
 }
 
 func normalizeDescriptionControls(body string) string {
-	return normalizeMarkdownControls(body, false)
+	return normalizeMarkdownControls(body)
 }
 
-func normalizeMarkdownControls(body string, literalCode bool) string {
+func normalizeMarkdownControls(body string) string {
 	body = strings.ReplaceAll(body, "\r\n", "\n")
 	body = strings.ReplaceAll(body, "\r", "\n")
 	codeLines := descriptionCodeLines(body)
@@ -143,15 +143,14 @@ func normalizeMarkdownControls(body string, literalCode bool) string {
 	var safe strings.Builder
 	safe.Grow(len(body))
 	// Entity rewriting can change offsets; classify code again for this pass.
-	if literalCode {
-		codeLines = descriptionCodeLines(body)
-	}
+	codeLines = descriptionCodeLines(body)
 	for pos, r := range body {
 		switch {
 		case r == '\n' || r == '\t':
 			safe.WriteRune(r)
 		case r == '<':
-			if literalCode && inDescriptionCodeLine(pos, codeLines) {
+			if inDescriptionCodeLine(pos, codeLines) {
+				// Code blocks render literally; escaping here would expose &lt;.
 				safe.WriteRune(r)
 				continue
 			}

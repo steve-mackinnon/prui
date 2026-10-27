@@ -24,7 +24,7 @@ func renderConversationMarkdown(body string, width int, palette theme.Theme, exp
 	if err != nil {
 		return nil, err
 	}
-	lines, err := renderSafeMarkdown(normalizeMarkdownControls(normalized, true), max(1, width), palette, true)
+	lines, err := renderSafeMarkdown(normalizeMarkdownControls(normalized), max(1, width), palette, true)
 	if err != nil {
 		return nil, err
 	}

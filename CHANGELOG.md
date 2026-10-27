@@ -33,6 +33,8 @@ User-visible changes are recorded here before each release. See
 
 ### Fixed
 
+- Preserve angle brackets in Markdown code blocks across the overview, PR
+  description previews, and comments instead of displaying generated `&lt;` text.
 - Keep comment text and wrapping in place when moving or blinking the editor cursor.
 - Ensure source text and syntax colors, including comments, reach 4.5:1 contrast
   against diff backgrounds across themes and terminal color profiles.
