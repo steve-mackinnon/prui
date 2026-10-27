@@ -66,17 +66,21 @@ const (
 // with the caller; pasted text never passes through key interpretation.
 func (e draftEditor) key(key tea.KeyPressMsg) draftEditResult {
 	switch key.String() {
-	case "left", "right", "home", "end", "backspace", "delete",
-		"alt+left", "alt+right", "alt+b", "alt+f",
+	case "left", "right", "up", "down", "home", "end", "backspace", "delete",
+		"alt+left", "alt+right", "alt+b", "alt+f", "alt+backspace",
 		"super+left", "super+right", "super+backspace", "ctrl+a", "ctrl+e", "ctrl+u":
 		runes := e.clamp()
 		switch key.String() {
-		case "alt+left", "alt+b":
+		case "alt+left", "alt+b", "alt+backspace":
+			end := *e.cursor
 			for *e.cursor > 0 && !editorWordRune(runes[*e.cursor-1]) {
 				*e.cursor--
 			}
 			for *e.cursor > 0 && editorWordRune(runes[*e.cursor-1]) {
 				*e.cursor--
+			}
+			if key.String() == "alt+backspace" {
+				*e.body = string(append(runes[:*e.cursor], runes[end:]...))
 			}
 		case "alt+right", "alt+f":
 			for *e.cursor < len(runes) && !editorWordRune(runes[*e.cursor]) {
@@ -102,6 +106,36 @@ func (e draftEditor) key(key tea.KeyPressMsg) draftEditResult {
 			*e.cursor = max(0, *e.cursor-1)
 		case "right":
 			*e.cursor = min(len(runes), *e.cursor+1)
+		case "up", "down":
+			start := *e.cursor
+			for start > 0 && runes[start-1] != '\n' {
+				start--
+			}
+			column := *e.cursor - start
+			var end int
+			if key.String() == "up" {
+				if start == 0 {
+					break
+				}
+				end = start - 1
+				start = end
+				for start > 0 && runes[start-1] != '\n' {
+					start--
+				}
+			} else {
+				for start < len(runes) && runes[start] != '\n' {
+					start++
+				}
+				if start == len(runes) {
+					break
+				}
+				start++
+				end = start
+				for end < len(runes) && runes[end] != '\n' {
+					end++
+				}
+			}
+			*e.cursor = min(start+column, end)
 		case "home":
 			*e.cursor = 0
 		case "end":
@@ -116,7 +150,7 @@ func (e draftEditor) key(key tea.KeyPressMsg) draftEditResult {
 				*e.body = string(append(runes[:*e.cursor], runes[*e.cursor+1:]...))
 			}
 		}
-	case "shift+enter":
+	case "shift+enter", "ctrl+j":
 		if !e.insert("\n") {
 			return draftRejected
 		}

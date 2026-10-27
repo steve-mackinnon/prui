@@ -195,6 +195,44 @@ func TestDraftEditorMacShortcuts(t *testing.T) {
 	}
 }
 
+func TestDraftEditorWordDeletionAndLineMovement(t *testing.T) {
+	cases := []struct {
+		name, body, want   string
+		cursor, wantCursor int
+		code               rune
+		mod                tea.KeyMod
+	}{
+		{"delete previous word", "one two three", "one  three", 7, 4, tea.KeyBackspace, tea.ModAlt},
+		{"delete punctuation and word", "one,  two", "two", 6, 0, tea.KeyBackspace, tea.ModAlt},
+		{"delete combining word", "one cafe\u0301!", "one !", 9, 4, tea.KeyBackspace, tea.ModAlt},
+		{"delete across newline", "one\ntwo", "two", 4, 0, tea.KeyBackspace, tea.ModAlt},
+		{"delete at start", "one", "one", 0, 0, tea.KeyBackspace, tea.ModAlt},
+		{"delete empty", "", "", 99, 0, tea.KeyBackspace, tea.ModAlt},
+		{"up same column", "abcd\n猫🙂ef", "abcd\n猫🙂ef", 7, 2, tea.KeyUp, 0},
+		{"down same column", "猫🙂ef\nabcd", "猫🙂ef\nabcd", 2, 7, tea.KeyDown, 0},
+		{"up shorter line", "a\nlong", "a\nlong", 6, 1, tea.KeyUp, 0},
+		{"down shorter line", "long\na", "long\na", 4, 6, tea.KeyDown, 0},
+		{"up empty line", "ab\n\ncd", "ab\n\ncd", 5, 3, tea.KeyUp, 0},
+		{"down empty line", "ab\n\ncd", "ab\n\ncd", 1, 3, tea.KeyDown, 0},
+		{"up first line", "abcd\nef", "abcd\nef", 2, 2, tea.KeyUp, 0},
+		{"down last line", "ab\ncdef", "ab\ncdef", 5, 5, tea.KeyDown, 0},
+		{"up from trailing newline", "abc\n", "abc\n", 4, 0, tea.KeyUp, 0},
+		{"down to trailing newline", "abc\n", "abc\n", 2, 4, tea.KeyDown, 0},
+		{"up empty", "", "", -1, 0, tea.KeyUp, 0},
+		{"down empty", "", "", 99, 0, tea.KeyDown, 0},
+		{"newline fallback", "abcd", "ab\ncd", 2, 3, 'j', tea.ModCtrl},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			body, cursor := tc.body, tc.cursor
+			result := (draftEditor{&body, &cursor, commentDraft}).key(tea.KeyPressMsg{Code: tc.code, Mod: tc.mod})
+			if result != draftEdited || body != tc.want || cursor != tc.wantCursor {
+				t.Fatalf("got %q at %d (result %d), want %q at %d", body, cursor, result, tc.want, tc.wantCursor)
+			}
+		})
+	}
+}
+
 func TestMacShortcutsRouteToEveryDraft(t *testing.T) {
 	for _, surface := range []string{"comment", "suggestion", "reply", "published", "general", "summary"} {
 		t.Run(surface, func(t *testing.T) {
@@ -232,7 +270,15 @@ func TestMacShortcutsRouteToEveryDraft(t *testing.T) {
 				{tea.KeyRight, tea.ModAlt, body, 11},
 				{tea.KeyLeft, tea.ModSuper, body, 6},
 				{tea.KeyRight, tea.ModSuper, body, 11},
-				{tea.KeyBackspace, tea.ModSuper, "first\n", 6},
+				{tea.KeyBackspace, tea.ModAlt, "first\n猫 ", 8},
+				{tea.KeyUp, 0, "first\n猫 ", 2},
+				{tea.KeyDown, 0, "first\n猫 ", 8},
+				{tea.KeyEnter, tea.ModShift, "first\n猫 \n", 9},
+				{'j', tea.ModCtrl, "first\n猫 \n\n", 10},
+				{tea.KeyUp, 0, "first\n猫 \n\n", 9},
+				{tea.KeyUp, 0, "first\n猫 \n\n", 6},
+				{tea.KeyRight, tea.ModSuper, "first\n猫 \n\n", 8},
+				{tea.KeyBackspace, tea.ModSuper, "first\n\n\n", 6},
 			} {
 				m.Update(tea.KeyPressMsg{Code: step.code, Mod: step.mod})
 				if *field != step.want || *cursor != step.pos {
