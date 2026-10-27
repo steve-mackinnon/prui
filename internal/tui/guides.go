@@ -241,6 +241,22 @@ type listLine struct {
 
 var guideNavigationControls = []pageMouseControl{{"[← {]", "{"}, {"[→ }]", "}"}}
 
+// Style only the button cells after clipping, preserving their mouse bounds.
+func (m *Model) presentGuideNavigation(text string, width int) string {
+	text = clip(text, width)
+	var out strings.Builder
+	offset := 1 // The header's leading space.
+	out.WriteString(ansi.Cut(text, 0, offset))
+	for _, control := range guideNavigationControls {
+		end := offset + visibleWidth(control.label)
+		out.WriteString(m.styleLine(classPaneHeaderFocused, ansi.Cut(text, offset, end)))
+		out.WriteString(ansi.Cut(text, end, end+1))
+		offset = end + 1
+	}
+	out.WriteString(ansi.Cut(text, offset, visibleWidth(text)))
+	return out.String()
+}
+
 type guidePathTick struct{ generation int }
 
 func nextGuidePathTick(generation int) tea.Cmd {

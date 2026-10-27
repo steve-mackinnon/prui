@@ -2626,6 +2626,9 @@ func (m *Model) reviewViewForLayout(preferSideBySide bool) string {
 			left = list[row].text
 			leftClass = list[row].class
 			mutedFrom = list[row].mutedFrom
+			if list[row].guideNavigation {
+				left = m.presentGuideNavigation(left, m.listWidth())
+			}
 			if list[row].row == selectedRow {
 				leftClass = selectedClass(m.Focus == paneList)
 			}
