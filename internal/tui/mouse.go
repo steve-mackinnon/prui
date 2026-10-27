@@ -7,7 +7,9 @@ import (
 	tea "charm.land/bubbletea/v2"
 )
 
-const mouseWheelStep = 3
+// Terminals can emit multiple events per wheel notch or trackpad gesture.
+// Move once per event so their scroll rate is not multiplied again here.
+const mouseWheelStep = 1
 
 // Mouse routing obeys the same exclusive surface ownership as keyboard input.
 func (m *Model) mouseAvailable() bool {

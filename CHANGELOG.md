@@ -33,6 +33,7 @@ User-visible changes are recorded here before each release. See
 
 ### Fixed
 
+- Reduce mouse-wheel scrolling from three steps to one per terminal event.
 - Preserve angle brackets in Markdown code blocks across the overview, PR
   description previews, and comments instead of displaying generated `&lt;` text.
 - Keep comment text and wrapping in place when moving or blinking the editor cursor.
