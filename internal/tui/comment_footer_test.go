@@ -1,6 +1,7 @@
 package tui
 
 import (
+	tea "charm.land/bubbletea/v2"
 	"context"
 	"fmt"
 	"github.com/charmbracelet/x/ansi"
@@ -184,5 +185,80 @@ func TestPartialReactionRefreshReplacesObservedCounts(t *testing.T) {
 	}
 	if len(m.CommentReactions[-8]) != 1 {
 		t.Fatal("omitted confirmation lost")
+	}
+}
+
+func TestHistoricalDiffFooterReplyAndReaction(t *testing.T) {
+	for _, split := range []bool{false, true} {
+		for _, id := range []int64{7, 8} {
+			for _, label := range []string{"[+1 0]", "[↩ Reply]"} {
+				t.Run(fmt.Sprintf("split=%v/comment=%d/%s", split, id, label), func(t *testing.T) {
+					s, snapshot := historicalCommentFixture()
+					// The displayed line moved; outbound actions must retain the old anchor.
+					s.Commits.Composition.Blobs["head"] = []byte("inserted\nhello world\n")
+					s.Inventory.Patches["patch"] = []byte("@@ -1 +1,2 @@\n-old greeting\n+inserted\n+hello world\n")
+					m := largeModel(s, 180, 45)
+					t.Cleanup(m.Close)
+					m.openReviewTab(s)
+					m.selectReviewView(viewFiles)
+					if split {
+						m.layout = diffLayoutSideBySide
+					}
+					m.reactionEmoji = false
+					m.applyDiscussionResult(DiscussionResult{Target: m.activeTab, Session: s, Snapshot: snapshot})
+					var sent CommentAction
+					m.SetCommentActionSubmitter(func(_ context.Context, a CommentAction) (source.ReviewComment, source.ReviewCommentReaction, error) {
+						sent = a
+						if a.Body != "" {
+							return source.ReviewComment{ID: 9, ParentID: a.Comment.ID, Target: a.Comment.Target, Body: a.Body}, source.ReviewCommentReaction{}, nil
+						}
+						return source.ReviewComment{}, source.ReviewCommentReaction{ID: 10, Content: a.Reaction}, nil
+					})
+					m.Focus, m.cursorActive = paneDiff, true
+					footer := -1
+					for i, row := range m.displayDetail() {
+						if row.commentID == id && row.commentFooter {
+							footer = i
+							break
+						}
+					}
+					if footer < 0 {
+						t.Fatal("historical footer missing")
+					}
+					m.setCursor(footer)
+					m.ensureCursorVisible()
+					clicked := false
+					for y, line := range strings.Split(ansi.Strip(m.View().Content), "\n") {
+						if at := strings.Index(line, label); at >= 0 {
+							cmd := m.mouseReviewClick(visibleWidth(line[:at])+1, y)
+							if label == "[↩ Reply]" {
+								if m.CommentMenu == nil || m.CommentMenu.mode != commentActionReply || m.CommentMenu.ReplyToID != 7 || m.top() != pageReview {
+									t.Fatal("historical reply did not open inline on original thread")
+								}
+								m.CommentMenu.Draft = "follow up"
+								cmd = m.commentActionKey(tea.KeyPressMsg{Code: tea.KeyEnter})
+							}
+							completeAction(t, m, cmd)
+							clicked = true
+							break
+						}
+					}
+					if !clicked {
+						t.Fatal("historical reaction/reply control not rendered")
+					}
+					if label == "[↩ Reply]" {
+						raw := snapshot.Snapshot.Threads[0].OriginalAnchor
+						if sent.Comment.ID != 7 || sent.Comment.CurrentAnchor == nil || *sent.Comment.CurrentAnchor != *raw || sent.Comment.Target.Line != raw.Line {
+							t.Fatalf("reply used projected anchor: %#v", sent)
+						}
+						if len(m.Comments) != 3 || m.Comments[2].Target.Line != 2 || !m.Comments[2].HistoricalProjection {
+							t.Fatal("confirmed reply lost historical display location")
+						}
+					} else if sent.Comment.ID != id || sent.Reaction != "+1" || sent.Comment.Target.Line != 1 {
+						t.Fatalf("reaction targeted wrong comment: %#v", sent)
+					}
+				})
+			}
+		}
 	}
 }

@@ -83,7 +83,7 @@ func (m *Model) footerReaction(content string) tea.Cmd {
 
 func (m *Model) selectedCommentFooter(line diffLine) string {
 	for _, c := range m.Comments {
-		if c.ID != line.commentID || c.HistoricalProjection || c.Retained {
+		if c.ID != line.commentID || c.Retained {
 			continue
 		}
 		controls := m.commentFooterControls(c.ID, m.submitCommentAction != nil)
@@ -108,7 +108,7 @@ func (m *Model) diffFooterClick(line diffLine, x int) (tea.Cmd, bool) {
 	}
 	text := m.selectedCommentFooter(line)
 	for _, c := range m.Comments {
-		if c.ID != line.commentID || c.HistoricalProjection || c.Retained {
+		if c.ID != line.commentID || c.Retained {
 			continue
 		}
 		for _, control := range m.commentFooterControls(c.ID, m.submitCommentAction != nil) {
@@ -131,7 +131,10 @@ func (m *Model) diffFooterClick(line diffLine, x int) (tea.Cmd, bool) {
 			if x < left || x >= left+visibleWidth(control.label) {
 				continue
 			}
-			if !m.openCommentActionMenu() {
+			if c.HistoricalProjection {
+				m.CommentMenu = &commentActionMenu{CommentID: c.ID, ReplyToID: m.topLevelCommentID(c.ID), Target: c.Target, Author: c.Author}
+				m.resolveReplyRoot(m.CommentMenu)
+			} else if !m.openCommentActionMenu() {
 				return nil, true
 			}
 			if control.key == "r" {

@@ -541,7 +541,15 @@ func (m *Model) applyCommentActionResult(result CommentActionResult) {
 			}
 		}
 	case result.Reply.ID > 0:
-		state.Comments = append(state.Comments, result.Reply)
+		reply := result.Reply
+		for _, c := range state.Comments {
+			if c.ID == state.CommentMenu.ReplyToID && c.HistoricalProjection {
+				// Restore the display location after replying to the original thread.
+				reply.Target, reply.HistoricalProjection, reply.OriginalAnchor = c.Target, true, c.OriginalAnchor
+				break
+			}
+		}
+		state.Comments = append(state.Comments, reply)
 	case result.Reaction.ID > 0:
 		if state.CommentReactions == nil {
 			state.CommentReactions = map[int64][]source.ReviewCommentReaction{}
@@ -1186,6 +1194,18 @@ func (m *Model) commentActionRequest(menu *commentActionMenu) CommentAction {
 		raw := *menu.RootAnchor
 		action.Comment.CurrentAnchor = &raw
 	}
+	if action.Comment.HistoricalProjection {
+		// Display projections never become outbound anchors, even when a line moved.
+		raw := action.Comment.OriginalAnchor
+		if action.Comment.CurrentAnchor != nil {
+			raw = action.Comment.CurrentAnchor
+		}
+		if raw != nil {
+			action.Comment.CurrentAnchor = raw
+			action.Comment.Target = *raw
+			action.Comment.Target.CommitID = action.Metadata.HeadSHA
+		}
+	}
 	return action
 }
 
@@ -1202,6 +1222,8 @@ func (m *Model) resolveReplyRoot(menu *commentActionMenu) bool {
 			raw := c.Target
 			if c.CurrentAnchor != nil {
 				raw = *c.CurrentAnchor
+			} else if c.HistoricalProjection && c.OriginalAnchor != nil {
+				raw = *c.OriginalAnchor
 			}
 			menu.RootAnchor = &raw
 			return true
