@@ -217,7 +217,12 @@ review submission still has a separate final confirmation.
 
 Optional accelerators are listed below. In comment editors, Enter posts
 immediately, Ctrl+P queues a local pending comment where supported, and
-Shift+Enter adds a newline.
+Shift+Enter adds a newline. Ctrl+J also inserts a newline when the terminal
+does not distinguish Shift+Enter from Enter. Up/Down moves between
+newline-separated lines, keeping the rune column where possible; shorter lines
+clamp to their end. Option+Backspace (Alt+Backspace) deletes the previous word,
+including intervening punctuation or whitespace, using the same word boundaries
+as Option+Left.
 
 | Key | Action |
 | --- | --- |
