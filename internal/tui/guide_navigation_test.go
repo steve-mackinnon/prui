@@ -5,7 +5,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/charmbracelet/colorprofile"
+	"github.com/charmbracelet/x/ansi"
 	"prui/internal/guide"
+	"prui/internal/theme"
 )
 
 func TestGuideNavigationHeaderStaysFirstAndHandlesClicks(t *testing.T) {
@@ -49,6 +52,40 @@ func TestGuideNavigationHeaderStaysFirstAndHandlesClicks(t *testing.T) {
 			}
 			click(2)
 			check(0)
+		})
+	}
+}
+
+func TestGuideNavigationButtonsHaveDistinctBackground(t *testing.T) {
+	for _, name := range []string{theme.Dark, theme.Light} {
+		t.Run(name, func(t *testing.T) {
+			m := guideScrollModel(1, 120)
+			defer m.Close()
+			m.Focus = paneList
+			palette, err := theme.Resolve(name, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			m.SetTheme(palette)
+			m.colorProfile = colorprofile.TrueColor
+			view := m.View().Content
+			cells := canvasCells(view, m.Width, m.Height)
+			g := m.workspaceGeometry()
+			base := cells.CellAt(g.Rail.Min.X, g.Rail.Min.Y).Style.Bg
+			for _, x := range []int{1, 3, 5, 7, 9, 11} {
+				if sameCanvasColor(cells.CellAt(g.Rail.Min.X+x, g.Rail.Min.Y).Style.Bg, base) {
+					t.Fatalf("button cell %d blends into header background", x)
+				}
+			}
+			for _, x := range []int{6, 12, 15} {
+				if !sameCanvasColor(cells.CellAt(g.Rail.Min.X+x, g.Rail.Min.Y).Style.Bg, base) {
+					t.Fatalf("button background leaked into header cell %d", x)
+				}
+			}
+			m.colorProfile = colorprofile.NoTTY
+			if got := ansi.Strip(strings.Split(m.View().Content, "\n")[g.Rail.Min.Y]); got != ansi.Strip(strings.Split(view, "\n")[g.Rail.Min.Y]) {
+				t.Fatal("button styling changed logical header text")
+			}
 		})
 	}
 }
