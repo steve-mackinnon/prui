@@ -25,18 +25,19 @@ Alternative considered: add Discussions as the second tab. This makes the
   or changed numeric shortcuts. Prefer the combined Overview unless review
   shows that long descriptions make the conversation too difficult to reach.
 
-## Existing Behavior
+## Conversation Surface
 
-`pageDiscussions` is an overlay reached through D. The conversation contains
-general PR comments, submitted reviews, and individual inline comments/replies,
-ordered chronologically. Enter opens detail. Historical diff snippets appear
-after comment bodies; `o` opens the original captured commit. There is no
-equivalent action that selects the comment in Files.
+Overview contains the frozen Markdown description and the chronological
+conversation: general PR comments, submitted reviews, and inline comments/replies.
+Enter expands an activity card; `o` opens its captured original commit, and `f`
+selects its current Files location when available. Historical snippets remain
+readable when neither source location is available. There is no standalone
+discussion page. Older diff comment activation and unresolved-thread navigation
+select and expand the matching Overview activity by identity.
 
-Overview currently renders a frozen Markdown description with its own scroll.
-Files already renders comment cards with stable comment IDs and supports cursor
-restoration and inline actions. Existing conversation refresh, partial-read,
-freshness, draft, delivery, and escaping contracts remain authoritative.
+Files renders comment cards with stable comment IDs, reactions, and inline reply
+actions. Existing conversation refresh, partial-read, freshness, draft, delivery,
+and escaping contracts remain authoritative.
 
 ## Overview Interaction Contract
 

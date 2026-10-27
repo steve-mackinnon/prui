@@ -184,3 +184,43 @@ func TestProgramDiscussionFreshnessMismatchSuppressesMainCards(t *testing.T) {
 	})
 	h.quit()
 }
+
+func TestProgramHistoricalAndUnresolvedNavigationStayInOverview(t *testing.T) {
+	s, snapshot := historicalCommentFixture()
+	no := false
+	snapshot.Snapshot.Threads[0].Resolved = &no
+	snapshot.Snapshot.Threads[0].URL = "https://github.com/example/review/pull/42#discussion_r7"
+	snapshot.Snapshot.Threads = append(snapshot.Snapshot.Threads, source.Discussion{
+		ID: "unplaced", Resolved: &no, URL: "https://github.com/example/review/pull/42#discussion_r9",
+		Comments: []source.ReviewComment{{ID: 9, Author: "bob", Body: "Unplaced unresolved concern"}},
+	})
+	m := largeModel(s, 120, 24)
+	m.Loading = false
+	m.openReviewTab(s)
+	m.selectReviewView(viewFiles)
+	m.applyDiscussionResult(DiscussionResult{Target: m.activeTab, Session: s, Snapshot: snapshot})
+	m.Focus, m.cursorActive = paneDiff, true
+	selected := false
+	for i, row := range m.displayDetail() {
+		if row.commentID == 7 {
+			m.setCursor(i)
+			m.ensureCursorVisible()
+			selected = true
+			break
+		}
+	}
+	if !selected {
+		t.Fatal("historical comment missing from Files")
+	}
+	h := runProgram(t, m)
+	h.expect("Files comment", func(f programFrame) bool { return strings.Contains(f.text, "still relevant") })
+	h.key(tea.KeyEnter)
+	h.expect("expanded Overview thread", func(f programFrame) bool {
+		return f.page == pageReview && strings.Contains(f.text, "Overview · Discussions") && strings.Contains(f.text, "discussion_r7") && strings.Contains(f.text, "reply")
+	})
+	h.p.Send(tea.KeyPressMsg{Code: tea.KeyDown, Mod: tea.ModAlt})
+	h.expect("unplaced unresolved thread in Overview", func(f programFrame) bool {
+		return f.page == pageReview && strings.Contains(f.text, "Overview · Discussions") && strings.Contains(f.text, "> @bob") && strings.Contains(f.text, "discussion_r9")
+	})
+	h.quit()
+}

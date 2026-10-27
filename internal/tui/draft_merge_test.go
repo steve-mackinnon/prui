@@ -87,8 +87,8 @@ func TestDurableReviewSurvivesUncertainGeneralConversation(t *testing.T) {
 		}
 		return source.ConversationEvent{}, source.ErrCommentDeliveryUnknown
 	})
-	m.openDiscussions()
-	m.discussionKey("n")
+	m.openOverviewDiscussions()
+	m.conversationActionKey("n")
 	key(m, 't')
 	key(m, 'q')
 	_, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})

@@ -12,6 +12,10 @@ User-visible changes are recorded here before each release. See
 
 ### Changed
 
+- Consolidate conversations in Overview and remove the separate discussion page.
+  Opening older comments or navigating unresolved threads expands the matching
+  Overview thread, with original-commit navigation and comment actions preserved.
+
 - Drag the divider between the PR list and description preview to resize the
   panes in wide terminals, including the PR switcher.
 - Consolidate review refresh into **Refresh PR** (`r`): check GitHub, load a new

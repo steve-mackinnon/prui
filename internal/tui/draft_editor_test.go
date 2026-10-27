@@ -25,7 +25,7 @@ func TestMultilineInputPolicyRouting(t *testing.T) {
 					m.discussions.published = &publishedEditor{draft: body, cursor: 65536}
 					field = &m.discussions.published.draft
 				case "general":
-					m.push(pageDiscussions)
+					m.openOverviewDiscussions()
 					m.discussions.editor = &generalCommentEditor{draft: body, cursor: 65536}
 					field = &m.discussions.editor.draft
 				case "summary":
@@ -251,7 +251,7 @@ func TestMacShortcutsRouteToEveryDraft(t *testing.T) {
 				m.discussions.published = &publishedEditor{draft: body, cursor: 11}
 				field, cursor = &m.discussions.published.draft, &m.discussions.published.cursor
 			case "general":
-				m.push(pageDiscussions)
+				m.openOverviewDiscussions()
 				m.discussions.editor = &generalCommentEditor{draft: body, cursor: 11}
 				field, cursor = &m.discussions.editor.draft, &m.discussions.editor.cursor
 			case "summary":

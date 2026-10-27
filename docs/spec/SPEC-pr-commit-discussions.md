@@ -87,16 +87,18 @@ Commits · 2/3                    Commit diff · b7c8d9e01234
                                  └ 1 reply
 ```
 
-### Discussions overlay
+### Conversations in Overview
 
-Use `D` from any review context view to open the PR-wide overlay; `D` currently
-must be checked for conflicts during implementation. Keep `c` as explicit
-refresh, including from Commits and Discussions. Overlay controls: j/k or arrows
-select, Enter shows the thread and historical snippet, Escape returns one level.
-Thread detail offers `View original commit` and a displayed, selectable GitHub
-permalink. Opening a browser requires an explicit action and validated HTTPS
-GitHub URL, using the existing launcher if available. A plain displayed URL is
-an acceptable fallback. Mouse selection follows the same semantic targets.
+Use `D` from any review context view to focus the PR-wide conversation in
+Overview. There is no standalone discussion page. Tab/Shift+Tab select activity;
+j/k or arrows move through rows. Enter expands the selected thread and its
+historical context, suggestion previews, and permalink; Escape collapses it.
+`o` opens the captured original commit and Escape restores the prior Overview
+context. Activating an older projected diff comment or navigating unresolved
+threads selects and expands the matching Overview thread by identity. These
+navigation actions never fetch or post. Use Refresh PR (`r`) for explicit online
+refresh. Browser links retain the existing validated HTTPS and explicit-action
+requirements. Mouse selection follows the same semantic targets.
 
 All loaded threads are listed, including outdated, file-level, multiline,
 unmatched, and missing-original-commit records. Order by root creation time then

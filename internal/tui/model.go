@@ -182,7 +182,6 @@ const (
 	pageReviewSubmit
 	pageQuitPending
 	pageThemePicker
-	pageDiscussions
 	pageDraftRecovery
 	pageIncremental
 	pageReadiness
@@ -872,7 +871,7 @@ func (m *Model) update(msg tea.Msg) (updated tea.Model, command tea.Cmd) {
 				return m, nil
 			}
 		}
-		editingReviewText := m.Composer != nil || (m.CommentMenu != nil && m.CommentMenu.mode == commentActionReply) || m.discussions.published != nil || m.top() == pageReviewSubmit || (m.discussions.editor != nil && (m.top() == pageDiscussions || m.top() == pageReview && m.selectedReviewView() == viewDescription && m.discussions.overviewFocus))
+		editingReviewText := m.Composer != nil || (m.CommentMenu != nil && m.CommentMenu.mode == commentActionReply) || m.discussions.published != nil || m.top() == pageReviewSubmit || (m.discussions.editor != nil && (m.top() == pageReview && m.selectedReviewView() == viewDescription && m.discussions.overviewFocus))
 		if m.top() == pageInboxFilters && v.String() != "ctrl+c" {
 			return m, m.inboxFilterKey(v.String())
 		}
@@ -893,7 +892,7 @@ func (m *Model) update(msg tea.Msg) (updated tea.Model, command tea.Cmd) {
 			if m.CommentMenu != nil {
 				return m, m.commentActionKey(v)
 			}
-			if m.discussions.editor != nil && (m.top() == pageDiscussions || m.top() == pageReview && m.selectedReviewView() == viewDescription && m.discussions.overviewFocus) {
+			if m.discussions.editor != nil && (m.top() == pageReview && m.selectedReviewView() == viewDescription && m.discussions.overviewFocus) {
 				return m, m.generalCommentKey(v)
 			}
 			if m.top() == pageThemePicker {
@@ -911,12 +910,6 @@ func (m *Model) update(msg tea.Msg) (updated tea.Model, command tea.Cmd) {
 			}
 			if m.top() == pageIssueContext {
 				return m, m.issueContextKey(v.String())
-			}
-			if m.top() == pageDiscussions {
-				if m.discussions.editor != nil {
-					return m, m.generalCommentKey(v)
-				}
-				return m, m.discussionKey(v.String())
 			}
 			if m.top() == pageIncremental {
 				return m, m.incrementalKey(v.String())
@@ -1363,7 +1356,6 @@ func (m *Model) selectReviewView(view reviewView) {
 	}
 	m.discussions.returnFiles = nil
 	m.discussions.returnCommit = nil
-	m.discussions.returnOverview = false
 	m.ContextView = view
 	switch view {
 	case viewFiles:
@@ -1520,12 +1512,10 @@ func (m *Model) openCommentActionMenu() bool {
 	for _, comment := range m.Comments {
 		if comment.ID == line.commentID {
 			if comment.HistoricalProjection {
-				m.openDiscussions()
-				for i, thread := range discussionEntries(m.discussions.snapshot.Snapshot) {
+				for _, thread := range discussionEntries(m.discussions.snapshot.Snapshot) {
 					for _, c := range thread.Comments {
 						if c.ID == comment.ID {
-							m.discussions.selected, m.discussions.selectedID = i, thread.ID
-							m.discussions.detail = true
+							m.openOverviewThread(thread.ID)
 							return true
 						}
 					}
@@ -1940,7 +1930,7 @@ func (m *Model) reviewCommentLinesAt(comment source.ReviewComment, indent int) [
 	lines := []diffLine{{styledLine: styledLine{Class: classMetadata, Text: border}, commentID: comment.ID}}
 	lines = append(lines, wrappedLines(classMetadata, "@"+author)...)
 	if comment.HistoricalProjection {
-		lines = append(lines, wrappedLines(classMetadata, "Earlier commit · matched unchanged code · enter: discussion")...)
+		lines = append(lines, wrappedLines(classMetadata, "Earlier commit · matched unchanged code · enter: Overview")...)
 	}
 	if label := m.publishedStatus(comment.ID); label != "" {
 		lines = append(lines, wrappedLines(classMetadata, label)...)
@@ -2396,8 +2386,6 @@ func (m *Model) View() tea.View {
 			text = m.readinessView()
 		case pageIssueContext:
 			text = m.issueContextView()
-		case pageDiscussions:
-			text = m.discussionsView()
 		case pageIncremental:
 			text = m.incrementalView()
 		case pageInbox:

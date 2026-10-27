@@ -186,7 +186,7 @@ func TestDiffCommentMarkdownHistoricalBodyOpensOriginalDiscussion(t *testing.T) 
 			t.Fatal("historical presentation leaked Markdown or source target")
 		}
 		m.setCursor(i)
-		if !m.openCommentActionMenu() || m.top() != pageDiscussions || !m.discussions.detail || m.discussions.selectedID != "old-thread" || m.CommentMenu != nil {
+		if !m.openCommentActionMenu() || m.top() != pageReview || m.selectedReviewView() != viewDescription || !m.discussions.overviewExpanded[m.discussions.selectedID] || m.discussions.selectedID != "old-thread" || m.CommentMenu != nil {
 			t.Fatal("formatted historical row lost original discussion navigation")
 		}
 		return

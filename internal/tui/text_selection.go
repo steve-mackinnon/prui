@@ -48,7 +48,7 @@ func (m *Model) textSelectionBounds() image.Rectangle {
 			}
 			return m.workspaceGeometry().Detail
 		}
-	case pageReadiness, pageIssueContext, pageDiscussions:
+	case pageReadiness, pageIssueContext:
 		return image.Rect(0, 1, m.Width, m.Height-1)
 	case pagePullRequestPicker:
 		headers := 1

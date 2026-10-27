@@ -364,3 +364,12 @@ exclude cold loading and terminal output; they are observations, not portable
 CI time thresholds. The allocation-budget test guards against source-sized
 work returning. The reviewer confirmed that the fix resolved scrolling lag on
 the reported large JSON PR; broader terminal/accessibility QA remains unverified.
+
+## Conversation navigation
+
+`go test ./internal/tui -run 'HistoricalAndUnresolvedNavigationStayInOverview|HistoricalInlineCommentOpens|UnresolvedNavigation|DiscussionOriginalJump' -count=1`
+verifies that older inline comments and next/previous unresolved navigation select
+and expand the matching Overview thread, including unplaceable threads. Original
+commit navigation returns to Overview with its prior context. Conversation,
+published-action, paste, mouse editor, suggestion, and draft tests exercise the
+same Overview surface; there is no standalone discussion page.

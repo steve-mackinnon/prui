@@ -120,15 +120,19 @@ func TestMouseEditorControlsAndUntrustedBody(t *testing.T) {
 	defer m.Close()
 	m.Session = largeSession(2, 2)
 	m.Width, m.Height = 120, 28
-	m.push(pageDiscussions)
+	m.openOverviewDiscussions()
 	m.discussions.editor = &generalCommentEditor{draft: "Enter: post · esc: discard", cursor: 26}
 	modalClick(m, 0, 2)
 	if m.discussions.editor == nil {
 		t.Fatal("draft text interpreted as a control")
 	}
-	lines := strings.Split(m.generalCommentView(), "\n")
-	x := visibleWidth("Enter: post · shift+enter: newline · ctrl+r: refresh · ")
-	modalClick(m, x, len(lines)-1)
+	m.Loading = false
+	for y, line := range strings.Split(ansi.Strip(m.View().Content), "\n") {
+		if at := strings.Index(line, "esc: discard"); at >= 0 && strings.Contains(line, "shift+enter") {
+			modalClick(m, visibleWidth(line[:at]), y)
+			break
+		}
+	}
 	if m.discussions.editor != nil {
 		t.Fatal("discard control inactive")
 	}
@@ -192,9 +196,15 @@ func TestMouseEditorCaretAndClippedControls(t *testing.T) {
 	defer m.Close()
 	m.Session = largeSession(2, 2)
 	m.Width, m.Height = 120, 28
-	m.push(pageDiscussions)
+	m.openOverviewDiscussions()
 	m.discussions.editor = &generalCommentEditor{draft: "hello world", cursor: 11}
-	modalClick(m, 2, 2)
+	m.Loading = false
+	for y, line := range strings.Split(ansi.Strip(m.View().Content), "\n") {
+		if at := strings.Index(line, "hello world"); at >= 0 {
+			modalClick(m, visibleWidth(line[:at])+2, y)
+			break
+		}
+	}
 	if m.discussions.editor.cursor != 2 {
 		t.Fatalf("caret click=%d", m.discussions.editor.cursor)
 	}

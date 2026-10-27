@@ -92,7 +92,7 @@
   display a labeled historical projection when captured original/head blobs at
   the same path prove identical source or a uniquely matching RIGHT-side line
   range, and the projected target belongs to the frozen PR diff. Projections
-  preserve authoritative anchors/status and open discussion actions by identity;
+  preserve authoritative anchors/status and open the matching expanded Overview thread by identity;
   they never supply outbound comment or suggestion-application targets. Unplaceable threads
   remain discoverable. Outdated never implies resolved; uncaptured never implies
   removed. Partial retrieval cannot imply complete counts or no discussions.

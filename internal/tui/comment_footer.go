@@ -47,17 +47,8 @@ func (m *Model) discussionFooterControls(t source.Discussion) []pageMouseControl
 }
 func (m *Model) discussionFooterClick(t source.Discussion, key string) tea.Cmd {
 	if key == "r" {
-		if m.top() == pageReview {
-			cmd, _ := m.overviewKey("r")
-			return cmd
-		}
-		if t.Kind == "PR comment" {
-			return m.discussionKey("r")
-		}
-		m.pop()
-		m.openOverviewDiscussions()
-		m.openOverviewReply(t)
-		return nil
+		cmd, _ := m.overviewKey("r")
+		return cmd
 	}
 	id := discussionReactionID(t)
 	if id == 0 || !strings.HasPrefix(key, "react:") || m.submitCommentAction == nil {

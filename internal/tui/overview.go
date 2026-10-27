@@ -128,6 +128,24 @@ func (m *Model) overviewRows() []overviewRow {
 			for _, line := range m.conversationLines(c.Body, expanded) {
 				appendText(line, t.ID, "detail")
 			}
+			if expanded {
+				if replacement, err := source.ParseSuggestion(c.Body); err == nil {
+					target := c.Target
+					for _, shown := range m.Comments {
+						if shown.ID == c.ID {
+							target = shown.Target
+							break
+						}
+					}
+					before, ok := m.targetSource(target)
+					if !ok {
+						before = "(captured source unavailable; application unsupported)"
+					}
+					for _, preview := range suggestionPreview(before, replacement) {
+						appendText(preview.Text, t.ID, "detail")
+					}
+				}
+			}
 		}
 		if t.Kind != "PR comment" && t.Kind != "Review" {
 			reason := m.discussionFilesReason(t)
@@ -322,7 +340,6 @@ func (m *Model) openOverviewReply(t source.Discussion) {
 				return
 			}
 			m.CommentMenu = menu
-			m.discussions.detail = false
 			m.editorCursorVisible = true
 			return
 		}
@@ -373,6 +390,23 @@ func (m *Model) openOverviewDiscussions() {
 		m.revealOverviewActivity()
 	}
 }
+
+// openOverviewThread keeps navigation by discussion identity on the conversation feed.
+func (m *Model) openOverviewThread(id string) {
+	m.openOverviewDiscussions()
+	for i, entry := range m.discussionEntries() {
+		if entry.ID == id {
+			m.discussions.selected, m.discussions.selectedID = i, id
+			if m.discussions.overviewExpanded == nil {
+				m.discussions.overviewExpanded = map[string]bool{}
+			}
+			m.discussions.overviewExpanded[id] = true
+			m.revealOverviewActivity()
+			return
+		}
+	}
+}
+
 func (m *Model) toggleOverviewExpansion() {
 	d := &m.discussions
 	if d.overviewExpanded == nil {
@@ -419,7 +453,6 @@ func (m *Model) overviewKey(key string) (tea.Cmd, bool) {
 			}
 			d.overviewFocus = true
 			d.selectedID = entries[d.selected].ID
-			d.detail = false
 			m.revealOverviewActivity()
 		}
 		return nil, true
@@ -451,7 +484,6 @@ func (m *Model) overviewKey(key string) (tea.Cmd, bool) {
 				if m.viewOriginalDiscussion(t.OriginalAnchor, t.OriginalCommitID) {
 					d.returnCommit = &saved
 					d.returnView = viewDescription
-					d.returnOverview = true
 				}
 			}
 			return nil, true
@@ -466,12 +498,8 @@ func (m *Model) overviewKey(key string) (tea.Cmd, bool) {
 					return nil, true
 				}
 			}
-			wasDetail := d.detail
-			d.detail = true
-			cmd := m.discussionKey(key)
-			d.detail = wasDetail
+			cmd := m.conversationActionKey(key)
 			if d.editor != nil {
-				d.detail = false
 				d.overviewFocus = true
 				if key == "n" {
 					m.DescriptionScroll = max(0, len(m.overviewRows())-m.overviewHeight())

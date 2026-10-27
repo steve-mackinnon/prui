@@ -245,7 +245,7 @@ as Option+Left.
 | `ctrl+p` in a line editor | Save or update a local pending comment without posting |
 | `R` | Open Submit review from any review tab |
 | `c` | Refresh ephemeral review discussions and inline comments (online reviews only) |
-| `D` | Open the PR-wide Discussions list from any context view |
+| `D` | Focus the conversation in Overview from any context view |
 | `j` / `k` | Jump to next / previous file in Files; navigate guide rows or inventory units elsewhere |
 | Up / down | Navigate list or scroll focused diff |
 | `J` / `K` | Scroll diff by 5 lines |
@@ -293,7 +293,7 @@ navigation list and diff horizontally. The navigation list stays at least
 `[` / `]` keys share the same per-review width, remembered for this run and restored after
 returning from a narrow terminal. The inner old/new diff divider stays equal.
 
-Drag across text in the diff, Overview, commit detail, PR preview, discussions,
+Drag across text in the diff, Overview, commit detail, PR preview,
 readiness, or issue context to highlight it. Releasing copies the visible text
 through OSC 52 and shows a small `copied to clipboard` toast at the bottom for
 two seconds. Multiline selection stays within the content pane; rendered line
@@ -396,16 +396,20 @@ Press `enter` on a selected commentable diff line to open an inline editor immed
 `R` opens **Submit review** from any PR context view. The form shows Comment, Approve, and Request changes as radio choices; use `j`/`k` or up/down to select one. All three choices and the selected state remain visible through confirmation, including on short terminals. Press Tab or Enter to move to the comment box below. Comment and Request changes require text; Approve allows an empty comment. Tab again to browse pending line comments: Enter edits the selected draft at its diff target, and `d` removes it. Enter in the comment box opens a confirmation showing the review decision and pending count; a second Enter sends the review and all pending comments to GitHub in one request. Escape backs out without writing. A failed submission leaves the comment and pending drafts in memory for inspection; because a network failure can have an uncertain outcome, check GitHub before retrying. Successful submission clears the local queue and refreshes the inline comment overlay.
 
 Online reviews load bounded review discussions through GitHub GraphQL; **Refresh PR**
-(`r`) refreshes them along with source and inline comments. `D` opens the PR-wide list, including outdated, file-level,
-multiline, and unplaceable discussions. Select with j/k or arrows, Enter reads
-replies and a historical snippet, `o` views the captured original commit when
-its context is available, and Escape returns. Thread detail displays a validated
-GitHub permalink. Missing capture is labeled without assuming a force-push.
+(`r`) refreshes them along with source and inline comments. `D` focuses the
+conversation in Overview, including outdated, file-level, multiline, and
+unplaceable threads. Tab/Shift+Tab select activity; j/k or arrows move through
+its rows. Enter expands the selected thread with replies, historical context,
+suggestion previews, and a GitHub permalink. `o` views the captured original
+commit when available; Escape returns to the same Overview context. Missing
+capture is labeled without assuming a force-push. There is no separate discussion
+page. Activating an older projected diff comment opens its expanded Overview
+thread; its inline footer still offers reactions and Reply.
 
 GitHub supplies separate outdated and resolved flags: outdated never implies
 resolved. Current-line comments render in the main diff only when live PR pins
 match the frozen comparison and path/side/line match exactly. Original anchors
-render on their own commits. Comments with unavailable context remain in `D`.
+render on their own commits. Comments with unavailable context remain readable in Overview.
 Limits are 500 threads, 2,000 comments, 100 comments per thread, 4 MiB aggregate
 response material and 60 seconds per refresh; partial results and counts are
 labeled. A successful post is inserted immediately from GitHub's canonical
@@ -685,7 +689,8 @@ colors. Highlighting uses each side’s complete pinned source and falls back to
 plain source foregrounds for unsupported languages or exhausted limits.
 Additional context/full files are read-only; canonical patches retain comment
 anchors and progress. Missing source and limited search coverage remain visible.
-Alt+Up/Down open previous/next loaded unresolved-thread detail; unknown resolution
+Alt+Up/Down select and expand the previous/next loaded unresolved thread in
+Overview; unknown resolution
 is excluded. See [the complete policy](spec/SPEC-code-navigation.md).
 
 ### Live PR readiness

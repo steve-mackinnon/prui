@@ -287,13 +287,7 @@ func (m *Model) nextUnresolved(delta int) {
 		}
 	}
 	i := candidates[chosen]
-	if m.top() != pageDiscussions {
-		m.openDiscussions()
-	}
-	d.selected = i
-	d.selectedID = entries[i].ID
-	d.detail = true
-	d.scroll = 0
+	m.openOverviewThread(entries[i].ID)
 	if !d.snapshot.Snapshot.Complete {
 		d.notice = "Partial coverage · navigating loaded authoritative unresolved threads only"
 	}

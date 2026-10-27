@@ -20,12 +20,12 @@ func TestConversationChronologyAndStableSelection(t *testing.T) {
 	if len(entries) != 2 || entries[0].ID != "inline:1" {
 		t.Fatal(entries)
 	}
-	m.openDiscussions()
-	m.discussionKey("j")
-	m.discussionKey("enter")
+	m.openOverviewDiscussions()
+	m.overviewKey("tab")
+	m.overviewKey("enter")
 	m.applyDiscussionResult(DiscussionResult{Target: m.activeTab, Session: m.Session, Snapshot: snap})
-	if m.discussions.selectedID != "PR comment:2" || !m.discussions.detail || len(m.discussionEntries()) != 2 {
-		t.Fatal(m.discussions)
+	if m.discussions.selectedID != "PR comment:2" || !m.discussions.overviewExpanded[m.discussions.selectedID] || len(m.discussionEntries()) != 2 {
+		t.Fatalf("selected=%s expanded=%v entries=%d", m.discussions.selectedID, m.discussions.overviewExpanded, len(m.discussionEntries()))
 	}
 }
 
@@ -36,11 +36,11 @@ func TestGeneralCommentComposerAndUncertainRetry(t *testing.T) {
 		calls++
 		return source.ConversationEvent{}, source.ErrCommentDeliveryUnknown
 	})
-	m.openDiscussions()
-	m.discussionKey("n")
+	m.openOverviewDiscussions()
+	m.conversationActionKey("n")
 	m.Update(tea.KeyPressMsg{Code: 't', Text: "t"})
 	m.Update(tea.KeyPressMsg{Code: 'q', Text: "q"})
-	if m.discussions.editor == nil || m.discussions.editor.draft != "tq" || m.top() != pageDiscussions {
+	if m.discussions.editor == nil || m.discussions.editor.draft != "tq" || m.top() != pageReview || m.selectedReviewView() != viewDescription {
 		t.Fatal("text intercepted")
 	}
 	cmd := m.generalCommentKey(tea.KeyPressMsg{Code: tea.KeyEnter})
@@ -98,16 +98,16 @@ func TestGeneralReplyDistinctFromInline(t *testing.T) {
 	})
 	m.discussions.snapshot.Snapshot = source.DiscussionSnapshot{Timeline: true, Events: []source.ConversationEvent{{ID: "PR comment:1", Kind: "PR comment", Author: "alice"}}}
 	m.discussions.loaded = true
-	m.openDiscussions()
-	m.discussionKey("enter")
-	m.discussionKey("r")
+	m.openOverviewDiscussions()
+	m.overviewKey("enter")
+	m.conversationActionKey("r")
 	if m.discussions.editor == nil || m.discussions.editor.draft != "@alice " || !strings.Contains(m.generalCommentView(), "new PR comment mentioning the author") {
 		t.Fatal("general reply not distinct")
 	}
 	m.discussions.editor = nil
 	m.discussions.snapshot.Snapshot.Events = nil
 	m.discussions.snapshot.Snapshot.Threads = []source.Discussion{{ID: "inline", Comments: []source.ReviewComment{{ID: 1}}}}
-	m.discussionKey("r")
+	m.conversationActionKey("r")
 	if m.discussions.editor != nil {
 		t.Fatal("inline reply silently became general")
 	}
@@ -150,8 +150,8 @@ func TestUncertainAttemptReconciliationUsesOriginalBodyAfterEdit(t *testing.T) {
 	m.SetGeneralCommentSubmitter(func(context.Context, source.Metadata, string) (source.ConversationEvent, error) {
 		return source.ConversationEvent{}, source.ErrCommentDeliveryUnknown
 	})
-	m.openDiscussions()
-	m.discussionKey("n")
+	m.openOverviewDiscussions()
+	m.conversationActionKey("n")
 	m.discussions.editor.draft = "original attempt"
 	m.discussions.editor.cursor = len([]rune("original attempt"))
 	cmd := m.generalCommentKey(tea.KeyPressMsg{Code: tea.KeyEnter})
@@ -182,13 +182,13 @@ func TestPartialConversationPreservesSelectedPriorActivityAsStale(t *testing.T) 
 			old.Snapshot.Threads = []source.Discussion{{ID: "thread", CurrentAnchor: &source.ReviewCommentTarget{Line: 1}, Comments: []source.ReviewComment{{ID: 1, Body: "inline"}}}}
 		}
 		m.applyDiscussionResult(DiscussionResult{Target: m.activeTab, Session: m.Session, Snapshot: old})
-		m.openDiscussions()
-		m.discussionKey("enter")
+		m.openOverviewDiscussions()
+		m.overviewKey("enter")
 		selected := m.discussions.selectedID
-		m.discussions.scroll = 1
+		m.DescriptionScroll = 1
 		partial := DiscussionResult{Target: m.activeTab, Session: m.Session, Snapshot: DiscussionSnapshot{CurrentVerified: true, Snapshot: source.DiscussionSnapshot{Timeline: true, Complete: false, Reason: "general comments unavailable"}}}
 		m.applyDiscussionResult(partial)
-		if m.discussions.selectedID != selected || !m.discussions.detail || len(m.discussionEntries()) != 1 || !strings.Contains(m.discussionsView(), "stale retained") {
+		if m.discussions.selectedID != selected || !m.discussions.overviewExpanded[m.discussions.selectedID] || len(m.discussionEntries()) != 1 || !strings.Contains(m.overviewView(), "stale retained") {
 			t.Fatal("partial refresh lost navigation", m.discussions)
 		}
 		m.applyDiscussionResult(partial)
@@ -204,7 +204,7 @@ func TestGeneralComposerOwnsMouseAndFitsViewport(t *testing.T) {
 	m := commitModel(t)
 	m.Width = 45
 	m.Height = 10
-	m.openDiscussions()
+	m.openOverviewDiscussions()
 	m.discussions.editor = &generalCommentEditor{draft: strings.Repeat("long draft\n", 20), cursor: 220}
 	if m.mouseAvailable() {
 		t.Fatal("mouse routed under editor")

@@ -383,8 +383,8 @@ func TestDurableRangeQueueSurvivesUncertainGeneralConversation(t *testing.T) {
 		}
 		return source.ConversationEvent{}, source.ErrCommentDeliveryUnknown
 	})
-	m.openDiscussions()
-	m.discussionKey("n")
+	m.openOverviewDiscussions()
+	m.conversationActionKey("n")
 	key(m, 'g')
 	_, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	if cmd == nil {

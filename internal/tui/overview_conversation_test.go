@@ -436,7 +436,7 @@ func TestOverviewGeneralComposerKeepsFeedVisible(t *testing.T) {
 	key(m, 'D')
 	key(m, 'r')
 	text := ansi.Strip(m.overviewView())
-	if !strings.Contains(text, "Surrounding discussion") || !strings.Contains(text, "@alice") || m.discussions.detail {
+	if !strings.Contains(text, "Surrounding discussion") || !strings.Contains(text, "@alice") || m.top() != pageReview {
 		t.Fatal("reply replaced feed", text)
 	}
 	namedKey(m, tea.KeyEscape)
@@ -449,7 +449,7 @@ func TestOverviewGeneralComposerKeepsFeedVisible(t *testing.T) {
 	}
 	editor := m.discussions.editor
 	m.applyGeneralCommentResult(GeneralCommentResult{Target: m.activeTab, Session: m.Session, Editor: editor, Event: source.ConversationEvent{ID: "PR comment:2", Kind: "PR comment", Author: "me", Body: "Posted"}})
-	if m.discussions.detail || m.discussions.editor != nil {
+	if m.top() != pageReview || m.discussions.editor != nil {
 		t.Fatal("posting switched to detail")
 	}
 }
@@ -475,7 +475,7 @@ func TestOverviewInlineReplyStaysInFeedAndUsesRoot(t *testing.T) {
 	key(m, 'D')
 	namedKey(m, tea.KeyTab)
 	key(m, 'r')
-	if m.selectedReviewView() != viewDescription || m.discussions.detail || m.CommentMenu == nil || m.CommentMenu.mode != commentActionReply {
+	if m.selectedReviewView() != viewDescription || m.top() != pageReview || m.CommentMenu == nil || m.CommentMenu.mode != commentActionReply {
 		t.Fatal("reply left feed")
 	}
 	if m.CommentMenu.ReplyToID != 501 || m.CommentMenu.RootAnchor == nil {
@@ -548,7 +548,7 @@ func TestOverviewEnterExpandsInPlace(t *testing.T) {
 			t.Fatal("expansion removed surrounding content", want, text)
 		}
 	}
-	if m.discussions.detail || m.DescriptionScroll != scroll || m.discussions.overviewCursor != cursor {
+	if m.top() != pageReview || m.DescriptionScroll != scroll || m.discussions.overviewCursor != cursor {
 		t.Fatal("expansion changed page or position")
 	}
 	namedKey(m, tea.KeyEnter)

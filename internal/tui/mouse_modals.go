@@ -196,31 +196,17 @@ func (m *Model) mouseModal(msg tea.MouseMsg) (tea.Cmd, bool) {
 	if handler == nil {
 		return nil, true
 	}
-	if m.discussions.editor != nil && m.top() == pageDiscussions {
-		lines := strings.Split(m.generalCommentView(), "\n")
-		if clicked && event.Y == len(lines)-1 {
-			if k := hintMouseKey("Enter: post · shift+enter: newline · ctrl+r: refresh · esc: discard", event.X, m.Width); k != "" {
-				return handler(mouseKey(k)), true
-			}
-		}
-	} else {
-		footerY := len(strings.Split(m.reviewView(), "\n")) - 1
-		if clicked && event.Y == footerY {
-			if k := hintMouseKey(m.modalReviewHints(), event.X, m.Width); k != "" {
-				return handler(mouseKey(k)), true
-			}
+	footerY := len(strings.Split(m.reviewView(), "\n")) - 1
+	if clicked && event.Y == footerY {
+		if k := hintMouseKey(m.modalReviewHints(), event.X, m.Width); k != "" {
+			return handler(mouseKey(k)), true
 		}
 	}
 	if clicked {
 		if m.top() == pageReview && m.selectedReviewView() == viewDescription {
 			return m.overviewEditorMouse(event.X, event.Y, handler), true
 		}
-		if m.discussions.editor != nil && m.top() == pageDiscussions {
-			e := m.discussions.editor
-			m.fullEditorMouse(&e.draft, &e.cursor, event.X, event.Y)
-		} else {
-			m.inlineEditorMouse(event.X, event.Y)
-		}
+		m.inlineEditorMouse(event.X, event.Y)
 		if m.Composer != nil {
 			m.composerTypeMouse(click.X, click.Y)
 		}
