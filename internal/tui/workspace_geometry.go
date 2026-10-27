@@ -113,8 +113,8 @@ func (m *Model) reviewListPresentation() ([]listLine, int) {
 		}
 		// Leave room for navigation when a title is taller than the pane.
 		headerEnd = min(headerEnd, bodyHeight-2)
+		pinned = append(pinned, listLine{row: -1, guideNavigation: true, text: " " + pageMouseFooter(guideNavigationControls, " ") + fmt.Sprintf("  %02d / %02d", guide+1, len(s.Guides.Items))})
 		pinned = append(pinned, list[:headerEnd]...)
-		pinned = append(pinned, listLine{row: -1, text: fmt.Sprintf("  %02d / %02d · { previous · } next", guide+1, len(s.Guides.Items))})
 		list = list[headerEnd:]
 		bodyHeight -= len(pinned)
 	}
