@@ -104,7 +104,7 @@ func TestHistoricalInlineCommentOpensOriginalDiscussion(t *testing.T) {
 	for i, row := range m.displayDetail() {
 		if row.commentID == 7 {
 			m.setCursor(i)
-			if !m.openCommentActionMenu() || m.top() != pageDiscussions || !m.discussions.detail || m.CommentMenu != nil {
+			if !m.openCommentActionMenu() || m.top() != pageReview || m.selectedReviewView() != viewDescription || !m.discussions.overviewExpanded[m.discussions.selectedID] || m.CommentMenu != nil {
 				t.Fatal("projected comment used current-coordinate actions")
 			}
 			if target := m.currentDiscussionTarget(snapshot.Snapshot.Threads[0]); target == nil || target.CommitID != s.Inventory.Comparison.Metadata.HeadSHA {

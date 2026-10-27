@@ -152,7 +152,7 @@ func TestUnresolvedNavigationUsesAuthoritativeStatusAndPartialCoverage(t *testin
 	m.discussions.loaded = true
 	m.discussions.snapshot.Snapshot.Threads = []source.Discussion{{ID: "resolved", Resolved: &yes}, {ID: "unknown"}, {ID: "open", Resolved: &no}}
 	m.nextUnresolved(1)
-	if m.discussions.selected != 2 || !m.discussions.detail || !strings.Contains(m.discussions.notice, "Partial coverage") {
+	if m.discussions.selected != 2 || m.top() != pageReview || m.selectedReviewView() != viewDescription || !m.discussions.overviewExpanded["open"] || !strings.Contains(m.discussions.notice, "Partial coverage") {
 		t.Fatal("incorrect unresolved navigation")
 	}
 	m.nextUnresolved(-1)

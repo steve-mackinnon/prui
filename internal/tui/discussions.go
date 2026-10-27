@@ -3,13 +3,11 @@ package tui
 import (
 	"context"
 	"fmt"
-	"maps"
 	"sort"
 	"strings"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/charmbracelet/x/ansi"
 	"prui/internal/review"
 	"prui/internal/source"
 )
@@ -38,7 +36,6 @@ type discussionState struct {
 	overviewCursorActive bool
 	overviewExpanded     map[string]bool
 	overviewFocus        bool
-	returnOverview       bool
 	returnFiles          *discussionFilesReturn
 	anchorIndex          map[source.ReviewCommentTarget][]source.Discussion
 	counts               map[string]discussionCount
@@ -53,8 +50,7 @@ type discussionState struct {
 	selectedID           string
 	confirmed            map[int64]bool
 	confirmedEvents      map[string]source.ConversationEvent
-	selected, scroll     int
-	detail               bool
+	selected             int
 	notice               string
 	returnCommit         *commitState
 	returnView           reviewView
@@ -210,7 +206,6 @@ func (m *Model) applyDiscussionResult(v DiscussionResult) {
 		d.selectedID = entries[d.selected].ID
 	} else {
 		d.selectedID = ""
-		d.detail = false
 	}
 	if v.Target == m.activeTab {
 		if preservePosition {
@@ -315,26 +310,12 @@ func (m *Model) commitDiscussionLines(target source.ReviewCommentTarget) []diffL
 	}
 	return lines
 }
-func (m *Model) openDiscussions() {
-	m.discussions.detail = false
-	m.discussions.scroll = 0
-	m.push(pageDiscussions)
-}
-func (m *Model) discussionKey(key string) tea.Cmd {
+func (m *Model) conversationActionKey(key string) tea.Cmd {
 	d := &m.discussions
 	threads := discussionEntries(d.snapshot.Snapshot)
 	switch key {
-	case "y":
-		return m.copyDiscussionURL()
-	case "alt+up", "alt+down":
-		delta := 1
-		if key == "alt+up" {
-			delta = -1
-		}
-		m.nextUnresolved(delta)
-		return nil
 	case "e", "z":
-		if len(threads) == 0 || !d.detail {
+		if len(threads) == 0 {
 			return nil
 		}
 		t := threads[d.selected]
@@ -359,7 +340,7 @@ func (m *Model) discussionKey(key string) tea.Cmd {
 			d.notice = "PR comments unavailable · offline or unsupported"
 			return nil
 		}
-		if key == "r" && (!d.detail || len(threads) == 0 || threads[d.selected].Kind != "PR comment") {
+		if key == "r" && (len(threads) == 0 || threads[d.selected].Kind != "PR comment") {
 			d.notice = "General replies require a PR comment; inline replies use diff comment actions"
 			return nil
 		}
@@ -370,61 +351,6 @@ func (m *Model) discussionKey(key string) tea.Cmd {
 			d.editor.cursor = len([]rune(d.editor.draft))
 		}
 		return nil
-	case "c":
-		return m.refreshDiscussions()
-	case "esc":
-		if d.detail {
-			d.detail = false
-			d.scroll = 0
-		} else {
-			m.pop()
-		}
-		return nil
-	case "enter":
-		if len(threads) > 0 {
-			d.detail = true
-			d.scroll = 0
-		}
-		return nil
-	case "o":
-		if !d.detail || len(threads) == 0 {
-			return nil
-		}
-		t := threads[d.selected]
-		saved := m.commit
-		saved.offsets = maps.Clone(saved.offsets)
-		saved.cursors = maps.Clone(saved.cursors)
-		previous := m.ContextView
-		if m.viewOriginalDiscussion(t.OriginalAnchor, t.OriginalCommitID) {
-			d.returnCommit = &saved
-			d.returnView = previous
-			m.pop()
-		}
-		return nil
-	case "j", "down":
-		if d.detail {
-			d.scroll++
-		} else {
-			d.selected = min(len(threads)-1, d.selected+1)
-		}
-	case "k", "up":
-		if d.detail {
-			d.scroll = max(0, d.scroll-1)
-		} else {
-			d.selected = max(0, d.selected-1)
-		}
-	case "pgdown", "d":
-		if d.detail {
-			d.scroll += max(1, m.Height-5)
-		}
-	case "pgup", "u":
-		if d.detail {
-			d.scroll = max(0, d.scroll-max(1, m.Height-5))
-		}
-	}
-	if len(threads) > 0 {
-		d.selected = max(0, min(len(threads)-1, d.selected))
-		d.selectedID = threads[d.selected].ID
 	}
 	return nil
 }
@@ -436,139 +362,9 @@ func (m *Model) restoreDiscussionContext() bool {
 	m.commit = *d.returnCommit
 	m.ContextView = d.returnView
 	d.returnCommit = nil
-	if d.returnOverview {
-		d.returnOverview = false
-		d.overviewFocus = true
-		return true
-	}
-	d.detail = true
-	m.push(pageDiscussions)
+	d.overviewFocus = true
 	return true
 }
-func (m *Model) discussionsView() string {
-	d := &m.discussions
-	lines := []string{"Discussions"}
-	if d.snapshot.Snapshot.Timeline {
-		lines[0] = "PR conversation · chronological live activity"
-	}
-	if d.editor != nil {
-		return m.generalCommentView()
-	}
-	if d.notice != "" {
-		lines = append(lines, d.notice)
-	}
-	if !d.loaded {
-		label := "Discussions unavailable. c: refresh"
-		if m.readDiscussions == nil {
-			label = "Discussions unavailable · offline or unsupported"
-		}
-		lines = append(lines, label)
-	} else {
-		if !d.snapshot.CurrentVerified {
-			lines = append(lines, "Discussions from live PR · snapshot differs", Escape(d.snapshot.Reason))
-		}
-		if !d.snapshot.Snapshot.Complete {
-			lines = append(lines, func() string {
-				if d.snapshot.Snapshot.Timeline {
-					return "Loaded activity · partial/incomplete"
-				}
-				return "Loaded threads · incomplete"
-			}(), Escape(d.snapshot.Snapshot.Reason))
-		}
-		threads := discussionEntries(d.snapshot.Snapshot)
-		switch {
-		case len(threads) == 0:
-			if d.snapshot.Snapshot.Complete {
-				lines = append(lines, "No discussions.")
-			} else {
-				label := "No threads loaded."
-				if d.snapshot.Snapshot.Timeline {
-					label = "No activity loaded."
-				}
-				lines = append(lines, label)
-			}
-		case d.detail:
-			t := threads[max(0, min(d.selected, len(threads)-1))]
-			body := []string{discussionStatus(t)}
-			general := t.Kind == "PR comment" || t.Kind == "Review"
-			if t.CurrentAnchor != nil {
-				body = append(body, "Current target · "+commentTargetLabel(*t.CurrentAnchor))
-			}
-			if t.OriginalAnchor != nil {
-				body = append(body, "Original target · "+commentTargetLabel(*t.OriginalAnchor))
-			}
-			captured := false
-			for _, e := range m.commitEntries() {
-				if e.SHA == t.OriginalCommitID {
-					captured = true
-				}
-			}
-			if !general && t.OriginalCommitID == "" {
-				body = append(body, "Original commit unavailable")
-			} else if !general && !captured {
-				body = append(body, "Original commit not captured")
-			}
-			if !general && (t.OriginalAnchor == nil || !m.discussionOriginalAvailable(t)) {
-				body = append(body, "Original context unavailable")
-			} else if !general {
-				body = append(body, fmt.Sprintf("%s · %s:%d · %s", Escape(shortCommitSHA(t.OriginalCommitID)), Escape(t.OriginalAnchor.Path), t.OriginalAnchor.Line, Escape(t.OriginalAnchor.Side)))
-			}
-			for _, c := range t.Comments {
-				body = append(body, "@"+Escape(c.Author))
-				body = append(body, m.conversationLines(c.Body, true)...)
-				body = append(body, "")
-				if replacement, err := source.ParseSuggestion(c.Body); err == nil {
-					before, ok := m.targetSource(c.Target)
-					if !ok {
-						before = "(captured source unavailable; application unsupported)"
-					}
-					for _, p := range suggestionPreview(before, replacement) {
-						body = append(body, p.Text)
-					}
-				}
-			}
-			if t.DiffHunk != "" {
-				body = append(body, "Historical snippet", Escape(t.DiffHunk))
-			}
-			if t.URL != "" {
-				body = append(body, Escape(t.URL))
-			}
-			body = strings.Split(ansi.Wrap(strings.Join(body, "\n"), max(1, m.Width), ""), "\n")
-			height := max(1, m.Height-len(lines)-2)
-			if len(m.discussionFooterControls(t)) > 0 {
-				height = max(1, height-1)
-			}
-			d.scroll = min(d.scroll, max(0, len(body)-height))
-			lines = append(lines, body[d.scroll:min(len(body), d.scroll+height)]...)
-		default:
-			height := max(1, m.Height-len(lines)-2)
-			start := max(0, d.selected-height+1)
-			for i := start; i < min(len(threads), start+height); i++ {
-				t := threads[i]
-				label := Escape(t.ID)
-				if len(t.Comments) > 0 {
-					label = "@" + Escape(t.Comments[0].Author) + " · " + Escape(strings.ReplaceAll(t.Comments[0].Body, "\n", " "))
-				}
-				marker := "  "
-				if i == d.selected {
-					marker = "> "
-				}
-				lines = append(lines, clip(marker+discussionStatus(t)+" · "+label, m.Width))
-			}
-		}
-	}
-	if d.detail {
-		entries := m.discussionEntries()
-		if d.selected >= 0 && d.selected < len(entries) {
-			if controls := m.discussionFooterControls(entries[d.selected]); len(controls) > 0 {
-				lines = append(lines, clip(pageMouseFooter(controls, " "), m.Width))
-			}
-		}
-	}
-	lines = append(lines, clip(pageMouseFooter(m.discussionMouseControls(), " · "), m.Width))
-	return strings.Join(lines, "\n")
-}
-
 func discussionCurrentComments(snapshot DiscussionSnapshot, s *review.Session) []source.ReviewComment {
 	if !snapshot.CurrentVerified {
 		return nil
@@ -655,50 +451,6 @@ func updateDiscussionAction(state *reviewTabState, result CommentActionResult) {
 		}
 	}
 }
-func (m *Model) discussionListStart() (int, int) {
-	header := 1
-	if m.discussions.notice != "" {
-		header++
-	}
-	if m.discussions.loaded && !m.discussions.snapshot.CurrentVerified {
-		header += 2
-	}
-	if m.discussions.loaded && !m.discussions.snapshot.Snapshot.Complete {
-		header += 2
-	}
-	height := max(1, m.Height-header-2)
-	return header, max(0, m.discussions.selected-height+1)
-}
-func (m *Model) discussionMouseClick(y int) {
-	if m.discussions.detail {
-		return
-	}
-	header, start := m.discussionListStart()
-	i := start + y - header
-	if y >= header && y < m.Height-1 && i >= 0 && i < len(m.discussionEntries()) {
-		m.discussions.selected = i
-		m.discussions.selectedID = m.discussionEntries()[i].ID
-	}
-}
-
-func (m *Model) discussionOriginalAvailable(t source.Discussion) bool {
-	if t.OriginalAnchor == nil {
-		return false
-	}
-	for _, e := range m.commitEntries() {
-		if e.SHA != t.OriginalCommitID || e.Diff == nil {
-			continue
-		}
-		rows := commitDiffRowsFor(e.Diff, m.Session.Inventory.Comparison.Metadata.Identity, e.SHA)
-		for _, row := range rows {
-			if row.target != nil && *row.target == *t.OriginalAnchor {
-				return true
-			}
-		}
-	}
-	return false
-}
-
 func discussionCreatedCurrent(c source.ReviewComment) *source.ReviewCommentTarget {
 	if source.ValidateReviewCommentTarget(c.Target) != nil {
 		return nil
@@ -777,19 +529,4 @@ func discussionEntries(snapshot source.DiscussionSnapshot) []source.Discussion {
 }
 func (m *Model) discussionEntries() []source.Discussion {
 	return discussionEntries(m.discussions.snapshot.Snapshot)
-}
-
-func (m *Model) discussionMouseControls() []pageMouseControl {
-	controls := []pageMouseControl{{"j/k: select", "down"}, {"enter: detail", "enter"}}
-	if m.discussions.detail {
-		controls = []pageMouseControl{{"j/k: scroll", "down"}, {"e: edit", "e"}, {"z: resolve/reopen", "z"}, {"o: original", "o"}}
-	}
-	if m.discussions.snapshot.Snapshot.Timeline {
-		if m.discussions.detail {
-			controls = []pageMouseControl{{"e: edit", "e"}, {"z: resolve/reopen", "z"}, {"r: general reply", "r"}, {"o: original", "o"}}
-		} else {
-			controls = append(controls, pageMouseControl{"n: comment", "n"})
-		}
-	}
-	return append(controls, pageMouseControl{"c: refresh", "c"}, pageMouseControl{"esc: back", "esc"})
 }

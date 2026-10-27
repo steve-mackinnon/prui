@@ -34,7 +34,13 @@ func draftContent(state *reviewTabState) session.Draft {
 		d.Composer = &session.DraftEditor{Target: c.Target, Body: c.Draft, PendingIndex: c.PendingIndex, CommitSHA: c.CommitSHA, Suggestion: c.Suggestion, Before: c.Before, Modes: c.Modes}
 	}
 	if r := state.CommentMenu; r != nil && r.mode == commentActionReply {
-		d.Reply = &session.DraftEditor{Target: r.Target, Body: r.Draft, CommentID: r.CommentID, ReplyToID: r.ReplyToID, RootAnchor: r.RootAnchor}
+		// Keep display projections transient; durable replies use the frozen root shape.
+		target := r.Target
+		if r.RootAnchor != nil {
+			target = *r.RootAnchor
+			target.CommitID = r.Target.CommitID
+		}
+		d.Reply = &session.DraftEditor{Target: target, Body: r.Draft, CommentID: r.CommentID, ReplyToID: r.ReplyToID, RootAnchor: r.RootAnchor}
 	}
 	if d.Attempt == "suggestion" && d.Attempted != nil && d.Attempted.Application != nil {
 		d.SuggestionApply = nil
@@ -349,9 +355,17 @@ func (m *Model) draftRecoveryKey(key tea.KeyPressMsg) tea.Cmd {
 				return nil
 			}
 		}
-		if r := m.CommentMenu; r != nil && !m.focusPendingTarget(r.Target) {
-			m.ActionError = errors.New("recovered reply target unavailable; draft retained here")
-			return nil
+		if r := m.CommentMenu; r != nil {
+			for _, c := range m.Comments {
+				if c.ID == r.CommentID && c.HistoricalProjection {
+					r.Target = c.Target
+					break
+				}
+			}
+			if !m.focusPendingTarget(r.Target) {
+				m.ActionError = errors.New("recovered reply target unavailable; draft retained here")
+				return nil
+			}
 		}
 		m.pop()
 		if m.discussions.editor != nil {

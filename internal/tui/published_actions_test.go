@@ -28,15 +28,15 @@ func TestPublishedActionsBothViewsAndCanonicalIdentity(t *testing.T) {
 			return PublishedValue{Comment: source.PublishedComment{ID: a.CommentID, Body: a.Body, Author: "alice"}}, nil
 		})
 		if general {
-			m.openDiscussions()
+			m.openOverviewDiscussions()
 			for i, entry := range m.discussionEntries() {
 				if entry.ID == "PR comment:2" {
 					m.discussions.selected = i
 				}
 			}
-			m.discussions.detail = true
+			m.overviewKey("enter")
 			m.discussions.selectedID = "PR comment:2"
-			if m.discussionKey("e") != nil || m.discussions.published == nil {
+			if m.conversationActionKey("e") != nil || m.discussions.published == nil {
 				t.Fatal("general detail edit absent")
 			}
 		} else {
@@ -76,14 +76,14 @@ func TestPublishedActionsBothViewsAndCanonicalIdentity(t *testing.T) {
 			m.CommentMenu = &commentActionMenu{CommentID: 1}
 			m.commentActionKey(tea.KeyPressMsg{Code: 'z', Text: "z"})
 		} else {
-			m.openDiscussions()
+			m.openOverviewDiscussions()
 			for i, entry := range m.discussionEntries() {
 				if entry.ID == "inline:1" {
 					m.discussions.selected = i
 				}
 			}
-			m.discussions.detail = true
-			m.discussionKey("z")
+			m.overviewKey("enter")
+			m.conversationActionKey("z")
 		}
 		if m.discussions.published == nil || writes != 0 {
 			t.Fatal("resolve missing or wrote before confirmation")
@@ -225,7 +225,7 @@ func TestPublishedPartialRefreshSelectionDoesNotDuplicateCanonicalThread(t *test
 		applyPublishedValue(state, PublishedAction{CommentID: cid}, PublishedValue{Comment: source.PublishedComment{ID: cid, Body: "confirmed", Author: "alice"}})
 	}
 	m.discussions.selectedID = "inline:3"
-	m.discussions.detail = true
+	m.overviewKey("enter")
 	snap := DiscussionSnapshot{CurrentVerified: true, Snapshot: source.DiscussionSnapshot{Complete: false, Timeline: true, Threads: []source.Discussion{{ID: "thread", Comments: []source.ReviewComment{{ID: 1, Author: "alice", Body: "external"}}}}}}
 	for range 2 {
 		m.applyDiscussionResult(DiscussionResult{Target: m.activeTab, Session: m.Session, Generation: m.discussions.generation, Snapshot: snap})

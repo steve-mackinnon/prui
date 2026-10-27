@@ -331,7 +331,7 @@ func TestGeneralDraftRejectedInputRemainsEditableAndDiscardable(t *testing.T) {
 			defer store.Close()
 			m := draftTestModel(t, store)
 			defer m.Close()
-			m.openDiscussions()
+			m.openOverviewDiscussions()
 			m.discussions.editor = &generalCommentEditor{draft: "saved", cursor: 5}
 			calls := 0
 			m.SetGeneralCommentSubmitter(func(context.Context, source.Metadata, string) (source.ConversationEvent, error) {
@@ -394,7 +394,7 @@ func TestGeneralDraftReadinessAndCommitFilterOwnTheirKeysWithoutLeakingLiveEvide
 		return source.ConversationEvent{}, errors.New("unexpected write")
 	})
 	m.ReviewForm = &reviewForm{Body: "private summary"}
-	m.openDiscussions()
+	m.openOverviewDiscussions()
 	m.discussions.editor = &generalCommentEditor{draft: "local", cursor: 5, replyTo: "PR comment:11", attemptedBody: "original", attemptedIDs: map[string]bool{"PR comment:11": true}, uncertain: true}
 	m.persistDrafts()
 	_, cmd := m.Update(tea.KeyPressMsg{Code: 'r', Mod: tea.ModAlt})
@@ -422,6 +422,7 @@ func TestGeneralDraftReadinessAndCommitFilterOwnTheirKeysWithoutLeakingLiveEvide
 		t.Fatal("readiness contaminated private data", d, err)
 	}
 	namedKey(m, tea.KeyEscape)
+	m.selectReviewView(viewFiles)
 	key(m, 'C')
 	if !m.commitFilter.open || m.top() != pageReview || m.Session != frozen || writes != 0 || reads != 1 {
 		t.Fatal("C filter lost key ownership")

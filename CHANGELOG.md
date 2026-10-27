@@ -12,6 +12,10 @@ User-visible changes are recorded here before each release. See
 
 ### Changed
 
+- Consolidate conversations in Overview and remove the separate discussion page.
+  Opening older comments or navigating unresolved threads expands the matching
+  Overview thread, with original-commit navigation and comment actions preserved.
+
 - Drag the divider between the PR list and description preview to resize the
   panes in wide terminals, including the PR switcher.
 - Consolidate review refresh into **Refresh PR** (`r`): check GitHub, load a new
@@ -32,6 +36,9 @@ User-visible changes are recorded here before each release. See
   the selected PR comment or discussion footer.
 
 ### Fixed
+
+- Keep reaction and Reply controls available on older inline comments, preserving
+  the original thread when unchanged code has moved.
 
 - Reduce mouse-wheel scrolling from three steps to one per terminal event.
 - Preserve angle brackets in Markdown code blocks across the overview, PR

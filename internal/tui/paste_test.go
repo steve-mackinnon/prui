@@ -28,7 +28,7 @@ func TestPasteIntoEveryTextField(t *testing.T) {
 			return &m.CommentMenu.Draft
 		}, "é\nq", "aé\nqb"},
 		{"general comment", func(m *Model) *string {
-			m.push(pageDiscussions)
+			m.openOverviewDiscussions()
 			m.discussions.editor = &generalCommentEditor{draft: "ab", cursor: 1}
 			return &m.discussions.editor.draft
 		}, "é\nq", "aé\nqb"},
@@ -123,7 +123,7 @@ func TestPasteRespectsEditingGuards(t *testing.T) {
 			return &m.CommentMenu.Draft
 		}},
 		{"posting general comment", func(m *Model) *string {
-			m.push(pageDiscussions)
+			m.openOverviewDiscussions()
 			m.discussions.editor = &generalCommentEditor{posting: true}
 			return &m.discussions.editor.draft
 		}},

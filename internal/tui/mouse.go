@@ -2,7 +2,6 @@ package tui
 
 import (
 	"image"
-	"strings"
 
 	tea "charm.land/bubbletea/v2"
 )
@@ -17,7 +16,7 @@ func (m *Model) mouseAvailable() bool {
 		return false
 	}
 	switch m.top() {
-	case pageReadiness, pageIssueContext, pageDiscussions, pageActions:
+	case pageReadiness, pageIssueContext, pageActions:
 		return m.Session != nil
 	case pageReview:
 		return m.Session != nil
@@ -134,27 +133,6 @@ func (m *Model) mouseUpdate(msg tea.MouseMsg) tea.Cmd {
 	if m.top() == pageIssueContext {
 		return nil
 	}
-	if m.top() == pageDiscussions {
-		footerY := strings.Count(m.discussionsView(), "\n")
-		if click.Y == footerY {
-			return m.discussionKey(pageMouseFooterKey(m.discussionMouseControls(), " · ", click.X, m.Width))
-		}
-		entries := m.discussionEntries()
-		if m.discussions.detail && m.discussions.selected >= 0 && m.discussions.selected < len(entries) {
-			entry := entries[m.discussions.selected]
-			if controls := m.discussionFooterControls(entry); len(controls) > 0 && click.Y == footerY-1 {
-				return m.discussionFooterClick(entry, pageMouseFooterKey(controls, " ", click.X, m.Width))
-			}
-		}
-		header, start := m.discussionListStart()
-		index := start + click.Y - header
-		m.discussionMouseClick(click.Y)
-		entries = m.discussionEntries()
-		if !m.discussions.detail && click.Y >= header && click.Y < m.Height-1 && index >= 0 && index < len(entries) && m.mouseActivate("discussion/"+entries[index].ID) {
-			return m.discussionKey("enter")
-		}
-		return nil
-	}
 	if m.searchAvailable() && image.Pt(click.X, click.Y).In(m.searchHeaderBounds()) {
 		return m.openSearch()
 	}
@@ -229,16 +207,6 @@ func (m *Model) mouseWheel(wheel tea.MouseWheelMsg) tea.Cmd {
 	if m.top() == pageIssueContext {
 		if wheel.Y >= 1 && wheel.Y < m.Height-1 {
 			m.issues.scroll = max(0, m.issues.scroll+delta)
-		}
-		return nil
-	}
-	if m.top() == pageDiscussions {
-		for i := 0; i < mouseWheelStep; i++ {
-			if delta < 0 {
-				m.discussionKey("up")
-			} else {
-				m.discussionKey("down")
-			}
 		}
 		return nil
 	}

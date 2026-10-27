@@ -19,20 +19,20 @@ func TestDiscussionsUnplaceableStatusAndDetail(t *testing.T) {
 	m := commitModel(t)
 	m.discussions.loaded = true
 	m.discussions.snapshot = DiscussionSnapshot{Snapshot: source.DiscussionSnapshot{Complete: true, Threads: []source.Discussion{testDiscussion("thread", strings.Repeat("f", 40))}}, CurrentVerified: true}
-	m.openDiscussions()
-	m.discussionKey("enter")
-	text := ansi.Strip(m.discussionsView())
-	for _, want := range []string{"Historical concern", "Outdated on current PR", "Original commit not captured", "Original context unavailable", "+old", "https://github.com"} {
+	m.openOverviewDiscussions()
+	m.overviewKey("enter")
+	text := ansi.Strip(m.overviewView())
+	for _, want := range []string{"Historical concern", "Outdated on current PR", "Original commit not captured", "+old", "https://github.com"} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("missing %q in %s", want, text)
 		}
 	}
-	m.discussionKey("o")
-	if m.top() != pageDiscussions {
+	m.overviewKey("o")
+	if m.top() != pageReview || m.selectedReviewView() != viewDescription {
 		t.Fatal("uncaptured commit changed page")
 	}
-	m.discussionKey("esc")
-	if m.discussions.detail {
+	m.overviewKey("esc")
+	if m.discussions.overviewExpanded[m.discussions.selectedID] {
 		t.Fatal("escape did not return to list")
 	}
 }
@@ -98,14 +98,15 @@ func TestDiscussionOriginalJumpRestoresContextWithoutRead(t *testing.T) {
 		return DiscussionSnapshot{}, nil
 	})
 	m.commit.offsets = map[string]int{sha: 8}
-	m.openDiscussions()
-	m.discussionKey("enter")
-	m.discussionKey("o")
+	m.openOverviewDiscussions()
+	m.overviewKey("enter")
+	scroll := m.DescriptionScroll
+	m.overviewKey("o")
 	if m.selectedReviewView() != viewCommits || m.commit.selectedSHA != sha {
 		t.Fatal("did not jump")
 	}
 	m.commit.offsets[sha] = 1
-	if !m.restoreDiscussionContext() || m.ContextView != viewDescription || m.DescriptionScroll != 3 || m.commit.offsets[sha] != 8 {
+	if !m.restoreDiscussionContext() || m.ContextView != viewDescription || m.DescriptionScroll != scroll || m.commit.offsets[sha] != 8 {
 		t.Fatal("context not restored")
 	}
 	if calls != 0 {
@@ -116,8 +117,14 @@ func TestDiscussionMouseAndWidths(t *testing.T) {
 	m := commitModel(t)
 	m.discussions.loaded = true
 	m.discussions.snapshot = DiscussionSnapshot{Snapshot: source.DiscussionSnapshot{Complete: true, Threads: []source.Discussion{testDiscussion("one", "a"), testDiscussion("two", "b")}}, CurrentVerified: true}
-	m.openDiscussions()
-	m.discussionMouseClick(2)
+	m.openOverviewDiscussions()
+	for i, row := range m.overviewRows() {
+		if row.id == "two" {
+			m.DescriptionScroll = i
+			m.overviewMouseClick(3)
+			break
+		}
+	}
 	if m.discussions.selected != 1 {
 		t.Fatal("mouse selection")
 	}

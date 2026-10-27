@@ -19,7 +19,7 @@ func TestCopyDiscussionURL(t *testing.T) {
 			if overview {
 				cmd, _ = m.overviewKey("y")
 			} else {
-				cmd = m.discussionKey("y")
+				cmd = m.copyDiscussionURL()
 			}
 			if cmd == nil {
 				t.Fatal("no clipboard command")

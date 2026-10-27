@@ -96,7 +96,7 @@ func (m *Model) linksAvailable() bool {
 		return false
 	}
 	switch m.top() {
-	case pageReview, pageDiscussions, pageReadiness, pageIssueContext, pagePullRequestPicker:
+	case pageReview, pageReadiness, pageIssueContext, pagePullRequestPicker:
 		return true
 	}
 	return false

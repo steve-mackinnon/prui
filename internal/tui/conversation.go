@@ -141,10 +141,7 @@ func (m *Model) applyGeneralCommentResult(v GeneralCommentResult) {
 			d.selected = i
 		}
 	}
-	d.detail = true
-	d.scroll = 0
 	if state.ContextView == viewDescription {
-		d.detail = false
 		d.overviewFocus = true
 	}
 	d.editor = nil

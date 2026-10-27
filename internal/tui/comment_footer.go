@@ -47,17 +47,8 @@ func (m *Model) discussionFooterControls(t source.Discussion) []pageMouseControl
 }
 func (m *Model) discussionFooterClick(t source.Discussion, key string) tea.Cmd {
 	if key == "r" {
-		if m.top() == pageReview {
-			cmd, _ := m.overviewKey("r")
-			return cmd
-		}
-		if t.Kind == "PR comment" {
-			return m.discussionKey("r")
-		}
-		m.pop()
-		m.openOverviewDiscussions()
-		m.openOverviewReply(t)
-		return nil
+		cmd, _ := m.overviewKey("r")
+		return cmd
 	}
 	id := discussionReactionID(t)
 	if id == 0 || !strings.HasPrefix(key, "react:") || m.submitCommentAction == nil {
@@ -83,7 +74,7 @@ func (m *Model) footerReaction(content string) tea.Cmd {
 
 func (m *Model) selectedCommentFooter(line diffLine) string {
 	for _, c := range m.Comments {
-		if c.ID != line.commentID || c.HistoricalProjection || c.Retained {
+		if c.ID != line.commentID || c.Retained {
 			continue
 		}
 		controls := m.commentFooterControls(c.ID, m.submitCommentAction != nil)
@@ -108,7 +99,7 @@ func (m *Model) diffFooterClick(line diffLine, x int) (tea.Cmd, bool) {
 	}
 	text := m.selectedCommentFooter(line)
 	for _, c := range m.Comments {
-		if c.ID != line.commentID || c.HistoricalProjection || c.Retained {
+		if c.ID != line.commentID || c.Retained {
 			continue
 		}
 		for _, control := range m.commentFooterControls(c.ID, m.submitCommentAction != nil) {
@@ -131,7 +122,10 @@ func (m *Model) diffFooterClick(line diffLine, x int) (tea.Cmd, bool) {
 			if x < left || x >= left+visibleWidth(control.label) {
 				continue
 			}
-			if !m.openCommentActionMenu() {
+			if c.HistoricalProjection {
+				m.CommentMenu = &commentActionMenu{CommentID: c.ID, ReplyToID: m.topLevelCommentID(c.ID), Target: c.Target, Author: c.Author}
+				m.resolveReplyRoot(m.CommentMenu)
+			} else if !m.openCommentActionMenu() {
 				return nil, true
 			}
 			if control.key == "r" {

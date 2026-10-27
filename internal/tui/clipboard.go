@@ -93,7 +93,7 @@ func (m *Model) textInput() (*string, func(string) tea.Cmd) {
 		if f := m.ReviewForm; f != nil && f.Focus == 1 && !f.Confirm && m.draft.attempt == "" {
 			return editor(&f.Body, &f.Cursor, summaryDraft)
 		}
-	case pageReview, pageDiscussions:
+	case pageReview:
 		if e := m.discussions.published; e != nil {
 			if !e.posting && e.action.Resolve == nil {
 				return editor(&e.draft, &e.cursor, publishedDraft)
@@ -112,7 +112,7 @@ func (m *Model) textInput() (*string, func(string) tea.Cmd) {
 			}
 			return nil, nil
 		}
-		if e := m.discussions.editor; e != nil && (m.top() == pageDiscussions || m.selectedReviewView() == viewDescription && m.discussions.overviewFocus) {
+		if e := m.discussions.editor; e != nil && (m.selectedReviewView() == viewDescription && m.discussions.overviewFocus) {
 			if !e.posting {
 				return &e.draft, func(text string) tea.Cmd { m.insertGeneralCommentText(text); return nil }
 			}

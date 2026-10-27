@@ -226,16 +226,16 @@ func TestSuggestionRestackConversationRangeAndDraftIsolation(t *testing.T) {
 	known := false
 	snapshot := DiscussionSnapshot{CurrentVerified: true, Snapshot: source.DiscussionSnapshot{Complete: true, Timeline: true, Threads: []source.Discussion{{ID: "suggestion-thread", CurrentAnchor: &target, OriginalAnchor: &target, OriginalCommitID: target.CommitID, Resolved: &known, Outdated: &known, Comments: []source.ReviewComment{published}}}, Events: []source.ConversationEvent{{ID: "PR comment:51", Kind: "PR comment", Author: "bob", Body: "general conversation"}}}}
 	m.applyDiscussionResult(DiscussionResult{Target: m.activeTab, Session: m.Session, Snapshot: snapshot})
-	m.openDiscussions()
+	m.openOverviewDiscussions()
 	for i, e := range m.discussionEntries() {
 		if e.ID == "inline:47" {
 			m.discussions.selected = i
 			m.discussions.selectedID = e.ID
 		}
 	}
-	m.discussionKey("enter")
-	view := m.discussionsView()
-	for _, part := range []string{"PR conversation", "Before", "After", "first", "second", "combined replacement"} {
+	m.overviewKey("enter")
+	view := m.overviewView()
+	for _, part := range []string{"Overview", "Before", "After", "first", "second", "combined replacement"} {
 		if !strings.Contains(view, part) {
 			t.Fatalf("conversation lost %q: %s", part, view)
 		}
@@ -245,7 +245,7 @@ func TestSuggestionRestackConversationRangeAndDraftIsolation(t *testing.T) {
 		calls++
 		return source.ConversationEvent{}, nil
 	})
-	m.discussionKey("n")
+	m.conversationActionKey("n")
 	m.Update(tea.KeyPressMsg{Code: 't', Text: "separate general text"})
 	m.Update(tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
 	m.Update(tea.KeyPressMsg{Code: 'p', Mod: tea.ModCtrl})
@@ -253,8 +253,7 @@ func TestSuggestionRestackConversationRangeAndDraftIsolation(t *testing.T) {
 		t.Fatal("general editor crossed suggestion/draft boundary")
 	}
 	m.generalCommentKey(tea.KeyPressMsg{Code: tea.KeyEscape})
-	m.discussions.detail = false
-	m.discussionKey("esc")
+	m.overviewKey("esc")
 	m.CommentMenu = &commentActionMenu{CommentID: 47, Target: target}
 	var received source.ReviewComment
 	var before string

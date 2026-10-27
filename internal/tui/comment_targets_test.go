@@ -383,8 +383,8 @@ func TestDurableRangeQueueSurvivesUncertainGeneralConversation(t *testing.T) {
 		}
 		return source.ConversationEvent{}, source.ErrCommentDeliveryUnknown
 	})
-	m.openDiscussions()
-	m.discussionKey("n")
+	m.openOverviewDiscussions()
+	m.conversationActionKey("n")
 	key(m, 'g')
 	_, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	if cmd == nil {
@@ -404,5 +404,32 @@ func TestDurableRangeQueueSurvivesUncertainGeneralConversation(t *testing.T) {
 	defer restored.Close()
 	if len(restored.Pending) != 1 || restored.Pending[0].Target != want || restored.discussions.editor == nil || restored.discussions.editor.draft != "g" || restored.discussions.editor.cursor != 1 || restored.discussions.editor.replyTo != "" || restored.discussions.editor.matched || restored.discussions.editor.attemptedBody != "g" || !restored.discussions.editor.uncertain || len(restored.discussions.snapshot.Snapshot.Events) != 0 {
 		t.Fatal("range or uncertain general recovery lost its exact draft/anchor")
+	}
+}
+
+func TestHistoricalReplyAttemptPreservesOriginalAnchor(t *testing.T) {
+	store, err := session.Open(t.TempDir() + "/private")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	m := draftTestModel(t, store)
+	meta := m.Session.Inventory.Comparison.Metadata
+	display := source.ReviewCommentTarget{Identity: meta.Identity, CommitID: meta.HeadSHA, Path: "text", Side: "RIGHT", Line: 2}
+	original := display
+	original.CommitID, original.Line = strings.Repeat("c", 40), 1
+	m.Comments = []source.ReviewComment{{ID: 7, Target: display, OriginalAnchor: &original, HistoricalProjection: true}}
+	m.CommentMenu = &commentActionMenu{CommentID: 7, ReplyToID: 7, Target: display, Draft: "reply", mode: commentActionReply}
+	if !m.prepareDraftAttempt("reply") {
+		t.Fatal("historical reply rejected", m.ActionError)
+	}
+	restarted := draftTestModel(t, store)
+	if restarted.draft.attempted == nil || restarted.draft.attempted.Comment.Target != original || restarted.draft.attempted.ParentID != 7 || restarted.CommentMenu.Target.Line != original.Line || restarted.CommentMenu.RootAnchor == nil || *restarted.CommentMenu.RootAnchor != original {
+		t.Fatal("historical reply lost original thread on restart")
+	}
+	restarted.Comments = m.Comments
+	restarted.draftRecoveryKey(tea.KeyPressMsg{Code: tea.KeyEnter})
+	if restarted.CommentMenu.Target != display || restarted.CommentMenu.RootAnchor == nil || *restarted.CommentMenu.RootAnchor != original {
+		t.Fatal("recovered reply did not return to verified display location")
 	}
 }
