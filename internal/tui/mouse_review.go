@@ -177,6 +177,12 @@ func (m *Model) mouseReviewClick(x, y int) tea.Cmd {
 	if p.In(g.Rail) {
 		list, _ := m.reviewListPresentation()
 		i := y - g.Rail.Min.Y
+		if i < len(list) && list[i].guideNavigation {
+			if key := pageMouseFooterKey(guideNavigationControls, " ", x-g.Rail.Min.X-1, g.Rail.Dx()-1); key != "" {
+				return m.mouseKey(key)
+			}
+			return nil
+		}
 		if i >= len(list) || list[i].row < 0 || x-g.Rail.Min.X >= visibleWidth(list[i].text) {
 			return nil
 		}

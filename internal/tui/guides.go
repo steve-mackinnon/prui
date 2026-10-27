@@ -232,11 +232,14 @@ func (m *Model) toggle(rows []row) {
 }
 
 type listLine struct {
-	class     lineClass
-	mutedFrom int
-	row       int
-	text      string
+	class           lineClass
+	mutedFrom       int
+	row             int
+	text            string
+	guideNavigation bool
 }
+
+var guideNavigationControls = []pageMouseControl{{"[← {]", "{"}, {"[→ }]", "}"}}
 
 type guidePathTick struct{ generation int }
 

@@ -1,9 +1,9 @@
 example/review #42                                                                           Actions [Space]  Review [R]
   PRs [P]    Overview [1]    Files [2]  › Guide [3]    Commits [4]
 ┌ Guide ─────────────────────────────┬ Commits [C] · All commits · Find (/) · GUIDES 1 · guide 1/1 · marking: whole fil┐
-│  - 1. Tempo Sync timing engine     │── main.go +1/-1                                                                 │
-│  handover +1/-1                    │@@ -1 +1 @@                                                                      │
-│  01 / 01 · { previous · } next     │   1      -old greeting                                                          │
+│ [← {] [→ }]  01 / 01               │── main.go +1/-1                                                                 │
+│  - 1. Tempo Sync timing engine     │@@ -1 +1 @@                                                                      │
+│  handover +1/-1                    │   1      -old greeting                                                          │
 │    Move lane timing under the      │        1 +hello world                                                           │
 │    engine's host tempo measurement.│                                                                                 │
 │›   - 1.1 Column time as a four-    │── README.md +0/-0                                                               │

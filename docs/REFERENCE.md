@@ -229,7 +229,7 @@ as Option+Left.
 | Space / Ctrl+K | Open Actions; hotkeys activate, arrows select, Enter activates, Escape closes |
 | `P` | Open the PR switcher; type to filter, Enter switches/opens, Escape cancels |
 | `n` / `p` | Move between comment targets in a focused Files diff; move through files, guide rows, or inventory units in the list |
-| `}` / `{` | Next / previous guide, or file slice without guides |
+| `}` / `{` | Next / previous guide, or file slice without guides; the Guide pane also has clickable `[← {]` / `[→ }]` buttons in its sticky header |
 | `]` / `[` | Widen / narrow the left file and guide pane by two columns |
 | `G` | Select the Guide tab |
 | `C` | Open the commit filter in Files/Guide |

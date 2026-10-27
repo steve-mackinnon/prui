@@ -70,7 +70,7 @@ func TestGuideTrackerStaysVisibleWhileBrowsingFiles(t *testing.T) {
 	for i, r := range m.rows() {
 		m.Row = i
 		list, _ := m.reviewListPresentation()
-		if len(list) < 2 || !strings.Contains(list[1].text, fmt.Sprintf("%02d / 02", r.guide+1)) {
+		if len(list) < 2 || !strings.Contains(list[0].text, fmt.Sprintf("%02d / 02", r.guide+1)) {
 			t.Fatalf("row %d lacks pinned tracker: %#v", i, list)
 		}
 		other := "Second"
