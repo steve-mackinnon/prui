@@ -33,15 +33,17 @@ User-visible changes are recorded here before each release. See
 
 ### Fixed
 
-- Complete draft editing with Option+Backspace to delete the previous word and
-  Up/Down to move between lines. Add Ctrl+J as a newline fallback for terminals
-  that cannot distinguish Shift+Enter from Enter.
-
+- Preserve angle brackets in Markdown code blocks across the overview, PR
+  description previews, and comments instead of displaying generated `&lt;` text.
 - Keep comment text and wrapping in place when moving or blinking the editor cursor.
 - Ensure source text and syntax colors, including comments, reach 4.5:1 contrast
   against diff backgrounds across themes and terminal color profiles.
 - Preserve terminal foreground colors for diff line numbers and unhighlighted
   code in High Contrast and other themes that inherit terminal colors.
+
+- Complete draft editing with Option+Backspace to delete the previous word and
+  Up/Down to move between lines. Add Ctrl+J as a newline fallback for terminals
+  that cannot distinguish Shift+Enter from Enter.
 
 ## [0.5.0]
 
