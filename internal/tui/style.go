@@ -207,8 +207,15 @@ func classifyPatch(escaped string) lineClass {
 // styleLine wraps one complete display line in its semantic style. Empty and
 // unstyled lines are returned untouched so colorless output stays byte-identical.
 func (m *Model) styleLine(c lineClass, s string) string {
+	if s == "" {
+		return s
+	}
+	switch c {
+	case classPlain, classTitle, classFileHeader, classMetadata, classSelection, classSelectionFocused, classPaneHeaderFocused:
+		s = m.styleDiffMetrics(s)
+	}
 	style, ok := m.styles[c]
-	if !ok || s == "" {
+	if !ok {
 		return s
 	}
 	rendered := style.Render(s)

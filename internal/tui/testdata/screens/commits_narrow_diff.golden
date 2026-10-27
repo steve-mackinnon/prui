@@ -3,8 +3,8 @@ PRs  Overview  Files  Guide  › Commits
 ┌ Commit diff · 1/2 · aaaaaaaaaaaa · esc/h: list ──────────┐
 │› First commit                                            │
 │  Alice · aaaaaaaaaaaa                                    │
-│  Compared with empty tree (root commit)                  │
-│  ── changed.go                                           │
+│  +30/-1 · Compared with empty tree (root commit)         │
+│  ── changed.go +30/-1                                    │
 │  Mode:  -> 100644                                        │
 │  @@ -1,1 +1,30 @@                                        │
 └──────────────────────────────────────────────────────────┘

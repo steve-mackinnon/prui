@@ -395,7 +395,7 @@ func TestGuideDetailFileJumps(t *testing.T) {
 	}
 	view := strings.Split(ansi.Strip(m.View().Content), "\n")
 	if len(view) < 4 || !strings.HasPrefix(view[3], "│") || !strings.HasSuffix(view[3], "│") ||
-		strings.TrimSpace(strings.TrimSuffix(strings.TrimPrefix(view[3], "│"), "│")) != fileDivider(s.Inventory.Files[b.file]) {
+		strings.TrimSpace(strings.TrimSuffix(strings.TrimPrefix(view[3], "│"), "│")) != sessionFileDivider(s, b.file) {
 		t.Fatalf("jumped diff body = %q, want b.go file divider", view)
 	}
 
@@ -500,7 +500,7 @@ func TestSideBySideGuideJumpUsesProjectedRepeatedFileAnchor(t *testing.T) {
 
 	want := -1
 	for i, line := range m.displayDetail() {
-		if line.sideBySide != nil && line.sideBySide.full != nil && line.sideBySide.full.Text == fileDivider(s.Inventory.Files[rows[occurrences[1]].file]) {
+		if line.sideBySide != nil && line.sideBySide.full != nil && line.sideBySide.full.Text == sessionFileDivider(s, rows[occurrences[1]].file) {
 			want = i
 		}
 	}
@@ -613,7 +613,7 @@ func TestGuideListMiddleTruncatesUnselectedTextPathsWithoutTechnicalSuffix(t *te
 		if line.row < 0 || rows[line.row].kind != portionRow || rows[line.row].file != file {
 			continue
 		}
-		if !strings.Contains(line.text, "…") || !strings.HasSuffix(line.text, "overflow_test.go") || strings.Contains(line.text, "[text_hunk]") {
+		if !strings.Contains(line.text, "…") || !strings.Contains(line.text, "overflow_test.go +1/-1") || strings.Contains(line.text, "[text_hunk]") {
 			t.Fatalf("guide file row = %q, want middle-truncated path ending in filename", line.text)
 		}
 		if visibleWidth(line.text) > 45 {

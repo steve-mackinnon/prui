@@ -55,6 +55,7 @@ func (m *Model) reviewListPresentation() ([]listLine, int) {
 		selectedRow = s.UnitFiles[m.Selected]
 		var lastCategory inventory.Category
 		counts := m.categoryCounts()
+		stats := diffMetrics(s.Inventory.Units, s.Inventory.Patches)
 		for _, i := range m.filteredFiles() {
 			category := m.fileCategory(i)
 			if m.groupFiles && category != lastCategory {
@@ -64,7 +65,8 @@ func (m *Model) reviewListPresentation() ([]listLine, int) {
 			f := s.Inventory.Files[i]
 			marker := selectionMarker(i == selectedRow)
 			prefix := marker + readMarker(s, f.ID)
-			name, width := fileRailName(f, leftWidth-visibleWidth(prefix))
+			suffix := " " + stats[f.ID].String()
+			name, width := fileRailName(f, leftWidth-visibleWidth(prefix)-visibleWidth(suffix))
 			text := prefix + name
 			if c, ok := s.Inventory.Classifications[f.ID]; ok && c.Partial {
 				text += " [category unavailable]"
@@ -82,6 +84,7 @@ func (m *Model) reviewListPresentation() ([]listLine, int) {
 				}
 				text += path
 			}
+			text += suffix
 			list = append(list, listLine{row: i, text: text, mutedFrom: mutedFrom})
 		}
 	}

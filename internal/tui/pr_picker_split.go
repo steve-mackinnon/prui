@@ -52,6 +52,9 @@ func (m *Model) prPickerRow(pr source.PullRequest) string {
 
 func (m *Model) prPickerMetadata(pr source.PullRequest) string {
 	parts := []string{}
+	if pr.DiffStatsKnown {
+		parts = append(parts, m.styleDiffMetrics(diffStat{added: pr.Additions, removed: pr.Deletions}.String()))
+	}
 	if pr.StackSize > 1 {
 		parts = append(parts, fmt.Sprintf("%d/%d", pr.StackPosition, pr.StackSize))
 	}

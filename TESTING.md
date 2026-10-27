@@ -1,5 +1,14 @@
 # Automated verification
 
+## Diff metrics
+
+`go test ./internal/tui ./internal/source -run 'DiffMetrics|ListSharedReadUsesSameQuery' -count=1`
+covers PR totals, per-file and commit counts, guide portions, duplicate patch
+occurrences, partial data, header exclusion, and colored/colorless output. Screen
+baselines cover counts in narrow and wide layouts. Counts use captured hunk
+bodies; binary and metadata-only changes have zero text lines. Human terminal
+readability remains a manual check.
+
 ## PR list pane resizing
 
 `go test ./internal/tui -run 'PRPickerDivider' -count=1` checks dragging in the PR

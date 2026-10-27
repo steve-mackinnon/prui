@@ -1,8 +1,9 @@
 Open pull requests · 2 open
 › #42  Fix retry handling                      │ #42  Fix retry handling
-  1/2  @alice  ○  ✓  target: main              │ Author alice  ·  Opened Sep 23, 2026
+  +122/-100  1/2  @alice  ○  ✓  target: main   │ Author alice  ·  Opened Sep 23, 2026
   #39  Add cache support                       │ Last commit bob  ·  ✅ Checks pass
-  2/2  @sam  ○  …  target: release/next        │ Your review: None
+  +34/-0  2/2  @sam  ○  …  target: release/nex │ Your review: None
+                                               │ +122/-100
                                                │ Target branch: main
                                                │ Stack: 1/2 (base first)
                                                │ DESCRIPTION
@@ -12,7 +13,6 @@ Open pull requests · 2 open
                                                │
                                                │   • Bound the retry count
                                                │   • Cover cancellation
-                                               │
                                                │
                                                │
                                                │

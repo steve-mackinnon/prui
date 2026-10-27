@@ -767,8 +767,8 @@ func (m *Model) fileDiscussionLines(header diffLine) []diffLine {
 		return nil
 	}
 	var out []diffLine
-	for _, file := range m.Session.Inventory.Files {
-		if header.Text != fileDivider(file) {
+	for fileIndex, file := range m.Session.Inventory.Files {
+		if header.Text != sessionFileDivider(m.Session, fileIndex) {
 			continue
 		}
 		for _, c := range m.Comments {

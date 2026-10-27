@@ -71,9 +71,9 @@ func (m *Model) diffOverlays(anchors diffOverlayAnchors) diffOverlays {
 				o.files = make(map[string][]diffLine)
 			}
 			var rows []diffLine
-			for _, file := range m.Session.Inventory.Files {
+			for fileIndex, file := range m.Session.Inventory.Files {
 				if c.Target.Path == string(file.NewPath) || c.Target.Path == string(file.OldPath) {
-					header := fileDivider(file)
+					header := sessionFileDivider(m.Session, fileIndex)
 					if !anchors.files[header] {
 						continue
 					}

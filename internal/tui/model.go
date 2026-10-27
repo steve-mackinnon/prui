@@ -1607,7 +1607,8 @@ func (m *Model) guidePathScrollTarget() (row, string, int, string) {
 	if m.Files {
 		file := m.Session.UnitFiles[m.Selected]
 		prefix := selectionMarker(true) + readMarker(m.Session, m.Session.Inventory.Files[file].ID)
-		name, width := fileRailName(m.Session.Inventory.Files[file], m.listWidth()-visibleWidth(prefix))
+		suffix := " " + portionDiffStat(m.Session, m.Session.Slices[file].Units).String()
+		name, width := fileRailName(m.Session.Inventory.Files[file], m.listWidth()-visibleWidth(prefix)-visibleWidth(suffix))
 		return row{}, prefix, width - visibleWidth(name) - 2, fileDirectory(m.Session.Inventory.Files[file])
 	}
 	rows := m.rows()
@@ -1616,7 +1617,7 @@ func (m *Model) guidePathScrollTarget() (row, string, int, string) {
 	}
 	r := rows[m.Row]
 	prefix := selectionMarker(true) + strings.Repeat("  ", r.depth) + readMarker(m.Session, m.Session.Inventory.Files[r.file].ID)
-	pathWidth := m.listWidth() - visibleWidth(prefix) - visibleWidth(guidePortionSuffix(m.Session, r))
+	pathWidth := m.listWidth() - visibleWidth(prefix) - visibleWidth(guidePortionMetricsSuffix(m.Session, r))
 	return r, prefix, pathWidth, pathLabel(m.Session.Inventory.Files[r.file])
 }
 
@@ -1827,8 +1828,7 @@ func (m *Model) baseDetail() []diffLine {
 	}
 	lines := unitLines(m.Session, m.Selected)
 	if m.Session.Inventory.Units[m.Selected].Kind == inventory.TextHunk {
-		file := m.Session.Inventory.Files[m.Session.UnitFiles[m.Selected]]
-		return append([]diffLine{{styledLine: styledLine{classFileHeader, fileDivider(file)}}}, lines...)
+		return append([]diffLine{{styledLine: styledLine{classFileHeader, sessionFileDivider(m.Session, m.Session.UnitFiles[m.Selected])}}}, lines...)
 	}
 	return lines
 }

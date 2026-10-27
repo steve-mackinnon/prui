@@ -21,6 +21,9 @@ User-visible changes are recorded here before each release. See
 
 ### Added
 
+- Show green added and red removed line counts in PR lists, Files, Guide, and
+  Commits, including per-file diff headers.
+
 - macOS draft editing shortcuts: Option+Left/Right moves by word,
   Command+Left/Right moves to the current line’s start/end, and Command+Delete
   deletes back to the line’s start. Alt+B/F and Ctrl+A/E/U are terminal aliases.

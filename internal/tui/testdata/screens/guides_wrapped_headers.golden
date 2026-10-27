@@ -1,24 +1,24 @@
 example/review #42                                                                           Actions [Space]  Review [R]
   PRs [P]    Overview [1]    Files [2]  › Guide [3]    Commits [4]
 ┌ Guide ─────────────────────────────┬ Commits [C] · All commits · Find (/) · GUIDES 1 · guide 1/1 · marking: whole fil┐
-│  - 1. Tempo Sync timing engine     │── main.go                                                                       │
-│  handover                          │@@ -1 +1 @@                                                                      │
+│  - 1. Tempo Sync timing engine     │── main.go +1/-1                                                                 │
+│  handover +1/-1                    │@@ -1 +1 @@                                                                      │
 │  01 / 01 · { previous · } next     │   1      -old greeting                                                          │
 │    Move lane timing under the      │        1 +hello world                                                           │
 │    engine's host tempo measurement.│                                                                                 │
-│›   - 1.1 Column time as a four-    │── README.md                                                                     │
+│›   - 1.1 Column time as a four-    │── README.md +0/-0                                                               │
 │    quarter host tempo measurement  │                                                                                 │
+│    +1/-1                           │                                                                                 │
 │      Four quarter notes read by the│                                                                                 │
 │      engine each block keep grid   │                                                                                 │
 │      labels and timing in          │                                                                                 │
 │      agreement.                    │                                                                                 │
-│      main.go                       │                                                                                 │
+│      main.go +1/-1                 │                                                                                 │
 │    - 1.2 Domain wiring and host    │                                                                                 │
-│    tempo values                    │                                                                                 │
+│    tempo values +0/-0              │                                                                                 │
 │      Pass the tempo basis into the │                                                                                 │
 │      lane domain.                  │                                                                                 │
-│      README.md [file_metadata]     │                                                                                 │
-│                                    │                                                                                 │
+│      RE…ME.md +0/-0 [file_metadata]│                                                                                 │
 └────────────────────────────────────┴─────────────────────────────────────────────────────────────────────────────────┘
 0/2 read · R Submit review (0) · ? Freshness unknown · ?: Health & help
 Space: Actions · ↑/↓: guides · Tab: panes · enter: diff · esc: back

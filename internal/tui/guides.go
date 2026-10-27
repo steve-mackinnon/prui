@@ -268,7 +268,7 @@ func guideList(s *review.Session, rows []row, selected, width int, focused bool,
 			// Every fragment keeps the logical row so selection and mouse
 			// navigation apply to the entire header, not just its first line.
 			indent := strings.Repeat(" ", visibleWidth(line))
-			for part, text := range strings.Split(ansi.Wrap(r.label, max(1, width-visibleWidth(line)), ""), "\n") {
+			for part, text := range strings.Split(ansi.Wrap(r.label+" "+portionDiffStat(s, r.units).String(), max(1, width-visibleWidth(line)), ""), "\n") {
 				prefix := indent
 				if part == 0 {
 					prefix = line
@@ -291,7 +291,7 @@ func guideList(s *review.Session, rows []row, selected, width int, focused bool,
 
 func guidePortionText(s *review.Session, r row, prefix string, width int, scroll bool, offset int) string {
 	path := pathLabel(s.Inventory.Files[r.file])
-	suffix := guidePortionSuffix(s, r)
+	suffix := guidePortionMetricsSuffix(s, r)
 	pathWidth := width - visibleWidth(prefix) - visibleWidth(suffix)
 	if scroll && visibleWidth(path) > pathWidth {
 		return prefix + ansi.Cut(path, offset, offset+max(0, pathWidth)) + suffix
@@ -387,4 +387,8 @@ func (m *Model) crossGuideBoundary(delta int) bool {
 		}
 	}
 	return true
+}
+
+func guidePortionMetricsSuffix(s *review.Session, r row) string {
+	return " " + portionDiffStat(s, r.units).String() + guidePortionSuffix(s, r)
 }

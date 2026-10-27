@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-const githubListReadFixture = `{"data":{"repository":{"pullRequests":{"nodes":[{"number":42,"title":"Change","body":"Summary\nDetails","baseRefName":"first","headRefName":"second","headRepository":{"nameWithOwner":"owner/repo"},"createdAt":"2026-09-23T12:00:00Z","author":{"login":"alice"},"viewerLatestReview":{"state":"COMMENTED"},"commits":{"nodes":[{"commit":{"author":{"name":"Bob","user":{"login":"bob"}},"statusCheckRollup":{"state":"SUCCESS"}}}]}},{"number":41,"title":"First","baseRefName":"main","headRefName":"first","headRepository":{"nameWithOwner":"owner/repo"},"createdAt":"2026-09-22T12:00:00Z"}]}}}}`
+const githubListReadFixture = `{"data":{"repository":{"pullRequests":{"nodes":[{"number":42,"additions":122,"deletions":100,"title":"Change","body":"Summary\nDetails","baseRefName":"first","headRefName":"second","headRepository":{"nameWithOwner":"owner/repo"},"createdAt":"2026-09-23T12:00:00Z","author":{"login":"alice"},"viewerLatestReview":{"state":"COMMENTED"},"commits":{"nodes":[{"commit":{"author":{"name":"Bob","user":{"login":"bob"}},"statusCheckRollup":{"state":"SUCCESS"}}}]}},{"number":41,"title":"First","baseRefName":"main","headRefName":"first","headRepository":{"nameWithOwner":"owner/repo"},"createdAt":"2026-09-22T12:00:00Z"}]}}}}`
 
 func TestListSharedReadUsesSameQueryAndFreshCredentials(t *testing.T) {
 	var legacyQuery string
@@ -29,6 +29,9 @@ func TestListSharedReadUsesSameQueryAndFreshCredentials(t *testing.T) {
 	}
 	if len(want) != 2 || want[0].StackPosition != 2 || want[1].StackPosition != 1 || want[0].StackSize != 2 {
 		t.Fatal("list lost branch metadata or stack positions", want)
+	}
+	if !want[0].DiffStatsKnown || want[0].Additions != 122 || want[0].Deletions != 100 {
+		t.Fatal("list lost diff metrics", want)
 	}
 	credentials, requests := 0, 0
 	g := &GH{Limits: Defaults(), Runner: readRunner(func(_ context.Context, q Request) ([]byte, error) {
@@ -53,7 +56,7 @@ func TestListSharedReadUsesSameQueryAndFreshCredentials(t *testing.T) {
 		if payload.Query != legacyQuery || !reflect.DeepEqual(payload.Variables, map[string]string{"owner": "owner", "name": "repo"}) {
 			t.Fatal("list query or variables changed")
 		}
-		for _, field := range []string{"headRefName", "headRepository{nameWithOwner}"} {
+		for _, field := range []string{"headRefName", "headRepository{nameWithOwner}", "additions", "deletions"} {
 			if !strings.Contains(payload.Query, field) {
 				t.Fatal("shared list request lost stack metadata", field)
 			}

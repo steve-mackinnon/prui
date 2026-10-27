@@ -118,7 +118,7 @@ func unitLines(s *review.Session, i int) []diffLine {
 		rows := fileSyntaxDiagnostic(s.Inventory, f)
 		return append(rows, textHunkLines(f, u, s.Inventory.Patches[u.PatchReference], metadata.Identity, metadata.HeadSHA, s.Inventory.Syntax[u.ID])...)
 	case inventory.FileMetadata:
-		return []diffLine{{styledLine: styledLine{classFileHeader, fileDivider(f)}}}
+		return []diffLine{{styledLine: styledLine{classFileHeader, sessionFileDivider(s, s.UnitFiles[i])}}}
 	case inventory.Binary:
 		lines = append(lines, body(cardClass(u.Kind), "Binary content changed; no text patch. Object IDs in file metadata.\n")...)
 	case inventory.Gitlink:

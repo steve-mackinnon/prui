@@ -2,9 +2,9 @@ example/review #42                                                              
   PRs [P]    Overview [1]    Files [2]    Guide [3]  › Commits [4]
 ┌ Commits · 2/2 ─────────────────────┬ Commit diff · bbbbbbbbbbbb ─────────────────────────────────────────────────────┐
 │  First commit                      │Second commit                                                                    │
-│  Alice · aaaaaaaaaaaa              │Alice · bbbbbbbbbbbb                                                             │
-│› Second commit                     │Compared with empty tree (root commit)                                           │
-│  Alice · bbbbbbbbbbbb              │── changed.go                                                                    │
+│  +30/-1 · Alice · aaaaaaaaaaaa     │Alice · bbbbbbbbbbbb                                                             │
+│› Second commit                     │+30/-1 · Compared with empty tree (root commit)                                  │
+│  +30/-1 · Alice · bbbbbbbbbbbb     │── changed.go +30/-1                                                             │
 │                                    │Mode:  -> 100644                                                                 │
 │                                    │@@ -1,1 +1,30 @@                                                                 │
 │                                    │   1      -old                                                                   │

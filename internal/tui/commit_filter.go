@@ -573,9 +573,10 @@ func (m *Model) filteredList() []listLine {
 		}
 	}
 	var rows []listLine
+	stats := diffMetrics(m.commitFilter.inventory.Units, m.commitFilter.inventory.Patches)
 	if m.selectedReviewView() != viewGuide {
 		for i, f := range files {
-			rows = append(rows, listLine{row: i, text: selectionMarker(i == m.commitFilter.file) + pathLabel(f)})
+			rows = append(rows, listLine{row: i, text: selectionMarker(i == m.commitFilter.file) + pathLabel(f) + " " + stats[f.ID].String()})
 		}
 		return rows
 	}
@@ -591,7 +592,7 @@ func (m *Model) filteredList() []listLine {
 	for _, label := range order {
 		rows = append(rows, listLine{row: -1, text: label})
 		for _, i := range grouped[label] {
-			rows = append(rows, listLine{row: i, text: selectionMarker(i == m.commitFilter.file) + "  " + pathLabel(files[i])})
+			rows = append(rows, listLine{row: i, text: selectionMarker(i == m.commitFilter.file) + "  " + pathLabel(files[i]) + " " + stats[files[i].ID].String()})
 		}
 	}
 	return rows

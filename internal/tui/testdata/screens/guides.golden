@@ -1,14 +1,14 @@
 example/review #42                                                                           Actions [Space]  Review [R]
   PRs [P]    Overview [1]    Files [2]  › Guide [3]    Commits [4]
 ┌ Guide ─────────────────────────────┬ Commits [C] · All commits · Find (/) · GUIDES 1 · guide 1/1 · marking: whole fil┐
-│› - 1. Greeting                     │── main.go                                                                       │
+│› - 1. Greeting +1/-1               │── main.go +1/-1                                                                 │
 │  01 / 01 · { previous · } next     │@@ -1 +1 @@                                                                      │
 │    Update the greeting and its     │   1      -old greeting                                                          │
 │    documentation.                  │        1 +hello world                                                           │
-│    - 1.1 Implementation            │                                                                                 │
-│      main.go                       │── README.md                                                                     │
-│    - 1.2 Documentation             │                                                                                 │
-│      README.md [file_metadata]     │                                                                                 │
+│    - 1.1 Implementation +1/-1      │                                                                                 │
+│      main.go +1/-1                 │── README.md +0/-0                                                               │
+│    - 1.2 Documentation +0/-0       │                                                                                 │
+│      RE…ME.md +0/-0 [file_metadata]│                                                                                 │
 └────────────────────────────────────┴─────────────────────────────────────────────────────────────────────────────────┘
 0/2 read · R Submit review (0) · ? Freshness unknown · ?: Health & help
 Space: Actions · ↑/↓: guides · Tab: panes · enter: diff · esc: back

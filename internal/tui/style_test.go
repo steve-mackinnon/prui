@@ -289,7 +289,7 @@ func TestFileMetadataRendersOnlyAQuietFileDivider(t *testing.T) {
 	if got, want := len(lines), 1; got != want {
 		t.Fatalf("file metadata rendered %d lines, want only a file divider: %#v", got, lines)
 	}
-	if got, want := lines[0].Text, "── text"; got != want {
+	if got, want := lines[0].Text, "── text +1/-1"; got != want {
 		t.Fatalf("file divider = %q, want %q", got, want)
 	}
 	if lines[0].Class != classFileHeader {
