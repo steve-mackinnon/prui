@@ -26,14 +26,7 @@ func renderActionModal(width, height int, background, body string, painters ...f
 }
 
 func (m *Model) reviewFormModalView() string {
-	// Render against the card's inner dimensions so decisions, errors and the
-	// final confirmation hint remain within the frame on short terminals.
-	form := *m
-	if m.Width >= 20 && m.Height >= 8 {
-		form.Width = min(96, m.Width-8)
-		form.Height = min(22, m.Height-2)
-	}
-	return renderActionModal(m.Width, m.Height, m.actionModalBackground(), form.reviewFormView(), m.modalSurface)
+	return renderActionModal(m.Width, m.Height, m.actionModalBackground(), m.reviewFormModalLayout().text(), m.modalSurface)
 }
 
 func (m *Model) actionModalBackground() string {
