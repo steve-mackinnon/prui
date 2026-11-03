@@ -178,38 +178,71 @@ func TestDiffSearchJumpPansOverflowAndAllowsRecovery(t *testing.T) {
 	}
 }
 
-func TestDiffSearchOnlyCurrentGuideSection(t *testing.T) {
-	session := largeTextSession(2, 2)
-	session.Guides = &guide.Bundle{Status: guide.Generated, Items: []guide.Item{{Title: "Guide", Sections: []guide.Section{
-		{Title: "First", UnitIDs: []string{session.Inventory.Units[0].ID}},
-		{Title: "Second", UnitIDs: []string{session.Inventory.Units[1].ID}},
-	}}}}
+func TestDiffSearchAcrossGuideSections(t *testing.T) {
+	session := largeTextSession(4, 4)
+	ids := session.Inventory.Units
+	session.Guides = &guide.Bundle{Status: guide.Generated, Items: []guide.Item{
+		{Sections: []guide.Section{{UnitIDs: []string{ids[0].ID}}, {UnitIDs: []string{ids[1].ID}}}},
+		{Sections: []guide.Section{{UnitIDs: []string{ids[2].ID}}}},
+	}}
 	m := largeModel(session, 120, 24)
 	m.selectReviewView(viewGuide)
 	m.Row = 1
+	m.collapsed.sections[[2]int{0, 1}] = true
+	m.collapsed.guides[1] = true
 	searchInput(m, "new 19")
-	s := m.searchState()
-	if len(s.matches) != 1 || s.documents[s.matches[0].Document].File != 0 {
-		t.Fatalf("scope leaked: %v", s.matches)
+	if len(m.searchState().matches) != 4 {
+		t.Fatalf("matches=%d", len(m.searchState().matches))
 	}
-	m.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
-	for i, r := range m.rows() {
-		if r.kind == sectionRow && r.section == 1 {
-			m.Row = i
-			break
+	m.Update(tea.KeyPressMsg{Code: tea.KeyDown})
+	m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	for file := 1; file < 4; file++ {
+		if file > 1 {
+			m.repeatSearchMatch(false)
+		}
+		if m.Session.UnitFiles[m.Selected] != file || !m.searchMatchAtCursor() {
+			t.Fatalf("failed to reveal file %d", file)
+		}
+		if file < 3 {
+			r := m.rows()[m.Row]
+			if r.file != file || r.kind != portionRow {
+				t.Fatalf("wrong guide row: %+v", r)
+			}
+		} else if m.selectedReviewView() != viewFiles {
+			t.Fatal("unguided result not opened in Files")
 		}
 	}
-	cmd := m.startSearch()
-	m.Update(cmd())
-	if len(s.matches) != 1 || s.documents[s.matches[0].Document].File != 1 {
-		t.Fatal("section change retained old results")
+}
+
+func TestExpandedGuideSearchRevealsOwningSubsection(t *testing.T) {
+	session := largeTextSession(1, 2)
+	second := &session.Inventory.Units[1]
+	second.PatchReference = "second"
+	session.Inventory.Patches["second"] = []byte("@@ -50 +50 @@\n-old\n+second subsection\n")
+	session.Guides = &guide.Bundle{Status: guide.Generated, Items: []guide.Item{{Sections: []guide.Section{
+		{UnitIDs: []string{session.Inventory.Units[0].ID}}, {UnitIDs: []string{second.ID}},
+	}}}}
+	m := largeModel(session, 120, 24)
+	m.selectReviewView(viewGuide)
+	m.Update(tea.KeyPressMsg{Code: 'E'})
+	searchInput(m, "second subsection")
+	if len(m.searchState().matches) != 1 {
+		t.Fatal("repeated file inflated search results")
+	}
+	m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	if m.rows()[m.Row].section != 1 || !m.searchMatchAtCursor() {
+		t.Fatal("wrong subsection or cursor")
+	}
+	m.syncGuideToLine(m.cursor())
+	if m.rows()[m.Row].section != 1 {
+		t.Fatal("cursor landed on the expanded copy in the first subsection")
 	}
 }
 
 func TestDiffSearchDocumentBoundaries(t *testing.T) {
 	s := largeTextSession(1, 1)
 	s.Inventory.Patches["p"] = []byte("--- a/new\n+++ b/new\n@@ -1 +1 @@\n context\n-old\n+new\n\\ No newline at end of file\n")
-	docs, skipped := searchDocuments(context.Background(), s, searchScope{Guide: -1, Section: -1})
+	docs, skipped := searchDocuments(context.Background(), s, searchScope{})
 	if len(docs) != 3 || skipped != 0 {
 		t.Fatalf("documents=%v skipped=%d", docs, skipped)
 	}
@@ -392,8 +425,8 @@ func TestDiffSearchLimitsCancellationAndMissingGuide(t *testing.T) {
 	m.closeSearch()
 	m.selectReviewView(viewGuide)
 	searchInput(m, "a")
-	if len(m.searchState().matches) != 0 || !strings.Contains(m.View().Content, "Select a guide section") {
-		t.Fatal("missing guide searched all files")
+	if len(m.searchState().matches) != searchResultLimit {
+		t.Fatal("missing guide prevented full diff search")
 	}
 }
 

@@ -326,21 +326,34 @@ func TestExpandedSearchCountsUnavailableFilesOnce(t *testing.T) {
 }
 
 func TestExpandFetchesSelectedFileOnDemand(t *testing.T) {
-	m := navigationModel("", "", "", inventory.Range{}, inventory.Range{})
+	m := navigationModel("@@ -1 +1 @@\n-before\n+after\n", "", "", inventory.Range{Start: 1, Count: 1}, inventory.Range{Start: 1, Count: 1})
 	m.Session.Inventory.FullSource = nil
 	f := &m.Session.Inventory.Files[0]
-	f.OldOID = fmt.Sprintf("%x", sha1.Sum([]byte("blob 7\x00before\n")))
-	f.NewOID = fmt.Sprintf("%x", sha1.Sum([]byte("blob 6\x00after\n")))
+	f.OldOID = fmt.Sprintf("%x", sha1.Sum([]byte("blob 14\x00before\nstable\n")))
+	f.NewOID = fmt.Sprintf("%x", sha1.Sum([]byte("blob 13\x00after\nstable\n")))
 	calls := 0
 	m.SetFullSourceLoader(func(_ context.Context, f inventory.FileChange, _ source.PinnedComparison) (*inventory.FullSource, error) {
 		calls++
-		return &inventory.FullSource{Blobs: map[string][]byte{f.OldOID: []byte("before\n"), f.NewOID: []byte("after\n")}}, nil
+		return &inventory.FullSource{Blobs: map[string][]byte{f.OldOID: []byte("before\nstable\n"), f.NewOID: []byte("after\nstable\n")}}, nil
 	})
 	_, cmd := m.Update(tea.KeyPressMsg{Code: 'E'})
 	if cmd == nil || m.navigation.mode != "expanded" {
 		t.Fatal("E did not request expanded source")
 	}
-	m.Update(cmd())
+	searchInput(m, "stable")
+	if len(m.searchState().matches) != 0 {
+		t.Fatal("unexpected match before loading source")
+	}
+	_, refresh := m.Update(cmd())
+	if refresh == nil {
+		t.Fatal("source arrival did not refresh search")
+	}
+	m.Update(refresh())
+	if !m.searchOpen() || len(m.searchState().matches) != 1 {
+		t.Fatal("source arrival lost the active search")
+	}
+	m.closeSearch()
+	m.searchState().query = ""
 	if lines, ok := m.navigationInventory().SourceLines(0, false); !ok || lines[0] != "after" {
 		t.Fatal("source not loaded", lines)
 	}
@@ -404,6 +417,14 @@ func TestGuideFullContextToggle(t *testing.T) {
 		if l.rawSource == "class Example {" && l.target != nil {
 			t.Fatal("context became commentable")
 		}
+	}
+	searchInput(m, "class Example")
+	if len(m.searchState().matches) != 1 {
+		t.Fatal("expanded guide source not searchable")
+	}
+	m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	if !m.searchMatchAtCursor() {
+		t.Fatal("expanded guide match not revealed")
 	}
 	if !m.codeNavigationKey("ctrl+e") || joinNavigation(m.baseDetail()) != before {
 		t.Fatal("compact guide not restored")

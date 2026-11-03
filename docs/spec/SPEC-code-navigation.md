@@ -20,7 +20,7 @@ In Files and Guide, E toggles full file context and Ctrl+D restores the
 compact diff. In Guide, each referenced file is expanded once per section,
 including its other hunks; section/file navigation boundaries and original
 review-unit ownership stay intact. Guide expansion is independent of the Files
-source mode. Guide search still covers only the original current-section patches.
+source mode. Guide search covers all changed files, including available unchanged context when expanded.
 Missing source keeps the patch visible with an on-demand loading or retry hint.
 
 On Files:
@@ -34,7 +34,7 @@ On Files:
   a claim that the underlying change is semantically harmless.
 - / searches the current source scope. OLD/NEW searches the captured side;
   expanded mode includes available additional context; ordinary Files searches
-  canonical saved patches. Guide continues to search its current section.
+  canonical saved patches. Guide searches the same comparison across all sections.
   Results display side/line and matches; Enter jumps, F3/Shift+F3 navigate next/
   previous with wrapping. Activating a canonical result reveals any hidden
   whitespace change. Filename filters are cleared when needed to reveal a result.

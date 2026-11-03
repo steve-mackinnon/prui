@@ -234,7 +234,7 @@ as Option+Left.
 | `G` | Select the Guide tab |
 | `C` | Open the commit filter in Files/Guide |
 | `S` | Toggle side-by-side detail; unified is the default and narrow terminals fall back below 160 columns |
-| `/` | Find code text in Files or the current Guide section |
+| `/` | Find code text across the full diff in Files or Guide |
 | `F` | Filter Files by filename or path; Enter keeps the filter, Escape clears it |
 | `1` / `2` / `3` / `4` | Select Overview / Files / Guide / Commits |
 | `v` / `V` | Next / previous PR context view: Overview, Files, Guide, or Commits |
@@ -645,10 +645,10 @@ See [the conversation contract](spec/SPEC-pr-conversation.md).
 ## Find text in diffs
 
 On Files or Guide, press `/` or click **Find (/)** in the diff header.
-Files searches all available saved text hunks, including files hidden by the
-filename filter. Guide searches only the selected section, including collapsed
-children. Select a section or its file row first; a guide heading has no section
-scope. Full inventory mode searches the saved comparison.
+Both views search all changed files, including collapsed guides and files hidden
+by the filename filter. Selecting a Guide result opens its subsection, or opens
+Files if the result has no guide entry. In expanded mode, search also includes
+unchanged context from full source already available for the comparison.
 
 Type literal text; matching ignores case and includes additions, deletions, and
 saved unchanged context. It excludes paths, headings, comments, and guide prose.

@@ -2,6 +2,14 @@
 
 Status: Approved for implementation on 2026-10-04. The user confirmed current-section Guide scope and authorized proceeding without further phase gates.
 
+## Scope revision — 2026-11-03
+
+The full comparison is the search scope for Files and Guide, regardless of the
+selected guide, subsection, file or collapse state. This supersedes the
+current-section requirements below. Activation opens the matching guide portion
+when available and otherwise reveals the result in Files. Expanded views include
+available unchanged context and refresh existing searches when source arrives.
+
 ## Objective
 
 Let reviewers find literal code text in the Files and Guide diff views, inspect results grouped by file in a compact popover, and jump to highlighted matches in the diff. The supplied Linear screenshot is the visual reference: a query field, overall match/file counts, file headings with counts, code snippets, and simultaneous highlights in the underlying diff.

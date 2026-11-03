@@ -3,6 +3,7 @@ package tui
 import (
 	"bytes"
 	"context"
+	"slices"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -30,10 +31,8 @@ type searchMatch struct {
 	Range    searchRange
 }
 type searchScope struct {
-	Source         string
-	GuideView      bool
-	Guide, Section int
-	Inventory      bool
+	Source string
+	loaded *inventory.FullSource
 }
 type diffSearchState struct {
 	session *review.Session
@@ -141,16 +140,14 @@ func literalSearchRanges(text, query string, limit int) []searchRange {
 }
 
 func (m *Model) currentSearchScope() searchScope {
-	scope := searchScope{Guide: -1, Section: -1, Inventory: m.Inventory, GuideView: m.selectedReviewView() == viewGuide && !m.Inventory}
-	if !m.Inventory && m.selectedReviewView() == viewGuide {
-		rows := m.rows()
-		if len(rows) > 0 {
-			r := rows[min(max(m.Row, 0), len(rows)-1)]
-			scope.Guide, scope.Section = r.guide, r.section
-		}
-	}
-	if m.fileView() && m.selectedReviewView() == viewFiles {
+	var scope searchScope
+	if m.selectedReviewView() == viewFiles && !m.Inventory {
 		scope.Source = m.navigation.mode
+	} else if m.selectedReviewView() == viewGuide && !m.Inventory && m.guideExpanded {
+		scope.Source = "expanded"
+	}
+	if scope.Source != "" {
+		scope.loaded = m.navigation.source
 	}
 	return scope
 }
@@ -180,11 +177,11 @@ func (m *Model) searchState() *diffSearchState {
 }
 
 func searchDocuments(ctx context.Context, session *review.Session, scope searchScope) ([]searchDocument, int) {
-	if session == nil || (scope.GuideView && scope.Guide < 0) {
+	if session == nil {
 		return nil, 0
 	}
 	if scope.Source != "" {
-		model := &Model{reviewTabState: &reviewTabState{Session: session, navigation: codeNavigation{mode: scope.Source}}}
+		model := &Model{ctx: ctx, reviewTabState: &reviewTabState{Session: session, navigation: codeNavigation{mode: scope.Source}}}
 		var docs []searchDocument
 		skipped := map[int]bool{}
 		for f, slice := range session.Slices {
@@ -221,23 +218,8 @@ func searchDocuments(ctx context.Context, session *review.Session, scope searchS
 		return docs, len(skipped)
 	}
 	var units []int
-	if scope.Guide >= 0 && !scope.Inventory {
-		if session.Guides == nil || scope.Section < 0 {
-			return nil, 0
-		}
-		indexes := make(map[string]int, len(session.Inventory.Units))
-		for i, u := range session.Inventory.Units {
-			indexes[u.ID] = i
-		}
-		for _, id := range session.Guides.Items[scope.Guide].Sections[scope.Section].UnitIDs {
-			if i, ok := indexes[id]; ok {
-				units = append(units, i)
-			}
-		}
-	} else {
-		for _, slice := range session.Slices {
-			units = append(units, slice.Units...)
-		}
+	for _, slice := range session.Slices {
+		units = append(units, slice.Units...)
 	}
 	var documents []searchDocument
 	seen := map[string]bool{}
@@ -338,9 +320,9 @@ func (m *Model) startSearch() tea.Cmd {
 	ctx, cancel := context.WithCancel(m.ctx)
 	s.cancel = cancel
 	docs, skipped, session, query := s.documents, s.skipped, s.session, s.query
-	if scope.Source != "" && m.navigation.source != nil {
+	if scope.loaded != nil {
 		copy := *session
-		copy.Inventory = m.navigationInventory()
+		copy.Inventory.FullSource = scope.loaded
 		session = &copy
 	}
 	return func() tea.Msg {
@@ -533,17 +515,19 @@ func (m *Model) activateSearchMatch() {
 	match := s.matches[s.selected]
 	doc := s.documents[match.Document]
 	m.closeSearch()
-	m.Focus = paneDiff
-	if s.scope.Guide >= 0 && !m.Inventory {
-		delete(m.collapsed.guides, s.scope.Guide)
-		delete(m.collapsed.sections, [2]int{s.scope.Guide, s.scope.Section})
-		for i, r := range m.rows() {
-			if r.guide == s.scope.Guide && r.section == s.scope.Section && r.file == doc.File {
-				m.Row = i
-				break
-			}
+	if m.selectedReviewView() == viewGuide && !m.Inventory && !m.selectSearchGuideRow(doc) {
+		m.selectReviewView(viewFiles)
+		m.navigation.mode = s.scope.Source
+		m.fileCache = fileDetailCache{}
+		// Keep the activated occurrence available for highlighting and repeat search.
+		if previous := m.existingSearch(); previous != nil && previous.cancel != nil {
+			previous.cancel()
 		}
+		copied := *s
+		copied.cancel = nil
+		m.search[0] = &copied
 	}
+	m.Focus = paneDiff
 	if m.fileView() {
 		visible := false
 		for _, f := range m.filteredFiles() {
@@ -565,6 +549,42 @@ func (m *Model) activateSearchMatch() {
 	m.revealSearchMatch()
 }
 
+// Resolve a result against the complete hierarchy before opening collapsed rows.
+func (m *Model) selectSearchGuideRow(doc searchDocument) bool {
+	current, _ := m.activeGuide()
+	var destination row
+	best := -1
+	for _, r := range rowsFor(m.Session, expansion{}) {
+		if r.kind != portionRow || r.file != doc.File {
+			continue
+		}
+		priority := 0
+		if slices.Contains(r.units, doc.Unit) {
+			priority = 2 // An owning section wins over an expanded copy of the file.
+		} else if !m.guideExpanded {
+			continue
+		}
+		if r.guide == current {
+			priority++
+		}
+		if priority > best {
+			destination, best = r, priority
+		}
+	}
+	if best < 0 {
+		return false
+	}
+	delete(m.collapsed.guides, destination.guide)
+	delete(m.collapsed.sections, [2]int{destination.guide, destination.section})
+	for i, r := range m.rows() {
+		if r.kind == portionRow && r.guide == destination.guide && r.section == destination.section && r.file == doc.File {
+			m.Row = i
+			return true
+		}
+	}
+	return false
+}
+
 func (m *Model) revealSearchMatch() {
 	s := m.searchState()
 	if s.selected < 0 || s.selected >= len(s.matches) {
@@ -574,7 +594,20 @@ func (m *Model) revealSearchMatch() {
 	doc := s.documents[match.Document]
 	wanted := 1 + len(Escape(doc.Text[:match.Range.Start]))
 	wantedEnd := 1 + len(Escape(doc.Text[:match.Range.End]))
+	section, renderedSection := -1, -1
+	if m.selectedReviewView() == viewGuide && !m.Inventory {
+		rows := m.rows()
+		if m.Row >= 0 && m.Row < len(rows) {
+			section = rows[m.Row].section
+		}
+	}
 	for i, line := range m.displayDetail() {
+		if line.guideAnchor != nil {
+			renderedSection = line.guideAnchor.section
+		}
+		if section >= 0 && section != renderedSection {
+			continue
+		}
 		cells := []diffLine{line}
 		if line.sideBySide != nil {
 			cells = nil
