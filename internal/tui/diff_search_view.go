@@ -134,8 +134,6 @@ func (m *Model) searchPopover(background string) string {
 	}
 	summary := "Type to search diff text"
 	switch {
-	case m.selectedReviewView() == viewGuide && !m.Inventory && s.scope.Section < 0:
-		summary = "Select a guide section to search"
 	case s.pending:
 		summary = "Searching…"
 	case s.query != "" && len(s.matches) == 0:
@@ -265,21 +263,6 @@ func (m *Model) searchHighlightedText(line diffLine, horizontal, width int, pref
 	s := m.existingSearch()
 	if s == nil || s.session != m.Session || s.query == "" || s.scope != m.currentSearchScope() {
 		return "", false
-	}
-	if m.selectedReviewView() == viewGuide && !m.Inventory {
-		if s.scope.Guide < 0 || s.scope.Section < 0 {
-			return "", false
-		}
-		found := false
-		for _, id := range m.Session.Guides.Items[s.scope.Guide].Sections[s.scope.Section].UnitIDs {
-			if id == line.searchID.Unit {
-				found = true
-				break
-			}
-		}
-		if !found {
-			return "", false
-		}
 	}
 	prefix = clip(prefix, width)
 	runes := []rune(line.Text)

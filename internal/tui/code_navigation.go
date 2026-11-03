@@ -388,20 +388,8 @@ func (m *Model) applyFullSource(v fullSourceResult) {
 			nav.sourceError = "source cache limit reached"
 		}
 	}
-	for _, search := range state.search {
-		if search != nil {
-			if search.cancel != nil {
-				search.cancel()
-			}
-			search.generation++
-			search.documents = nil
-			search.matches = nil
-			search.pending = false
-		}
-	}
 	if v.target == m.activeTab {
 		m.fileCache = fileDetailCache{}
 		m.guideCache = guideDetailCache{}
-		m.closeSearchPopovers()
 	}
 }

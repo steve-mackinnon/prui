@@ -31,7 +31,7 @@ var bindings = []binding{
 	{keys: "ctrl+d", desc: "restore compact diff (Files and Guide)", groups: groupHelp, section: "Navigate"},
 	{keys: "alt+o/n, ctrl+w", desc: "full OLD/NEW, whitespace presentation (Files)", groups: groupHelp, section: "Navigate"},
 	{keys: "alt+up/down", desc: "previous/next loaded unresolved thread", groups: groupHelp, section: "Navigate"},
-	{keys: "/", desc: "find code text in Files or the current Guide section", groups: groupHelp, section: "Navigate"},
+	{keys: "/", desc: "find code text across the full diff", groups: groupHelp, section: "Navigate"},
 	{keys: "B", desc: "toggle file category grouping (remembered)", groups: groupHelp, section: "Views"},
 	{keys: "alt+c", desc: "collapse/reveal generated files (remembered); filter always reveals matches", groups: groupHelp, section: "Views"},
 	{keys: "P", desc: "open the pull-request switcher", groups: groupFooter | groupHelp, section: "App"},
