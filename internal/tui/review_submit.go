@@ -444,7 +444,7 @@ func (m *Model) pendingLines(target source.ReviewCommentTarget) []diffLine {
 	for i, comment := range m.Pending {
 		if targetEndsAt(comment.Target, target) {
 			first := strings.SplitN(comment.Body, "\n", 2)[0]
-			lines = append(lines, diffLine{styledLine: styledLine{Class: classWarning, Text: fmt.Sprintf("  [Pending %d] %s · R to review", i+1, Escape(first))}})
+			lines = append(lines, diffLine{pendingComment: i + 1, styledLine: styledLine{Class: classWarning, Text: fmt.Sprintf("  [Pending %d] %s · R to review", i+1, Escape(first))}})
 			if replacement, err := source.ParseSuggestion(comment.Body); err == nil {
 				if before, ok := m.targetSource(comment.Target); ok {
 					lines = append(lines, suggestionPreview(before, replacement)...)

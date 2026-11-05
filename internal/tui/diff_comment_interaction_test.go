@@ -209,3 +209,45 @@ func TestDiffCommentMarkdownASCIIOutputKeepsReadableContent(t *testing.T) {
 		t.Fatalf("ASCII card lost readable conversion:\n%s", body.String())
 	}
 }
+
+func TestPendingCommentCanBeEnteredAndEditedFromDiff(t *testing.T) {
+	for _, layout := range []diffLayout{diffLayoutUnified, diffLayoutSideBySide} {
+		t.Run(map[diffLayout]string{diffLayoutUnified: "unified", diffLayoutSideBySide: "split"}[layout], func(t *testing.T) {
+			m := rangeTestModel()
+			t.Cleanup(m.Close)
+			m.Width, m.Height, m.layout, m.Focus = 160, 40, layout, paneDiff
+			selectRawTarget(t, m, "RIGHT", 2)
+			target := *m.selectedDiffTarget()
+			target.StartLine, target.StartSide = 1, "RIGHT"
+			m.Pending = []source.ReviewComment{{Target: target, Body: "first draft"}, {Target: target, Body: "second draft"}}
+			for _, body := range []string{"first draft", "second draft"} {
+				for attempts := 0; attempts < len(m.displayDetail()); attempts++ {
+					m.moveCursor(1)
+					if strings.Contains(m.displayDetail()[m.cursor()].Text, body) {
+						break
+					}
+				}
+				if !strings.Contains(m.displayDetail()[m.cursor()].Text, body) {
+					t.Fatalf("cursor skipped %q", body)
+				}
+			}
+			m.moveCursor(-1)
+			if !strings.Contains(m.displayDetail()[m.cursor()].Text, "first draft") {
+				t.Fatal("upward navigation skipped the pending comment")
+			}
+			m.moveCursor(1)
+			if m.selectedDiffTarget() != nil {
+				t.Fatal("pending row became a source target")
+			}
+			m.mouseKey("enter")
+			if m.Composer == nil || m.Composer.PendingIndex != 1 || m.Composer.Draft != "second draft" || m.Composer.Target != target {
+				t.Fatalf("wrong draft reopened: %#v", m.Composer)
+			}
+			m.Composer.Draft = "edited draft"
+			m.mouseKey("ctrl+p")
+			if len(m.Pending) != 2 || m.Pending[0].Body != "first draft" || m.Pending[1].Body != "edited draft" {
+				t.Fatalf("edit did not update existing pending comment: %#v", m.Pending)
+			}
+		})
+	}
+}
