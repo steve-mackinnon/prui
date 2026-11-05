@@ -1467,6 +1467,12 @@ func (m *Model) openCommentComposer() tea.Cmd {
 	if cursor < 0 {
 		return nil
 	}
+	if pending := m.displayDetail()[cursor].pendingComment; pending > 0 && pending <= len(m.Pending) {
+		comment := m.Pending[pending-1]
+		m.rangeStart = nil
+		m.Composer = &commentComposer{Target: comment.Target, PendingIndex: pending - 1, Draft: comment.Body, Cursor: len([]rune(comment.Body))}
+		return m.startCommentEditor()
+	}
 	target := m.selectedDiffTarget()
 	if target == nil || target.Path == "" || !utf8.ValidString(target.Path) {
 		return nil
@@ -1490,6 +1496,10 @@ func (m *Model) openCommentComposer() tea.Cmd {
 			break
 		}
 	}
+	return m.startCommentEditor()
+}
+
+func (m *Model) startCommentEditor() tea.Cmd {
 	m.restoreSuggestionEditor(m.Composer)
 	m.editorCursorVisible = true
 	m.editorCursorGeneration++

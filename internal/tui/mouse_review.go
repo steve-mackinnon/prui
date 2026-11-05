@@ -257,7 +257,7 @@ func (m *Model) mouseReviewClick(x, y int) tea.Cmd {
 			return nil
 		}
 	}
-	if target == nil && line.commentID == 0 {
+	if target == nil && line.commentID == 0 && line.pendingComment == 0 {
 		return nil
 	}
 	m.setCursor(i)
@@ -268,7 +268,7 @@ func (m *Model) mouseReviewClick(x, y int) tea.Cmd {
 	if m.fileView() {
 		m.syncFileToLine(i)
 	}
-	identity := fmt.Sprintf("diff/%d/%d/%v/%d", m.Selected, m.Row, target, line.commentID)
+	identity := fmt.Sprintf("diff/%d/%d/%v/%d/%d", m.Selected, m.Row, target, line.commentID, line.pendingComment)
 	if target != nil {
 		identity = fmt.Sprintf("diff/%d/%d/%v", m.Selected, m.Row, *target)
 	}

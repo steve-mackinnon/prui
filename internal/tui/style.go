@@ -61,6 +61,7 @@ type diffLine struct {
 	oldLine, newLine  int                         // raw source coordinates; zero means absent
 	oldTarget         *source.ReviewCommentTarget // alternate raw context coordinate, used only for ranges
 	target            *source.ReviewCommentTarget
+	pendingComment    int         // one-based index in Pending; zero for other rows
 	commentID         int64       // nonzero only for an already anchored overlay comment
 	editor            bool        // true for rows in the active inline editor
 	sideBySide        *diffRow    // non-nil for one logical, aligned source row
