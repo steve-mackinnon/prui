@@ -71,11 +71,7 @@ func TestMouseReviewFormDecisionPendingAndSeparateConfirmation(t *testing.T) {
 	if m.ReviewForm.Event != 1 || m.ReviewForm.Focus != 0 {
 		t.Fatal("approval click did not select")
 	}
-	top, start, count := form.reviewPendingMouseRows()
-	if count < 2 || start != 0 {
-		t.Fatalf("pending geometry %d %d %d", top, start, count)
-	}
-	modalClick(m, b.Min.X, b.Min.Y+top+1)
+	clickReviewText(t, m, "other")
 	if m.ReviewForm.Selected != 1 || m.ReviewForm.Focus != 2 {
 		t.Fatal("pending click did not select")
 	}
