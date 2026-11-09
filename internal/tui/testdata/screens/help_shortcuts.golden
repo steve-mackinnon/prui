@@ -12,13 +12,13 @@ Health & help
 │ on demand)                                              │  │ m: mark/unmark the whole file slice, including its      │
 │ ctrl+d: restore compact diff (Files and Guide)          │  │ units under other guides                                │
 │ alt+o/n, ctrl+w: full OLD/NEW, whitespace presentation  │  │ R: submit a PR review with pending line comments        │
-│ (Files)                                                 │  │ enter: submit inline comment editor                     │
-│ alt+up/down: previous/next loaded unresolved thread     │  │ ctrl+o: choose old/new side of split or context rows    │
-│ /: find code text across the full diff                  │  │ ctrl+v: start/cancel range; j/k chooses end, enter      │
-│ j/k: move the focused list or diff cursor               │  │ composes                                                │
-│ up/down: move list selection or scroll continuous diff  │  │ ctrl+s: compose a suggestion from selected right-side   │
-│ J/K: scroll diff by 5                                   │  │ lines                                                   │
-│ zz: center the focused diff on its line cursor          │  │ ctrl+a: in comment actions, preview and confirm         │
-│ h/l, ctrl+h/ctrl+l: focus list/diff                     │  │ suggestion application                                  │
-│ enter: focus the diff; open a line editor or selected-  │  │ ctrl+f: compose a file comment (enter posts; queuing    │
+│ (Files)                                                 │  │ enter: post an inline comment or send an ask agent in   │
+│ alt+up/down: previous/next loaded unresolved thread     │  │ the selected editor mode                                │
+│ /: find code text across the full diff                  │  │ tab/shift+tab: cycle inline editor modes; Ask agent is  │
+│ j/k: move the focused list or diff cursor               │  │ second after Comment                                    │
+│ up/down: move list selection or scroll continuous diff  │  │ ctrl+o: choose old/new side of split or context rows    │
+│ J/K: scroll diff by 5                                   │  │ ctrl+v: start/cancel range; j/k chooses end, enter      │
+│ zz: center the focused diff on its line cursor          │  │ composes                                                │
+│ h/l, ctrl+h/ctrl+l: focus list/diff                     │  │ alt+y: copy selected canonical source lines             │
+│ enter: focus the diff; open a line editor or selected-  │  │ X: cancel this tab's pending agent answer; the question │
 ↑/↓: scroll · s: getting started · esc: back

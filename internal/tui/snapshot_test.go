@@ -13,7 +13,9 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
+	"prui/internal/agentchat"
 	"prui/internal/guide"
+	"prui/internal/guideconfig"
 	"prui/internal/inventory"
 	"prui/internal/review"
 	"prui/internal/session"
@@ -35,6 +37,62 @@ func screenSession() *review.Session {
 	s.Inventory.Units[0].PatchReference = "patch"
 	s.Inventory.Patches = map[string][]byte{"patch": []byte("@@ -1 +1 @@\n-old greeting\n+hello world\n")}
 	return s
+}
+
+func screenAgentThread(m *Model) {
+	m.Focus = paneDiff
+	meta := m.Session.Inventory.Comparison.Metadata
+	anchor := source.ReviewCommentTarget{Identity: meta.Identity, CommitID: meta.HeadSHA, Path: "main.go", Side: "RIGHT", Line: 1}
+	thread := m.agent.New(anchor, guideconfig.Selection{Provider: "anthropic", Model: "review-model"}, 0, uint8(viewFiles))
+	hunk := agentchat.Excerpt{ID: "hunk:main", Path: "main.go", Side: "RIGHT", Revision: meta.HeadSHA, Start: 1, End: 1, Lines: []agentchat.SourceLine{{Line: 1, Text: "hello world", Selected: true}}}
+	for _, turn := range []struct{ question, answer string }{
+		{"What changed on this line?", "The greeting now says **hello world**.\n\nThis is limited to the selected hunk; callers are not supplied."},
+		{"Could that affect callers?", "It may affect code that compares the exact greeting. A caller search is unavailable in this captured review."},
+	} {
+		request := m.agent.Begin(thread.ID, func() {}, 0, uint8(viewFiles), -1)
+		manifest := agentchat.Manifest{Question: turn.question, Hunk: hunk}
+		answer, _ := agentchat.ValidateAnswer(manifest, agentchat.Answer{Text: turn.answer, References: []agentchat.Reference{{EvidenceID: hunk.ID, StartLine: 1, EndLine: 1}}})
+		m.agent.Accept(thread.ID, request.Generation, manifest, answer, "")
+	}
+}
+
+func screenAgentEditor(t *testing.T, m *Model) {
+	t.Helper()
+	choice := guideconfig.Selection{Provider: "anthropic", Model: "review-model", Destination: "https://api.anthropic.com", APIKeyEnv: "ANTHROPIC_API_KEY"}
+	m.SetGuideOptions([]guideconfig.Selection{choice}, choice, nil)
+	m.SetAgentAnswerer(fixtureAgentAnswer)
+	m.Focus = paneDiff
+	selectRawTarget(t, m, "RIGHT", 1)
+	m.openCommentComposer()
+	m.commentComposerKey(tea.KeyPressMsg{Code: tea.KeyTab})
+	if m.Composer == nil || !m.Composer.Agent {
+		t.Fatal("Ask agent was not the second inline mode")
+	}
+	m.Composer.Draft = "Will this change affect callers?"
+	m.Composer.Cursor = len([]rune(m.Composer.Draft))
+}
+
+func screenAgentSelected(m *Model) {
+	screenAgentThread(m)
+	threadID := m.agent.ActiveThread().ID
+	for i, row := range m.displayDetail() {
+		if row.agentThreadID == threadID {
+			m.setCursor(i)
+			m.cursorActive = true
+			m.ensureCursorVisible()
+			return
+		}
+	}
+}
+
+func screenAgentReply(m *Model) {
+	screenAgentThread(m)
+	m.SetAgentAnswerer(fixtureAgentAnswer)
+	thread := m.agent.ActiveThread()
+	m.openAgentCardComposer(&thread)
+	m.Composer.Draft = "Could you explain the impact?"
+	m.Composer.Cursor = len([]rune(m.Composer.Draft))
+	m.ensureInlineEditorVisible()
 }
 
 func TestScreenSnapshots(t *testing.T) {
@@ -83,6 +141,14 @@ func TestScreenSnapshots(t *testing.T) {
 			m.Focus = paneDiff
 			key(m, 'S')
 		}},
+		{"agent_thread_wide", 120, 34, func(m *Model) { screenAgentThread(m) }},
+		{"agent_thread_narrow", 80, 34, func(m *Model) { screenAgentThread(m) }},
+		{"agent_thread_selected_wide", 120, 34, func(m *Model) { screenAgentSelected(m) }},
+		{"agent_thread_selected_narrow", 80, 34, func(m *Model) { screenAgentSelected(m) }},
+		{"agent_reply_wide", 120, 34, func(m *Model) { screenAgentReply(m) }},
+		{"agent_reply_narrow", 80, 34, func(m *Model) { screenAgentReply(m) }},
+		{"agent_editor_wide", 120, 24, func(m *Model) { screenAgentEditor(t, m) }},
+		{"agent_editor_narrow", 80, 24, func(m *Model) { screenAgentEditor(t, m) }},
 		{"commits_wide", 120, 18, func(m *Model) {
 			m.Session.Commits = commitModel(t).Session.Commits
 			m.openReviewTab(m.Session)

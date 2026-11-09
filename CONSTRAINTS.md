@@ -19,6 +19,42 @@
   the full reference. Severe health warnings and review submission remain
   visible. Header controls and mouse hit testing share responsive bounds.
 
+# Line-anchored agent conversation contract
+
+- Files and Guide may ask the currently confirmed guide provider/model about a
+  canonical captured PR diff line or contiguous same-side range in one hunk.
+  Selection uses pinned raw targets; split old/new cells remain distinct.
+  Source drag selects without copying; Copy selected lines is explicit and uses
+  raw source text. Prose copying and divider dragging retain their own routes.
+- A question and each follow-up require an explicit Enter Send in Ask agent mode.
+  The editor shows the model ID in its top border; the source and history bounds
+  and tab-only lifetime are documented in the reference and enforced at send.
+  Asking never publishes to GitHub, changes review progress, or persists transcripts.
+- Enter on a canonical Files/Guide source target opens the shared inline editor
+  in Comment mode. One Tab selects Ask agent as the second mode. Enter in
+  that mode sends only the private question; Shift+Enter adds a newline. Agent
+  drafts remain tab-local in memory and never enter durable GitHub comment
+  drafts, pending review comments, or write preflight. The inline response uses
+  the framed comment presentation with distinct turns and citations. A focused
+  agent card has a solid highlighted border, and its follow-up editor appears
+  directly below that card. The card omits redundant side/range labels and
+  gives each question a distinct accent and bold style before its answer.
+- Every turn uses only its selected captured hunk and at most three eligible
+  captured context excerpts after privacy recheck. No repository search,
+  checkout read, source fetch, cached full-file upload, model tool operation,
+  or automatic retry/fallback is part of the first pass. Limits are 32 KiB
+  source, 8 KiB current question, 16 KiB complete prior turns, 128 KiB
+  serialized manifest, 32 KiB answer, and 60 seconds per request. Omitted
+  material is disclosed; excluded selected source or oversized selected lines
+  block sending.
+- Answers and references are untrusted interpretation. Citation targets resolve
+  only to exact excerpts in that request's manifest; invalid references cannot
+  invent navigation. Async results carry stable tab, comparison, thread and
+  request-generation identity. Cancellation invalidates the generation and
+  late results are discarded. Closing or replacing a tab discards its in-memory
+  threads; unchanged comparisons retain them. Offline mode refuses provider
+  work before client or credential access.
+
 # Phases 1 To 3 Contract
 
 - Raw source comes only from pinned committed objects, never working files or model output.

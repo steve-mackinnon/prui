@@ -113,3 +113,21 @@ func TestCopyInlineCommentDispatch(t *testing.T) {
 		t.Fatal("selected diff comment URL not copied")
 	}
 }
+
+func TestPastedAgentQuestionStaysInPrivateThread(t *testing.T) {
+	m := agentTestModel(t)
+	t.Cleanup(m.Close)
+	m.SetAgentAnswerer(fixtureAgentAnswer)
+	m.openCommentComposer()
+	m.commentComposerKey(tea.KeyPressMsg{Code: tea.KeyTab})
+	if m.Composer == nil || !m.Composer.Agent {
+		t.Fatal("second inline editor mode is not Ask agent")
+	}
+	m.pasteText("pasted private question")
+	if got := m.agentActive(); got == nil || got.Draft != "pasted private question" {
+		t.Fatalf("pasted question was not retained privately: %#v", got)
+	}
+	if d := draftContent(m.reviewTabState); d.Composer != nil && d.Composer.Body == "pasted private question" {
+		t.Fatal("ask agent entered durable comment draft")
+	}
+}

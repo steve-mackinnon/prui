@@ -3,12 +3,34 @@ package tui
 import (
 	tea "charm.land/bubbletea/v2"
 	"context"
+	"encoding/json"
 	"prui/internal/session"
 	"prui/internal/source"
 	"strings"
 	"testing"
 	"time"
 )
+
+func TestAgentComposerQuestionCannotEnterDurableCommentDraft(t *testing.T) {
+	m := rangeTestModel()
+	defer m.Close()
+	selectRawTarget(t, m, "RIGHT", 1)
+	anchor := *m.selectedDiffTarget()
+	m.Composer = &commentComposer{
+		Target: anchor, Agent: true, Draft: "private ask agent", PendingIndex: -1,
+		Modes: &session.CommentModes{LineTarget: &anchor, Drafts: map[string]string{
+			"Comment": "saved GitHub comment", "Ask agent": "private ask agent",
+		}},
+	}
+	d := draftContent(m.reviewTabState)
+	encoded, err := json.Marshal(d)
+	if err != nil || strings.Contains(string(encoded), "private ask agent") || d.Composer == nil || d.Composer.Body != "saved GitHub comment" {
+		t.Fatalf("agent text entered durable draft: %s (%v)", encoded, err)
+	}
+	if _, present := d.Composer.Modes.Drafts["Ask agent"]; present {
+		t.Fatal("agent mode persisted in GitHub comment modes")
+	}
+}
 
 func TestDraftEditsSurviveRestartWithoutRemoteWrite(t *testing.T) {
 	store, err := session.Open(t.TempDir() + "/private")

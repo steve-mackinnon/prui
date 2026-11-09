@@ -45,6 +45,44 @@ since it.
 
 Guides group the frozen review units into functional chunks, each with a title, description, and ordered sections that reference specific units. They are an interpretation layer: `Slices` and `UnitFiles` are unchanged, reading progress stays file-slice based, and the raw inventory remains the complete source view. Each unit is assigned to a guide exactly once; anything the model did not group lands in a synthesized `Ungrouped changes` guide.
 
+### Ask the agent about selected lines
+
+In Files or Guide, select a canonical diff line or range and press Enter to open
+the inline editor. Comment is the default mode; one Tab selects **Ask agent**
+as the second mode, before eligible Suggestion and File comment modes. The
+editor shows the model ID at the top right of a minimal chat box. Enter sends
+the question; Shift+Enter adds a newline. Each Send uploads the selected
+captured hunk, at most three eligible captured excerpts, and up to 16 KiB of
+complete prior turns, subject to the request limits in the spec. It does not
+search the repository or read working files. Conversations and unsent text
+stay in memory in the open review tab and are discarded when it closes or the
+comparison changes. Opening or closing the editor does not upload source;
+Escape retains unsent agent text in the tab. Each Send makes one non-streaming
+provider request. Cancel stops
+waiting for that request, and a failed question remains available for explicit
+retry. Provider failures show a bounded HTTP status or a timeout/output
+category, never the raw provider response. You can continue reading or switch
+tabs while a response is pending.
+
+Answers appear in an inline Agent Q&A thread below the selected range, using the
+same framed layout as inline comments. Question text uses a distinct accent and
+bold style, followed by a separate answer block. The card heading shows the
+pinned provider/model; its placement supplies the source anchor. A follow-up stays
+in that anchored thread, with its editor directly below the answer card. The
+card's border is highlighted while the diff cursor is inside it. Asking on the
+same anchor reopens it. Different anchors
+have separate threads. The card shows citations to the exact excerpts supplied
+to that request, with unavailable references labeled. Answers are private review
+assistance and never become GitHub comments automatically. A model answer can
+be incomplete or wrong; missing captured evidence is shown rather than filled
+by a repository search. Historical commit views, derived commit subsets, and
+noncanonical expanded source rows cannot start a question in this first pass.
+Use `Q` on a focused card to collapse or expand it, Enter on a citation to
+inspect sent evidence, Enter elsewhere on the card to compose a follow-up, and
+`X` to cancel a pending answer. If you change the confirmed guide recipient,
+`Ctrl+N` in the existing thread's Ask agent editor starts a new thread
+with that recipient; its Send still requires explicit consent.
+
 Selecting a PR from the interactive PR list or switcher displays the latest validated saved review immediately when one exists, with freshness shown as unknown until an asynchronous GitHub check finishes. The check reuses a matching frozen comparison without Git fetching or resource rebuilding; a changed comparison is pinned normally and replaces the displayed review when ready. A previously generated guide for the same repository, PR number, base SHA, and head SHA is reused locally only when its guide selection also matches. Press `g` in an interactive review to open the guide modal over that review. Provider, editable model ID, sanitized recipient, and source-upload warning are visible together. The last confirmed valid pair is preselected, so `g` then Enter confirms it; Tab or up/down selects a control, left/right changes the configured provider and its model from any control, and typing or deleting in Model edits the model ID. With only one usable provider, the modal says so instead of offering a provider switch. Escape closes the modal or cancels an in-flight request. Direct `open`, `resume`, `--plain`, offline mode, and `verify` do not generate guides. API keys are never written to a snapshot, log, or error string. With no guide configuration file, OpenAI's default model is `gpt-6.1-sol`, and `OPENAI_BASE_URL` may override its endpoint. There are no guide-generation model or exclusion CLI flags. `resume --offline` rejects guide generation and all GitHub operations before accessing clients or credentials; stored guides remain readable.
 
 ### Guide model configuration
@@ -257,6 +295,9 @@ as Option+Left.
 | `e` | Show bounded evidence and included/excluded scope |
 | `U` | Show canonical GitHub URL for copying; does not launch a browser |
 | `g` | Request guide generation after confirming source upload; Escape cancels an in-flight request |
+| Enter then Tab in Files/Guide diff | Open the inline editor, then select Ask agent as its second mode; Enter sends with explicit consent |
+| `ctrl+v` in Files/Guide diff | Start or clear a canonical source range; diff movement adjusts its endpoint |
+| `alt+y` | Copy selected canonical source lines without diff markers or line numbers |
 | `m` | Mark/unmark the whole file slice of the selected unit, including its units under other guide sections; saves immediately |
 | `r` | Refresh PR source, discussions, and comments; preserve the old comparison and drafts if source changes |
 | `c` / `N` | Workspace aliases for Refresh PR |
@@ -265,7 +306,7 @@ as Option+Left.
 | Escape during a cancellable action | Cancel the operation and retain the current review |
 | `?`, `q`, Ctrl+C | Help, quit, cancel loading |
 
-Selection, expansion, and diff scroll offsets survive resizing; navigation positions and expansion state are not persisted across processes, and they are rebuilt from the immutable bundle so navigation cannot drift from the stored guides. Mouse capture supports text selection, item selection, and divider dragging. Drag text in a readable content pane to copy it on release. Textual markers and labels are primary: the selected row is marked `› ` whether or not its pane is focused; a muted background reinforces it when unfocused and reverse video reinforces the focused row. The interactive view additionally colors diff structure — file headers, hunk locations, additions, removals — and unit states such as metadata, binary, gitlink, unavailable, and warning chrome. Color is presentation only: no wording, label, or ordering depends on it, and terminals without color show the same text. Extremely small terminals clip controls; enlarge or use plain output. Broad terminal/platform/accessibility coverage is not established.
+Selection, expansion, and diff scroll offsets survive resizing; navigation positions and expansion state are not persisted across processes, and they are rebuilt from the immutable bundle so navigation cannot drift from the stored guides. Mouse capture supports source-range selection, prose text copying, item selection, and divider dragging. Dragging canonical source rows in Files or Guide selects lines; use **Copy selected lines** in Actions or `Alt+Y` to copy their source text. Dragging prose in other readable content panes copies on release. Textual markers and labels are primary: the selected row is marked `› ` whether or not its pane is focused; a muted background reinforces it when unfocused and reverse video reinforces the focused row. The interactive view additionally colors diff structure — file headers, hunk locations, additions, removals — and unit states such as metadata, binary, gitlink, unavailable, and warning chrome. Color is presentation only: no wording, label, or ordering depends on it, and terminals without color show the same text. Extremely small terminals clip controls; enlarge or use plain output. Broad terminal/platform/accessibility coverage is not established.
 
 Every interactive PR has `Overview` (`1`), `Files` (`2`), `Guide` (`3`), and `Commits` (`4`) context views, in that order. New reviews open on Overview; `F` opens the Files filename filter; `G` selects Guide. Guide has its own top-level tab and requires explicit generation with `g` when no guide is available. Description is display-only GitHub-flavored Markdown frozen from GitHub when the session opened; it is available after an offline resume and does not refresh when selected. Raw HTML remains literal text, links are not activated, and images never load. Empty captured descriptions and older sessions that did not capture one are labeled explicitly. Context views are not included in `--plain` output.
 
@@ -293,11 +334,17 @@ navigation list and diff horizontally. The navigation list stays at least
 `[` / `]` keys share the same per-review width, remembered for this run and restored after
 returning from a narrow terminal. The inner old/new diff divider stays equal.
 
-Drag across text in the diff, Overview, commit detail, PR preview,
-readiness, or issue context to highlight it. Releasing copies the visible text
-through OSC 52 and shows a small `copied to clipboard` toast at the bottom for
-two seconds. Multiline selection stays within the content pane; rendered line
-numbers and diff markers are copied when selected. Plain clicks do not copy.
+In Files and Guide, click a canonical source line to set a range origin, then
+Shift-click another line in the same side and hunk to select an inclusive range.
+Dragging from source text or its number gutter previews that range; release
+commits it without copying. The range is labeled with its side and line numbers.
+Terminals that reserve Shift gestures can use `Ctrl+V` and keyboard movement.
+Copy selected lines uses the frozen source text and emits OSC 52 clipboard output.
+
+Drag across text in Overview, commit detail, PR preview, readiness, or issue
+context to highlight it. Releasing copies the visible text through OSC 52 and
+shows a small `copied to clipboard` toast at the bottom for two seconds. Multiline
+prose selection stays within the content pane. Plain clicks do not copy.
 Overview card actions and URL clicks wait for release; dragging copies text
 without expanding a card or following a link.
 Keyboard input, wheel scrolling, or resizing cancels an in-progress selection.

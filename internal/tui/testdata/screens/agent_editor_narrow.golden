@@ -1,0 +1,24 @@
+example/review #42                                   Actions [Space]  Review [R]
+PRs  Overview  › Files  Guide  Commits
+┌ Files · ▽ Filter (F) · Commits [C] · All commits · Find (/) ─────────────────┐
+│── main.go +1/-1                                                              │
+│@@ -1 +1 @@                                                                   │
+│   1      -old greeting                                                       │
+│        1 +hello world                                                        │
+│Comment · [Ask agent] · Suggestion · File comment · tab: type                 │
+│  +---------------------------------------------------------- review-model +  │
+│  | Will this change affect callers?▏                                      |  │
+│  +------------------------------------------------------------------------+  │
+│                                                                              │
+│── README.md +0/-0                                                            │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+└──────────────────────────────────────────────────────────────────────────────┘
+0/2 read · R Review (0) · ? Freshness unknown · ?: Help
+Ask agent · tab: mode · esc: close

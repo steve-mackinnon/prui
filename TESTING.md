@@ -43,13 +43,51 @@ human accessibility or subjective terminal usability.
 
 ## Text selection and clipboard feedback
 
-`go test ./internal/tui -run 'TextSelection|ClipboardToast|Copy|URL' -count=1`
-checks release-only copying, reverse multiline selection, pane clipping, wide
-and combining graphemes, gesture cancellation, URL click/drag routing, and
-generation-safe toast dismissal. `TestPTYSmoke` also drives a drag through real
-SGR mouse input, checks the emitted OSC 52 payload, and waits for the toast to
-disappear. These checks verify terminal output; actual clipboard acceptance and
-subjective selection visibility still require human terminal verification.
+`go test ./internal/tui -run 'TextSelection|ClipboardToast|Copy|URL|SourceSelection' -count=1`
+checks release-only prose copying, canonical source range selection, reverse
+multiline selection, pane clipping, wide and combining graphemes, gesture
+cancellation, URL click/drag routing, and generation-safe toast dismissal.
+`TestPTYSmoke` drives a source drag and two-line Shift-click through SGR mouse
+input, verifies that release makes no clipboard write, then uses explicit Alt+Y
+to check the OSC 52 payload and toast dismissal. These checks verify terminal
+protocol behavior; actual clipboard acceptance, modifier delivery from a user's
+terminal, and subjective selection visibility still require human verification.
+
+## Line-anchored agent conversations
+
+`go test ./internal/agentchat ./internal/guide ./internal/tui ./cmd/prui -count=1`
+covers frozen manifest bounds, captured-context ranking, privacy rechecks,
+structured answer and citation validation, configured provider protocols with
+local test endpoints and fake credentials, and TUI selection, consent, follow-up,
+cancel/retry, and tab/comparison result routing. The CLI provider tests make no
+real provider requests. The PTY smoke journey checks source drag and explicit
+copy through terminal mouse/key sequences. Human terminal assessment remains
+needed for actual Shift-click modifier delivery, clipboard acceptance, narrow
+layout readability, and reviewing answers while moving through a real PR.
+`TestPTYAgentConversations` runs the compiled app in a PTY against a keyless
+loopback provider and a saved synthetic comparison. It checks the bounded
+selected-hunk and captured-test request, exact citation inspection, an answer
+with unavailable caller evidence, anchored follow-up history across Files and
+Guide, cancellation, and no GitHub write. The source-selection tests also
+check exact raw clipboard payloads after keyboard selection, drag, and
+Shift-click across scrolling and narrow split fallback. These tests do not
+establish how a real provider answers or whether a particular terminal accepts
+mouse modifiers and OSC 52 clipboard writes.
+An Anthropic HTTP rejection fixture verifies that Agent Q&A reports only the
+numeric status, while preserving the question for retry and withholding the
+response body, URL, source, and credential.
+LEFT-deletion regressions assert that the exact selected line appears in the
+serialized hunk and provider request, and that the answer card anchors under
+that line in unified and split layouts. A prompt test checks that the model is
+told to treat selected hunk lines as primary, citable evidence. A live answer
+still needs human review because prompt tests cannot guarantee model behavior.
+Inline editor tests cover Comment→Ask agent Tab order, separate private
+drafts, explicit Enter Send without a GitHub write, 8 KiB question input,
+paste/clipboard retention, and no agent text in durable comment drafts.
+`TestScreenSnapshots` records the minimal wide/narrow editor with model ID in
+its top border, focused card borders, and follow-up editors below framed two-turn
+thread layouts; an empty thread has no card before Send. These are synthetic
+screens, so a real terminal still determines readability and key delivery.
 
 ## Conversation Markdown and HTML
 

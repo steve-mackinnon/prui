@@ -46,6 +46,8 @@ func (m *Model) commentSelectionTarget() *source.ReviewCommentTarget {
 func (m *Model) toggleCommentRange() {
 	if m.rangeStart != nil {
 		m.rangeStart = nil
+		m.rangeEnd = nil
+		m.rangeKeyboard = false
 		return
 	}
 	t := m.commentSelectionTarget()
@@ -55,7 +57,48 @@ func (m *Model) toggleCommentRange() {
 	}
 	copy := *t
 	m.rangeStart = &copy
+	m.rangeEnd = &copy
+	m.rangeKeyboard = true
 	m.ActionError = nil
+}
+
+func (m *Model) updateKeyboardRangeEnd() {
+	if !m.rangeKeyboard || m.rangeStart == nil || m.Focus != paneDiff || !m.diffReviewView() {
+		return
+	}
+	end := m.selectedDiffTarget()
+	if end == nil {
+		return
+	}
+	if _, err := m.completeCommentRange(*end); err != nil {
+		m.ActionError = err
+		return
+	}
+	m.rangeEnd = copyTarget(end)
+	m.ActionError = nil
+}
+
+// selectedCanonicalRange is the one source-range contract shared by comments,
+// copy, and agent questions. A cursor alone is a valid single-line selection.
+func (m *Model) selectedCanonicalRange() (*source.ReviewCommentTarget, error) {
+	if m.Session == nil || !m.diffReviewView() || m.commitFilter.subset {
+		return nil, errors.New("select a canonical PR diff line in Files or Guide")
+	}
+	end := m.selectedDiffTarget()
+	if m.rangeEnd != nil {
+		end = m.rangeEnd
+	}
+	// Source rows already carry their frozen comparison identity. The local
+	// selection boundary checks coordinates; outbound comment and agent requests
+	// perform their full identity/SHA validation before any write or upload.
+	if end == nil || source.ValidateCommentCoordinates(*end) != nil {
+		return nil, errors.New("select a valid captured diff line")
+	}
+	selected, err := m.completeCommentRange(*end)
+	if err != nil {
+		return nil, err
+	}
+	return &selected, nil
 }
 func (m *Model) completeCommentRange(end source.ReviewCommentTarget) (source.ReviewCommentTarget, error) {
 	if m.rangeStart == nil {
@@ -122,6 +165,8 @@ func (m *Model) openFileComposer() tea.Cmd {
 		return nil
 	}
 	m.rangeStart = nil
+	m.rangeEnd = nil
+	m.rangeKeyboard = false
 	m.Focus = paneDiff
 	m.Composer = &commentComposer{Target: t, PendingIndex: -1}
 	m.editorCursorVisible = true
@@ -148,6 +193,8 @@ func (m *Model) switchCommentSide() {
 	for _, t := range targets {
 		if t.Side != current.Side {
 			m.rangeStart = nil
+			m.rangeEnd = nil
+			m.rangeKeyboard = false
 			m.setSelectedDiffTarget(&t)
 			return
 		}

@@ -294,7 +294,7 @@ func (m *Model) nextUnresolved(delta int) {
 }
 
 func (m *Model) navigableLine(line diffLine) bool {
-	if line.target != nil || line.commentID > 0 || line.pendingComment > 0 {
+	if line.target != nil || line.commentID > 0 || line.pendingComment > 0 || line.agentThreadID > 0 {
 		return true
 	}
 	if !m.guideExpanded && (!m.fileView() || m.navigation.mode == "") {

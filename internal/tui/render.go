@@ -283,6 +283,10 @@ func (m *Model) renderProjectedSideBySideDetail(lines []diffLine, width, horizon
 // selectedRow is relative to the supplied viewport, not the full diff.
 func (m *Model) renderSideBySideViewport(lines []diffLine, width, horizontal, selectedRow int, selected *source.ReviewCommentTarget) []diffLine {
 	rendered := make([]diffLine, 0, len(lines))
+	var sourceSelection *source.ReviewCommentTarget
+	if m.rangeStart != nil {
+		sourceSelection, _ = m.selectedCanonicalRange()
+	}
 	oldBounds, _ := splitCellBounds(width)
 	cellWidth := oldBounds.Dx()
 	for index, line := range lines {
@@ -290,7 +294,7 @@ func (m *Model) renderSideBySideViewport(lines []diffLine, width, horizontal, se
 			rendered = append(rendered, diffLine{styledLine: styledLine{
 				Class: line.Class,
 				Text:  m.styleLine(line.Class, renderEditorCaret(clip(line.Text, width), line.editorCaret, 0)),
-			}, target: line.target, commentID: line.commentID})
+			}, target: line.target, commentID: line.commentID, agentThreadID: line.agentThreadID, agentCitation: line.agentCitation, agentTurn: line.agentTurn, agentReference: line.agentReference})
 			continue
 		}
 		row := *line.sideBySide
@@ -298,21 +302,37 @@ func (m *Model) renderSideBySideViewport(lines []diffLine, width, horizontal, se
 			rendered = append(rendered, diffLine{styledLine: styledLine{
 				Class: classPlain,
 				Text:  m.styleLine(row.full.Class, renderEditorCaret(clip(row.full.Text, width), row.full.editorCaret, 0)),
-			}, target: line.target, commentID: line.commentID})
+			}, target: line.target, commentID: line.commentID, agentThreadID: line.agentThreadID, agentCitation: line.agentCitation, agentTurn: line.agentTurn, agentReference: line.agentReference})
 			continue
 		}
 		renderCell := func(cell *diffCell) string {
 			if !m.cursorActive {
-				return m.renderSideBySideCell(cell, cellWidth, horizontal)
+				return m.renderSideBySideSelectedCell(cell, cellWidth, horizontal, sourceSelection)
 			}
 			active := index == selectedRow && selected != nil && cell != nil && cell.line != nil && cell.line.target != nil && *cell.line.target == *selected
-			return cursorMarker(active) + m.renderSideBySideCell(cell, max(0, cellWidth-2), horizontal)
+			return cursorMarker(active) + m.renderSideBySideSelectedCell(cell, max(0, cellWidth-2), horizontal, sourceSelection)
 		}
 		old := renderCell(row.old)
 		new := renderCell(row.new)
 		rendered = append(rendered, diffLine{styledLine: styledLine{Class: classPlain, Text: old + " │ " + new}, target: line.target, commentID: line.commentID, sideBySide: line.sideBySide})
 	}
 	return rendered
+}
+
+func (m *Model) renderSideBySideSelectedCell(cell *diffCell, width, horizontal int, selection *source.ReviewCommentTarget) string {
+	if !sourceRangeContainsTarget(selection, func() *source.ReviewCommentTarget {
+		if cell == nil || cell.line == nil {
+			return nil
+		}
+		return cell.line.target
+	}()) {
+		return m.renderSideBySideCell(cell, width, horizontal)
+	}
+	selectedCell := *cell
+	selectedLine := *cell.line
+	selectedLine.Class = classSelection
+	selectedCell.line = &selectedLine
+	return m.renderSideBySideCell(&selectedCell, width, horizontal)
 }
 
 func (m *Model) renderSideBySideCell(cell *diffCell, width, horizontal int) string {

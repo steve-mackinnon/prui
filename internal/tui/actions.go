@@ -100,7 +100,10 @@ func (m *Model) reviewActions() []namedReviewAction {
 		}
 		reviewControls = append(reviewControls, namedReviewAction{label: "Add line comment", unavailable: unavailable(valid, "select a commentable source line in the diff"), run: compose})
 		reviewControls = append(reviewControls, namedReviewAction{label: "Start or cancel comment range", shortcut: "Ctrl+V", unavailable: unavailable(valid || m.rangeStart != nil, "select a commentable source line in the diff"), run: local(m.toggleCommentRange)})
+		_, rangeErr := m.selectedCanonicalRange()
+		reviewControls = append(reviewControls, namedReviewAction{label: "Copy selected lines", shortcut: "Alt+Y", unavailable: unavailable(rangeErr == nil, "select canonical source lines in the diff"), run: m.copySelectedSource})
 		if m.diffReviewView() {
+			reviewControls = append(reviewControls, namedReviewAction{label: "Cancel agent request", shortcut: "X", unavailable: unavailable(m.agent.HasPending(), "no agent request is pending in this tab"), run: local(m.cancelAgentRequest)})
 			reviewControls = append(reviewControls, namedReviewAction{label: "Compose suggestion", shortcut: "Ctrl+S", unavailable: unavailable(valid && target.Side == "RIGHT", "select right-side source lines in the diff"), run: m.openSuggestionComposer})
 		}
 	}

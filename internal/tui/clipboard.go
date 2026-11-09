@@ -55,6 +55,9 @@ func (m *Model) textInput() (*string, func(string) tea.Cmd) {
 		return body, func(text string) tea.Cmd {
 			if (draftEditor{body, cursor, policy}).insert(text) {
 				m.editorCursorVisible = true
+				if c := m.Composer; c != nil && c.Agent && body == &c.Draft {
+					m.saveAgentComposerDraft(c.Target, c.Draft)
+				}
 				if m.Composer != nil && m.Composer.CommitSHA != "" {
 					m.ensureCommitEditorVisible()
 				}
