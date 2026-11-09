@@ -17,6 +17,7 @@ const (
 	publishedDraft
 	generalDraft
 	summaryDraft
+	agentQuestionDraft
 )
 
 func (p draftPolicy) byteLimit() int {
@@ -25,6 +26,8 @@ func (p draftPolicy) byteLimit() int {
 		// Review summaries have no individual body cap in source or draft storage.
 		// The existing aggregate private-payload limit still applies on persistence.
 		return 0
+	case agentQuestionDraft:
+		return 8 << 10
 	default:
 		// Suggestions limit replacement source, independently of generated fences.
 		return 64 << 10
@@ -166,6 +169,9 @@ func (e draftEditor) key(key tea.KeyPressMsg) draftEditResult {
 }
 
 func composerDraftPolicy(c *commentComposer) draftPolicy {
+	if c.Agent {
+		return agentQuestionDraft
+	}
 	if c.Suggestion {
 		return suggestionDraft
 	}

@@ -39,9 +39,22 @@ func (m *Model) mouseUpdate(msg tea.MouseMsg) tea.Cmd {
 		}
 	}()
 	event := msg.Mouse()
-	if event.X < 0 || event.Y < 0 || event.X >= m.Width || event.Y >= m.Height || event.Mod != 0 {
+	if event.X < 0 || event.Y < 0 || event.X >= m.Width || event.Y >= m.Height {
 		m.resetMouseActivation()
 		m.cancelMouseDrag()
+		m.cancelSourceDrag()
+		m.textSelection = textSelection{}
+		return nil
+	}
+	if event.Mod == tea.ModShift {
+		if cmd, handled := m.mouseSourceRange(msg); handled {
+			return cmd
+		}
+	}
+	if event.Mod != 0 {
+		m.resetMouseActivation()
+		m.cancelMouseDrag()
+		m.cancelSourceDrag()
 		m.textSelection = textSelection{}
 		return nil
 	}
@@ -56,6 +69,7 @@ func (m *Model) mouseUpdate(msg tea.MouseMsg) tea.Cmd {
 	if cmd, handled := m.mouseModal(msg); handled {
 		m.resetMouseActivation()
 		m.cancelMouseDrag()
+		m.cancelSourceDrag()
 		m.textSelection = textSelection{}
 		return cmd
 	}
@@ -72,6 +86,7 @@ func (m *Model) mouseUpdate(msg tea.MouseMsg) tea.Cmd {
 		}
 	}
 	if cmd, handled := m.mousePage(msg); handled {
+		m.cancelSourceDrag()
 		return cmd
 	}
 	if !m.mouseAvailable() {
@@ -103,7 +118,11 @@ func (m *Model) mouseUpdate(msg tea.MouseMsg) tea.Cmd {
 	}
 	if cmd, handled := m.mouseResize(msg); handled {
 		m.resetMouseActivation()
+		m.cancelSourceDrag()
 		m.textSelection = textSelection{}
+		return cmd
+	}
+	if cmd, handled := m.mouseSourceRange(msg); handled {
 		return cmd
 	}
 	if cmd, handled := m.mouseTextSelection(msg); handled {

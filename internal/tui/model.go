@@ -20,6 +20,7 @@ import (
 	"prui/internal/session"
 	"prui/internal/source"
 	"prui/internal/theme"
+	featureagent "prui/internal/tui/features/agentchat"
 )
 
 type Loader func(context.Context, func(string)) (*review.Session, error)
@@ -112,9 +113,13 @@ type reviewTabState struct {
 	readiness                                            readinessState
 	lifecycle                                            lifecycleState
 	discussions                                          discussionState
+	agent                                                featureagent.State
 	commit                                               commitState
 	commitFilter                                         commitFilterState
 	rangeStart                                           *source.ReviewCommentTarget
+	rangeEnd                                             *source.ReviewCommentTarget
+	rangeKeyboard                                        bool
+	sourceDrag                                           sourceRangeDrag
 	savedCursorTarget                                    *source.ReviewCommentTarget
 	savedCursorCommentID                                 int64
 	CursorTarget, GuideCursorTarget                      map[int]source.ReviewCommentTarget
@@ -189,6 +194,7 @@ const (
 	pageIssueContext
 	pageLifecycle
 	pageActions
+	pageAgentEvidence
 )
 
 // commentComposer is deliberately tab-owned. Its target is copied from the
@@ -200,6 +206,7 @@ type commentComposer struct {
 	CommitBundle    *commits.Bundle
 	CommitInventory *inventory.Inventory
 	Modes           *session.CommentModes
+	Agent           bool // private tab-local mode; never persisted as a GitHub draft
 	Suggestion      bool
 	Before          string
 	Draft           string
@@ -295,6 +302,7 @@ type Model struct {
 	guideModelEditing    bool
 	guideModelDrafts     map[string]string
 	guideSave            func(guideconfig.Selection) error
+	agentAnswerer        AgentAnswerer
 	submitComment        CommentSubmitter
 	submitReview         ReviewSubmitter
 	submitGeneralComment GeneralCommentSubmitter
@@ -447,6 +455,9 @@ func (m *Model) update(msg tea.Msg) (updated tea.Model, command tea.Cmd) {
 		}
 	}()
 	switch v := msg.(type) {
+	case agentAnswerResult:
+		m.applyAgentAnswer(v)
+		return m, nil
 	case diffSearchResult:
 		m.applySearchResult(v)
 		return m, nil
@@ -540,6 +551,10 @@ func (m *Model) update(msg tea.Msg) (updated tea.Model, command tea.Cmd) {
 		if v.Err == nil && v.Session != nil {
 			m.Session = v.Session
 			if v.Reset {
+				if m.agent.HasPending() {
+					m.agent.Cancel()
+				}
+				m.agent = featureagent.State{}
 				m.notice = "New comparison: previous drafts remain with the previous saved comparison"
 				if m.commitFilter.cancel != nil {
 					m.commitFilter.cancel()
@@ -749,6 +764,12 @@ func (m *Model) update(msg tea.Msg) (updated tea.Model, command tea.Cmd) {
 		if state.discussions.cancel != nil {
 			state.discussions.cancel()
 		}
+		if state.agent.HasPending() {
+			state.agent.Cancel()
+		}
+		if len(state.agent.Threads()) > 0 {
+			m.notice = "New comparison: in-memory Agent Q&A from the old tab was discarded"
+		}
 		m.tabs[v.Target].review = m.newDraftReviewTab(v.Freshness.Session)
 		if v.Target == m.activeTab {
 			m.restoreReviewTab(m.tabs[v.Target].review)
@@ -794,6 +815,7 @@ func (m *Model) update(msg tea.Msg) (updated tea.Model, command tea.Cmd) {
 		m.resetMouseActivation()
 		m.textSelection = textSelection{}
 		m.cancelMouseDrag()
+		m.cancelSourceDrag()
 		if m.commitFilter.subset && m.diffReviewView() {
 			m.Width, m.Height = max(1, v.Width), max(1, v.Height)
 			return m, nil
@@ -813,6 +835,11 @@ func (m *Model) update(msg tea.Msg) (updated tea.Model, command tea.Cmd) {
 	case tea.KeyPressMsg:
 		m.resetMouseActivation()
 		m.textSelection = textSelection{}
+		hadSourceDrag := m.sourceDrag.active
+		m.cancelSourceDrag()
+		if hadSourceDrag && v.String() == "esc" {
+			return m, nil
+		}
 		// Any intervening key invalidates a pending clipboard request.
 		m.clipboardTarget = nil
 		if v.String() == "ctrl+v" {
@@ -826,6 +853,10 @@ func (m *Model) update(msg tea.Msg) (updated tea.Model, command tea.Cmd) {
 		m.pendingCenter = false
 		if m.top() == pageActions && v.String() != "ctrl+c" {
 			return m, m.actionsKey(v)
+		}
+		if m.top() == pageAgentEvidence {
+			m.agentEvidenceKey(v.String())
+			return m, nil
 		}
 		if m.actionsAvailable() && (v.String() == "space" || v.String() == " " || v.String() == "ctrl+k") {
 			m.openActions()
@@ -954,6 +985,27 @@ func (m *Model) update(msg tea.Msg) (updated tea.Model, command tea.Cmd) {
 				_, id := m.cursorAnchor()
 				return m, m.copyCommentURL(id)
 			}
+			if v.String() == "X" && m.diffReviewView() {
+				m.cancelAgentRequest()
+				return m, nil
+			}
+			if v.String() == "Q" && m.diffReviewView() {
+				if thread := m.agentCardAtCursor(); thread != nil {
+					m.toggleAgentCard(thread)
+					return m, nil
+				}
+			}
+			if v.String() == "enter" && m.diffReviewView() {
+				if thread := m.agentCardAtCursor(); thread != nil {
+					rows := m.displayDetail()
+					cursor := m.cursorInDetail(rows)
+					if cursor >= 0 && cursor < len(rows) && rows[cursor].agentCitation {
+						m.openAgentEvidence(thread)
+						return m, nil
+					}
+					return m, m.openAgentCardComposer(thread)
+				}
+			}
 			if v.String() == "alt+r" && m.Session != nil {
 				m.push(pageReadiness)
 				return m, m.refreshReadiness()
@@ -1017,6 +1069,9 @@ func (m *Model) update(msg tea.Msg) (updated tea.Model, command tea.Cmd) {
 				m.toggleCommentRange()
 				return m, nil
 			}
+			if v.String() == "alt+y" && m.diffReviewView() {
+				return m, m.copySelectedSource()
+			}
 			if v.String() == "ctrl+s" {
 				return m, m.openSuggestionComposer()
 			}
@@ -1025,6 +1080,8 @@ func (m *Model) update(msg tea.Msg) (updated tea.Model, command tea.Cmd) {
 			}
 			if v.String() == "esc" && m.rangeStart != nil {
 				m.rangeStart = nil
+				m.rangeEnd = nil
+				m.rangeKeyboard = false
 				return m, nil
 			}
 			if m.selectedReviewView() == viewDescription {
@@ -1246,6 +1303,7 @@ func (m *Model) registerReviewTab(s *review.Session, activate bool) {
 		m.tabs = append(m.tabs, workspaceTab{identity: identity, title: m.knownPRTitle(identity), review: m.newDraftReviewTab(s)})
 		return
 	}
+	m.cancelSourceDrag()
 	m.saveActiveCursorAnchor()
 	m.tabs = append(m.tabs, workspaceTab{identity: identity, title: m.knownPRTitle(identity), review: m.newDraftReviewTab(s)})
 	m.activeTab = len(m.tabs) - 1
@@ -1260,6 +1318,9 @@ func (m *Model) activateTab(index int) bool {
 	if index == m.activeTab {
 		return true
 	}
+	// A tab switch ends an unfinished source gesture on the departing tab and
+	// restores its last committed selection before that tab is parked.
+	m.cancelSourceDrag()
 	m.saveActiveCursorAnchor()
 	m.activeTab = index
 	m.restoreReviewTab(m.tabs[index].review)
@@ -1344,6 +1405,7 @@ func (m *Model) cycleReviewView(delta int) {
 func (m *Model) selectReviewView(view reviewView) {
 	m.closeSearchPopovers()
 	m.cancelMouseDrag()
+	m.cancelSourceDrag()
 	if m.Session == nil {
 		return
 	}
@@ -1463,6 +1525,9 @@ func (m *Model) openCommentComposer() tea.Cmd {
 	if m.Focus != paneDiff || m.Composer != nil {
 		return nil
 	}
+	if m.rangeKeyboard && m.ActionError != nil {
+		return nil
+	}
 	cursor := m.cursor()
 	if cursor < 0 {
 		return nil
@@ -1470,6 +1535,8 @@ func (m *Model) openCommentComposer() tea.Cmd {
 	if pending := m.displayDetail()[cursor].pendingComment; pending > 0 && pending <= len(m.Pending) {
 		comment := m.Pending[pending-1]
 		m.rangeStart = nil
+		m.rangeEnd = nil
+		m.rangeKeyboard = false
 		m.Composer = &commentComposer{Target: comment.Target, PendingIndex: pending - 1, Draft: comment.Body, Cursor: len([]rune(comment.Body))}
 		return m.startCommentEditor()
 	}
@@ -1477,16 +1544,19 @@ func (m *Model) openCommentComposer() tea.Cmd {
 	if target == nil || target.Path == "" || !utf8.ValidString(target.Path) {
 		return nil
 	}
-	selected, err := m.completeCommentRange(*target)
+	selectedTarget, err := m.selectedCanonicalRange()
 	if err != nil {
 		m.ActionError = err
 		return nil
 	}
+	selected := *selectedTarget
 	if selected.Side == "LEFT" && selected.StartLine == 0 && targetIsOldContext(m.displayDetail()[cursor], selected) {
 		m.ActionError = errors.New("old-side context requires a multiline range; use ctrl+v")
 		return nil
 	}
 	m.rangeStart = nil
+	m.rangeEnd = nil
+	m.rangeKeyboard = false
 	m.Composer = &commentComposer{Target: selected, PendingIndex: -1}
 	for i, pending := range m.Pending {
 		if pending.Target == selected {
@@ -2002,6 +2072,13 @@ func (m *Model) inlineEditorLines() []diffLine {
 		return nil
 	}
 	lines := m.inlineEditorLinesFor(c.Draft, c.Cursor, 0)
+	if c.Agent {
+		model := ""
+		if thread := m.agentActive(); thread != nil && thread.Anchor == c.Target {
+			model = thread.Recipient.Model
+		}
+		lines[0].Text = editorBorderWithModel(m.overlayInnerWidth(0), model)
+	}
 	if c.Suggestion {
 		preview := suggestionPreview(c.Before, c.Draft)
 		for i := range preview {
@@ -2009,8 +2086,9 @@ func (m *Model) inlineEditorLines() []diffLine {
 		}
 		lines = append(preview, lines...)
 	}
-	if c.Target.StartLine != 0 || c.Target.SubjectType == "file" {
-		label := diffLine{styledLine: styledLine{Class: classWarning, Text: "Comment target · " + commentTargetLabel(c.Target)}, editor: true}
+	if !c.Agent && (c.Target.StartLine != 0 || c.Target.SubjectType == "file") {
+		targetType := "Comment target"
+		label := diffLine{styledLine: styledLine{Class: classWarning, Text: targetType + " · " + commentTargetLabel(c.Target)}, editor: true}
 		lines = append([]diffLine{label}, lines...)
 	}
 	selector := m.commentTypeSelector()
@@ -2019,6 +2097,15 @@ func (m *Model) inlineEditorLines() []diffLine {
 	}
 	lines = append([]diffLine{{styledLine: styledLine{Class: classWarning, Text: clip(selector, m.overlayInnerWidth(0)+4)}, editor: true}}, lines...)
 	return lines
+}
+
+func editorBorderWithModel(inner int, model string) string {
+	border := "  +" + strings.Repeat("-", inner+2) + "+"
+	if model == "" || inner < 4 {
+		return border
+	}
+	label := clip(Escape(model), inner-2)
+	return "  +" + strings.Repeat("-", inner-visibleWidth(label)) + " " + label + " +"
 }
 
 // inlineEditorLinesFor is the one editor presentation shared by a new inline
@@ -2176,6 +2263,7 @@ func (m *Model) setCursor(line int) {
 			m.GuideCursor = map[int]int{}
 		}
 		m.GuideCursor[guide] = line
+		m.updateKeyboardRangeEnd()
 		return
 	}
 	if m.Cursor == nil {
@@ -2186,6 +2274,7 @@ func (m *Model) setCursor(line int) {
 		key = -1
 	}
 	m.Cursor[key] = line
+	m.updateKeyboardRangeEnd()
 }
 
 func (m *Model) cursorAnchor() (*source.ReviewCommentTarget, int64) {
@@ -2388,6 +2477,8 @@ func (m *Model) View() tea.View {
 		switch m.top() {
 		case pageSuggestionApply:
 			text = renderActionModal(m.Width, m.Height, m.actionModalBackground(), m.suggestionApplyView(), m.modalSurface)
+		case pageAgentEvidence:
+			text = renderActionModal(m.Width, m.Height, m.actionModalBackground(), m.agentEvidenceView(), m.modalSurface)
 		case pageDraftRecovery:
 			text = renderActionModal(m.Width, m.Height, m.actionModalBackground(), m.draftRecoveryView(), m.modalSurface)
 		case pageLifecycle:
@@ -2547,6 +2638,8 @@ func (m *Model) reviewViewForLayout(preferSideBySide bool) string {
 	cursor := m.cursorInDetail(detail)
 	var selectedCommentID int64
 	selectedCommentStart := -1
+	var selectedAgentThreadID uint64
+	selectedAgentStart := -1
 	if m.cursorActive && cursor >= 0 {
 		selectedCommentID = detail[cursor].commentID
 		if selectedCommentID > 0 {
@@ -2554,6 +2647,17 @@ func (m *Model) reviewViewForLayout(preferSideBySide bool) string {
 				if line.commentID == selectedCommentID {
 					selectedCommentStart = i
 					break
+				}
+			}
+		}
+		if m.Focus == paneDiff && m.Composer == nil {
+			selectedAgentThreadID = detail[cursor].agentThreadID
+			if selectedAgentThreadID != 0 {
+				for i, line := range detail {
+					if line.agentThreadID == selectedAgentThreadID {
+						selectedAgentStart = i
+						break
+					}
 				}
 			}
 		}
@@ -2586,6 +2690,10 @@ func (m *Model) reviewViewForLayout(preferSideBySide bool) string {
 	if useSideBySide {
 		detail = m.renderSideBySideViewport(detail, m.detailWidth(), m.Horizontal, cursor-offset, selected)
 	}
+	var sourceSelection *source.ReviewCommentTarget
+	if m.rangeStart != nil {
+		sourceSelection, _ = m.selectedCanonicalRange()
+	}
 	// Source scrolling precedes styling; comment bodies use ANSI-aware clipping.
 	// Split rows need the same stable cursor gutter as unified rows. Without it,
 	// a focused comment target remains selectable but has no visible location.
@@ -2612,6 +2720,9 @@ func (m *Model) reviewViewForLayout(preferSideBySide bool) string {
 			detail[i].Text = marker + line.Text
 			continue
 		}
+		if sourceRangeContainsTarget(sourceSelection, line.target) || sourceRangeContainsTarget(sourceSelection, line.oldTarget) {
+			line.Class = classSelection
+		}
 		detail[i].styledLine = m.presentUnifiedDiffLine(line, m.Horizontal, m.detailWidth(), marker)
 	}
 	body := []string{}
@@ -2635,6 +2746,10 @@ func (m *Model) reviewViewForLayout(preferSideBySide bool) string {
 			right, class = detail[row].Text, detail[row].Class
 			if detail[row].commentID > 0 && detail[row].commentID == selectedCommentID {
 				right = m.selectedCommentBorder(m.styleLine(class, clip(right, m.detailWidth())), offset+row == selectedCommentStart)
+				class = classPlain
+			}
+			if detail[row].agentThreadID != 0 && detail[row].agentThreadID == selectedAgentThreadID {
+				right = m.selectedCommentBorder(m.styleLine(class, clip(right, m.detailWidth())), offset+row == selectedAgentStart)
 				class = classPlain
 			}
 			if detail[row].commentID > 0 && m.colorProfile > colorprofile.Ascii {

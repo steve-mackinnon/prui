@@ -83,6 +83,7 @@ func (a *application) model(ctx context.Context, o options) *tui.Model {
 		})
 	}
 	m.SetGuideLifecycle(guideApp.requestGuide)
+	m.SetAgentAnswerer(a.answerAgent)
 	if _, supported := a.gh.(source.LifecycleReader); !a.offline && supported {
 		var submit tui.LifecycleSubmit
 		if _, canWrite := a.gh.(source.LifecycleWriter); canWrite {

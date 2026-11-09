@@ -105,10 +105,33 @@ func (m *Model) diffOverlays(anchors diffOverlayAnchors) diffOverlays {
 			o.targets[target] = append(o.targets[target], m.pendingLines(target)...)
 		}
 	}
+	var replyThreadID uint64
 	if c := m.Composer; c != nil {
 		target := overlayEndpoint(c.Target)
 		if anchors.targets[target] {
-			o.targets[target] = append(o.targets[target], m.inlineEditorLines()...)
+			if c.Agent {
+				thread := m.agent.ActiveThread()
+				pending := m.agent.HasPending() && m.agent.PendingRequest().ThreadID == thread.ID
+				if thread.ID != 0 && thread.Anchor == c.Target && (thread.TurnCount() > 0 || thread.Err != "" || pending) {
+					replyThreadID = thread.ID
+				}
+			}
+			if replyThreadID == 0 {
+				o.targets[target] = append(o.targets[target], m.inlineEditorLines()...)
+			}
+		}
+	}
+	for _, thread := range m.agent.Threads() {
+		pending := m.agent.HasPending() && m.agent.PendingRequest().ThreadID == thread.ID
+		if thread.TurnCount() == 0 && thread.Err == "" && !pending {
+			continue
+		}
+		target := overlayEndpoint(thread.Anchor)
+		if anchors.targets[target] {
+			o.targets[target] = append(o.targets[target], m.agentCardLines(&thread)...)
+			if thread.ID == replyThreadID {
+				o.targets[target] = append(o.targets[target], m.inlineEditorLines()...)
+			}
 		}
 	}
 	return o
@@ -120,7 +143,7 @@ func sameDiffStream(a, b []diffLine) bool {
 
 func (m *Model) withDiffOverlays(base []diffLine, split bool) []diffLine {
 	wrapped := m.wrapSource(base)
-	if len(m.Comments) == 0 && len(m.Pending) == 0 && m.Composer == nil && (m.CommentMenu == nil || m.CommentMenu.mode != commentActionReply) {
+	if len(m.Comments) == 0 && len(m.Pending) == 0 && len(m.agent.Threads()) == 0 && m.Composer == nil && (m.CommentMenu == nil || m.CommentMenu.mode != commentActionReply) {
 		m.diffOverlayCache = diffOverlayCache{}
 		return wrapped
 	}

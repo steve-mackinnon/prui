@@ -49,10 +49,15 @@ func TestPTYSmoke(t *testing.T) {
 		i := len(snapshot.Inventory.Units)
 		snapshot.Inventory.Files = append(snapshot.Inventory.Files, inventory.FileChange{ID: name, NewPath: []byte(name), Status: "A", NewMode: "100644"})
 		snapshot.Inventory.Units = append(snapshot.Inventory.Units, inventory.ReviewUnit{InventoryID: "pty-inventory", ID: "unit-" + name, FileChangeID: name, Kind: inventory.FileMetadata})
+		lineCount := 1
 		patch := []byte("@@ -0,0 +1 @@\n+search-needle-" + name + "\n")
+		if name == "b.go" {
+			lineCount = 2
+			patch = []byte("@@ -0,0 +1,2 @@\n+search-needle-b.go\n+second-source-b.go\n")
+		}
 		ref := fmt.Sprintf("%x", sha256.Sum256(patch))
 		snapshot.Inventory.Patches[ref] = patch
-		snapshot.Inventory.Units = append(snapshot.Inventory.Units, inventory.ReviewUnit{InventoryID: "pty-inventory", ID: "text-" + name, FileChangeID: name, Kind: inventory.TextHunk, PatchReference: ref, NewRange: inventory.Range{Start: 1, Count: 1}})
+		snapshot.Inventory.Units = append(snapshot.Inventory.Units, inventory.ReviewUnit{InventoryID: "pty-inventory", ID: "text-" + name, FileChangeID: name, Kind: inventory.TextHunk, PatchReference: ref, NewRange: inventory.Range{Start: 1, Count: lineCount}})
 		snapshot.Slices = append(snapshot.Slices, session.Slice{FileID: name, Units: []int{i, i + 1}})
 		file := len(snapshot.Slices) - 1
 		snapshot.UnitFiles = append(snapshot.UnitFiles, file, file)

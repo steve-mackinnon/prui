@@ -36,6 +36,7 @@ const (
 	classPaneHeaderFocused
 	classAddedSource
 	classRemovedSource
+	classAgentQuestion
 )
 
 // styledLine is one safe display line plus its semantic class. Source text is
@@ -61,8 +62,12 @@ type diffLine struct {
 	oldLine, newLine  int                         // raw source coordinates; zero means absent
 	oldTarget         *source.ReviewCommentTarget // alternate raw context coordinate, used only for ranges
 	target            *source.ReviewCommentTarget
-	pendingComment    int         // one-based index in Pending; zero for other rows
-	commentID         int64       // nonzero only for an already anchored overlay comment
+	pendingComment    int    // one-based index in Pending; zero for other rows
+	commentID         int64  // nonzero only for an already anchored overlay comment
+	agentThreadID     uint64 // process-local private Agent Q&A card identity
+	agentCitation     bool   // exact answer-reference row, never a source target
+	agentTurn         int
+	agentReference    int
 	editor            bool        // true for rows in the active inline editor
 	sideBySide        *diffRow    // non-nil for one logical, aligned source row
 	guideAnchor       *fileAnchor // guide occurrence beginning at this source row
@@ -111,6 +116,7 @@ func stylesFor(t theme.Theme) map[lineClass]lipgloss.Style {
 		classMetadata:      semantic(colorFor(theme.Metadata), false),
 		classWarning:       semantic(colorFor(theme.Warning), true),
 		classUnavailable:   semantic(colorFor(theme.Unavailable), true),
+		classAgentQuestion: semantic(colorFor(theme.FocusedBorder), true),
 		// A muted background makes the selected row discoverable even while focus is
 		// in the detail pane. The textual chevron remains the primary cue when a
 		// terminal removes colors.

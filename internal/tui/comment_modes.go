@@ -8,6 +8,9 @@ import (
 )
 
 func commentType(c *commentComposer) string {
+	if c.Agent {
+		return "Ask agent"
+	}
 	if c.Suggestion {
 		return "Suggestion"
 	}
@@ -37,6 +40,9 @@ func (m *Model) commentTypes() []string {
 	var types []string
 	if target := m.composerLineTarget(); target != nil {
 		types = append(types, "Comment")
+		if m.agentAnswerer != nil && m.Session != nil && !m.commitFilter.subset && target.CommitID == m.Session.Inventory.Comparison.Metadata.HeadSHA && commits.InventoryContainsTarget(m.Session.Inventory.Files, m.Session.Inventory.Units, m.Session.Inventory.Patches, *target) {
+			types = append(types, "Ask agent")
+		}
 		if target.Side == "RIGHT" && !m.commitFilter.subset {
 			if _, ok := m.targetSource(*target); ok {
 				types = append(types, "Suggestion")
@@ -95,9 +101,21 @@ func (m *Model) cycleCommentType(reverse bool) {
 	if c.Modes.Drafts == nil {
 		c.Modes.Drafts = map[string]string{}
 	}
-	c.Modes.Drafts[current] = c.Draft
+	if c.Agent {
+		m.saveAgentComposerDraft(c.Target, c.Draft)
+	} else {
+		c.Modes.Drafts[current] = c.Draft
+	}
 	mode := types[next]
 	draft, exists := c.Modes.Drafts[mode]
+	if mode == "Ask agent" {
+		m.ActionError = nil
+		draft = m.activateAgentComposer(*c.Modes.LineTarget)
+		if m.ActionError != nil {
+			return
+		}
+	}
+	c.Agent = mode == "Ask agent"
 	c.Suggestion = mode == "Suggestion"
 	if mode == "File comment" {
 		c.Target.Side, c.Target.Line, c.Target.StartLine, c.Target.StartSide, c.Target.SubjectType = "", 0, 0, "", "file"

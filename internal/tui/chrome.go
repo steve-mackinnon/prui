@@ -129,7 +129,7 @@ func (m *Model) healthHelpView() string {
 		text += "\n\n" + renderHealth()
 		text += "\n\nCommits (4)\nArrows: select in the list or scroll the focused diff. Tab/Shift+Tab: switch panes.\nn/p: next/previous commit. Enter/l: focus diff; Escape/h: return to list.\n[/]: resize the commit rail at 100+ columns. Below 100 columns, focus selects the visible pane."
 		text += "\n\nFiles\nF: filter by filename or path. Enter: keep filter and navigate. Escape: clear filter.\nL: toggle line numbers in Files, Guide, and Commits."
-		text += "\n\nMouse\nClick: select; double-click or Enter: activate.\nClick view tabs to switch. Drag the file/diff divider to resize.\nScroll over a pane to move it. Drag readable text to copy; terminal selection modifiers also work."
+		text += "\n\nMouse\nClick: select; Shift-click extends source range; double-click or Enter: activate.\nDrag canonical diff source to select lines; Alt+Y copies them. Drag the file/diff divider to resize.\nScroll over a pane to move it. Drag prose to copy. If Shift-click is reserved by the terminal, use Ctrl+V and keyboard movement."
 	}
 	text += "\n\nControls and invalid bytes escaped. Click selects; double-click or Enter activates.\nReading progress is local, not GitHub approval.\nGuides interpret the diff; the raw inventory remains the complete source view.\nMarking any portion of a file marks its whole slice, under every guide.\nEvidence is pinned, bounded, and omissions are reported. Guide generation is optional: choose Generate guide in Actions, then confirm the provider, model, and source upload."
 	if m.store != nil && m.Session != nil {
@@ -161,7 +161,10 @@ func (m *Model) reviewHints() string {
 		return m.styleLine(classWarning, clip("Enter: post · shift+enter: newline · ctrl+r: refresh · esc: cancel", m.Width))
 	}
 	if m.rangeStart != nil {
-		end := m.commentSelectionTarget()
+		end := m.rangeEnd
+		if end == nil {
+			end = m.commentSelectionTarget()
+		}
 		text := fmt.Sprintf("Range start %s:%d", m.rangeStart.Side, m.rangeStart.Line)
 		if end != nil {
 			text += fmt.Sprintf(" · end %s:%d", end.Side, end.Line)
@@ -172,6 +175,9 @@ func (m *Model) reviewHints() string {
 		return m.styleLine(classWarning, clip(text+" · enter: compose · esc: cancel", m.Width))
 	}
 	if m.Composer != nil {
+		if m.Composer.Agent {
+			return m.styleLine(classWarning, clip("Ask agent · tab: mode · esc: close", m.Width))
+		}
 		if m.Composer.CommitSHA != "" {
 			return m.styleLine(classWarning, clip("enter: post now · ctrl+r: refresh · esc: discard · shift+enter: newline", m.Width))
 		}

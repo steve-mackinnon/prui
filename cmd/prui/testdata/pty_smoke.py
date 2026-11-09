@@ -387,7 +387,8 @@ def main():
         terminal.wait_until(lambda screen: len(screen.splitlines()) > 3 and
                             [i for i, char in enumerate(screen.splitlines()[3]) if char == "│"] == [0, 49, 119],
                             "mouse divider resize", start)
-        # Copy rendered pane text through real SGR input and OSC 52 output.
+        # Source dragging selects without copying; Alt+Y explicitly copies the
+        # selected canonical source through OSC 52.
         token = "search-needle-b.go"
         rows = terminal.screen.text().splitlines()
         row = next(i for i, line in enumerate(rows) if token in line)
@@ -397,12 +398,44 @@ def main():
                    f"\x1b[<32;{col+len(token)};{row+1}M"
                    f"\x1b[<0;{col+len(token)};{row+1}m")
         os.write(terminal.master, gesture.encode())
+        terminal.wait_until(lambda screen: "RIGHT:1" in screen or "RIGHT 1" in screen,
+                            "source range selection", start)
+        if b"\x1b]52;c;" in terminal.output[start:]:
+            raise AssertionError("source range release copied without explicit action")
+        start = len(terminal.output)
+        os.write(terminal.master, b"\x1by")
         terminal.wait_for("copied to clipboard", start)
         payload = base64.b64encode(token.encode())
         terminal.wait_until(lambda screen: b"\x1b]52;c;" + payload in terminal.output[start:],
                             "selected text clipboard write", start)
         terminal.wait_until(lambda screen: "copied to clipboard" not in screen,
                             "clipboard toast dismissal", start)
+        # This PTY forwards the SGR Shift modifier (button bit 4). A plain
+        # source click fixes the origin; Shift-click extends it to line 2.
+        rows = terminal.screen.text().splitlines()
+        first_row = next(i for i, line in enumerate(rows) if token in line)
+        second_row = next(i for i, line in enumerate(rows) if "second-source-b.go" in line)
+        first_col = rows[first_row].index(token)
+        second_col = rows[second_row].index("second-source-b.go")
+        start = len(terminal.output)
+        os.write(terminal.master, (f"\x1b[<0;{first_col+1};{first_row+1}M"
+                                   f"\x1b[<0;{first_col+1};{first_row+1}m"
+                                   f"\x1b[<4;{second_col+1};{second_row+1}M"
+                                   f"\x1b[<4;{second_col+1};{second_row+1}m").encode())
+        terminal.wait_for("end RIGHT:2", start)
+        if b"\x1b]52;c;" in terminal.output[start:]:
+            raise AssertionError("Shift-click range selection copied without explicit action")
+        # Enter opens the shared inline editor. One Tab selects Ask agent.
+        terminal.key(b"\r", "[Comment]")
+        terminal.key(b"\t", "[Ask agent]")
+        terminal.wait_until(lambda screen: re.search(r"\+-+ [A-Za-z0-9][A-Za-z0-9._-]* \+", screen) is not None and
+                            "Upload on Send:" not in screen and "Lifetime:" not in screen,
+                            "minimal Ask agent box with model ID")
+        start = len(terminal.output)
+        os.write(terminal.master, b"\x1b")
+        terminal.wait_until(lambda screen: "[Ask agent]" not in screen and
+                            "0/2 read" in screen,
+                            "close private inline editor", start)
         terminal.key(b"h", "› [ ] b.go")
         terminal.key(b"\x1b[A", "› [ ] a.go")
         terminal.key(b"P", "Switch pull requests")
@@ -452,7 +485,7 @@ def main():
     print("PASS resume, keyboard marking, resize, help/back, Ctrl+C, restoration")
     print("PASS offline commit picker, legacy source state, and All commits restoration")
     print("PASS Actions hotkeys, Tab/Shift+Tab panes, review form and cancel")
-    print("PASS drag selection, OSC 52 clipboard payload, and transient copy toast")
+    print("PASS source drag and forwarded Shift-click, explicit OSC 52 copy, minimal Ask agent mode")
     print("PASS PR double-click, help mouse toggle, wheel scrolling, and back")
 
     with Terminal(binary, resume, environment) as terminal:

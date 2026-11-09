@@ -301,6 +301,32 @@ func (m *Model) commentComposerKey(key tea.KeyPressMsg) tea.Cmd {
 		m.cycleCommentType(key.String() == "shift+tab")
 		return nil
 	}
+	if composer.Agent {
+		switch key.String() {
+		case "esc":
+			m.saveAgentComposerDraft(composer.Target, composer.Draft)
+			m.Composer = nil
+			return nil
+		case "enter":
+			m.saveAgentComposerDraft(composer.Target, composer.Draft)
+			return m.sendAgentComposerQuestion(composer)
+		case "ctrl+p":
+			m.ActionError = errors.New("agent questions are private and cannot be queued for GitHub")
+			return nil
+		case "ctrl+n":
+			m.saveAgentComposerDraft(composer.Target, composer.Draft)
+			m.ActionError = nil
+			draft := m.newAgentComposerThread(composer)
+			if m.ActionError == nil {
+				composer.Draft, composer.Cursor = draft, len([]rune(draft))
+			}
+			return nil
+		}
+		if (draftEditor{&composer.Draft, &composer.Cursor, agentQuestionDraft}).key(key) == draftEdited {
+			m.saveAgentComposerDraft(composer.Target, composer.Draft)
+		}
+		return nil
+	}
 	if composer.Suggestion {
 		return m.suggestionComposerKey(key)
 	}
@@ -678,6 +704,9 @@ func (m *Model) refreshComparison() tea.Cmd {
 		notify = func(string) {}
 	}
 	m.notice = "PR changed; loading current source. Previous drafts remain in Saved reviews..."
+	if len(m.agent.Threads()) > 0 {
+		m.notice += " In-memory Agent Q&A will be discarded when the comparison is replaced."
+	}
 	ctx := m.beginAction()
 	return m.start(func() tea.Msg {
 		next, err := fresh(ctx, &s, notify)

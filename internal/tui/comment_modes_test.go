@@ -3,10 +3,117 @@ package tui
 import (
 	tea "charm.land/bubbletea/v2"
 	"context"
+	"errors"
+	"prui/internal/agentchat"
+	"prui/internal/guideconfig"
 	"prui/internal/session"
 	"strings"
 	"testing"
 )
+
+func TestAgentComposerCyclesSecondAndSendsPrivately(t *testing.T) {
+	m := agentTestModel(t)
+	defer m.Close()
+	calls := 0
+	m.SetAgentAnswerer(func(ctx context.Context, choice guideconfig.Selection, manifest agentchat.Manifest) (agentchat.ResolvedAnswer, error) {
+		calls++
+		return fixtureAgentAnswer(ctx, choice, manifest)
+	})
+	m.openCommentComposer()
+	if m.Composer == nil || commentType(m.Composer) != "Comment" {
+		t.Fatal("comment is not the default")
+	}
+	namedKey(m, tea.KeyTab)
+	if !m.Composer.Agent || commentType(m.Composer) != "Ask agent" || !strings.Contains(m.commentTypeSelector(), "[Ask agent]") {
+		t.Fatal("Ask agent is not second", m.commentTypeSelector())
+	}
+	for _, r := range "Why?" {
+		m.Update(tea.KeyPressMsg{Code: r, Text: string(r)})
+	}
+	m.Update(tea.KeyPressMsg{Code: tea.KeyEnter, Mod: tea.ModShift})
+	if m.Composer.Draft != "Why?\n" {
+		t.Fatalf("Shift+Enter lost newline: %q", m.Composer.Draft)
+	}
+	m.Update(tea.KeyPressMsg{Code: 'p', Mod: tea.ModCtrl})
+	if len(m.Pending) != 0 || m.Composer == nil || m.Composer.Draft != "Why?\n" {
+		t.Fatal("Agent Ctrl+P queued or discarded draft")
+	}
+	if d := draftContent(m.reviewTabState); d.Composer != nil && strings.Contains(d.Composer.Body, "Why?") {
+		t.Fatal("private Ask agent entered durable composer")
+	}
+	namedKey(m, tea.KeyTab)
+	if !m.Composer.Suggestion {
+		t.Fatal("Suggestion did not follow Agent")
+	}
+	m.Update(tea.KeyPressMsg{Code: tea.KeyTab, Mod: tea.ModShift})
+	if !m.Composer.Agent || m.Composer.Draft != "Why?\n" {
+		t.Fatalf("Agent draft not restored: %+v", m.Composer)
+	}
+	_, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	if cmd == nil || calls != 0 {
+		t.Fatalf("Enter did not dispatch one explicit private request: cmd=%v calls=%d", cmd != nil, calls)
+	}
+	m.Update(cmd())
+	if calls != 1 || len(m.Pending) != 0 {
+		t.Fatalf("private Send crossed GitHub queue: calls=%d pending=%d", calls, len(m.Pending))
+	}
+}
+
+func TestAgentComposerLeftSideAndEscapeRetainsPrivateDraft(t *testing.T) {
+	m := agentTestModel(t)
+	defer m.Close()
+	m.SetAgentAnswerer(fixtureAgentAnswer)
+	selectRawTarget(t, m, "LEFT", 1)
+	m.openCommentComposer()
+	namedKey(m, tea.KeyTab)
+	if m.Composer == nil || !m.Composer.Agent || m.Composer.Target.Side != "LEFT" || m.Composer.Suggestion {
+		t.Fatal("LEFT deletion did not offer Agent second")
+	}
+	for _, r := range "private question" {
+		m.Update(tea.KeyPressMsg{Code: r, Text: string(r)})
+	}
+	namedKey(m, tea.KeyEscape)
+	if m.Composer != nil || len(m.Pending) != 0 {
+		t.Fatal("Escape submitted or retained inline editor")
+	}
+	selectRawTarget(t, m, "LEFT", 1)
+	m.openCommentComposer()
+	namedKey(m, tea.KeyTab)
+	if m.Composer == nil || !m.Composer.Agent || m.Composer.Draft != "private question" {
+		t.Fatalf("private draft lost on reopen: %+v", m.Composer)
+	}
+	if d := draftContent(m.reviewTabState); d.Composer != nil && strings.Contains(d.Composer.Body, "private question") {
+		t.Fatal("Agent draft persisted into GitHub comment")
+	}
+}
+
+func TestAgentComposerFailedSendRetainsDraftForRetry(t *testing.T) {
+	m := agentTestModel(t)
+	defer m.Close()
+	m.SetAgentAnswerer(func(context.Context, guideconfig.Selection, agentchat.Manifest) (agentchat.ResolvedAnswer, error) {
+		return agentchat.ResolvedAnswer{}, errors.New("synthetic provider failure")
+	})
+	m.openCommentComposer()
+	namedKey(m, tea.KeyTab)
+	if m.Composer == nil || !m.Composer.Agent {
+		t.Fatal("Agent mode unavailable")
+	}
+	m.Composer.Draft = "What changed?"
+	_, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	if cmd == nil {
+		t.Fatal("failed request was not dispatched")
+	}
+	m.Update(cmd())
+	if m.Composer != nil {
+		t.Fatal("completed failed request left input overlay open")
+	}
+	selectRawTarget(t, m, "RIGHT", 1)
+	m.openCommentComposer()
+	namedKey(m, tea.KeyTab)
+	if m.Composer == nil || !m.Composer.Agent || m.Composer.Draft != "What changed?" {
+		t.Fatalf("failed request lost retry draft: %+v", m.Composer)
+	}
+}
 
 func TestCommentTypeSelectorCyclesAndPreservesDrafts(t *testing.T) {
 	m := rangeTestModel()

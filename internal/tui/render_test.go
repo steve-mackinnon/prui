@@ -5,9 +5,45 @@ import (
 	"strings"
 	"testing"
 
+	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 	"prui/internal/source"
 )
+
+func TestInlineAskAgentEditorUsesMinimalSharedCommentBox(t *testing.T) {
+	m := agentTestModel(t)
+	defer m.Close()
+	m.SetAgentAnswerer(fixtureAgentAnswer)
+	m.openCommentComposer()
+	m.commentComposerKey(tea.KeyPressMsg{Code: tea.KeyTab})
+	if m.Composer == nil || !m.Composer.Agent {
+		t.Fatal("Ask agent was not the second editor mode")
+	}
+	border := ""
+	for _, line := range m.inlineEditorLines() {
+		if strings.HasPrefix(line.Text, "  +") {
+			border = line.Text
+			break
+		}
+	}
+	if !strings.HasSuffix(border, " fixture-model +") {
+		t.Fatalf("model ID is not at the top right of the editor: %q", border)
+	}
+	view := ansi.Strip(m.View().Content)
+	for _, want := range []string{"[Ask agent]", "fixture-model"} {
+		if !strings.Contains(view, want) {
+			t.Fatalf("inline editor missing %q:\n%s", want, view)
+		}
+	}
+	for _, unwanted := range []string{"RIGHT 1-1", "Recipient:", "Upload on Send:", "Scope:", "Lifetime:", "Enter: Send and consent"} {
+		if strings.Contains(view, unwanted) {
+			t.Fatalf("inline editor contains extra %q:\n%s", unwanted, view)
+		}
+	}
+	if strings.Contains(view, "Agent Q&A") {
+		t.Fatal("an empty conversation card appeared before Send")
+	}
+}
 
 func TestCommentComposerViewRendersFrozenTargetEscapedMultilineDraftAndControls(t *testing.T) {
 	m := New(context.Background(), nil)
@@ -47,7 +83,8 @@ func TestCommentBindingsAdvertiseComposerEntryAndControls(t *testing.T) {
 	help := renderHealth()
 	for _, want := range []string{
 		"enter: focus the diff; open a line editor or selected-comment action menu",
-		"enter: submit inline comment editor",
+		"enter: post an inline comment or send an ask agent in the selected editor mode",
+		"tab/shift+tab: cycle inline editor modes; Ask agent is second after Comment",
 		"shift+enter: newline in inline comment editor",
 		"backspace/delete: delete previous/following rune in comment editor",
 		"r: refresh PR source, discussions, and comments",

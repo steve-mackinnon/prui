@@ -31,7 +31,16 @@ func draftContent(state *reviewTabState) session.Draft {
 		d.Summary, d.Event = f.Body, f.Event
 	}
 	if c := state.Composer; c != nil {
-		d.Composer = &session.DraftEditor{Target: c.Target, Body: c.Draft, PendingIndex: c.PendingIndex, CommitSHA: c.CommitSHA, Suggestion: c.Suggestion, Before: c.Before, Modes: c.Modes}
+		modes := githubCommentModes(c.Modes)
+		if c.Agent {
+			// The agent question is private in-memory tab state. Retain only
+			// separately authored GitHub drafts while this mode is visible.
+			if modes != nil && modes.LineTarget != nil {
+				d.Composer = &session.DraftEditor{Target: *modes.LineTarget, Body: modes.Drafts["Comment"], PendingIndex: c.PendingIndex, Modes: modes}
+			}
+		} else {
+			d.Composer = &session.DraftEditor{Target: c.Target, Body: c.Draft, PendingIndex: c.PendingIndex, CommitSHA: c.CommitSHA, Suggestion: c.Suggestion, Before: c.Before, Modes: modes}
+		}
 	}
 	if r := state.CommentMenu; r != nil && r.mode == commentActionReply {
 		// Keep display projections transient; durable replies use the frozen root shape.
@@ -58,6 +67,23 @@ func draftContent(state *reviewTabState) session.Draft {
 		d.Version = 4
 	}
 	return d
+}
+
+func githubCommentModes(modes *session.CommentModes) *session.CommentModes {
+	if modes == nil {
+		return nil
+	}
+	out := &session.CommentModes{Drafts: make(map[string]string, len(modes.Drafts))}
+	if modes.LineTarget != nil {
+		anchor := *modes.LineTarget
+		out.LineTarget = &anchor
+	}
+	for _, mode := range []string{"Comment", "Suggestion", "File comment"} {
+		if draft, ok := modes.Drafts[mode]; ok {
+			out.Drafts[mode] = draft
+		}
+	}
+	return out
 }
 func (m *Model) loadDraft(state *reviewTabState) {
 	if m.store == nil || state == nil || state.Session == nil || state.Session.ID == "" {

@@ -1,0 +1,34 @@
+example/review #42                                                                           Actions [Space]  Review [R]
+  PRs [P]    Overview [1]  › Files [2]    Guide [3]    Commits [4]
+┌ Files · ▽ Filter (F) ──────────────┬ Commits [C] · All commits · Find (/) · file 1/2 ────────────────────────────────┐
+│› main.go +1/-1                     │── main.go +1/-1                                                                 │
+│  README.md +0/-0                   │  |                                                                           |  │
+│                                    │  | Answer:                                                                   |  │
+│                                    │  |   The greeting now says hello world.                                      |  │
+│                                    │  |                                                                           |  │
+│                                    │  |   This is limited to the selected hunk; callers are not supplied.         |  │
+│                                    │  |                                                                           |  │
+│                                    │  | Source references · Enter on a reference to inspect                       |  │
+│                                    │  | [1] main.go:1-1 @ aaaaaaaaaaaa · Enter: inspect                           |  │
+│                                    │  |                                                                           |  │
+│                                    │  | ------------------------------------------------------------------------- |  │
+│                                    │  |                                                                           |  │
+│                                    │  | Question:                                                                 |  │
+│                                    │  | Could that affect callers?                                                |  │
+│                                    │  |                                                                           |  │
+│                                    │  | Answer:                                                                   |  │
+│                                    │  |   It may affect code that compares the exact greeting. A caller search    |  │
+│                                    │  |   is unavailable in this captured review.                                 |  │
+│                                    │  |                                                                           |  │
+│                                    │  | Source references · Enter on a reference to inspect                       |  │
+│                                    │  | [1] main.go:1-1 @ aaaaaaaaaaaa · Enter: inspect                           |  │
+│                                    │  |                                                                           |  │
+│                                    │  | Enter: follow up · Enter on reference: inspect · Q: collapse              |  │
+│                                    │  +---------------------------------------------------------------------------+  │
+│                                    │Comment · [Ask agent] · Suggestion · File comment · tab: type                    │
+│                                    │  +------------------------------------------------------------- review-model +  │
+│                                    │  | Could you explain the impact?▏                                            |  │
+│                                    │  +---------------------------------------------------------------------------+  │
+└────────────────────────────────────┴─────────────────────────────────────────────────────────────────────────────────┘
+0/2 read · R Submit review (0) · ? Freshness unknown · ?: Health & help
+Ask agent · tab: mode · esc: close

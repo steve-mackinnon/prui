@@ -526,6 +526,8 @@ func (m *Model) openCommitComposer() tea.Cmd {
 		return nil
 	}
 	m.rangeStart = nil
+	m.rangeEnd = nil
+	m.rangeKeyboard = false
 	m.Composer = &commentComposer{Target: target, CommitSHA: target.CommitID, CommitBundle: m.Session.Commits, CommitInventory: &m.Session.Inventory, PendingIndex: -1}
 	m.commit.cache = commitRenderCache{}
 	m.editorCursorVisible = true

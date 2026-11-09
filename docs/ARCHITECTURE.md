@@ -17,6 +17,8 @@ and boundaries for contributors.
 | `internal/privacy` | Apply path and content exclusions to material considered for upload |
 | `internal/guide` | Build bounded guide input, call an optional analyzer, and validate its output |
 | `internal/guideconfig` | Resolve the global provider, model, endpoint, and credential variable without reading credentials |
+| `internal/agentchat` | Build bounded captured-evidence manifests and validate answer citations for explicit line questions |
+| `internal/tui/features/agentchat` | Own tab-local agent threads, drafts, request generations, cancellation, and evidence selection |
 | `internal/review` | Compose a review from source, inventory, evidence, and guides; manage progress and freshness |
 | `internal/session` and `internal/session/storage` | Define snapshots and mutable state; persist and validate them in SQLite |
 | `internal/tui`, `internal/theme` | Render and operate the terminal workspace and its appearance |
@@ -152,6 +154,18 @@ offline mode is selected. A changed PR is marked stale; it does not rewrite the
 saved comparison. A new comparison creates another session.
 
 ## Terminal and external actions
+
+Line-anchored Agent Q&A keeps per-tab threads, drafts, pending request identity,
+cancellation, evidence selection, and semantic card/composer/evidence rows in
+`internal/tui/features/agentchat`. The owner has no dependency on the root model
+and exposes read-only turn/reference views; request and answer data are copied
+when accepted. `internal/tui/agentchat_ui.go` is the narrow terminal adapter:
+the root routes input and async completions to the origin owner, applies the
+existing Markdown escaping, styles and clips the owner's semantic rows, and
+places them below canonical diff anchors. Provider creation and credential
+lookup remain in `cmd/prui`; bounded manifests and citation checks remain in
+`internal/agentchat`. No conversation text enters sessions, drafts, or GitHub
+writes.
 
 `internal/tui` owns navigation, rendering, per-tab display state, and local
 comment drafts. It receives storage, loading, guide, and GitHub action callbacks

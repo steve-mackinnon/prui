@@ -76,3 +76,59 @@ func TestSelectedCommentUsesBorderInsteadOfRowHighlight(t *testing.T) {
 		m.Close()
 	}
 }
+
+func TestFocusedAgentCardUsesSolidHighlightedBorder(t *testing.T) {
+	for _, layout := range []diffLayout{diffLayoutUnified, diffLayoutSideBySide} {
+		m := agentTestModel(t)
+		m.layout = layout
+		m.Height = 40
+		palette, _ := theme.Resolve(theme.CatppuccinMocha, nil)
+		m.SetTheme(palette)
+		m.colorProfile = colorprofile.TrueColor
+		m.SetAgentAnswerer(fixtureAgentAnswer)
+		selectRawTarget(t, m, "RIGHT", 1)
+		openInlineAgentForTest(m)
+		if m.Composer == nil || m.agent.ActiveThread().ID == 0 {
+			t.Fatalf("layout %v: agent composer did not open: %v", layout, m.ActionError)
+		}
+		m.agent.SetDraft(m.agent.ActiveThread().ID, "What changed?")
+		cmd := sendInlineAgentForTest(m)
+		if cmd == nil {
+			t.Fatalf("layout %v: agent question was not sent: %v", layout, m.ActionError)
+		}
+		m.Update(cmd())
+		threadID := m.agent.ActiveThread().ID
+		for i, row := range m.displayDetail() {
+			if row.agentThreadID == threadID && strings.Contains(row.Text, "Answer") {
+				m.setCursor(i)
+				m.cursorActive = true
+				break
+			}
+		}
+		view := m.View().Content
+		if !strings.Contains(ansi.Strip(view), "┌") || !strings.Contains(ansi.Strip(view), "└") {
+			t.Fatalf("layout %v: focused agent card lacks solid corners", layout)
+		}
+		cells := themeCanvasBuffer(view, m.Width, m.Height)
+		found := false
+		for y, row := range strings.Split(ansi.Strip(view), "\n") {
+			body := strings.Index(row, "The selected code changes behavior.")
+			if body < 0 {
+				continue
+			}
+			found = true
+			border := strings.LastIndexAny(row[:body], "|│")
+			if border < 0 {
+				t.Fatalf("layout %v: focused agent card lacks side border", layout)
+			}
+			left := visibleWidth(row[:border])
+			if cells.CellAt(left, y).Content != "│" || !sameCanvasColor(cells.CellAt(left, y).Style.Fg, themeBaseColor(palette, theme.FocusedBorder)) {
+				t.Fatalf("layout %v: agent border is not highlighted", layout)
+			}
+		}
+		if !found {
+			t.Fatalf("layout %v: agent answer not visible", layout)
+		}
+		m.Close()
+	}
+}
