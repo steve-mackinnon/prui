@@ -64,6 +64,15 @@ real provider requests. The PTY smoke journey checks source drag and explicit
 copy through terminal mouse/key sequences. Human terminal assessment remains
 needed for actual Shift-click modifier delivery, clipboard acceptance, narrow
 layout readability, and reviewing answers while moving through a real PR.
+`TestPTYAgentConversations` runs the compiled app in a PTY against a keyless
+loopback provider and a saved synthetic comparison. It checks the bounded
+selected-hunk and captured-test request, exact citation inspection, an answer
+with unavailable caller evidence, anchored follow-up history across Files and
+Guide, cancellation, and no GitHub write. The source-selection tests also
+check exact raw clipboard payloads after keyboard selection, drag, and
+Shift-click across scrolling and narrow split fallback. These tests do not
+establish how a real provider answers or whether a particular terminal accepts
+mouse modifiers and OSC 52 clipboard writes.
 An Anthropic HTTP rejection fixture verifies that Agent Q&A reports only the
 numeric status, while preserving the question for retry and withholding the
 response body, URL, source, and credential.

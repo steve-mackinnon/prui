@@ -38,6 +38,7 @@
 - [x] Automated acceptance covers the listed behavior, including no pre-Send/offline request, privacy, malformed citations, cancellation, comparison/tab isolation, unchanged guide/progress/GitHub writes.
 - [x] Run `go test ./internal/tui ./internal/context ./internal/privacy ./internal/guide ./internal/guideconfig ./cmd/prui`, `go test ./internal/agentchat`, `go build ./...`, `sh scripts/verify.sh`, `golangci-lint run ./...`, `go run ./cmd/prui sessions`, and `git diff --check`.
 - [x] Perform feasible terminal verification: compiled PTY exercises source drag, forwarded SGR Shift-click, zero copy on release, explicit Alt+Y OSC 52 copy, and review navigation; human terminal judgment remains pending.
+- [x] Add a compiled-terminal Agent Q&A journey with a keyless loopback provider: inspect bounded hunk and captured-test requests, exact citation, missing-caller response, follow-up across Files and Guide, cancellation, and zero GitHub writes. Extend source selection tests for exact copy after scrolling and narrow layout. Run the focused PTY test twice and the full race gate.
 - [x] Separate review subagent checks integrated diff against the spec; actionable findings fixed and re-review found no remaining concrete defect.
 
 ## Outstanding external acceptance

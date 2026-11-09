@@ -6,6 +6,13 @@ and has captured test evidence. Do not record or share provider keys, source
 excerpts, or raw model requests here. Record observations, including failures,
 before checking an item.
 
+Automated counterpart: `go test -race ./cmd/prui -run 'Test(PTYSmoke|PTYAgentConversations)$' -count=1`
+and the source-selection tests exercise the compiled terminal, a keyless local
+provider, canonical ranges, exact copied text, citations, follow-ups, Guide
+continuation, cancellation, and no GitHub write. These cover functional
+regressions but cannot establish the real provider's answer quality, this
+terminal's mouse modifier and clipboard behavior, or human readability.
+
 PR / session (non-sensitive identifier):
 
 Terminal and size(s):
