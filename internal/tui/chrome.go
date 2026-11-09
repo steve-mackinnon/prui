@@ -162,9 +162,9 @@ func (m *Model) reviewHints() string {
 	}
 	if m.rangeStart != nil {
 		end := m.commentSelectionTarget()
-		text := fmt.Sprintf("Range start %s:%d", m.rangeStart.Side, m.rangeStart.Line)
+		text := fmt.Sprintf("Range start L%d", m.rangeStart.Line)
 		if end != nil {
-			text += fmt.Sprintf(" · end %s:%d", end.Side, end.Line)
+			text += fmt.Sprintf(" · end L%d", end.Line)
 		}
 		if m.ActionError != nil {
 			text += " · ! " + Escape(m.ActionError.Error())

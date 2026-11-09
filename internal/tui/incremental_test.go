@@ -104,7 +104,7 @@ func TestIncrementalViewNavigatesCapturedDiffAndPrivateDraftOutcomes(t *testing.
 		t.Fatal("general outcome missing or private text leaked", outcomes)
 	}
 	view = ansi.Strip(m.View().Content)
-	if !strings.Contains(view, "stable RIGHT 1-2") || !strings.Contains(view, "delivery uncertain") {
+	if !strings.Contains(view, "stable L1–L2") || !strings.Contains(view, "delivery uncertain") {
 		t.Fatalf("range outcome missing\n%s", view)
 	}
 	namedKey(m, tea.KeyEnd)
@@ -261,7 +261,7 @@ func TestIncrementalRestackCombinesProgressExtendedDraftsAndOfflineRecovery(t *t
 			case "delete":
 				want = string(incremental.AnchorRemoved)
 			}
-			if !strings.Contains(outcomes, "stable RIGHT 1-2 — "+want) || !strings.Contains(outcomes, "stable (file) — "+want) || !strings.Contains(outcomes, "changed LEFT 1-2 — "+string(incremental.AnchorChanged)) {
+			if !strings.Contains(outcomes, "stable L1–L2 — "+want) || !strings.Contains(outcomes, "stable (file) — "+want) || !strings.Contains(outcomes, "changed L1–L2 — "+string(incremental.AnchorChanged)) {
 				t.Fatalf("complete target outcomes missing:\n%s", outcomes)
 			}
 			if strings.Contains(outcomes, "private range") || strings.Contains(outcomes, "ephemeral conversation") {

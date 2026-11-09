@@ -16,7 +16,7 @@ Health & help
 │ alt+up/down: previous/next loaded unresolved thread     │  │ ctrl+o: choose old/new side of split or context rows    │
 │ /: find code text across the full diff                  │  │ ctrl+v: start/cancel range; j/k chooses end, enter      │
 │ j/k: move the focused list or diff cursor               │  │ composes                                                │
-│ up/down: move list selection or scroll continuous diff  │  │ ctrl+s: compose a suggestion from selected right-side   │
+│ up/down: move list selection or scroll continuous diff  │  │ ctrl+s: compose a suggestion from selected new-file     │
 │ J/K: scroll diff by 5                                   │  │ lines                                                   │
 │ zz: center the focused diff on its line cursor          │  │ ctrl+a: in comment actions, preview and confirm         │
 │ h/l, ctrl+h/ctrl+l: focus list/diff                     │  │ suggestion application                                  │

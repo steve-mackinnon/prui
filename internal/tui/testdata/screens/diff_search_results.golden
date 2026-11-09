@@ -4,9 +4,9 @@ example/review #42                                                              
 │› main.go +1/-1              │ 4 matches in 1 file                                                                  │ │
 │  README.md +0/-0            │ main.go   (4)                                                                        │ │
 │                             │ ›  L1 - old greeting                                                                 │ │
-│                             │    R1 + hello world                                                                  │ │
-│                             │    R1 + hello world                                                                  │ │
-│                             │    R1 + hello world                                                                  │ │
+│                             │    L1 + hello world                                                                  │ │
+│                             │    L1 + hello world                                                                  │ │
+│                             │    L1 + hello world                                                                  │ │
 │                             │                                                                                      │ │
 │                             │                                                                                      │ │
 │                             │                                                                                      │ │

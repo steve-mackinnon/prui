@@ -72,11 +72,11 @@ func (m *Model) searchResultRows(width int) []searchResultRow {
 			rows = append(rows, searchResultRow{"", i})
 			continue
 		}
-		side, line := "R", d.New
+		line := d.New
 		if line == 0 {
-			side, line = "L", d.Old
+			line = d.Old
 		}
-		prefix := fmt.Sprintf("%s %s%d %c ", selectionMarker(i == s.selected), side, line, d.Marker)
+		prefix := fmt.Sprintf("%s L%d %c ", selectionMarker(i == s.selected), line, d.Marker)
 		// Bound snippet work to nearby source, even for a megabyte-long line.
 		rawStart, rawEnd := match.Range.Start, match.Range.End
 		for n := 0; n < max(4, (width-visibleWidth(prefix))/3) && rawStart > 0; n++ {

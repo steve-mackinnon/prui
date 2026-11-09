@@ -312,7 +312,7 @@ func validReviewCommentSubmission(submission tui.CommentSubmission) error {
 				return errors.New("this commit line is not in the captured PR diff")
 			}
 		} else if !commits.HistoricalCommentTarget(bundle, target) {
-			return errors.New("comments on older commits require a right-side line in an ordinary single-parent addition or modification")
+			return errors.New("comments on older commits require a new-file line in an ordinary single-parent addition or modification")
 		}
 	}
 	return nil

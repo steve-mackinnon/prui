@@ -44,11 +44,11 @@ func (m *Model) incrementalDraftOutcomes() []string {
 	lines := []string{"Original drafts remain private and unchanged. o: inspect original snapshot.", "Recreate a target explicitly in the new PR diff to submit; this view never writes."}
 	add := func(label string, t source.ReviewCommentTarget, uncertain bool) {
 		o := incremental.Assess(old.Inventory, m.Session.Inventory, t, uncertain)
-		anchor := fmt.Sprintf("%s %s %d", t.Path, t.Side, t.Line)
+		anchor := fmt.Sprintf("%s L%d", t.Path, t.Line)
 		if t.SubjectType == "file" {
 			anchor = t.Path + " (file)"
 		} else if t.StartLine > 0 {
-			anchor = fmt.Sprintf("%s %s %d-%d", t.Path, t.Side, t.StartLine, t.Line)
+			anchor = fmt.Sprintf("%s L%d–L%d", t.Path, t.StartLine, t.Line)
 		}
 		lines = append(lines, Escape(label+": "+anchor+" — "+string(o.Kind)))
 	}

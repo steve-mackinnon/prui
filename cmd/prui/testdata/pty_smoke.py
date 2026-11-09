@@ -371,7 +371,7 @@ def main():
         terminal.key(b"q", "No matches in saved diff text")
         terminal.key(b"\x7f", "2 matches in 2 files")
         terminal.key(b"\x1b", "j/k")
-        terminal.key(b"j", "›  R1 + search-needle-b.go")
+        terminal.key(b"j", "›  L1 + search-needle-b.go")
         start = len(terminal.output)
         os.write(terminal.master, b"\r")
         terminal.wait_until(lambda screen: "Find: needle" not in screen and

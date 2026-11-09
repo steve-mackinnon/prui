@@ -44,6 +44,20 @@ func selectRawTarget(t *testing.T, m *Model, side string, line int) {
 	}
 	t.Fatal("target not visible", side, line)
 }
+
+func TestCommentTargetLabelUsesLineNumbers(t *testing.T) {
+	for _, side := range []string{"LEFT", "RIGHT"} {
+		target := source.ReviewCommentTarget{Path: "main.go", Side: side, Line: 123}
+		if got := commentTargetLabel(target); got != "main.go · L123" {
+			t.Fatalf("%s single-line label = %q", side, got)
+		}
+		target.StartLine = 120
+		if got := commentTargetLabel(target); got != "main.go · L120–L123" {
+			t.Fatalf("%s range label = %q", side, got)
+		}
+	}
+}
+
 func TestKeyboardRangesKeepTargetsThroughLayoutQueueEditAndRefresh(t *testing.T) {
 	for _, side := range []string{"LEFT", "RIGHT"} {
 		for _, split := range []bool{false, true} {
@@ -62,7 +76,7 @@ func TestKeyboardRangesKeepTargetsThroughLayoutQueueEditAndRefresh(t *testing.T)
 				}
 				ctrlKey(m, 'v')
 				key(m, 'j')
-				if !strings.Contains(m.reviewHints(), "start "+side+":1") || !strings.Contains(m.reviewHints(), "end "+side+":2") {
+				if !strings.Contains(m.reviewHints(), "start L1") || !strings.Contains(m.reviewHints(), "end L2") {
 					t.Fatal(m.reviewHints())
 				}
 				namedKey(m, tea.KeyEnter)
@@ -70,7 +84,7 @@ func TestKeyboardRangesKeepTargetsThroughLayoutQueueEditAndRefresh(t *testing.T)
 					t.Fatalf("lost range: %#v", m.Composer)
 				}
 				want := m.Composer.Target
-				if !strings.Contains(m.View().Content, "start 1 → end 2") {
+				if !strings.Contains(m.View().Content, "L1–L2") {
 					t.Fatal("anchors absent from editor")
 				}
 				key(m, 'x')
@@ -88,7 +102,7 @@ func TestKeyboardRangesKeepTargetsThroughLayoutQueueEditAndRefresh(t *testing.T)
 				// Layout changes leave the raw target immutable.
 				m.layout = diffLayoutUnified
 				m.Comments = nil
-				if !strings.Contains(m.View().Content, "start 1 → end 2") || m.Composer.Target != want {
+				if !strings.Contains(m.View().Content, "L1–L2") || m.Composer.Target != want {
 					t.Fatal("layout/refresh lost editor")
 				}
 			})
@@ -256,7 +270,7 @@ func TestKeyboardOldRangeCanStartEndAndSpanContext(t *testing.T) {
 			key(m, 'R')
 			m.ReviewForm.Focus = 2
 			namedKey(m, tea.KeyEnter)
-			if m.Composer == nil || m.Composer.Target != want || !strings.Contains(m.View().Content, "start 1 → end 5") {
+			if m.Composer == nil || m.Composer.Target != want || !strings.Contains(m.View().Content, "L1–L5") {
 				t.Fatal("old-context endpoint lost on edit", m.ActionError)
 			}
 		})

@@ -19,9 +19,9 @@ func commentTargetLabel(t source.ReviewCommentTarget) string {
 		return Escape(t.Path) + " · file"
 	}
 	if t.StartLine > 0 {
-		return fmt.Sprintf("%s start %d → end %d · %s", t.Side, t.StartLine, t.Line, Escape(t.Path))
+		return fmt.Sprintf("%s · L%d–L%d", Escape(t.Path), t.StartLine, t.Line)
 	}
-	return fmt.Sprintf("%s:%d %s", Escape(t.Path), t.Line, t.Side)
+	return fmt.Sprintf("%s · L%d", Escape(t.Path), t.Line)
 }
 func (m *Model) commentSelectionTarget() *source.ReviewCommentTarget {
 	if m.commitFilter.subset && m.diffReviewView() {

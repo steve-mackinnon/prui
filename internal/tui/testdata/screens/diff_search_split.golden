@@ -4,9 +4,9 @@ example/review #42                                                              
 │› main.go +1/-1                     │── main.go +1/-1                                    │ 4 matches in 1 file                                                                  │ │
 │  README.md +0/-0                   │@@ -1 +1 @@                                         │ main.go   (4)                                                                        │ │
 │                                    │    1 - old greeting                                │ ›  L1 - old greeting                                                                 │ │
-│                                    │                                                    │    R1 + hello world                                                                  │ │
-│                                    │── README.md +0/-0                                  │    R1 + hello world                                                                  │ │
-│                                    │                                                    │    R1 + hello world                                                                  │ │
+│                                    │                                                    │    L1 + hello world                                                                  │ │
+│                                    │── README.md +0/-0                                  │    L1 + hello world                                                                  │ │
+│                                    │                                                    │    L1 + hello world                                                                  │ │
 │                                    │                                                    │                                                                                      │ │
 │                                    │                                                    │                                                                                      │ │
 │                                    │                                                    │                                                                                      │ │

@@ -62,7 +62,7 @@ func (m *Model) openSuggestionComposer() tea.Cmd {
 		return nil
 	}
 	if selected.Side != "RIGHT" || selected.SubjectType != "" {
-		m.ActionError = errors.New("suggestions require right-side lines")
+		m.ActionError = errors.New("suggestions require new-file lines")
 		return nil
 	}
 	before, ok := m.targetSource(selected)

@@ -214,7 +214,7 @@ func (m *Model) commitRows() []diffLine {
 		}
 		overlay := m.commitDiscussionLines(*row.target)
 		if m.Composer != nil && m.Composer.CommitSHA == e.SHA && targetEndsAt(m.Composer.Target, *row.target) {
-			overlay = append(overlay, body(classMetadata, fmt.Sprintf("Comment on %s · %s:%d · %s", shortCommitSHA(e.SHA), Escape(row.target.Path), row.target.Line, row.target.Side))...)
+			overlay = append(overlay, body(classMetadata, fmt.Sprintf("Comment on %s · %s · L%d", shortCommitSHA(e.SHA), Escape(row.target.Path), row.target.Line))...)
 			overlay = append(overlay, m.inlineEditorLines()...)
 		}
 		if len(overlay) > 0 {
